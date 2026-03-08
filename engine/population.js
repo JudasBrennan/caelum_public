@@ -14,18 +14,21 @@
 //   FAO (2020, FAOSTAT Land Use data)
 
 import { clamp, toFinite, round, fmt } from "./utils.js";
+import { habitabilityFraction } from "./habitability/climateLivability.js";
+import { baselineHydrosphereFractionsForRegime } from "./habitability/hydrosphere.js";
 
 // ── Constants ────────────────────────────────────────────────
 
 /** Ocean surface-coverage fraction by water-regime label. */
-const OCEAN_FRACTION = {
-  Dry: 0,
-  "Shallow oceans": 0.5,
-  "Extensive oceans": 0.71,
-  "Global ocean": 0.9,
-  "Deep ocean": 0.95,
-  "Ice world": 0,
-};
+const OCEAN_FRACTION = Object.freeze(
+  ["Dry", "Shallow oceans", "Extensive oceans", "Global ocean", "Deep ocean", "Ice world"].reduce(
+    (fractions, regime) => {
+      fractions[regime] = baselineHydrosphereFractionsForRegime(regime).liquidOceanFraction;
+      return fractions;
+    },
+    {},
+  ),
+);
 
 /** People per km² of productive land by technology era. */
 const TECH_ERA_DENSITY = {
@@ -83,61 +86,11 @@ function fmtPopulation(n) {
  * @returns {{ oceanFraction: number, landFraction: number }}
  */
 export function oceanLandSplit(waterRegime) {
-  const ocean = OCEAN_FRACTION[waterRegime] ?? 0.5;
+  const ocean = OCEAN_FRACTION[waterRegime] ?? OCEAN_FRACTION["Shallow oceans"];
   return { oceanFraction: round(ocean, 3), landFraction: round(1 - ocean, 3) };
 }
 
-/**
- * Fraction of land area that is habitable, derived from climate zones.
- *
- * Zones with master class E (polar) or X (special) are excluded.
- * For latitude-band zones, area is weighted by the spherical strip
- * formula |sin(lat2) − sin(lat1)|.
- *
- * @param {Array} zones - Climate zone array from calcClimateZones().zones
- * @returns {number} 0–1 fraction
- */
-export function habitabilityFraction(zones) {
-  if (!zones || !zones.length) return 0;
-
-  // Tidally-locked: equal-weight zones
-  const isTidal = zones.some((z) =>
-    ["substellar", "terminator", "antistellar"].includes(z.cellRole),
-  );
-  if (isTidal) {
-    const hab = zones.filter((z) => z.master !== "E" && z.master !== "X");
-    return round(hab.length / zones.length, 3);
-  }
-
-  // Global single zone
-  const isGlobal = zones.length === 1 && zones[0].latMin === 0 && zones[0].latMax === 90;
-  if (isGlobal) {
-    return zones[0].master !== "E" && zones[0].master !== "X" ? 1 : 0;
-  }
-
-  // Normal latitude bands — spherical area weighting
-  let totalW = 0;
-  let habW = 0;
-  const seen = new Set();
-
-  for (const z of zones) {
-    const key = `${z.latMin}-${z.latMax}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const s1 = Math.sin((z.latMin * Math.PI) / 180);
-    const s2 = Math.sin((z.latMax * Math.PI) / 180);
-    const w = Math.abs(s2 - s1);
-    totalW += w;
-
-    const bandsHere = zones.filter((zz) => zz.latMin === z.latMin && zz.latMax === z.latMax);
-    if (bandsHere.some((zz) => zz.master !== "E" && zz.master !== "X")) {
-      habW += w;
-    }
-  }
-
-  return totalW > 0 ? round(habW / totalW, 3) : 0;
-}
+export { habitabilityFraction } from "./habitability/climateLivability.js";
 
 /**
  * Fraction of habitable land that is productive (arable or grazing-suitable).
@@ -308,6 +261,7 @@ export function calcPopulation({
   continentCount = 6,
   regionCount = 10,
   zipfExponent = 1.0,
+  hydrosphere = null,
   oceanPctOverride = null,
   habitablePctOverride = null,
   productivePctOverride = null,
@@ -318,12 +272,21 @@ export function calcPopulation({
   const surfaceAreaKm2 = 4 * Math.PI * r * r;
 
   // ── Ocean / land split ──
-  const autoOcean = oceanLandSplit(waterRegime);
+  const autoOcean =
+    hydrosphere && typeof hydrosphere === "object"
+      ? {
+          oceanFraction: clamp(toFinite(hydrosphere.liquidOceanFraction, 0), 0, 1),
+          landFraction: clamp(toFinite(hydrosphere.landFraction, 1), 0, 1),
+        }
+      : oceanLandSplit(waterRegime);
   const oceanPct =
     oceanPctOverride != null
       ? clamp(toFinite(oceanPctOverride, 71), 0, 99)
       : round(autoOcean.oceanFraction * 100, 1);
-  const landFrac = 1 - oceanPct / 100;
+  const landFrac =
+    oceanPctOverride != null
+      ? 1 - oceanPct / 100
+      : clamp(toFinite(autoOcean.landFraction, 1 - autoOcean.oceanFraction), 0, 1);
   const landAreaKm2 = surfaceAreaKm2 * landFrac;
 
   // ── Habitability ──

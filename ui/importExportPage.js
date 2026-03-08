@@ -23,7 +23,7 @@ const { normalizeWorld } = store;
 
 const TIP_LABEL = {
   Export:
-    "Export the full world model as JSON, including star, system, planets, moons, assignments, and settings.",
+    "Export the full world model as JSON, including star, system, planets, moons, moon-world inputs, assignments, and settings.",
   Backups: "Automatic restore points created before imports are applied.",
   Import:
     "Validate and import a previously exported JSON world file or a WorldSmith 8.x XLSX workbook.",
@@ -43,6 +43,8 @@ const TIP_LABEL = {
   "Import file": "Select either a JSON export file or a WorldSmith 8.x XLSX workbook.",
   "Import JSON text": "Paste JSON here for validation and import.",
   "Export JSON text": "Read-only JSON export preview.",
+  "Moon world data":
+    "Moon atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs are recalculated from the exported moon inputs when the world is loaded again.",
 };
 
 const JSON_IMPORT_LIMIT_LABEL = getImportLimitLabel("json");
@@ -162,7 +164,7 @@ export function initImportExportPage(root) {
         <div class="panel">
           <div class="panel__header"><h2>Export ${tipIcon(TIP_LABEL["Export"] || "")}</h2></div>
           <div class="panel__body">
-            <div class="hint">This exports <b>all</b> data (star, system, planets, moons, locks, slots, and settings).</div>
+            <div class="hint">This exports <b>all</b> data (star, system, planets, moons, moon-world inputs, locks, slots, and settings).</div>
             <div style="height:10px"></div>
 
             <div class="io-actions">
@@ -188,7 +190,7 @@ export function initImportExportPage(root) {
             <div style="height:14px"></div>
 
             <div class="label">Import ${tipIcon(TIP_LABEL["Import"] || "")}</div>
-            <div class="hint">Choose a previously exported JSON file, a WorldSmith 8.x XLSX workbook, or paste JSON into the box below. You will see a summary before anything is replaced.</div>
+            <div class="hint">Choose a previously exported JSON file, a WorldSmith 8.x XLSX workbook, or paste JSON into the box below. You will see a summary before anything is replaced, including a compact moon-world snapshot when moons are present.</div>
             <div style="height:10px"></div>
 
             <div class="io-actions">
@@ -221,6 +223,7 @@ export function initImportExportPage(root) {
             <li>WorldSmith Web stores your data in your browser storage (IndexedDB plus small browser settings keys), not in cookies.</li>
             <li>If you clear site data, use a different browser, or use a different device, your data will not follow you unless you export and import.</li>
             <li>Imported files are validated and migrated to the latest format automatically where possible.</li>
+            <li>Moon atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs are derived from saved moon inputs and survive save/load/import/export by recomputation.</li>
             <li>XLSX imports identify Star/System/Planet/Moon tabs by sheet structure, so tab order changes and duplicated tab copies are supported.</li>
             <li>JSON imports above ${JSON_IMPORT_LIMIT_LABEL} and XLSX imports above ${XLSX_IMPORT_LIMIT_LABEL} are rejected to keep browser imports responsive.</li>
           </ul>
@@ -345,6 +348,16 @@ export function initImportExportPage(root) {
     if (m.tecInactive) tecParts.push(`${m.tecInactive} inactive`);
     if (m.tecVolcanoes) tecParts.push(`${m.tecVolcanoes} volcano(es)`);
     if (m.tecRifts) tecParts.push(`${m.tecRifts} rift(s)`);
+    const moonWorlds = m.moonWorlds || {
+      withAtmosphere: 0,
+      withLiquidOrVapour: 0,
+      withSubsurfaceOcean: 0,
+      withSurfaceBiosphere: 0,
+    };
+    const moonWorldText =
+      m.moons > 0
+        ? `${moonWorlds.withAtmosphere} atmosphere-bearing | ${moonWorlds.withLiquidOrVapour} wet/steam | ${moonWorlds.withSubsurfaceOcean} subsurface-ocean | ${moonWorlds.withSurfaceBiosphere} non-sterile surface`
+        : "-";
 
     const grid = createElement("div", { className: "io-preview-grid" });
     const addRow = (label, value) => {
@@ -362,6 +375,7 @@ export function initImportExportPage(root) {
     );
     addRow("Planets", `${m.planets} total (${m.assigned} assigned, ${m.unassigned} unassigned)`);
     addRow("Moons", `${m.moons} total`);
+    addRow("Moon worlds", moonWorldText);
     addRow("Gas giants", `${m.gasCount} total${m.gas != null ? ` (outermost ${m.gas} AU)` : ""}`);
     addRow("Debris disks", debrisText);
     addRow("Tectonics", m.hasTectonics ? tecParts.join(", ") || "defaults" : "-");
@@ -377,7 +391,7 @@ export function initImportExportPage(root) {
       createElement("div", {
         className: "hint",
         attrs: { style: "margin-top:8px" },
-        text: "Import will replace your current saved world. A backup will be created automatically first.",
+        text: "Import will replace your current saved world. A backup will be created automatically first. Moon-world atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs are rebuilt from the imported inputs after load.",
       }),
     ]);
     return true;

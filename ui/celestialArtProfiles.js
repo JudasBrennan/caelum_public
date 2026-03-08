@@ -11,6 +11,29 @@ function countByDetail(detail, base, span) {
   return Math.max(1, Math.round(base + span * clamp(Number(detail) || 0.68, 0.2, 1.4)));
 }
 
+function hexToRgb(hex, fallback = "#bdb8aa") {
+  const raw = String(hex || "")
+    .trim()
+    .replace(/^#/, "");
+  const full = raw.length === 3 ? raw.replace(/(.)/g, "$1$1") : raw;
+  const safe = /^[0-9a-fA-F]{6}$/.test(full) ? full : fallback.replace(/^#/, "");
+  return {
+    r: parseInt(safe.slice(0, 2), 16),
+    g: parseInt(safe.slice(2, 4), 16),
+    b: parseInt(safe.slice(4, 6), 16),
+  };
+}
+
+function mixHex(hexA, hexB, t = 0.5) {
+  const a = hexToRgb(hexA);
+  const b = hexToRgb(hexB);
+  const u = clamp(Number(t), 0, 1);
+  const r = Math.round(a.r + (b.r - a.r) * u);
+  const g = Math.round(a.g + (b.g - a.g) * u);
+  const b2 = Math.round(a.b + (b.b - a.b) * u);
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b2.toString(16).padStart(2, "0")}`;
+}
+
 function continentsShapeParams(overrides = {}) {
   return {
     mode: "heightfield",
@@ -99,10 +122,16 @@ function rockyFallbackId(model = {}) {
 
 function moonFallbackId(model = {}) {
   const profile = model.moonProfile || {};
+  const explicit = normalizeId(profile.artProfileId);
+  if (explicit) return explicit;
   const displayClass = String(profile.displayClass || "").toLowerCase();
   const special = String(profile.special || "").toLowerCase();
   const tidalIntensity = Number(profile?.tidalHeating?.intensity) || 0;
+  if (special === "biosphere") return "verdant";
+  if (special === "ocean") return "oceanic";
+  if (displayClass.includes("hazy")) return "hazy-moon";
   if (special === "volcanic" || special === "molten" || tidalIntensity > 0.6) return "io";
+  if (special === "cryovolcanic") return "enceladus";
   if (special === "subsurface-ocean") return "europa";
   if (displayClass.includes("icy")) return "ganymede";
   if (displayClass.includes("dark")) return "callisto";
@@ -136,7 +165,7 @@ function rockyProfileById(profileId, model, detail) {
               warp: 0.24,
               coastErode: 0.22,
               ridgeStrength: 0.34,
-              alpha: 0.45,
+              alpha: 0.38,
             }),
           },
           {
@@ -156,8 +185,12 @@ function rockyProfileById(profileId, model, detail) {
           },
           { id: "vegetation", params: { count: countByDetail(detail, 18, 26), alpha: 0.28 } },
         ],
-        appendLayers: [{ id: "caustic-bloom", params: { colour: oceanColour, strength: 0.22 } }],
-        atmosphere: { colour: atmosphereColour, opacity: 0.18, scale: 1.08 },
+        appendLayers: [{ id: "caustic-bloom", params: { colour: oceanColour, strength: 0.3 } }],
+        atmosphere: {
+          colour: mixHex(atmosphereColour, oceanColour, 0.24),
+          opacity: 0.22,
+          scale: 1.08,
+        },
         clouds: {
           colour: cloudColour,
           opacity: 0.23,
@@ -512,7 +545,7 @@ function rockyProfileById(profileId, model, detail) {
               warp: 0.32,
               coastErode: 0.42,
               ridgeStrength: 0.3,
-              alpha: 0.38,
+              alpha: 0.32,
             }),
           },
           {
@@ -532,8 +565,12 @@ function rockyProfileById(profileId, model, detail) {
             },
           },
         ],
-        appendLayers: [{ id: "caustic-bloom", params: { colour: oceanColour, strength: 0.24 } }],
-        atmosphere: { colour: "#7ab0e0", opacity: 0.18, scale: 1.08 },
+        appendLayers: [{ id: "caustic-bloom", params: { colour: oceanColour, strength: 0.32 } }],
+        atmosphere: {
+          colour: mixHex(atmosphereColour, oceanColour, 0.28),
+          opacity: 0.2,
+          scale: 1.08,
+        },
         clouds: {
           params: cloudFieldParams({
             coverage: 0.5,
@@ -641,6 +678,12 @@ function moonProfileById(profileId, model, detail) {
         ],
         atmosphere: { colour: "#d2a36b", opacity: 0.22, scale: 1.1 },
       };
+    case "hazy-moon":
+      return {
+        profileId,
+        appendLayers: [{ id: "polar-haze", params: { alpha: 0.18, colour: "#d8b98a" } }],
+        atmosphere: { colour: "#cfab79", opacity: 0.2, scale: 1.09 },
+      };
     case "triton":
       return {
         profileId,
@@ -677,6 +720,33 @@ function moonProfileById(profileId, model, detail) {
             params: { count: countByDetail(detail, 4, 7), alpha: 0.1, colour: "#ff9e4e" },
           },
         ],
+      };
+    case "oceanic":
+      return {
+        profileId,
+        layerEdits: [
+          { id: "craters", params: { count: countByDetail(detail, 8, 16), alpha: 0.18 } },
+        ],
+        atmosphere: { colour: "#8fb7de", opacity: 0.14, scale: 1.06 },
+        clouds: {
+          colour: "#ffffff",
+          opacity: 0.18,
+          driftFactor: 1.08,
+        },
+      };
+    case "verdant":
+      return {
+        profileId,
+        layerEdits: [
+          { id: "craters", params: { count: countByDetail(detail, 6, 12), alpha: 0.14 } },
+        ],
+        appendLayers: [{ id: "polar-haze", params: { alpha: 0.08, colour: "#bfdab3" } }],
+        atmosphere: { colour: "#8fb8dd", opacity: 0.12, scale: 1.05 },
+        clouds: {
+          colour: "#f6fbff",
+          opacity: 0.16,
+          driftFactor: 1.06,
+        },
       };
     case "molten-companion":
       return {
@@ -725,7 +795,11 @@ function moonProfileById(profileId, model, detail) {
 }
 
 export function buildMoonArtProfile(model = {}, detail = 0.68) {
-  const explicitId = normalizeId(model.recipeId || model?.moonCalc?.inputs?.appearanceRecipeId);
+  const explicitId = normalizeId(
+    model.recipeId ||
+      model?.moonProfile?.artProfileId ||
+      model?.moonCalc?.inputs?.appearanceRecipeId,
+  );
   const profileId = explicitId || moonFallbackId(model);
   return moonProfileById(profileId, model, detail);
 }

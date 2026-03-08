@@ -193,7 +193,7 @@ const TIPS = {
   "Leap day delta": "Days added (+) or removed (-) when the rule applies.",
   "Leap list": "Configured leap rules. Delete to remove a rule.",
   "Suggest leap rule":
-    "Calculate a recommended ±1-day leap cycle from the source planet orbital year and add it automatically.",
+    "Calculate a recommended �1-day leap cycle from the source planet orbital year and add it automatically.",
   "Apply inputs": "Apply current input selections and regenerate the calendar context.",
   "Use selected objects":
     "Pull currently selected planet/moon from other pages into this calendar setup.",
@@ -1601,7 +1601,7 @@ function buildMonthModel(params) {
   };
 }
 
-/* ── Rule Debugger: on-demand trace for a selected day ──────────── */
+/* -- Rule Debugger: on-demand trace for a selected day ------------ */
 
 function traceRulesForDay({
   cell,
@@ -1916,7 +1916,7 @@ function buildContext(world, state) {
     state.inputs.monthsPerYear = derivedMonthsPerYear;
   }
 
-  // Convert sidereal rotation → solar day for calendar purposes.
+  // Convert sidereal rotation ? solar day for calendar purposes.
   // A calendar day is noon-to-noon (solar day), not star-to-star (sidereal day).
   // For prograde rotation: solarDay = 1 / (1/sidereal - 1/orbital)
   const orbitalHours = planetOrbitalPeriodDaysClamped * 24;
@@ -1941,7 +1941,7 @@ function buildContext(world, state) {
         ? calendarModel.lunar.yearLength
         : calendarModel.lunisolar.commonYearLength;
 
-  // Cascading overrides: months → days/month → days/week
+  // Cascading overrides: months ? days/month ? days/week
   const autoDpm = Math.max(1, Math.floor(yearLen / overrideMonths));
   const effectiveDpm =
     state.inputs.daysPerMonth != null ? clampI(state.inputs.daysPerMonth, 1, 500) : autoDpm;
@@ -3747,7 +3747,7 @@ export function initCalendarPage(mountEl) {
     if (dpwMaxLabel) dpwMaxLabel.textContent = String(dpwCeiling);
     syncSliders();
 
-    // Structure readout — use getMonthLengthsForYear to account for leap rules
+    // Structure readout � use getMonthLengthsForYear to account for leap rules
     const wpm = Math.floor(ctx.metrics.daysPerMonth / ctx.metrics.daysPerWeek);
     const weekRemainder = ctx.metrics.daysPerMonth - wpm * ctx.metrics.daysPerWeek;
     const actualMonthLengths = getMonthLengthsForYear({

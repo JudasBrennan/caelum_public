@@ -1,4 +1,4 @@
-# WorldSmith Web 1.21.1
+# WorldSmith Web 1.22.0
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, planetary systems, planets, moons, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -10,7 +10,8 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Planetary system generation with habitable zone, frost line, orbit-slot assignment, and system poster view.
 - Rocky planets with composition, atmosphere, magnetic field, tectonics, sky/vegetation colours, periapsis/apoapsis temperatures, volatile sublimation flags, and gas giant resonance.
 - Gas giants with eccentricity/inclination/tilt inputs, Christensen energy-flux dynamo, Chapman-Ferraro magnetopause with moon plasma inflation, per-species Jeans escape, and spin-orbit resonance.
-- Moons with tidal heating, tidal recession, volatile inventory, surface ices, thin atmospheres, and magnetospheric radiation.
+- Moons with atmospheres, hydrosphere states, climate, geology, biosphere outputs, moon-specific habitability, and model-driven visual recipes.
+- Unified planet and moon habitability metrics with explicit surface-water, subsurface-water, chemistry, radiation, and persistence handling.
 - Unified body rendering pipeline across Planet, System Poster, Visualiser, and Apparent views.
 - Resonance-driven debris disk suggestions and derived disk physics.
 - Tectonics with mountain ranges, shield volcanoes, rift valleys, seafloor spreading, and plate canvas with Voronoi tessellation.
@@ -175,16 +176,6 @@ Community:
 
 - Artifexian Discord: https://discord.com/invite/hPvqDBPkhg
 - Judas Brennan Discord: https://discord.gg/f63SfkW7vh
-
-## License
-
-Unless otherwise noted, first-party files in this repository are
-licensed under the Mozilla Public License 2.0. See `LICENSE`.
-
-Vendored third-party components under `ui/vendor/` and `assets/vendor/`
-are not relicensed under MPL-2.0 and remain under their original
-licenses. See `THIRD_PARTY_NOTICES.md` for the component list, scope,
-and included third-party license texts.
 
 ## Changelog
 

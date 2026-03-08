@@ -12,6 +12,7 @@
 import { clamp } from "../engine/utils.js";
 import { tintPalette } from "./renderUtils.js";
 import { renderMoonPreviewNative } from "./threeNativePreview.js";
+import { buildMoonDisplayModel } from "./moon/displayModel.js";
 
 // ── Constants ─────────────────────────────────────────────────────
 
@@ -36,6 +37,80 @@ const MOON_PALETTES = {
  */
 export function computeMoonVisualProfile(moonCalc) {
   if (!moonCalc) return fallbackProfile("unknown");
+
+  const displayModel = buildMoonDisplayModel(moonCalc);
+  if (displayModel) {
+    const paletteKey = MOON_PALETTES[displayModel.paletteKey] ? displayModel.paletteKey : "Rocky";
+    const landPalette = displayModel.landPalette
+      ? tintPalette(displayModel.landPalette, Number(moonCalc?.inputs?.albedo) || 0.11)
+      : null;
+    return {
+      bodyType: "moon",
+      displayClass: displayModel.displayClass,
+      palette: tintPalette(MOON_PALETTES[paletteKey], Number(moonCalc?.inputs?.albedo) || 0.11),
+      landPalette,
+      terrain: {
+        type: displayModel.terrainType,
+        craterDensity: displayModel.craterDensity,
+      },
+      iceCoverage: displayModel.iceCoverage,
+      iceColour: displayModel.iceColour,
+      ocean:
+        displayModel.oceanCoverage > 0
+          ? {
+              coverage: displayModel.oceanCoverage,
+              colour: displayModel.oceanColour,
+              frozen: false,
+            }
+          : null,
+      vegetation:
+        displayModel.vegetationCoverage > 0 && displayModel.vegetationColour
+          ? {
+              coverage: displayModel.vegetationCoverage,
+              colour: displayModel.vegetationColour,
+            }
+          : null,
+      clouds:
+        displayModel.cloudCoverage > 0
+          ? {
+              coverage: displayModel.cloudCoverage,
+              colour: displayModel.cloudColour,
+            }
+          : null,
+      atmosphere: {
+        thickness: displayModel.atmosphereThickness,
+        colour: displayModel.atmosphereColour,
+        hazeStrength: displayModel.hazeStrength,
+      },
+      bodyScale: displayModel.bodyScale || null,
+      bodyShape: displayModel.bodyShape || null,
+      fractures:
+        displayModel.fractureCount > 0
+          ? {
+              count: displayModel.fractureCount,
+              colour: displayModel.fractureColour,
+              alpha: displayModel.fractureAlpha,
+            }
+          : null,
+      plumes:
+        displayModel.plumeCount > 0
+          ? {
+              count: displayModel.plumeCount,
+              colour: displayModel.plumeColour,
+              alpha: clamp(0.1 + displayModel.plumeCount * 0.01, 0.12, 0.28),
+            }
+          : null,
+      tidalHeating: {
+        active: displayModel.tidalIntensity > 0.12,
+        intensity: displayModel.tidalIntensity,
+      },
+      special: displayModel.special,
+      tidallyLocked: displayModel.tidallyLocked,
+      artProfileId: displayModel.artProfileId,
+      climateState: displayModel.climateState,
+      seed: displayModel.seed,
+    };
+  }
 
   const tides = moonCalc.tides || {};
   const inputs = moonCalc.inputs || {};
@@ -80,6 +155,7 @@ export function computeMoonVisualProfile(moonCalc) {
   // 2. Terrain type and crater density
   const isCaptured = visualClass === "Rocky" && radiusMoon < 0.01;
   const isDarkIcy = visualClass === "Dark icy";
+  const isIrregularCapture = radiusMoon < 0.08 && albedo < 0.12 && heatingEarth <= 0.1;
 
   let terrainType, craterDensity;
   if (heatingEarth > 10) {
@@ -145,6 +221,8 @@ export function computeMoonVisualProfile(moonCalc) {
     special = "molten";
   } else if (density < 1.0 && albedo > 0.6) {
     special = "frozen";
+  } else if (isIrregularCapture) {
+    special = "irregular-capture";
   }
 
   return {
@@ -156,6 +234,16 @@ export function computeMoonVisualProfile(moonCalc) {
     iceColour: "#e8f0ff",
     tidalHeating: { active: tidalActive, intensity: tidalIntensity },
     atmosphere: { thickness: atmThickness, colour: atmColour },
+    bodyScale: isIrregularCapture
+      ? { x: 1.12, y: 0.82, z: 0.72 }
+      : isCaptured
+        ? { x: 1.04, y: 0.93, z: 0.86 }
+        : null,
+    bodyShape: isIrregularCapture
+      ? { kind: "lumpy-potato", profile: "irregular-capture" }
+      : isCaptured
+        ? { kind: "lumpy-potato", profile: "captured-moonlet" }
+        : null,
     special,
     tidallyLocked: locked,
     seed: String(name),
@@ -173,6 +261,8 @@ function fallbackProfile(seed) {
     iceColour: "#e8f0ff",
     tidalHeating: { active: false, intensity: 0 },
     atmosphere: { thickness: 0, colour: "#e0a840" },
+    bodyScale: null,
+    bodyShape: null,
     special: null,
     tidallyLocked: true,
     seed: String(seed),
@@ -193,6 +283,77 @@ export function drawMoonPreview(canvas, profile, opts = {}) {
   renderMoonPreviewNative(canvas, profile, opts);
 }
 /* ── Moon Recipes ─────────────────────────────────────────────────── */
+
+function makeMoonRecipePreviewCalc({
+  name,
+  radiusMoon,
+  densityGcm3,
+  albedo,
+  compositionClass = "Rocky",
+  tidalHeatingEarth = 0,
+  moonLockedToPlanet = "Yes",
+  atmosphereClass = "Airless",
+  dominantSpecies = "",
+  surfacePressureAtm = 0,
+  surfaceAccessibleLiquidFraction = 0,
+  liquidOceanFraction = 0,
+  permanentIceFraction = 0,
+  steamFraction = 0,
+  landFraction = 1,
+  subsurfaceOceanPresent = false,
+  volcanicActivityScore = 0,
+  cryovolcanicActivityScore = 0,
+  resurfacingScore = 0,
+  vegetationEligible = false,
+  plantLifeScore = 0,
+  vegetationDeepHex = null,
+  climateState = "Stable",
+} = {}) {
+  return {
+    id: String(name || "moon-recipe-preview"),
+    inputs: {
+      name: String(name || "Moon Recipe"),
+      densityGcm3: Number(densityGcm3) || 3.34,
+      albedo: Number(albedo) || 0.11,
+    },
+    physical: {
+      radiusMoon: Number(radiusMoon) || 1,
+    },
+    tides: {
+      compositionClass,
+      tidalHeatingEarth: Number(tidalHeatingEarth) || 0,
+      moonLockedToPlanet,
+    },
+    atmosphere: {
+      atmosphereClass,
+      dominantSpecies,
+      surfacePressureAtm: Number(surfacePressureAtm) || 0,
+    },
+    geology: {
+      volcanicActivityScore: Number(volcanicActivityScore) || 0,
+      cryovolcanicActivityScore: Number(cryovolcanicActivityScore) || 0,
+      resurfacingScore: Number(resurfacingScore) || 0,
+    },
+    biosphere: {
+      vegetationEligible: Boolean(vegetationEligible),
+      plantLifeScore: Number(plantLifeScore) || 0,
+      vegetation: vegetationDeepHex ? { deepHex: vegetationDeepHex } : null,
+    },
+    climate: {
+      climateState,
+    },
+    habitability: {
+      hydrosphere: {
+        surfaceAccessibleLiquidFraction: Number(surfaceAccessibleLiquidFraction) || 0,
+        liquidOceanFraction: Number(liquidOceanFraction) || 0,
+        permanentIceFraction: Number(permanentIceFraction) || 0,
+        steamFraction: Number(steamFraction) || 0,
+        landFraction: Number(landFraction) || 0,
+        subsurfaceOceanPresent: Boolean(subsurfaceOceanPresent),
+      },
+    },
+  };
+}
 
 export const MOON_RECIPES = [
   // ── Major Rocky ───────────────────────────────────────────────────
@@ -267,6 +428,7 @@ export const MOON_RECIPES = [
     id: "europa",
     label: "Europa",
     category: "Icy & Ocean",
+    hint: "Fractured ice shell over a buried ocean",
     preview: {
       tides: {
         compositionClass: "Subsurface ocean",
@@ -276,6 +438,22 @@ export const MOON_RECIPES = [
       inputs: { densityGcm3: 3.013, albedo: 0.67, name: "Europa" },
       physical: { radiusMoon: 0.9 },
     },
+    previewCalc: makeMoonRecipePreviewCalc({
+      name: "Europa",
+      radiusMoon: 0.9,
+      densityGcm3: 3.013,
+      albedo: 0.67,
+      compositionClass: "Subsurface ocean",
+      tidalHeatingEarth: 1.5,
+      atmosphereClass: "Exosphere",
+      surfacePressureAtm: 0.000001,
+      permanentIceFraction: 0.9,
+      landFraction: 0.1,
+      subsurfaceOceanPresent: true,
+      cryovolcanicActivityScore: 0.36,
+      resurfacingScore: 0.34,
+      climateState: "Snowball",
+    }),
     apply: {
       massMoon: 0.654,
       densityGcm3: 3.013,
@@ -290,6 +468,7 @@ export const MOON_RECIPES = [
     id: "enceladus",
     label: "Enceladus",
     category: "Icy & Ocean",
+    hint: "Bright cryovolcanic plume moon",
     preview: {
       tides: {
         compositionClass: "Subsurface ocean",
@@ -299,6 +478,23 @@ export const MOON_RECIPES = [
       inputs: { densityGcm3: 1.61, albedo: 0.81, name: "Enceladus" },
       physical: { radiusMoon: 0.145 },
     },
+    previewCalc: makeMoonRecipePreviewCalc({
+      name: "Enceladus",
+      radiusMoon: 0.145,
+      densityGcm3: 1.61,
+      albedo: 0.81,
+      compositionClass: "Subsurface ocean",
+      tidalHeatingEarth: 3.0,
+      atmosphereClass: "Exosphere",
+      dominantSpecies: "H\u2082O",
+      surfacePressureAtm: 0.0005,
+      permanentIceFraction: 0.94,
+      landFraction: 0.06,
+      subsurfaceOceanPresent: true,
+      cryovolcanicActivityScore: 0.76,
+      resurfacingScore: 0.58,
+      climateState: "Snowball",
+    }),
     apply: {
       massMoon: 0.001471,
       densityGcm3: 1.61,
@@ -313,6 +509,7 @@ export const MOON_RECIPES = [
     id: "titan",
     label: "Titan",
     category: "Icy & Ocean",
+    hint: "Dense methane haze atmosphere",
     preview: {
       tides: {
         compositionClass: "Mixed rock/ice",
@@ -322,6 +519,20 @@ export const MOON_RECIPES = [
       inputs: { densityGcm3: 1.882, albedo: 0.21, name: "Titan" },
       physical: { radiusMoon: 1.48 },
     },
+    previewCalc: makeMoonRecipePreviewCalc({
+      name: "Titan",
+      radiusMoon: 1.48,
+      densityGcm3: 1.882,
+      albedo: 0.21,
+      compositionClass: "Mixed rock/ice",
+      tidalHeatingEarth: 0.02,
+      atmosphereClass: "Dense volatile atmosphere",
+      dominantSpecies: "CH\u2084",
+      surfacePressureAtm: 1.45,
+      permanentIceFraction: 0.28,
+      landFraction: 0.72,
+      climateState: "Snowball",
+    }),
     apply: {
       massMoon: 1.8324,
       densityGcm3: 1.882,
@@ -336,6 +547,7 @@ export const MOON_RECIPES = [
     id: "triton",
     label: "Triton",
     category: "Icy & Ocean",
+    hint: "Bright retrograde frozen moon",
     preview: {
       tides: { compositionClass: "Icy", tidalHeatingEarth: 0.3, moonLockedToPlanet: "Yes" },
       inputs: { densityGcm3: 2.065, albedo: 0.7, name: "Triton" },
@@ -357,6 +569,7 @@ export const MOON_RECIPES = [
     id: "io",
     label: "Io",
     category: "Volcanic",
+    hint: "Sulfurous volcanic resurfacing moon",
     preview: {
       tides: {
         compositionClass: "Partially molten",
@@ -366,6 +579,17 @@ export const MOON_RECIPES = [
       inputs: { densityGcm3: 3.528, albedo: 0.63, name: "Io" },
       physical: { radiusMoon: 1.05 },
     },
+    previewCalc: makeMoonRecipePreviewCalc({
+      name: "Io",
+      radiusMoon: 1.05,
+      densityGcm3: 3.528,
+      albedo: 0.63,
+      compositionClass: "Partially molten",
+      tidalHeatingEarth: 20,
+      volcanicActivityScore: 0.92,
+      resurfacingScore: 0.88,
+      climateState: "Runaway greenhouse",
+    }),
     apply: {
       massMoon: 1.215,
       densityGcm3: 3.528,
@@ -380,6 +604,7 @@ export const MOON_RECIPES = [
     id: "molten-companion",
     label: "Molten Companion",
     category: "Volcanic",
+    hint: "Extreme tidally heated lava moon",
     preview: {
       tides: {
         compositionClass: "Partially molten",
@@ -401,6 +626,127 @@ export const MOON_RECIPES = [
   },
 
   // ── Small & Captured ──────────────────────────────────────────────
+  {
+    id: "oceanic",
+    label: "Temperate Ocean",
+    category: "Temperate & Living",
+    hint: "Ocean moon with exposed seas and cloud bands",
+    preview: {
+      tides: {
+        compositionClass: "Mixed rock/ice",
+        tidalHeatingEarth: 0.18,
+        moonLockedToPlanet: "Yes",
+      },
+      inputs: { densityGcm3: 2.65, albedo: 0.28, name: "Oceanic" },
+      physical: { radiusMoon: 1.08 },
+    },
+    previewCalc: makeMoonRecipePreviewCalc({
+      name: "Oceanic",
+      radiusMoon: 1.08,
+      densityGcm3: 2.65,
+      albedo: 0.28,
+      compositionClass: "Mixed rock/ice",
+      tidalHeatingEarth: 0.18,
+      atmosphereClass: "Substantial volatile atmosphere",
+      dominantSpecies: "N\u2082",
+      surfacePressureAtm: 0.92,
+      surfaceAccessibleLiquidFraction: 0.54,
+      liquidOceanFraction: 0.62,
+      permanentIceFraction: 0.02,
+      landFraction: 0.38,
+      climateState: "Stable",
+    }),
+    apply: {
+      massMoon: 1.05,
+      densityGcm3: 2.65,
+      albedo: 0.28,
+      semiMajorAxisKm: 640000,
+      eccentricity: 0.012,
+      inclinationDeg: 0.4,
+      compositionOverride: null,
+    },
+  },
+  {
+    id: "verdant",
+    label: "Biologically Active",
+    category: "Temperate & Living",
+    hint: "Temperate moon with oceans and surface vegetation",
+    preview: {
+      tides: {
+        compositionClass: "Rocky",
+        tidalHeatingEarth: 0.12,
+        moonLockedToPlanet: "Yes",
+      },
+      inputs: { densityGcm3: 3.08, albedo: 0.31, name: "Verdant" },
+      physical: { radiusMoon: 1.02 },
+    },
+    previewCalc: makeMoonRecipePreviewCalc({
+      name: "Verdant",
+      radiusMoon: 1.02,
+      densityGcm3: 3.08,
+      albedo: 0.31,
+      compositionClass: "Rocky",
+      tidalHeatingEarth: 0.12,
+      atmosphereClass: "Substantial volatile atmosphere",
+      dominantSpecies: "N\u2082",
+      surfacePressureAtm: 0.98,
+      surfaceAccessibleLiquidFraction: 0.44,
+      liquidOceanFraction: 0.56,
+      permanentIceFraction: 0.03,
+      landFraction: 0.41,
+      vegetationEligible: true,
+      plantLifeScore: 0.84,
+      vegetationDeepHex: "#2f6a3b",
+      climateState: "Stable",
+    }),
+    apply: {
+      massMoon: 1.12,
+      densityGcm3: 3.08,
+      albedo: 0.31,
+      semiMajorAxisKm: 420000,
+      eccentricity: 0.01,
+      inclinationDeg: 0.3,
+      compositionOverride: null,
+    },
+  },
+  {
+    id: "hazy-moon",
+    label: "Hazy Atmosphere",
+    category: "Temperate & Living",
+    hint: "Dense haze-shrouded atmosphere with muted surface detail",
+    preview: {
+      tides: {
+        compositionClass: "Mixed rock/ice",
+        tidalHeatingEarth: 0.05,
+        moonLockedToPlanet: "Yes",
+      },
+      inputs: { densityGcm3: 1.95, albedo: 0.24, name: "Hazy" },
+      physical: { radiusMoon: 1.22 },
+    },
+    previewCalc: makeMoonRecipePreviewCalc({
+      name: "Hazy",
+      radiusMoon: 1.22,
+      densityGcm3: 1.95,
+      albedo: 0.24,
+      compositionClass: "Mixed rock/ice",
+      tidalHeatingEarth: 0.05,
+      atmosphereClass: "Dense volatile atmosphere",
+      dominantSpecies: "N\u2082",
+      surfacePressureAtm: 1.65,
+      permanentIceFraction: 0.08,
+      landFraction: 0.92,
+      climateState: "Stable",
+    }),
+    apply: {
+      massMoon: 1.46,
+      densityGcm3: 1.95,
+      albedo: 0.24,
+      semiMajorAxisKm: 980000,
+      eccentricity: 0.02,
+      inclinationDeg: 0.45,
+      compositionOverride: null,
+    },
+  },
   {
     id: "phobos",
     label: "Phobos",

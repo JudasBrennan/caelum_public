@@ -76,10 +76,18 @@ import {
   computePlanetSurfaceTemperature,
   equilibriumTemperatureK,
 } from "./planet/temperature.js";
+import { calcClimateZones } from "./climate.js";
 import {
   tectonicAdvisory,
   tectonicProbabilities as calcTectonicProbabilities,
 } from "./planet/tectonics.js";
+import { buildPlanetHabitabilityContext } from "./habitability/context.js";
+import { evaluateClimateLivability } from "./habitability/stability.js";
+import {
+  computeEarthSimilarityIndex,
+  computePlanetHabitabilityIndex,
+} from "./habitability/metrics.js";
+import { hydrosphereStateFromPlanet } from "./habitability/hydrosphere.js";
 
 export { tectonicProbabilities } from "./planet/tectonics.js";
 export { computeGreenhouseTau } from "./planet/atmosphere.js";
@@ -241,6 +249,7 @@ export function calcPlanetExact({
   planet,
   moons,
   gasGiants,
+  habitabilityPolicy,
   detailLevel = "full",
 }) {
   const star = calcStar({
@@ -575,6 +584,15 @@ export function calcPlanetExact({
 
   // Climate state classification (snowball / greenhouse flags)
   const climateState = classifyClimateState(tKel, absorbedFluxWm2, watRegime !== "Dry");
+  const hydrosphere = hydrosphereStateFromPlanet({
+    waterRegime: watRegime,
+    wmfPct,
+    massEarth,
+    radiusKm,
+    surfaceTempK: tKel,
+    pressureAtm,
+    climateState,
+  });
 
   // Sky colours (after gravity + temperature are known for column-density correction)
   const sky = skyColoursFromSpectralAndPressure({
@@ -706,8 +724,80 @@ export function calcPlanetExact({
     addCell(5, "56-90°");
   }
 
+  const climateModel = calcClimateZones({
+    surfaceTempK: tKel,
+    axialTiltDeg,
+    circulationCellCount: cellCount,
+    circulationCellRanges: cellRanges,
+    h2oPct,
+    waterRegime: watRegime,
+    pressureAtm,
+    tidallyLockedToStar,
+    compositionClass: compClass,
+    liquidWaterPossible,
+    climateState,
+    insolationEarth,
+    gravityG,
+  });
+  const climateLivability = evaluateClimateLivability({
+    zones: climateModel.zones,
+    climateState,
+    tidallyLockedToStar,
+    pressureAtm,
+  });
+
   // Apparent size of star (Calculations C146)
   const apparentStarDeg = (star.radiusRsol / semiMajorAxisAu) * 0.5332;
+
+  const habitabilityContext = buildPlanetHabitabilityContext({
+    star,
+    inputs: {
+      massEarth,
+      pressureAtm,
+      wmfPct,
+      mantleOxidation: planet.mantleOxidation || "earth",
+    },
+    derived: {
+      radiusEarth,
+      densityGcm3,
+      escapeVelocityVEarth,
+      surfaceTempK: tKel,
+      insolationEarth,
+      liquidWaterPossible,
+      climateState,
+      climateLivabilityFraction: climateLivability.climateLivabilityFraction,
+      climateLivabilityScore: climateLivability.climateLivabilityScore,
+      climateStatePenalty: climateLivability.climateStatePenalty,
+      collapsePenalty: climateLivability.collapsePenalty,
+      stabilityMultiplier: climateLivability.stabilityMultiplier,
+      waterRegime: watRegime,
+      hydrosphere,
+      liquidOceanFraction: hydrosphere.liquidOceanFraction,
+      landFraction: hydrosphere.landFraction,
+      permanentIceFraction: hydrosphere.permanentIceFraction,
+      steamFraction: hydrosphere.steamFraction,
+      surfaceAccessibleLiquidFraction: hydrosphere.surfaceAccessibleLiquidFraction,
+      planetTidalHeatingEarth: planetTidalHeatingWm2 / 0.087,
+      surfaceFieldEarths: magField.surfaceFieldEarths,
+      mantleOxidationKey: planet.mantleOxidation || "earth",
+      primaryOutgassedSpecies: outgassing.primarySpecies,
+      ppO2Atm,
+      ppCO2Atm,
+      ppArAtm,
+      ppN2Atm,
+      ppH2OAtm,
+      ppCH4Atm,
+      ppH2Atm,
+      ppHeAtm,
+      ppSO2Atm,
+      ppNH3Atm,
+      jeansEscape: { species: jeansSpecies, xuvFluxRatio: fXuvRatio },
+    },
+  });
+  const earthSimilarity = computeEarthSimilarityIndex(habitabilityContext);
+  const planetaryHabitability = computePlanetHabitabilityIndex(habitabilityContext, {
+    solventPolicy: habitabilityPolicy,
+  });
 
   return {
     star,
@@ -786,6 +876,18 @@ export function calcPlanetExact({
       surfaceTempC: tC,
       absorbedFluxWm2,
       climateState,
+      climateLivabilityFraction: climateLivability.climateLivabilityFraction,
+      climateLivabilityScore: climateLivability.climateLivabilityScore,
+      climateStatePenalty: climateLivability.climateStatePenalty,
+      collapsePenalty: climateLivability.collapsePenalty,
+      stabilityMultiplier: climateLivability.stabilityMultiplier,
+      climateStabilityNotes: climateLivability.notes,
+      hydrosphere,
+      liquidOceanFraction: hydrosphere.liquidOceanFraction,
+      landFraction: hydrosphere.landFraction,
+      permanentIceFraction: hydrosphere.permanentIceFraction,
+      steamFraction: hydrosphere.steamFraction,
+      surfaceAccessibleLiquidFraction: hydrosphere.surfaceAccessibleLiquidFraction,
 
       horizonKm,
 
@@ -848,6 +950,13 @@ export function calcPlanetExact({
       circulationCellRanges: cellRanges,
 
       apparentStarDeg,
+
+      earthSimilarityIndex: earthSimilarity.score,
+      earthSimilarityBreakdown: earthSimilarity.components,
+      habitabilityIndex: planetaryHabitability.score,
+      habitabilityModelVersion: planetaryHabitability.version,
+      habitabilityPolicyVersion: planetaryHabitability.breakdown.solventPolicyVersion,
+      habitabilityBreakdown: planetaryHabitability.breakdown,
 
       // Classification & composition (Phase A)
       bodyClass: bClass,
@@ -924,6 +1033,8 @@ export function calcPlanetExact({
       atmWeight: fmt(atmWeightKgMol, 5) + " kg/mol",
       atmDensity: fmt(atmDensityKgM3, 4) + " kg/m³",
       apparentStar: fmt(apparentStarDeg, 3) + "°",
+      earthSimilarityIndex: fmt(earthSimilarity.score, 3),
+      habitabilityIndex: fmt(planetaryHabitability.score, 3),
       insolation: fmt(insolationEarth, 3) + "× Earth",
       tidalLock: atmospherePreventsLocking
         ? "Atmosphere-stabilised"

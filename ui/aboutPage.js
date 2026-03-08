@@ -10,7 +10,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 1.21.1</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 1.22.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, planetary systems, rocky worlds, gas giants, moons, and debris disks with
           real astrophysics. Model tectonics, climate zones, atmospheres, populations, and calendars.
           Explore your creations in an interactive 3D visualiser with procedural textures, or study
@@ -52,9 +52,10 @@ export function initAboutPage(mountEl) {
           <li>Click the <b>Tutorials</b> button in any page header for a step-by-step guide to that page&rsquo;s workflow. Your position is remembered across sessions.</li>
         </ul>
 
-        <p style="margin-top:18px">
+        <div class="about-actions">
           <button class="btn btn--accent" id="openChangelog" type="button">View Changelog</button>
-        </p>
+          <button class="btn" id="openLicense" type="button">View License</button>
+        </div>
 
         <p class="hint" style="margin-top:14px">
           This is a static web app (HTML/CSS/JS) and can be hosted anywhere that serves static files.
@@ -66,6 +67,7 @@ export function initAboutPage(mountEl) {
   mountEl.appendChild(el);
 
   el.querySelector("#openChangelog").addEventListener("click", openChangelog);
+  el.querySelector("#openLicense").addEventListener("click", openLicense);
 }
 
 /* ── Changelog toast ──────────────────────────────────────── */
@@ -246,6 +248,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Discovered electromagnetic induction and established the experimental foundations of field theory, shaping how modern physics connects invisible structure to observable behavior.",
   },
+  "1.22.0": {
+    name: "Carl Sagan",
+    born: 1934,
+    died: 1996,
+    country: "United States",
+    summary:
+      "Connected planetary science, climate, and the search for life into one public vision of inhabited worlds, helping define how modern astronomy imagines living moons and planets.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -274,18 +284,26 @@ function release(version, note, items, { open = false } = {}) {
 function changelogHTML() {
   return [
     release(
-      "1.21.1",
-      "(from 1.21.0)",
+      "1.22.0",
+      "(from 1.21.1)",
       [
-        "<b>Physics Corrections</b> &mdash; Fixed several star, planet, and moon edge cases. Evolved high-metallicity stars no longer produce non-physical radii, CMF auto-calc now follows host-star metallicity, and retrograde moon orbital-fate cases behave more plausibly.",
-        "<b>Visualizer Rotation Fix</b> &mdash; Corrected the visualiser spin convention so planets and moons now rotate in the proper direction relative to their orbits, including retrograde cases.",
-        "<b>Tectonics Input Fix</b> &mdash; Active mountain-range text boxes on the Tectonics page no longer drop focus as soon as you click into them, so manual numeric editing works normally again.",
-        "<b>Safer Updates</b> &mdash; Release updates are now more resilient to stale browser cache. WorldSmith keeps release-busted entry URLs and can detect a newer deployed version before reloading into the current build.",
-        "<b>Route Resilience</b> &mdash; The Planet page now handles incomplete slider/input states more gracefully, reducing crashes caused by mixed-cache or partial render states during startup.",
-        "<b>Detail &amp; Readability Polish</b> &mdash; Rocky-planet Radius and Gravity cards now show exact SI secondary values, and the main reading areas use roomier line spacing for easier scanning.",
+        "<b>Moon Worlds</b> &mdash; Moons now model atmosphere, hydrosphere, climate, geology, biosphere, and habitability as one connected world state. You can build frozen ocean moons, hazy moons, volcanic moons, and biologically active moons from the same Moon workflow.",
+        "<b>Moon Visuals</b> &mdash; Moon previews and recipes now react to modeled oceans, haze, vegetation, cryovolcanism, and captured-body shape. Irregular moons render as lumpy bodies, and atmospheric moons use a softer limb haze instead of the old solid aura.",
+        "<b>Unified Habitability</b> &mdash; Planet and Moon habitability now use one shared PHI model with explicit surface-water, subsurface-water, chemistry, radiation, and persistence handling. Subsurface-ocean moons can now score honestly without implying exposed surface life.",
+        "<b>Moon Workflow Integration</b> &mdash; Moon-world state now survives save, load, import, and export, and it appears in the Visualiser focus panel. The Lessons and Science pages now explain the moon-world model and the surface-versus-subsurface distinction.",
+        "<b>Preset and Visual Refresh</b> &mdash; The Sol preset was refreshed to stay aligned with the new moon and habitability models, and Earth-like shallow-ocean rocky worlds now render with a clearer blue-ocean balance.",
       ],
       { open: true },
     ),
+    release("1.21.1", "(from 1.21.0)", [
+      "<b>Habitability Metrics Beta</b> &mdash; Rocky planets now show an Earth Similarity Index and a clearly-labeled Habitability Score (Beta). The new score is a first-pass comparative metric built from substrate, solvent, energy, and chemistry terms, and it is hidden on gas giants.",
+      "<b>Physics Corrections</b> &mdash; Fixed several star, planet, and moon edge cases. Evolved high-metallicity stars no longer produce non-physical radii, CMF auto-calc now follows host-star metallicity, and retrograde moon orbital-fate cases behave more plausibly.",
+      "<b>Visualizer Rotation Fix</b> &mdash; Corrected the visualiser spin convention so planets and moons now rotate in the proper direction relative to their orbits, including retrograde cases.",
+      "<b>Tectonics Input Fix</b> &mdash; Active mountain-range text boxes on the Tectonics page no longer drop focus as soon as you click into them, so manual numeric editing works normally again.",
+      "<b>Safer Updates</b> &mdash; Release updates are now more resilient to stale browser cache. WorldSmith keeps release-busted entry URLs and can detect a newer deployed version before reloading into the current build.",
+      "<b>Route Resilience</b> &mdash; The Planet page now handles incomplete slider/input states more gracefully, reducing crashes caused by mixed-cache or partial render states during startup.",
+      "<b>Detail &amp; Readability Polish</b> &mdash; Rocky-planet Radius and Gravity cards now show exact SI secondary values, and the main reading areas use roomier line spacing for easier scanning.",
+    ]),
     release("1.21.0", "(from 1.20.0)", [
       "<b>Input Stability</b> &mdash; Text entry on the Star, Planet, and Moon pages no longer fights your typing. Draft numbers now stay in the field while you edit, making precise manual entry far more reliable on mobile keyboards.",
       "<b>Save Recovery</b> &mdash; WorldSmith now detects unreadable saved data and shows a recovery flow instead of silently resetting to a blank world. You can clear only the broken current save while keeping backup worlds available for restore.",
@@ -461,6 +479,38 @@ function changelogHTML() {
 }
 
 function openChangelog() {
+  openAboutToast("Changelog", changelogHTML());
+}
+
+function openLicense() {
+  openAboutToast(
+    "License",
+    `<div class="about-license">
+      <p>
+        <b>WorldSmith Web source code</b>, including its rendering and image-generation code,
+        is released under the <b>Mozilla Public License 2.0 (MPL-2.0)</b>.
+      </p>
+      <p>
+        The MPL-2.0 applies to the software code itself. <b>Generated output</b>, such as worlds,
+        images, charts, and exports created with WorldSmith, is user output and is not automatically
+        licensed under the MPL-2.0 just because the app created it.
+      </p>
+      <p>
+        <b>You may use, modify, publish, and share your generated output however you see fit.</b>
+      </p>
+      <p>
+        Third-party components remain under their own licenses. For the full license text and
+        third-party notices, see the public repository:
+      </p>
+      <ul>
+        <li><a href="https://github.com/JudasBrennan/worldsmith_public/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MPL-2.0 License</a></li>
+        <li><a href="https://github.com/JudasBrennan/worldsmith_public/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener noreferrer">Third-Party Notices</a></li>
+      </ul>
+    </div>`,
+  );
+}
+
+function openAboutToast(title, bodyHTML) {
   if (document.querySelector(".changelog-backdrop")) return;
 
   const backdrop = document.createElement("div");
@@ -468,10 +518,10 @@ function openChangelog() {
   backdrop.innerHTML = `
     <div class="changelog-toast">
       <div class="changelog-toast__header">
-        <h2 class="changelog-toast__title">Changelog</h2>
+        <h2 class="changelog-toast__title">${title}</h2>
         <button class="changelog-toast__close" type="button" aria-label="Close">&times;</button>
       </div>
-      <div class="changelog-toast__body">${changelogHTML()}</div>
+      <div class="changelog-toast__body">${bodyHTML}</div>
     </div>`;
 
   document.body.appendChild(backdrop);

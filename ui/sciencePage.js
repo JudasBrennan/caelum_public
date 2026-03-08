@@ -913,6 +913,21 @@ function buildOrbitalMechanics() {
       )}
       ${cite("Fray & Schmitt (2009, PSS 57, 2053); Jeans (1916) — atmospheric escape theory; Chamberlain (1963) — hydrodynamic escape timescale")}`,
     ),
+
+    formula(
+      "Moon Worlds in WorldSmith",
+      `<p>WorldSmith&rsquo;s moon-world outputs are built as a layered model rather than a single published formula. The Moon page combines atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs into one reference state for each moon.</p>
+      <ul style="font-size:13px;color:var(--muted);margin:4px 0 4px 18px">
+        <li><b>Atmosphere</b> combines volatile availability, escape, source type, and greenhouse or anti-greenhouse behaviour.</li>
+        <li><b>Hydrosphere</b> separates dry, surface-ocean, frozen-surface, subsurface-ocean, and steam states, including high-pressure-ice barriers where applicable.</li>
+        <li><b>Climate</b> adds parent reflected light, parent thermal flux, eclipse duty cycle, tidal and radiogenic heating, and synchronous contrast to the star-driven equilibrium temperature.</li>
+        <li><b>Geology</b> tracks volcanic or cryovolcanic resurfacing, volatile replenishment, and whether an internal ocean is likely to persist.</li>
+        <li><b>Biosphere</b> is surface-only: exposed biology and plant-life outputs require accessible surface liquid, adequate atmosphere, tolerable radiation, and livable surface climate.</li>
+        <li><b>Habitability</b> can score both exposed surface solvent and buried subsurface solvent, so a moon can rate as chemically or physically promising without supporting an exposed biosphere.</li>
+      </ul>
+      <p><b>Surface vs. subsurface:</b> a buried ocean below an ice shell can raise the moon&rsquo;s internal or comparative habitability score, but it does <em>not</em> by itself imply surface life, plant life, or an Earth-like surface environment. Surface biosphere outputs remain tied to exposed surface conditions.</p>
+      <p><b>Reference inputs:</b> this moon-world layer sits on top of the tidal heating, moon temperature, magnetospheric radiation, and volatile-retention blocks documented above, then adds WorldSmith&rsquo;s own hydrosphere, geology, biosphere, and integrated habitability policy layers.</p>`,
+    ),
   ].join("");
 }
 

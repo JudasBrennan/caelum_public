@@ -12,6 +12,7 @@
 //   drawRockyPlanetViz()         → 8–20 px system poster scale
 
 import { clamp } from "../engine/utils.js";
+import { hydrosphereStateFromPlanet } from "../engine/habitability/hydrosphere.js";
 import { tintPalette } from "./renderUtils.js";
 import { renderRockyPreviewNative } from "./threeNativePreview.js";
 
@@ -27,23 +28,14 @@ const SURFACE_PALETTES = {
   "Ocean world": { c1: "#4a8cb0", c2: "#2a5c80", c3: "#1a3450" },
 };
 
-const OCEAN_COVERAGE = {
-  Dry: 0,
-  "Shallow oceans": 0.3,
-  "Extensive oceans": 0.65,
-  "Global ocean": 0.95,
-  "Deep ocean": 1.0,
-  "Ice world": 0,
-};
-
 const OCEAN_COLOURS = {
-  "Earth-like": "#1a4a7a",
+  "Earth-like": "#2b7fca",
   "Mars-like": "#2a4a5a",
   Coreless: "#2a5a6a",
-  "Ocean world": "#1a3a6a",
+  "Ocean world": "#256fbf",
   "Ice world": "#3a6a8a",
 };
-const DEFAULT_OCEAN_COLOUR = "#1a4a7a";
+const DEFAULT_OCEAN_COLOUR = "#2b7fca";
 
 // ── Profile computation ──────────────────────────────────────────
 
@@ -65,9 +57,27 @@ function iceCapsFromTemp(tempK, axialTiltDeg) {
   };
 }
 
+function resolveHydrosphere(derived, inputs) {
+  if (derived?.hydrosphere && typeof derived.hydrosphere === "object") {
+    return derived.hydrosphere;
+  }
+  const explicitWmf = Number(inputs?.wmfPct ?? derived?.wmfPct);
+  return hydrosphereStateFromPlanet({
+    waterRegime:
+      derived?.waterRegime || (Number.isFinite(explicitWmf) && explicitWmf > 0 ? undefined : "Dry"),
+    wmfPct: inputs?.wmfPct ?? derived?.wmfPct,
+    massEarth: inputs?.massEarth ?? derived?.massEarth,
+    radiusKm: derived?.radiusKm,
+    surfaceTempK: derived?.surfaceTempK,
+    pressureAtm: inputs?.pressureAtm ?? derived?.pressureAtm,
+    climateState: derived?.climateState,
+  });
+}
+
 export function computeRockyVisualProfile(derived, inputs) {
   const d = derived || {};
   const inp = inputs || {};
+  const hydrosphere = resolveHydrosphere(d, inp);
 
   // Palette — tinted by albedo when available
   const basePalette = SURFACE_PALETTES[d.compositionClass] || SURFACE_PALETTES["Earth-like"];
@@ -75,14 +85,18 @@ export function computeRockyVisualProfile(derived, inputs) {
   const palette = Number.isFinite(albedo) ? tintPalette(basePalette, albedo) : basePalette;
 
   // Ocean
-  const oceanCoverage = OCEAN_COVERAGE[d.waterRegime] ?? 0;
+  const oceanCoverage = clamp(
+    Number(hydrosphere.liquidOceanFraction || 0) + Number(hydrosphere.permanentIceFraction || 0),
+    0,
+    1,
+  );
   const oceanColour = OCEAN_COLOURS[d.compositionClass] || DEFAULT_OCEAN_COLOUR;
   const tempK = d.surfaceTempK || 288;
-  const frozen = tempK < 273 && oceanCoverage > 0;
+  const frozen = Number(hydrosphere.permanentIceFraction || 0) > 0 && oceanCoverage > 0;
 
   // Ice caps
   let iceCaps;
-  if (d.waterRegime === "Ice world") {
+  if (d.waterRegime === "Ice world" || Number(hydrosphere.permanentIceFraction || 0) >= 0.95) {
     iceCaps = { north: 1, south: 1, colour: "#e8f0ff" };
   } else {
     iceCaps = iceCapsFromTemp(tempK, Number(inp.axialTiltDeg) || 0);
@@ -129,8 +143,9 @@ export function computeRockyVisualProfile(derived, inputs) {
   // Vegetation
   let vegCoverage = 0;
   let vegColour = null;
-  if (d.vegetationPaleHex && tempK >= 200 && tempK <= 400 && oceanCoverage < 0.95) {
-    vegCoverage = clamp(0.35 * (1 - oceanCoverage), 0, 0.4);
+  const landFraction = clamp(Number(hydrosphere.landFraction || 0), 0, 1);
+  if (d.vegetationPaleHex && tempK >= 200 && tempK <= 400 && landFraction > 0.05) {
+    vegCoverage = clamp(0.35 * landFraction, 0, 0.4);
     vegColour = d.vegetationDeepHex || d.vegetationPaleHex;
   }
 

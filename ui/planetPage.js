@@ -156,6 +156,10 @@ const TIP_LABEL = {
     "Surface water state derived from water mass fraction (WMF).\n\nDry: < 0.01% WMF\nShallow oceans: 0.01\u20130.1% WMF (Earth ~0.02%\u2014thin but widespread oceans)\nExtensive oceans: 0.1\u20131% WMF (deeper oceans, less exposed land)\nGlobal ocean: 1\u201310% WMF (no exposed land)\nDeep ocean: 10\u201330% WMF (high-pressure ice at seafloor)\nIce world: > 30% WMF",
   "Climate State":
     "Global climate stability classification based on surface temperature and absorbed stellar flux.\n\nStable: normal climate regime.\nSnowball: global glaciation from ice-albedo feedback (T < 240 K with surface water).\nMoist greenhouse: stratospheric water vapour enables hydrogen escape, risking long-term ocean loss (T > 340 K).\nRunaway greenhouse: absorbed flux exceeds the outgoing radiation limit; surface water boils off (flux > 282 W/m\u00b2).\n\nDry worlds are always classified as Stable.\n\nReference: Goldblatt et al. (2013); Kasting (1988); Budyko (1969).",
+  "Earth Similarity Index":
+    "Earth Similarity Index (ESI) is a 0-1 Earth-likeness score based on radius, density, escape velocity, and average surface temperature.\n\n1.0 = Earth-like across those four inputs. Lower values indicate a less Earth-like rocky world.\n\nESI is not a direct habitability verdict.",
+  "Planetary Habitability Index":
+    "Unified rocky-world habitability index shown on a 0-1 scale (phi-unified-v1).\n\nBuilt from substrate, solvent, energy, chemistry, stability, radiation, and persistence. The current default policy supports surface water and subsurface water. Alternative solvents remain disabled by default unless the policy is explicitly expanded.\n\nThis is a comparative guide, not a final scientific verdict.",
   "Magnetic Field":
     "Estimated surface magnetic field strength relative to Earth (1.0\u00d7 = Earth's field).\n\nUses simplified Olson & Christensen (2006) dynamo scaling: field strength depends on core size, bulk density, heat flux, and core solidification state.\n\nTidal heating from assigned moons can extend core liquid lifetime, potentially sustaining a dynamo that would otherwise shut down. Shown as 'tidally sustained' when moon heating exceeds 10% of the planet's internal heat budget.\n\nA dipolar field (like Earth's) provides strong magnetospheric protection. Multipolar fields (slow rotators, P > ~96 h) are ~20\u00d7 weaker at the surface.\n\nStrong (> 0.5\u00d7): good protection from stellar wind\nModerate (0.1\u20130.5\u00d7): partial protection\nWeak (< 0.1\u00d7): minimal protection\nNone: no active dynamo",
   "Moon Tidal Heating":
@@ -977,6 +981,13 @@ export function initPlanetPage(mountEl) {
       isoEffEl.textContent = `Effective abundance: ${fmt(Math.max(a, 0.01), 2)}\u00d7 Earth`;
     }
 
+    const habitabilityPolicyLabel = d.habitabilityBreakdown?.supportedSolventPathways
+      ?.alternativeSolvents
+      ? "surface + subsurface + alt solvents"
+      : d.habitabilityBreakdown?.supportedSolventPathways?.subsurfaceWater
+        ? "surface + subsurface water"
+        : "surface water only";
+
     const items = [
       {
         label: "Appearance",
@@ -1029,6 +1040,15 @@ export function initPlanetPage(mountEl) {
         meta: `Absorbed flux: ${model.display.absorbedFlux}`,
       },
       {
+        label: "Earth Similarity Index",
+        value: model.display.earthSimilarityIndex,
+        meta:
+          `Radius ${fmt(d.earthSimilarityBreakdown?.radius ?? 0, 2)} | ` +
+          `Density ${fmt(d.earthSimilarityBreakdown?.density ?? 0, 2)} | ` +
+          `Escape ${fmt(d.earthSimilarityBreakdown?.escapeVelocity ?? 0, 2)} | ` +
+          `Temp ${fmt(d.earthSimilarityBreakdown?.surfaceTemp ?? 0, 2)}`,
+      },
+      {
         label: "Year Length",
         tipLabel: "Year length",
         value: model.display.yearDays,
@@ -1042,6 +1062,19 @@ export function initPlanetPage(mountEl) {
         label: "Water Regime",
         value: model.display.waterRegime,
         meta: `~${fmt(model.inputs.wmfPct, 2)}% water by mass`,
+      },
+      {
+        label: "Planetary Habitability Index",
+        value: model.display.habitabilityIndex,
+        meta:
+          `Substrate ${fmt(d.habitabilityBreakdown?.substrate ?? 0, 2)} | ` +
+          `Solvent ${fmt(d.habitabilityBreakdown?.solvent ?? 0, 2)} | ` +
+          `Energy ${fmt(d.habitabilityBreakdown?.energy ?? 0, 2)} | ` +
+          `Chemistry ${fmt(d.habitabilityBreakdown?.chemistry ?? 0, 2)}\n` +
+          `Stability ${fmt(d.habitabilityBreakdown?.stabilityMultiplier ?? 0, 2)} | ` +
+          `Radiation ${fmt(d.habitabilityBreakdown?.radiationMultiplier ?? 0, 2)} | ` +
+          `Persistence ${fmt(d.habitabilityBreakdown?.persistenceMultiplier ?? 0, 2)}\n` +
+          `${d.habitabilityModelVersion || "phi-unified-v1"} | ${habitabilityPolicyLabel}`,
       },
       model.display.moonTidalHeating && {
         label: "Moon Tidal Heating",

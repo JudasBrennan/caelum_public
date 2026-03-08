@@ -105,6 +105,38 @@ export function buildImportPreviewSummary(world, { rawWorld = world } = {}) {
   const gasAuList = gasGiants
     .map((entry) => Number(entry?.orbitAu))
     .filter((orbitAu) => Number.isFinite(orbitAu) && orbitAu > 0);
+  const moonSummaries = Object.values(snapshot.moonsById || {});
+  const moonWorlds = moonSummaries.reduce(
+    (counts, moon) => {
+      const atmosphereClass = String(moon?.atmosphereClass || "");
+      const hydrosphereState = String(moon?.hydrosphereState || "");
+      const biosphereClass = String(moon?.biosphereClass || "");
+
+      if (atmosphereClass && atmosphereClass !== "Airless" && atmosphereClass !== "Exosphere") {
+        counts.withAtmosphere += 1;
+      }
+      if (
+        hydrosphereState &&
+        hydrosphereState !== "Dry surface" &&
+        hydrosphereState !== "Surface ice" &&
+        hydrosphereState !== "Ice shell" &&
+        hydrosphereState !== "Frozen surface"
+      ) {
+        counts.withLiquidOrVapour += 1;
+      }
+      if (moon?.subsurfaceOcean) counts.withSubsurfaceOcean += 1;
+      if (biosphereClass && biosphereClass !== "Surface sterile") {
+        counts.withSurfaceBiosphere += 1;
+      }
+      return counts;
+    },
+    {
+      withAtmosphere: 0,
+      withLiquidOrVapour: 0,
+      withSubsurfaceOcean: 0,
+      withSurfaceBiosphere: 0,
+    },
+  );
 
   return {
     spec: String(
@@ -131,6 +163,7 @@ export function buildImportPreviewSummary(world, { rawWorld = world } = {}) {
     tecInactive: Array.isArray(tectonics?.inactiveRanges) ? tectonics.inactiveRanges.length : 0,
     hasPopulation: !!population,
     popTechEra: population?.techEra || null,
+    moonWorlds,
     hasClimate: !!climate,
     climAltitude: climate ? Number(climate.altitudeM) || 0 : 0,
     hasCalendar: !!calendar,

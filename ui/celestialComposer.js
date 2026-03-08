@@ -1203,9 +1203,14 @@ function moonLayers(model, detail) {
   const p = model.moonProfile || computeMoonVisualProfile(null);
   const craterDensity = clamp(Number(p?.terrain?.craterDensity) || 0, 0, 1);
   const iceCoverage = clamp(Number(p?.iceCoverage) || 0, 0, 1);
+  const oceanCoverage = clamp(Number(p?.ocean?.coverage) || 0, 0, 1);
+  const vegetationCoverage = clamp(Number(p?.vegetation?.coverage) || 0, 0, 1);
+  const cloudCoverage = clamp(Number(p?.clouds?.coverage) || 0, 0, 1);
   const tidalIntensity = clamp(Number(p?.tidalHeating?.intensity) || 0, 0, 1);
   const hasVolcanic = p?.special === "volcanic" || p?.special === "molten" || tidalIntensity > 0.45;
-  const hasOceanCracks = p?.special === "subsurface-ocean";
+  const hasOceanCracks = p?.special === "subsurface-ocean" || Number(p?.fractures?.count) > 0;
+  const hasPlumes = Number(p?.plumes?.count) > 0;
+  const landFraction = clamp(1 - oceanCoverage, 0.05, 0.95);
 
   const layers = [
     {
@@ -1221,6 +1226,34 @@ function moonLayers(model, detail) {
       params: { amount: Math.round(120 + 380 * detail), alpha: 0.05 + detail * 0.05 },
     },
   ];
+
+  if (oceanCoverage > 0.03) {
+    layers.push({
+      id: "ocean-fill",
+      params: {
+        coverage: oceanCoverage,
+        colour: normalizeHex(p?.ocean?.colour || "#2b628e"),
+        frozen: !!p?.ocean?.frozen,
+      },
+    });
+    layers.push({
+      id: "continents",
+      params: {
+        mode: "heightfield",
+        landFraction,
+        macroScale: clamp(0.82 + (1 - oceanCoverage) * 0.42 + detail * 0.12, 0.55, 1.5),
+        warp: clamp(0.18 + oceanCoverage * 0.18, 0.1, 0.42),
+        coastErode: clamp(0.18 + oceanCoverage * 0.28, 0.12, 0.5),
+        ridgeStrength: clamp(0.18 + (1 - oceanCoverage) * 0.22, 0.14, 0.52),
+        edgeSoftness: 0.03,
+        count: Math.round((2 + detail * 5) * Math.max(0.2, 1 - oceanCoverage * 0.8)),
+        alpha: clamp((1 - oceanCoverage) * 0.7, 0.14, 0.76),
+        c1: normalizeHex(p?.landPalette?.c1 || p?.palette?.c1 || "#b8b0a8"),
+        c2: normalizeHex(p?.landPalette?.c2 || p?.palette?.c2 || "#888078"),
+        c3: normalizeHex(p?.landPalette?.c3 || p?.palette?.c3 || "#4a4540"),
+      },
+    });
+  }
 
   if (iceCoverage > 0.03) {
     layers.push({
@@ -1240,13 +1273,24 @@ function moonLayers(model, detail) {
     },
   });
 
+  if (vegetationCoverage > 0.03 && p?.vegetation?.colour) {
+    layers.push({
+      id: "vegetation",
+      params: {
+        alpha: clamp(0.12 + vegetationCoverage * 0.5, 0.08, 0.42),
+        colour: normalizeHex(p.vegetation.colour, "#2f6a39"),
+        count: Math.round(6 + detail * 8),
+      },
+    });
+  }
+
   if (hasOceanCracks) {
     layers.push({
       id: "fractures",
       params: {
-        count: Math.round(4 + 8 * detail),
-        colour: "#8fd5ff",
-        alpha: 0.34,
+        count: Math.round(Number(p?.fractures?.count) || 4 + 8 * detail),
+        colour: normalizeHex(p?.fractures?.colour || "#8fd5ff"),
+        alpha: clamp(Number(p?.fractures?.alpha) || 0.34, 0.1, 0.5),
       },
     });
   }
@@ -1263,16 +1307,51 @@ function moonLayers(model, detail) {
     });
   }
 
+  if (hasPlumes) {
+    layers.push({
+      id: "plume-haze",
+      params: {
+        count: Math.round(Number(p?.plumes?.count) || 4 + detail * 6),
+        alpha: clamp(Number(p?.plumes?.alpha) || 0.16, 0.08, 0.28),
+        colour: normalizeHex(p?.plumes?.colour || "#c4efff"),
+      },
+    });
+  }
+
+  if (cloudCoverage > 0.04) {
+    layers.push({
+      id: "clouds",
+      params: {
+        count: Math.round(8 + detail * 14 + cloudCoverage * 12),
+        alpha: clamp(0.1 + cloudCoverage * 0.34, 0.08, 0.42),
+        colour: normalizeHex(p?.clouds?.colour || "#ffffff"),
+        coverage: clamp(cloudCoverage, 0, 0.92),
+        macroScale: clamp(3 + detail * 1.6 + cloudCoverage * 1.6, 2.4, 6.8),
+        detailScale: clamp(18 + detail * 14 + cloudCoverage * 10, 14, 40),
+        warp: clamp(0.12 + cloudCoverage * 0.12, 0.08, 0.28),
+        edgeSoftness: clamp(0.05 - cloudCoverage * 0.02, 0.018, 0.06),
+        latitudeBands: clamp(1.6 + cloudCoverage * 1.4, 1.2, 3.8),
+        aniso: clamp(0.12 + cloudCoverage * 0.16, 0.08, 0.34),
+        selfShadow: clamp(0.42 + cloudCoverage * 0.24, 0.36, 0.72),
+      },
+    });
+  }
+
   const atmosphereThickness = clamp(Number(p?.atmosphere?.thickness) || 0, 0, 0.1);
   const base = {
     layers,
     atmosphere: {
       enabled: atmosphereThickness > 0.001,
       colour: normalizeHex(p?.atmosphere?.colour || "#9db8de"),
-      opacity: clamp(0.06 + atmosphereThickness * 3, 0.05, 0.28),
+      opacity: clamp(Number(p?.atmosphere?.opacity) || 0.06 + atmosphereThickness * 3, 0.05, 0.32),
       scale: 1 + atmosphereThickness * 1.6,
     },
-    clouds: { enabled: false },
+    clouds: {
+      enabled: cloudCoverage > 0.04,
+      colour: normalizeHex(p?.clouds?.colour || "#ffffff"),
+      opacity: clamp(0.08 + cloudCoverage * 0.28, 0.08, 0.34),
+      scale: 1.016 + cloudCoverage * 0.05,
+    },
     ring: { enabled: false },
   };
 
@@ -1318,6 +1397,14 @@ export function composeCelestialDescriptor(inputModel, opts = {}) {
     aurora: composed.aurora || { enabled: false },
     gasVisual: model.bodyType === "gasGiant" ? composed.gasVisual || null : null,
     flattenStyleMaps,
+    bodyScale:
+      model.bodyType === "moon" && model?.moonProfile?.bodyScale
+        ? { ...model.moonProfile.bodyScale }
+        : null,
+    bodyShape:
+      model.bodyType === "moon" && model?.moonProfile?.bodyShape
+        ? { ...model.moonProfile.bodyShape }
+        : null,
   };
 }
 
@@ -1358,7 +1445,8 @@ const LAYER_MODULES = {
   "ocean-fill": {
     paint(ctx, size, layer) {
       const p = layer.params || {};
-      const alpha = clamp(0.12 + Number(p.coverage || 0) * 0.65, 0, 0.78);
+      const coverage = clamp(Number(p.coverage || 0), 0, 1);
+      const alpha = clamp(0.14 + Math.sqrt(coverage) * 0.58, 0, 0.82);
       const colour = p.frozen ? mixHex(p.colour || "#1a4a7a", "#d8f1ff", 0.35) : p.colour;
       ctx.fillStyle = rgba(colour || "#1a4a7a", alpha);
       ctx.fillRect(0, 0, size, size);

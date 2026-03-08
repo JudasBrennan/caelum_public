@@ -18,18 +18,25 @@ export function computeMoonTemperature({
   moonMassKg,
   radioisotopeAbundance,
   tidalHeatingWm2,
+  parentReflectedFluxWm2 = 0,
+  parentThermalFluxWm2 = 0,
+  eclipseCoolingPenalty = 0,
+  greenhouseTauEquivalent = 0,
+  antiGreenhouseFraction = 0,
 }) {
   const stellarFluxAtDistanceWm2 = calcStellarFluxWm2({
     starLuminosityLsol,
     orbitalDistanceAu: planetSemiMajorAxisAu,
   });
+  const eclipsePenalty = clampPenalty(eclipseCoolingPenalty);
+  const effectiveStellarFluxWm2 = stellarFluxAtDistanceWm2 * (1 - eclipsePenalty);
   const equilibriumFourthPower = calcEquilibriumFourthPowerFromFluxWm2({
-    stellarFluxAtDistanceWm2,
+    stellarFluxAtDistanceWm2: effectiveStellarFluxWm2,
     albedoBond: albedo,
     redistributionFactor: 4,
   });
   const equilibriumK = calcEquilibriumTemperatureFromFluxK({
-    stellarFluxAtDistanceWm2,
+    stellarFluxAtDistanceWm2: effectiveStellarFluxWm2,
     albedoBond: albedo,
     redistributionFactor: 4,
   });
@@ -40,8 +47,16 @@ export function computeMoonTemperature({
         surfaceAreaM2
       : 0;
 
+  const antiGreenhouse = Math.max(0, Math.min(1, antiGreenhouseFraction));
+  const greenhouseTau = Math.max(0, greenhouseTauEquivalent);
+  const reflectedFourthPower = (Math.max(0, parentReflectedFluxWm2) * (1 - albedo)) / STEFAN_BOLTZ;
+  const thermalFourthPower = Math.max(0, parentThermalFluxWm2) / STEFAN_BOLTZ;
+  const adjustedRadiativeFourthPower =
+    (equilibriumFourthPower + reflectedFourthPower + thermalFourthPower) *
+    (1 - antiGreenhouse) *
+    (1 + (3 * greenhouseTau) / 4);
   const surfaceFourthPower =
-    equilibriumFourthPower + tidalHeatingWm2 / STEFAN_BOLTZ + radiogenicWm2 / STEFAN_BOLTZ;
+    adjustedRadiativeFourthPower + tidalHeatingWm2 / STEFAN_BOLTZ + radiogenicWm2 / STEFAN_BOLTZ;
   const surfaceK =
     surfaceFourthPower > 0 ? Math.round(Math.sqrt(Math.sqrt(surfaceFourthPower))) : 0;
 
@@ -50,5 +65,14 @@ export function computeMoonTemperature({
     surfaceK,
     surfaceC: surfaceK - 273,
     radiogenicWm2,
+    greenhouseTauEquivalent: greenhouseTau,
+    antiGreenhouseFraction: antiGreenhouse,
+    parentReflectedFluxWm2: Math.max(0, parentReflectedFluxWm2),
+    parentThermalFluxWm2: Math.max(0, parentThermalFluxWm2),
+    eclipseCoolingPenalty: eclipsePenalty,
   };
+}
+
+function clampPenalty(value) {
+  return Math.max(0, Math.min(0.5, Number.isFinite(value) ? value : 0));
 }

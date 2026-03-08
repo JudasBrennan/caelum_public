@@ -187,6 +187,19 @@ function toMoonEntry(raw, model, parentKind, mode) {
       radiusMoon: model.physical.radiusMoon,
       surfaceK: model.temperature.surfaceK,
       orbitalPeriodSiderealDays: model.orbit.orbitalPeriodSiderealDays,
+      atmosphereClass:
+        model.display?.atmosphereClass || model.atmosphere?.atmosphereClass || "Airless",
+      hydrosphereState:
+        model.display?.hydrosphereState ||
+        model.habitability?.hydrosphere?.hydrosphereState ||
+        "Dry surface",
+      climateState: model.display?.climateState || model.climate?.climateState || "Unknown",
+      biosphereClass:
+        model.display?.surfaceBiosphere ||
+        model.biosphere?.surfaceBiosphereClass ||
+        "Surface sterile",
+      subsurfaceOcean: !!model.habitability?.hydrosphere?.subsurfaceOceanPresent,
+      habitabilityIndex: Number(model.habitability?.habitabilityIndex ?? 0),
     };
   }
 

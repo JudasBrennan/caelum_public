@@ -162,6 +162,7 @@ function getPopulationContext(world) {
   return {
     radiusKm: model.derived.radiusKm || 6371,
     waterRegime: model.derived.waterRegime || "Extensive oceans",
+    hydrosphere: model.derived.hydrosphere || null,
     climateZones: climate.zones || [],
   };
 }

@@ -54,6 +54,7 @@ import {
   getFrameMetrics as getSnapshotFrameMetrics,
   mapAuToPx as mapSnapshotAuToPx,
 } from "./visualizer/snapshotModel.js";
+import { getFocusedBodySummary } from "./visualizer/focusSummary.js";
 import { createStarActivityRuntime, flareEnergyNorm } from "./visualizer/starActivityRuntime.js";
 import { createBodyMeshService, vizBodyCacheKey } from "./visualizer/bodyMeshService.js";
 import { bindVisualizerInputBindings } from "./visualizer/inputBindings.js";
@@ -78,6 +79,7 @@ import {
   sampleDebrisAu,
 } from "./visualizer/scaleMath.js";
 import { clamp } from "../engine/utils.js";
+import { createElement, replaceChildren } from "./domHelpers.js";
 import { createTutorial } from "./tutorial.js";
 
 export function initVisualiserPage(root, options = {}) {
@@ -255,6 +257,7 @@ export function initVisualiserPage(root, options = {}) {
             </div>
           </div>
           </div>
+          <div id="viz-focus-summary" class="viz-focus-summary" style="display:none"></div>
         </div>
       </div>
     </div>
@@ -329,6 +332,7 @@ export function initVisualiserPage(root, options = {}) {
   const nativeTransitionLabelEl = root.querySelector("#viz-native-transition-label");
   const nativeTransitionFillEl = root.querySelector("#viz-native-transition-fill");
   const offscaleNoteEl = root.querySelector("#viz-offscale-note");
+  const focusSummaryEl = root.querySelector("#viz-focus-summary");
   const helpOverlay = root.querySelector("#viz-help-overlay");
   const helpSystemSection = root.querySelector("#viz-help-system");
   const helpClusterSection = root.querySelector("#viz-help-cluster");
@@ -480,7 +484,7 @@ export function initVisualiserPage(root, options = {}) {
   let disposed = false;
   const disposers = [];
 
-  /* ── 3D body mesh system ───────────────────────────────────── */
+  /* -- 3D body mesh system ------------------------------------- */
   const bodyMeshService = createBodyMeshService({
     getNativeThree: () => nativeThree,
     getCameraState: () => ({ pitch: state.pitch, yaw: state.yaw }),
@@ -566,7 +570,7 @@ export function initVisualiserPage(root, options = {}) {
 
   const vizWrap = root.querySelector(".viz-wrap") || canvas?.parentElement;
 
-  /* ── Cluster helpers ───────────────────────────────────────── */
+  /* -- Cluster helpers ----------------------------------------- */
 
   function refreshClusterSnapshot() {
     state.clusterSnapshot = buildClusterSnapshot();
@@ -580,7 +584,7 @@ export function initVisualiserPage(root, options = {}) {
   updateClusterSpeedUI();
   let inputBindings = null;
 
-  /* ── Mode switching ────────────────────────────────────────── */
+  /* -- Mode switching ------------------------------------------ */
 
   function switchMode(newMode) {
     if (newMode === state.mode) return;
@@ -618,7 +622,7 @@ export function initVisualiserPage(root, options = {}) {
     if (vizTitle) vizTitle.textContent = "Local Cluster Visualiser";
   }
 
-  /* ── Toast (first-load hint) ───────────────────────────────── */
+  /* -- Toast (first-load hint) --------------------------------- */
 
   let toastTimeout = null;
   function showToast() {
@@ -694,7 +698,7 @@ export function initVisualiserPage(root, options = {}) {
 
   function resizeCanvas(force = false) {
     if (!vizWrap) return;
-    /* Clear inline size so CSS width:100%/height:100% governs display —
+    /* Clear inline size so CSS width:100%/height:100% governs display �
        prevents the canvas from blocking layout shrink after fullscreen. */
     canvas.style.width = "";
     canvas.style.height = "";
@@ -710,7 +714,7 @@ export function initVisualiserPage(root, options = {}) {
 
   function disposeNativeThree() {
     if (!nativeThree) return;
-    /* Dispose body mesh cache first — owns textures, materials, and ring
+    /* Dispose body mesh cache first � owns textures, materials, and ring
        geometry.  Skip bodyGroup in the generic traverse to avoid double-
        disposing shared geometries that disposeSharedGeo() handles. */
     disposeBodyMeshCache();
@@ -905,6 +909,7 @@ export function initVisualiserPage(root, options = {}) {
       Array.isArray(snapshotArg.planetNodes)
         ? snapshotArg
         : getSnapshot();
+    renderFocusSummary(getFocusedBodySummary(snapshot, state.focusTargetKind, state.focusTargetId));
     const { sys, planetNodes, debrisDisks, gasGiants } = snapshot;
     const debugOn = flareDebugEnabled();
     const metrics = getFrameMetrics(snapshot);
@@ -913,7 +918,7 @@ export function initVisualiserPage(root, options = {}) {
     if (maxR < 1 || W < 1 || H < 1) return false;
     // Snap pan so the focused body is exactly at screen centre.
     // This runs before cx/cy are derived so all subsequent drawing
-    // uses the corrected pan — the body is centred BY CONSTRUCTION.
+    // uses the corrected pan � the body is centred BY CONSTRUCTION.
     syncFocusPan(snapshot, metrics);
     const usePhysicalSize = isPhysicalScale();
     const moonLabelOpacity = chkLabels?.checked
@@ -2329,6 +2334,7 @@ export function initVisualiserPage(root, options = {}) {
               opacity: moonLabelOpacity,
             });
           }
+          registerHit("moon", moon.id, mProj.x, mProj.y, Math.max(10, moonR + 3), moon);
         }
       }
 
@@ -2580,6 +2586,7 @@ export function initVisualiserPage(root, options = {}) {
               opacity: moonLabelOpacity,
             });
           }
+          registerHit("moon", moon.id, mProj.x, mProj.y, Math.max(10, moonR + 3), moon);
         }
       }
       registerHit("gasGiant", g.id, gPos.x, gPos.y, Math.max(12, gr + 4), g);
@@ -2822,7 +2829,7 @@ export function initVisualiserPage(root, options = {}) {
       plotted.push({ sys, p3, screen, pointRadius, perspective, isHome, visual });
     }
 
-    /* ── All drawing on single 2D overlay canvas ───────────── */
+    /* -- All drawing on single 2D overlay canvas ------------- */
     syncOverlaySize();
     const ctx = overlayCtx;
     if (!ctx) return true;
@@ -2935,7 +2942,7 @@ export function initVisualiserPage(root, options = {}) {
       }
     }
 
-    /* Neighbourhood boundary — screen-facing circle */
+    /* Neighbourhood boundary � screen-facing circle */
     const cxB = W * 0.5;
     const cyB = H * 0.5;
     let maxBoundaryR = 0;
@@ -3132,7 +3139,7 @@ export function initVisualiserPage(root, options = {}) {
   }
 
   /* ResizeObserver fires whenever .viz-wrap changes size (window resize,
-     fullscreen enter/exit, layout reflow) — much more reliable than
+     fullscreen enter/exit, layout reflow) � much more reliable than
      setTimeout-based approaches. */
   const wrapResizeObserver = new ResizeObserver(() => {
     resizeCanvas(true);
@@ -3321,7 +3328,7 @@ export function initVisualiserPage(root, options = {}) {
 
   // Centre the focused body on screen.  Called at the top of every
   // drawNativeSystemMode so that pan is ALWAYS derived from the body's
-  // projected position — the body stays centred BY CONSTRUCTION, not
+  // projected position � the body stays centred BY CONSTRUCTION, not
   // by correction after the fact.
   function syncFocusPan(snapshot, metrics) {
     return syncFocusedPan({
@@ -3335,7 +3342,7 @@ export function initVisualiserPage(root, options = {}) {
     });
   }
 
-  // Smooth zoom toward the focus target.  Only touches state.zoom —
+  // Smooth zoom toward the focus target.  Only touches state.zoom �
   // pan is handled by syncFocusPan at draw time.
   function easeFocusZoom(dt) {
     return applyCameraFocusZoom({
@@ -3424,7 +3431,7 @@ export function initVisualiserPage(root, options = {}) {
       lastCameraTs = ts;
       let needsFrame = false;
       if (state.focusTargetId) {
-        // Pan is handled by syncFocusPan inside draw — kill pan velocity
+        // Pan is handled by syncFocusPan inside draw � kill pan velocity
         // but allow rotation inertia so the camera decelerates smoothly.
         state.panVelX = 0;
         state.panVelY = 0;
@@ -3452,19 +3459,70 @@ export function initVisualiserPage(root, options = {}) {
     return starActivityRuntime.updateStarBursts(dtSec, snapshot, nowActivitySec);
   }
 
-  /* ── Draw dispatcher ────────────────────────────────────────── */
+  function renderFocusSummary(summary) {
+    if (!focusSummaryEl) return;
+    if (!summary) {
+      focusSummaryEl.style.display = "none";
+      replaceChildren(focusSummaryEl);
+      return;
+    }
+
+    const rows = createElement(
+      "div",
+      { className: "viz-focus-summary__rows" },
+      (summary.lines || []).map((line) =>
+        createElement("div", { className: "viz-focus-summary__row" }, [
+          createElement("div", {
+            className: "viz-focus-summary__label",
+            text: line.label || "",
+          }),
+          createElement("div", {
+            className: "viz-focus-summary__value",
+            text: line.value || "-",
+          }),
+        ]),
+      ),
+    );
+
+    const children = [
+      createElement("div", {
+        className: "viz-focus-summary__title",
+        text: summary.title || "Focused body",
+      }),
+      createElement("div", {
+        className: "viz-focus-summary__subtitle",
+        text: summary.subtitle || "",
+      }),
+      rows,
+    ];
+
+    if (summary.note) {
+      children.push(
+        createElement("div", {
+          className: "viz-focus-summary__note",
+          text: summary.note,
+        }),
+      );
+    }
+
+    focusSummaryEl.style.display = "";
+    replaceChildren(focusSummaryEl, children);
+  }
+
+  /* -- Draw dispatcher ------------------------------------------ */
 
   function draw(snapshotArg) {
     if (disposed || !root.isConnected || !canvas || !canvas.isConnected) return;
     if (!nativeThree) return;
     if (state.mode === "cluster") {
+      renderFocusSummary(null);
       drawNativeClusterMode();
     } else {
       drawNativeSystemMode(snapshotArg);
     }
   }
 
-  /* ── Transition animations (mode switch, no page navigation) ─ */
+  /* -- Transition animations (mode switch, no page navigation) - */
 
   function triggerClusterTransition() {
     if (state.transitioning) return;
@@ -3702,7 +3760,7 @@ export function initVisualiserPage(root, options = {}) {
     },
   });
 
-  /* ── Tick / animation loop (both modes) ────────────────────── */
+  /* -- Tick / animation loop (both modes) ---------------------- */
 
   function tick(ts) {
     if (disposed || !root.isConnected) {

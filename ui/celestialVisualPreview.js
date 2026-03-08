@@ -1281,9 +1281,9 @@ function createAtmosphereMaterial(THREE) {
   if (typeof THREE.ShaderMaterial !== "function") {
     return new THREE.MeshBasicMaterial({
       transparent: true,
-      opacity: 0.12,
+      opacity: 0.08,
       color: 0x9cc2ff,
-      side: THREE.DoubleSide,
+      side: THREE.BackSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
@@ -1291,9 +1291,9 @@ function createAtmosphereMaterial(THREE) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uColor: { value: new THREE.Color(0x9cc2ff) },
-      uOpacity: { value: 0.12 },
-      uPower: { value: 2.15 },
-      uFalloff: { value: 0.66 },
+      uOpacity: { value: 0.08 },
+      uPower: { value: 3.2 },
+      uFalloff: { value: 0.62 },
     },
     vertexShader: `
       varying vec3 vNormalWorld;
@@ -1314,8 +1314,9 @@ function createAtmosphereMaterial(THREE) {
       varying vec3 vViewDir;
       void main() {
         float ndv = clamp(dot(normalize(vNormalWorld), normalize(vViewDir)), 0.0, 1.0);
-        float rim = pow(max(0.0, 1.0 - ndv), uPower);
-        float alpha = clamp(rim * uOpacity, 0.0, 1.0);
+        float rimBase = pow(max(0.0, 1.0 - ndv), uPower);
+        float rim = smoothstep(0.06, 0.92, rimBase);
+        float alpha = clamp(rim * rim * uOpacity, 0.0, 1.0);
         if (alpha < 0.001) discard;
         vec3 color = uColor * mix(uFalloff, 1.0, rim);
         gl_FragColor = vec4(color, alpha);
@@ -1324,7 +1325,7 @@ function createAtmosphereMaterial(THREE) {
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
-    side: THREE.DoubleSide,
+    side: THREE.BackSide,
   });
 }
 
@@ -2467,12 +2468,145 @@ async function initBodyRuntime(canvas, { preserveDrawingBuffer = false } = {}) {
     roughnessTexture: null,
     emissiveTexture: null,
     descriptorSignature: "",
+    bodyGeometrySignature: "",
     descriptor: null,
     rotationOffset: 0,
     disposed: false,
     pendingTextureSignature: "",
     pendingTextureRequestId: 0,
   };
+}
+
+function bodyGeometrySegmentsForLod(lod) {
+  if (lod === "low") return { width: 64, height: 48 };
+  if (lod === "high") return { width: 112, height: 84 };
+  return { width: 90, height: 68 };
+}
+
+function seededUnitVector(seed, label) {
+  const az = hashUnit(`${seed}:${label}:az`) * Math.PI * 2;
+  const y = hashUnit(`${seed}:${label}:y`) * 2 - 1;
+  const radial = Math.sqrt(Math.max(0, 1 - y * y));
+  return {
+    x: Math.cos(az) * radial,
+    y,
+    z: Math.sin(az) * radial,
+  };
+}
+
+function irregularRadiusScale(nx, ny, nz, shape, seed) {
+  const profile = String(shape?.profile || "captured-moonlet");
+  const roughness = clamp(
+    Number(shape?.roughness) ||
+      (profile === "irregular-capture" ? 0.24 : profile === "captured-moonlet" ? 0.18 : 0.14),
+    0.04,
+    0.42,
+  );
+  const lobeAmplitude = clamp(
+    Number(shape?.lobeAmplitude) ||
+      (profile === "irregular-capture" ? 0.24 : profile === "captured-moonlet" ? 0.18 : 0.12),
+    0.04,
+    0.34,
+  );
+  const dentAmplitude = clamp(
+    Number(shape?.dentAmplitude) ||
+      (profile === "irregular-capture" ? 0.14 : profile === "captured-moonlet" ? 0.1 : 0.08),
+    0.02,
+    0.22,
+  );
+  const seedBase = hashUnit(`${seed}:irregular-shape`) * 1000 + 17;
+  const macroNoise =
+    fbm3Fast(nx * 1.7 + 0.2, ny * 1.5 - 0.35, nz * 1.8 + 0.1, seedBase, 3, 2.05, 0.56) - 0.5;
+  const ridgeNoise =
+    ridgedFbm3Fast(nx * 2.2 - 0.1, ny * 2.0 + 0.15, nz * 2.15 + 0.28, seedBase + 91, 4, 2.1, 0.5) -
+    0.5;
+
+  let bulges = 0;
+  let dents = 0;
+  for (let i = 0; i < 3; i += 1) {
+    const bulgeDir = seededUnitVector(seed, `bulge:${i}`);
+    const bulgeDot = Math.max(0, nx * bulgeDir.x + ny * bulgeDir.y + nz * bulgeDir.z);
+    bulges += Math.pow(bulgeDot, 2.1) * (0.72 + hashUnit(`${seed}:bulge:${i}:w`) * 0.5);
+
+    const dentDir = seededUnitVector(seed, `dent:${i}`);
+    const dentDot = Math.max(0, nx * dentDir.x + ny * dentDir.y + nz * dentDir.z);
+    dents += Math.pow(dentDot, 2.6) * (0.58 + hashUnit(`${seed}:dent:${i}:w`) * 0.42);
+  }
+
+  const equatorialSkew =
+    Math.sin(
+      nx * (4.2 + hashUnit(`${seed}:skew:x`) * 2.4) +
+        ny * (2.4 + hashUnit(`${seed}:skew:y`) * 1.6) +
+        nz * (4.8 + hashUnit(`${seed}:skew:z`) * 2.1),
+    ) * 0.035;
+
+  const radius =
+    1 +
+    macroNoise * roughness +
+    ridgeNoise * roughness * 0.55 +
+    bulges * lobeAmplitude * 0.18 -
+    dents * dentAmplitude * 0.16 +
+    equatorialSkew;
+
+  return clamp(radius, 0.72, 1.34);
+}
+
+function createPreviewBodyGeometry(THREE, descriptor) {
+  const bodyShape = descriptor?.bodyShape;
+  const bodyScale = descriptor?.bodyScale || null;
+  const lod = descriptor?.lod || "medium";
+  const { width, height } = bodyGeometrySegmentsForLod(lod);
+  const geometry = new THREE.SphereGeometry(1, width, height);
+  if (!(descriptor?.bodyType === "moon" && bodyShape?.kind === "lumpy-potato")) {
+    return geometry;
+  }
+
+  const positions = geometry.attributes?.position;
+  if (!positions) return geometry;
+
+  const sx = clamp(Number(bodyScale?.x) || 1, 0.55, 1.4);
+  const sy = clamp(Number(bodyScale?.y) || 1, 0.55, 1.4);
+  const sz = clamp(Number(bodyScale?.z) || 1, 0.55, 1.4);
+  const seed = String(bodyShape?.seed || descriptor?.seed || descriptor?.name || "moon");
+
+  for (let i = 0; i < positions.count; i += 1) {
+    const x = positions.getX(i);
+    const y = positions.getY(i);
+    const z = positions.getZ(i);
+    const len = Math.sqrt(x * x + y * y + z * z) || 1;
+    const nx = x / len;
+    const ny = y / len;
+    const nz = z / len;
+    const radius = irregularRadiusScale(nx, ny, nz, bodyShape, seed);
+    positions.setXYZ(i, nx * radius * sx, ny * radius * sy, nz * radius * sz);
+  }
+
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  geometry.computeBoundingBox();
+  return geometry;
+}
+
+function syncPreviewBodyGeometry(runtime, descriptor) {
+  if (!runtime?.body || !runtime?.THREE) return;
+  const signature = JSON.stringify({
+    bodyType: descriptor?.bodyType || "",
+    lod: descriptor?.lod || "medium",
+    bodyScale: descriptor?.bodyScale || null,
+    bodyShape: descriptor?.bodyShape || null,
+    seed: descriptor?.seed || "",
+  });
+  if (signature === runtime.bodyGeometrySignature) return;
+
+  const prevGeometry = runtime.body.geometry;
+  runtime.body.geometry = createPreviewBodyGeometry(runtime.THREE, descriptor);
+  runtime.bodyGeometrySignature = signature;
+  if (prevGeometry && prevGeometry !== runtime.body.geometry) {
+    try {
+      prevGeometry.dispose?.();
+    } catch {}
+  }
 }
 
 function disposeRingMesh(runtime) {
@@ -2640,6 +2774,8 @@ function buildDescriptorSignature(descriptor, textureSize = descriptor?.textureS
     ring: descriptor.ring,
     aurora: descriptor.aurora,
     gasVisual: descriptor.gasVisual,
+    bodyScale: descriptor.bodyScale,
+    bodyShape: descriptor.bodyShape,
     flattenStyleMaps: shouldFlattenStyleMaps(descriptor),
   });
 }
@@ -2798,6 +2934,18 @@ function applyDescriptorMapsToRuntime(runtime, descriptor, signature, entry) {
   runtime.body.material.emissive?.set?.("#ffffff");
   runtime.body.material.needsUpdate = true;
 
+  syncPreviewBodyGeometry(runtime, descriptor);
+  const bodyScale = descriptor?.bodyScale || null;
+  const hasCustomBodyShape = descriptor?.bodyType === "moon" && descriptor?.bodyShape?.kind;
+  const bodyScaleX = clamp(Number(bodyScale?.x) || 1, 0.55, 1.4);
+  const bodyScaleY = clamp(Number(bodyScale?.y) || 1, 0.55, 1.4);
+  const bodyScaleZ = clamp(Number(bodyScale?.z) || 1, 0.55, 1.4);
+  runtime.body.scale.set(
+    hasCustomBodyShape ? 1 : bodyScaleX,
+    hasCustomBodyShape ? 1 : bodyScaleY,
+    hasCustomBodyShape ? 1 : bodyScaleZ,
+  );
+
   const hasOcean = hasLayer(
     descriptor,
     "ocean-fill",
@@ -2858,27 +3006,43 @@ function applyDescriptorMapsToRuntime(runtime, descriptor, signature, entry) {
   const showCloudShell =
     !flattenStyleMaps && descriptor.bodyType !== "gasGiant" && !!descriptor.clouds?.enabled;
   runtime.clouds.visible = showCloudShell;
-  runtime.clouds.scale.setScalar(showCloudShell ? Number(descriptor.clouds?.scale) || 1.03 : 1.03);
+  const cloudScale = showCloudShell ? Number(descriptor.clouds?.scale) || 1.03 : 1.03;
+  runtime.clouds.scale.set(
+    bodyScaleX * cloudScale,
+    bodyScaleY * cloudScale,
+    bodyScaleZ * cloudScale,
+  );
   runtime.cloudMat.opacity = showCloudShell
     ? clamp(Number(descriptor.clouds?.opacity) || 0.2, 0.04, 0.9)
     : 0;
 
   const showHaze = !!descriptor.atmosphere?.enabled;
   runtime.haze.visible = showHaze;
-  runtime.haze.scale.setScalar(showHaze ? Number(descriptor.atmosphere?.scale) || 1.06 : 1.06);
+  const requestedHazeScale = showHaze ? Number(descriptor.atmosphere?.scale) || 1.06 : 1.06;
+  const hazeShellScale =
+    descriptor.bodyType === "moon" ? clamp(requestedHazeScale, 1.015, 1.075) : requestedHazeScale;
+  runtime.haze.scale.set(
+    bodyScaleX * hazeShellScale,
+    bodyScaleY * hazeShellScale,
+    bodyScaleZ * hazeShellScale,
+  );
   const hazeColour = descriptor.atmosphere?.colour || "#90b4ec";
-  const hazeOpacity = showHaze
+  const requestedHazeOpacity = showHaze
     ? clamp(Number(descriptor.atmosphere?.opacity) || 0.12, 0.03, 0.4)
     : 0;
-  const hazeScale = clamp(Number(descriptor.atmosphere?.scale) || 1.06, 1, 1.6);
+  const hazeOpacity =
+    descriptor.bodyType === "moon"
+      ? clamp(requestedHazeOpacity * 0.55, 0.018, 0.12)
+      : requestedHazeOpacity;
+  const hazeScale = clamp(hazeShellScale, 1, 1.6);
   if (runtime.hazeMat?.uniforms?.uColor) {
     runtime.hazeMat.uniforms.uColor.value.set(hazeColour);
     runtime.hazeMat.uniforms.uOpacity.value = hazeOpacity;
     const powerBase =
-      descriptor.bodyType === "gasGiant" ? 1.85 : descriptor.bodyType === "moon" ? 2.45 : 2.15;
-    runtime.hazeMat.uniforms.uPower.value = clamp(powerBase - (hazeScale - 1) * 1.05, 1.35, 2.8);
+      descriptor.bodyType === "gasGiant" ? 1.85 : descriptor.bodyType === "moon" ? 3.55 : 2.15;
+    runtime.hazeMat.uniforms.uPower.value = clamp(powerBase - (hazeScale - 1) * 1.1, 1.6, 4.2);
     runtime.hazeMat.uniforms.uFalloff.value =
-      descriptor.bodyType === "gasGiant" ? 0.72 : descriptor.bodyType === "moon" ? 0.62 : 0.66;
+      descriptor.bodyType === "gasGiant" ? 0.72 : descriptor.bodyType === "moon" ? 0.54 : 0.66;
   } else {
     runtime.hazeMat.color.set(hazeColour);
     runtime.hazeMat.opacity = hazeOpacity;

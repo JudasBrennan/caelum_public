@@ -125,10 +125,109 @@ const TIP_LABEL = {
     "where a is Bond albedo and d is star distance.",
   "Surface Temp":
     "Estimated mean surface temperature including stellar radiation, tidal heating, " +
-    "and radiogenic heating." +
-    "\n\nFor airless bodies, this equals the radiative equilibrium. Tidal heating " +
-    "dominates for close-orbit moons like Io; radiogenic heating matters for " +
-    "cold outer-system moons.",
+    "radiogenic heating, and any modeled atmospheric greenhouse warming." +
+    "\n\nFor airless bodies, this stays close to the radiative equilibrium. Tidal heating " +
+    "dominates for close-orbit moons like Io; greenhouse warming matters most for " +
+    "volatile-rich moons such as Titan-like cases.",
+  "Climate State":
+    "High-level moon climate regime derived from the moon-specific climate model.\n\n" +
+    "Stable, Snowball, Moist greenhouse, and Runaway greenhouse states reflect the modeled surface-water and temperature outcomes after planetshine, eclipses, and internal heating are considered.",
+  "Surface Temp Range":
+    "Estimated climate envelope for the moon's modeled surface temperature.\n\n" +
+    "This Stage M3 output combines seasonal forcing, synchronous parentshine contrast, and eclipse cooling into a first-pass min/max surface-temperature range.",
+  "Climate Zones":
+    "Moon climate-zone summary from the parent-coupled moon climate model.\n\n" +
+    "The current implementation reuses the Koppen-style zone classifier with moon-specific mean temperature, water state, pressure, and effective seasonal forcing.",
+  Seasonality:
+    "Qualitative description of the moon's climate variability.\n\n" +
+    "This combines seasonal forcing, eclipse duty cycle, and parentshine contrast to indicate whether the moon behaves as a low-, moderate-, strong-, or extreme-seasonality world.",
+  Planetshine:
+    "Average climate forcing from the parent body's reflected starlight plus thermal emission.\n\n" +
+    "Close-in large moons should show stronger parentshine than distant or small-parent cases.",
+  "Eclipse Cooling":
+    "Fraction of the stellar energy budget lost to eclipses by the parent body.\n\n" +
+    "Low-inclination close moons experience deeper eclipse forcing than high-inclination or distant moons.",
+  Atmosphere:
+    "Derived moon atmosphere class from the retained volatile inventory.\n\n" +
+    "Airless and exosphere states indicate no meaningful surface atmosphere. Thin, substantial, and dense volatile atmospheres represent retained or replenished gases near the surface.",
+  "Surface Pressure":
+    "Total modeled moon surface pressure from retained volatile species.\n\n" +
+    "This is derived from the retained volatile inventory rather than a manual input. Higher values generally support stronger greenhouse warming and denser near-surface air.",
+  "Atmosphere Composition":
+    "Top atmosphere species by modeled pressure share.\n\n" +
+    "This is a volatile-atmosphere composition summary, not a full photochemical equilibrium model.",
+  "Atmosphere Mix":
+    "Top atmosphere species by modeled pressure share.\n\n" +
+    "This is a volatile-atmosphere composition summary, not a full photochemical equilibrium model.",
+  "Greenhouse Warming":
+    "Approximate surface warming above the moon's airless equilibrium / internal-heating baseline.\n\n" +
+    "This Stage M1 model supports volatile greenhouse warming and a simple methane anti-greenhouse penalty, but not full haze photochemistry yet.",
+  "Volcanic Activity":
+    "Derived silicate-volcanism signal from tidal heating, radiogenic heating, interior class, and bulk size/gravity.\n\n" +
+    "High values indicate Io-like or strongly molten rocky interiors that are likely to refresh the surface with lava or outgassed material.",
+  "Cryovolcanic Activity":
+    "Derived icy-moon cryovolcanism signal from subsurface-water support, internal heating, composition, and venting ease.\n\n" +
+    "High values indicate plumes or icy resurfacing that can resupply water-rich volatiles from beneath the surface.",
+  Cryovolcanism:
+    "Derived icy-moon cryovolcanism signal from subsurface-water support, internal heating, composition, and venting ease.\n\n" +
+    "High values indicate plumes or icy resurfacing that can resupply water-rich volatiles from beneath the surface.",
+  Resurfacing:
+    "High-level surface-renewal class derived from the stronger of the silicate-volcanic and cryovolcanic channels.\n\n" +
+    "Quiet moons should stay cratered, while Io-like or Enceladus-like cases should move into active resurfacing classes.",
+  "Volatile Replenishment":
+    "Tendency for internal activity to resupply the moon's surface or near-surface volatile inventory.\n\n" +
+    "This is a source-side signal from volcanism / cryovolcanism, not a guarantee that the moon can retain a long-lived atmosphere.",
+  "Ocean Persistence":
+    "Tendency for liquid-water reservoirs to persist over time under the current heating, water inventory, and bulk-property assumptions.\n\n" +
+    "This favors moons with supported subsurface or surface oceans, enough internal heat, and sufficient bulk support to avoid a purely frozen shell.",
+  "Volatile Supply":
+    "Tendency for internal activity to resupply the moon's surface or near-surface volatile inventory.\n\n" +
+    "This is a source-side signal from volcanism / cryovolcanism, not a guarantee that the moon can retain a long-lived atmosphere.",
+  Biosphere:
+    "High-level surface-biology classification from the moon biosphere model.\n\n" +
+    "This stage estimates whether exposed surface environments are sterile, only marginally habitable for microbes, or plausibly supportive of richer biospheres.",
+  "Surface Biosphere":
+    "High-level surface-biology classification from the moon biosphere model.\n\n" +
+    "This stage estimates whether exposed surface environments are sterile, only marginally habitable for microbes, or plausibly supportive of richer biospheres.",
+  "Plant Life":
+    "Plant-life plausibility is a stricter gate than PHI.\n\n" +
+    "It depends on atmosphere adequacy, accessible surface water, climate livability, radiation, stellar spectrum, and the moon's illumination regime. A moon can have a moderate habitability score and still fail the plant-life gate.",
+  Vegetation:
+    "Whether the current moon biosphere gate supports visible surface vegetation.\n\n" +
+    "This is only enabled when plant-life plausibility is high enough and the current atmosphere, water access, climate, and radiation conditions all support persistent surface flora.",
+  "Vegetation Colours":
+    "First-pass vegetation colours for supported biosphere cases.\n\n" +
+    "This reuses the same star-spectrum vegetation-colour logic as rocky planets, but only after the moon biosphere gate says surface vegetation is plausible.",
+  "Veg Colours":
+    "First-pass vegetation colours for supported biosphere cases.\n\n" +
+    "This reuses the same star-spectrum vegetation-colour logic as rocky planets, but only after the moon biosphere gate says surface vegetation is plausible.",
+  "Biosphere Limits":
+    "Primary reasons the current moon does or does not support surface biology.\n\n" +
+    "Use this readout to see which inputs are blocking exposed life or vegetation under the current model assumptions.",
+  "Life Limits":
+    "Primary reasons the current moon does or does not support surface biology.\n\n" +
+    "Use this readout to see which inputs are blocking exposed life or vegetation under the current model assumptions.",
+  Hydrosphere:
+    "Derived moon water-state summary.\n\n" +
+    "Stage M2 separates dry, surface-liquid, frozen-surface, steam, and subsurface-ocean cases so the model can distinguish ocean moons from icy moons with buried water.",
+  "Surface Water":
+    "Modeled surface water state and coverage.\n\n" +
+    "This reports accessible liquid water when present, otherwise the dominant surface water phase such as ice or vapour.",
+  "Subsurface Ocean":
+    "Heuristic score for a buried liquid-water ocean beneath the surface ice shell.\n\n" +
+    "Europa-like and Enceladus-like cases should reach a clear 'Yes'. Lower scores mean a buried ocean is only a possibility under the current inputs.",
+  "Ocean Depth":
+    "Heuristic depth estimate for the moon's dominant liquid-water layer.\n\n" +
+    "Surface-ocean moons report an exposed ocean depth. Frozen ocean worlds report the estimated buried-ocean depth instead.",
+  "Ice Shell":
+    "Estimated thickness of the frozen surface shell above the liquid layer.\n\n" +
+    "This is only shown for frozen-surface cases and is intended as a first-pass structural estimate.",
+  "High-pressure Ice Barrier":
+    "Flags when the modeled ocean is deep enough that high-pressure ice is likely to form beneath it.\n\n" +
+    "If present, the ocean may be partially separated from deeper rocky material by dense ice phases.",
+  "High-Pressure Ice":
+    "Flags when the modeled ocean is deep enough that high-pressure ice is likely to form beneath it.\n\n" +
+    "If present, the ocean may be partially separated from deeper rocky material by dense ice phases.",
   "Radiogenic Heating":
     "Internal heat from radioactive decay (U, Th, K) on the moon\u2019s surface." +
     "\n\nScales from Earth\u2019s 44 TW by moon mass and the system\u2019s radioisotope " +
@@ -139,6 +238,18 @@ const TIP_LABEL = {
     "Jupiter\u2013Europa (~540 rem/day). Zero if the moon orbits outside the " +
     "magnetopause. Upper estimate \u2014 actual doses may be lower due to ring " +
     "absorption and loss processes.",
+  "Magnetosphere Dose":
+    "Charged-particle radiation dose from the host planet\u2019s magnetosphere." +
+    "\n\nScales as B\u00B3 at the moon\u2019s orbit (dipole field), calibrated to " +
+    "Jupiter\u2013Europa (~540 rem/day). Zero if the moon orbits outside the " +
+    "magnetopause. Upper estimate \u2014 actual doses may be lower due to ring " +
+    "absorption and loss processes.",
+  "Earth Similarity Index":
+    "Compares this moon to Earth using radius, density, escape velocity, and surface temperature." +
+    "\n\nRange: 0 to 1, where 1 is most Earth-like. Earth-likeness is not the same as direct habitability.",
+  "Moon Habitability Index":
+    "Unified moon habitability index on a 0-1 scale (phi-unified-v1)." +
+    "\n\nThe current default policy supports surface water and subsurface water, includes magnetospheric radiation and persistence, and keeps alternative solvents disabled by default unless the policy is explicitly expanded.",
 };
 
 const TUTORIAL_STEPS = [
@@ -541,6 +652,46 @@ export function initMoonPage(mountEl) {
     }
 
     const moonProfile = computeMoonVisualProfile(model);
+    const earthSimilarityBreakdown = model.habitability?.earthSimilarityBreakdown || {};
+    const moonHabitabilityBreakdown = model.habitability?.breakdown || {};
+    const biosphere = model.biosphere || {};
+    const geology = model.geology || {};
+    const compactBiosphereValue = model.display.surfaceBiosphere.includes("Surface sterile")
+      ? "Sterile"
+      : model.display.surfaceBiosphere.includes("Marginal")
+        ? "Marginal"
+        : model.display.surfaceBiosphere.includes("Microbial")
+          ? "Microbial"
+          : model.display.surfaceBiosphere.includes("Simple")
+            ? "Simple"
+            : model.display.surfaceBiosphere.includes("Complex")
+              ? "Complex"
+              : model.display.surfaceBiosphere;
+    const compactAtmosphereMix = model.atmosphere?.dominantSpecies
+      ? `${model.atmosphere.dominantSpecies}-dominant`
+      : "None";
+    const compactResurfacing =
+      geology.resurfacingDominantProcess === "volcanic"
+        ? "Volcanic"
+        : geology.resurfacingDominantProcess === "cryovolcanic"
+          ? "Cryovolcanic"
+          : geology.resurfacingDominantProcess === "mixed"
+            ? "Mixed"
+            : "Quiet";
+    const compactLifeLimits = biosphere.limitingFactors?.length
+      ? `${biosphere.limitingFactors.length} blockers`
+      : "Clear";
+    const compactOrbitalFate = model.display.orbitalFate.startsWith("Roche limit")
+      ? "Inward decay"
+      : model.display.orbitalFate.startsWith("Escape")
+        ? "Outward drift"
+        : "Stable";
+    const moonHabitabilityPolicyLabel = moonHabitabilityBreakdown.supportedSolventPathways
+      ?.alternativeSolvents
+      ? "surface + subsurface + alt solvents"
+      : moonHabitabilityBreakdown.supportedSolventPathways?.subsurfaceWater
+        ? "surface + subsurface water"
+        : "surface water only";
 
     const items = [
       // APPEARANCE PREVIEW
@@ -558,6 +709,68 @@ export function initMoonPage(mountEl) {
       { label: "Albedo", value: fmt(state.moon.albedo, 3), meta: "" },
       { label: "Equilibrium Temp", value: model.display.equilibriumTemp, meta: "" },
       { label: "Surface Temp", value: model.display.surfaceTemp, meta: "" },
+      { label: "Climate State", value: model.display.climateState, meta: "" },
+      { label: "Surface Temp Range", value: model.display.surfaceTempRange, meta: "" },
+      {
+        label: "Climate Zones",
+        value: model.display.climateZones,
+        meta: model.display.climateZoneSummary,
+      },
+      { label: "Seasonality", value: model.display.seasonality, meta: "" },
+      { label: "Planetshine", value: model.display.planetshine, meta: "" },
+      { label: "Eclipse Cooling", value: model.display.eclipseCooling, meta: "" },
+      {
+        label: "Earth Similarity Index",
+        value: model.display.earthSimilarityIndex,
+        meta:
+          `Radius ${fmt(earthSimilarityBreakdown.radius ?? 0, 2)} | ` +
+          `Density ${fmt(earthSimilarityBreakdown.density ?? 0, 2)} | ` +
+          `Escape ${fmt(earthSimilarityBreakdown.escapeVelocity ?? 0, 2)} | ` +
+          `Temp ${fmt(earthSimilarityBreakdown.surfaceTemp ?? 0, 2)}`,
+      },
+      {
+        label: "Moon Habitability Index",
+        value: model.display.habitabilityIndex,
+        meta:
+          `Substrate ${fmt(moonHabitabilityBreakdown.substrate ?? 0, 2)} | ` +
+          `Solvent ${fmt(moonHabitabilityBreakdown.solvent ?? 0, 2)} | ` +
+          `Energy ${fmt(moonHabitabilityBreakdown.energy ?? 0, 2)} | ` +
+          `Chemistry ${fmt(moonHabitabilityBreakdown.chemistry ?? 0, 2)} | ` +
+          `Stability ${fmt(moonHabitabilityBreakdown.stabilityMultiplier ?? 0, 2)} | ` +
+          `Radiation ${fmt(moonHabitabilityBreakdown.radiationMultiplier ?? 0, 2)} | ` +
+          `Persistence ${fmt(moonHabitabilityBreakdown.persistenceMultiplier ?? 0, 2)}\n` +
+          `${model.habitability?.habitabilityModelVersion || "phi-unified-v1"} | ${moonHabitabilityPolicyLabel}`,
+      },
+      {
+        label: "Biosphere",
+        value: compactBiosphereValue,
+        meta:
+          `${model.display.surfaceBiosphere}\n` +
+          `Score ${fmt(biosphere.surfaceBiologyScore ?? 0, 2)}`,
+      },
+      { label: "Plant Life", value: model.display.plantLife, meta: "" },
+      {
+        label: "Vegetation",
+        value: model.biosphere?.vegetationEligible ? "Yes" : "No",
+        meta:
+          model.display.vegetation === "Supported"
+            ? "Surface vegetation is supported by the current biosphere gate"
+            : model.display.vegetationNote,
+      },
+      {
+        label: "Life Limits",
+        value: compactLifeLimits,
+        meta: model.display.biosphereLimits,
+      },
+      ...(model.biosphere?.vegetationEligible
+        ? [
+            {
+              label: "Veg Colours",
+              value: "Available",
+              meta: `${model.display.vegetationColours}\n${model.display.vegetationNote}`,
+            },
+          ]
+        : []),
 
       // MAJOR MOON ORBITAL CHARACTERISTICS
       { label: "Orbital Period (sidereal)", value: model.display.sidereal, meta: "" },
@@ -570,7 +783,53 @@ export function initMoonPage(mountEl) {
       { label: "Moon Contribution", value: model.display.moonPct, meta: "" },
       { label: "Star Contribution", value: model.display.starPct, meta: "" },
       { label: "Surface Ices", value: model.display.surfaceIces, meta: "" },
-      { label: "Volatile Atmosphere", value: model.display.volatileAtmosphere, meta: "" },
+      { label: "Hydrosphere", value: model.display.hydrosphereState, meta: "" },
+      { label: "Surface Water", value: model.display.surfaceWater, meta: "" },
+      { label: "Subsurface Ocean", value: model.display.subsurfaceOcean, meta: "" },
+      { label: "Ocean Depth", value: model.display.oceanDepth, meta: "" },
+      { label: "Ice Shell", value: model.display.iceShell, meta: "" },
+      { label: "High-Pressure Ice", value: model.display.highPressureIce, meta: "" },
+      {
+        label: "Atmosphere",
+        value: model.display.atmosphereClass,
+        meta: model.display.atmosphereSource,
+      },
+      { label: "Surface Pressure", value: model.display.surfacePressure, meta: "" },
+      {
+        label: "Atmosphere Mix",
+        value: compactAtmosphereMix,
+        meta: model.display.atmosphereComposition,
+      },
+      { label: "Greenhouse Warming", value: model.display.greenhouseWarming, meta: "" },
+      {
+        label: "Volcanic Activity",
+        value: model.display.volcanicActivity,
+        meta: `score ${fmt(geology.volcanicActivityScore ?? 0, 2)}`,
+      },
+      {
+        label: "Cryovolcanism",
+        value: model.display.cryovolcanicActivity,
+        meta: `score ${fmt(geology.cryovolcanicActivityScore ?? 0, 2)}`,
+      },
+      {
+        label: "Resurfacing",
+        value: compactResurfacing,
+        meta:
+          `${model.display.resurfacing}\n` +
+          (geology.resurfacingDominantProcess === "none"
+            ? ""
+            : `${geology.resurfacingDominantProcess || "mixed"}-driven`),
+      },
+      {
+        label: "Volatile Supply",
+        value: model.display.volatileReplenishment,
+        meta: `score ${fmt(geology.volatileReplenishmentScore ?? 0, 2)}`,
+      },
+      {
+        label: "Ocean Persistence",
+        value: model.display.oceanPersistence,
+        meta: `score ${fmt(geology.oceanPersistenceScore ?? 0, 2)}`,
+      },
       {
         label: "Tidal Heating",
         value: model.display.tidalHeating,
@@ -579,9 +838,16 @@ export function initMoonPage(mountEl) {
       { label: "Tidal Heating (\u00D7 Earth)", value: model.display.tidalHeatingXEarth, meta: "" },
       { label: "Radiogenic Heating", value: model.display.radiogenicHeating, meta: "" },
       { label: "Orbital Recession", value: model.display.recession, meta: "" },
-      { label: "Orbital Fate", value: model.display.orbitalFate, meta: "" },
       {
-        label: "Magnetospheric Radiation",
+        label: "Orbital Fate",
+        value: compactOrbitalFate,
+        meta:
+          compactOrbitalFate === "Stable"
+            ? "No strong inward decay or outward escape trend is currently predicted"
+            : model.display.orbitalFate,
+      },
+      {
+        label: "Magnetosphere Dose",
         value: model.display.magnetosphericRad,
         meta: model.display.magnetosphericLabel,
       },
@@ -605,6 +871,7 @@ export function initMoonPage(mountEl) {
           : {
               label: item.label,
               tip: TIP_LABEL[item.label] || "",
+              kpiClass: `kpi--compact ${item.kpiClass || ""}`.trim(),
               value: item.value,
               meta: item.meta,
             },
@@ -834,7 +1101,7 @@ export function initMoonPage(mountEl) {
           bodyType: "moon",
           name: recipe.label || "Moon",
           recipeId: recipe.id,
-          moonCalc: recipe.preview,
+          moonCalc: recipe.previewCalc || recipe.preview,
         },
       });
     }

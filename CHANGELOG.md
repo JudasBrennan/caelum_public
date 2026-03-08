@@ -4,6 +4,503 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 1.22.0 — 2026-03-09
+
+### Moon Workflow Integration
+
+**Integrated moon-world outputs into snapshots, visualizer focus, import/export preview, and documentation**
+(engine/moon.js, engine/worldSnapshot.js, engine/worldAdapters.js,
+ui/visualizer/focusSummary.js, ui/visualizerPage.js,
+ui/importExportPage.js, ui/lessons/L12_moonsTides.js, ui/sciencePage.js,
+styles.css,
+tests/worldSnapshot.test.js, tests/worldAdapters.test.js,
+tests/importExportPage.ui.test.js, tests/visualizerFocusSummary.test.js,
+tests/moonWorldRoundTrip.test.js, .gitignore)
+
+Implemented `Stage M7` from the moon-world plan. Moon-world state is now
+available to cross-page consumers through the snapshot layer even in
+summary mode, including atmosphere class, hydrosphere state, climate
+state, biosphere class, subsurface-ocean presence, and habitability
+index. The Visualiser can now focus moons directly and exposes a compact
+focused-body summary card, with explicit surface-vs-subsurface wording
+when a moon score is being supported by subsurface water rather than an
+exposed biosphere.
+
+The Import/Export page now reports a compact moon-world preview summary
+for imports and explicitly notes that moon atmosphere, hydrosphere,
+climate, geology, biosphere, and habitability outputs are rebuilt from
+saved inputs after load. Lesson 12 and the Science page now document the
+current moon-world stack and its surface-versus-subsurface distinction.
+A new round-trip integration test also proves those moon outputs
+survive save/load and export/import workflows.
+
+### Moon Surface and Visual Integration
+
+**Made moon visuals depend on modelled atmosphere, hydrosphere, biosphere, and geology state**
+(ui/moon/displayModel.js, ui/moonStyles.js, ui/celestialComposer.js,
+ui/celestialArtProfiles.js, tests/moonDisplayModel.test.js,
+tests/moonStyles.test.js, tests/celestialComposer.test.js, .gitignore)
+
+Implemented `Stage M6` from the moon-world plan. Moon visual output is
+now driven from the engine-side moon world state instead of relying only
+on older density / albedo / tidal-heating heuristics. The Moon preview
+and shared celestial renderer now react to explicit hydrosphere,
+atmosphere, biosphere, cryovolcanic, and volcanic outputs, so wet ocean
+moons, hazy atmospheric moons, icy fracture-plume moons, and
+biologically active moons render in ways that match the current model.
+The Moon recipe picker now uses richer Moon-specific cards with short
+style hints, the new `Temperate Ocean`, `Biologically Active`, and
+`Hazy Atmosphere` recipes now appear in the picker, and the
+irregular-capture style now renders as a visibly non-spherical captured
+body instead of a perfect sphere. Small captured moons now use a
+deterministic lumpy-body geometry in the shared Moon preview path, so
+Phobos-, Deimos-, and irregular-capture-style bodies read as potato
+shapes rather than stretched spheres. Moon atmosphere shells now render
+as tighter limb haze instead of the old solid tinted aura, which makes
+Titan-like, hazy, oceanic, and biologically active Moon previews read
+more naturally.
+
+### Moon KPI Layout Consistency
+
+**Normalized Moon-page KPI card sizing and moved verbose details into hover meta**
+(ui/moonPage.js, styles.css, tests/inputDraftStability.ui.test.js)
+
+Aligned the Moon page with the KPI rules in the style guide. The
+collapsed Moon-page KPI cards now use short labels and compact summary
+values so every card stays at the same footprint, while the extra
+descriptive detail is exposed in the existing hover/focus expansion
+state instead of forcing taller cards.
+
+### Moon Biosphere and Plant-Life Layer
+
+**Added first-pass moon biosphere gating for surface biology and vegetation**
+(engine/moon/biosphere.js, engine/moon.js, ui/moonPage.js,
+tests/moonBiosphere.test.js, tests/inputDraftStability.ui.test.js,
+.gitignore)
+
+Implemented `Stage M5` from the moon-world plan. Moons now derive a
+first-pass biosphere layer that separates surface biology from PHI and
+adds explicit plant-life gating. The new moon biosphere model evaluates
+atmosphere adequacy, accessible surface water, climate livability,
+radiation, host-star spectrum, and illumination regime, then emits a
+surface-biosphere class, plant-life plausibility, vegetation
+eligibility, vegetation colours where supported, and a limiting-factor
+summary when exposed life is not supported.
+
+The Moon page now surfaces these biosphere outputs directly so users can
+see whether a moon supports surface life, whether visible vegetation is
+plausible, and which factors are blocking surface biology in cold,
+airless, or highly irradiated cases.
+
+**Tests** (tests/moonBiosphere.test.js,
+tests/inputDraftStability.ui.test.js)
+
+- Added direct biosphere regressions for Luna-like, temperate wet, and
+  Enceladus-like moon cases
+- Added Moon-page UI assertions for the new biosphere labels and
+  explanatory tooltip copy
+
+### Moon Geology and Volatile Replenishment
+
+**Implemented moon geology outputs for resurfacing, volatile replenishment, and ocean persistence**
+(engine/moon/geology.js, engine/moon.js, ui/moonPage.js,
+tests/moonGeology.test.js, tests/inputDraftStability.ui.test.js,
+.gitignore)
+
+Implemented `Stage M4` from the moon-world plan. Moons now derive a
+first-pass geology layer instead of behaving like passive bodies with
+fixed volatile and ocean inventories. The new geology model adds
+separate silicate-volcanic and cryovolcanic activity scores, a derived
+resurfacing class, volatile-replenishment tendency, and
+ocean-persistence tendency using the current tidal heating, radiogenic
+heating, composition, size, gravity, and hydrosphere state.
+
+The Moon page now surfaces these geology outputs directly, so users can
+distinguish inert cratered moons from Io-like volcanic resurfacing and
+Enceladus-like cryovolcanic / volatile-replenishing cases under the
+current inputs.
+
+**Tests** (tests/moonGeology.test.js,
+tests/inputDraftStability.ui.test.js)
+
+- Added direct anchor-case regressions for Luna-like, Io-like, and
+  Enceladus-like moons
+- Added Moon-page UI assertions for the new geology labels and tooltip
+  copy
+
+### Parent-Coupled Moon Climate
+
+**Implemented moon climate outputs driven by parent illumination and eclipse geometry**
+(engine/moon/illumination.js, engine/moon/climate.js,
+engine/moon/temperature.js, engine/moon.js,
+engine/habitability/context.js, ui/moonPage.js,
+tests/moonClimate.test.js, tests/inputDraftStability.ui.test.js,
+.gitignore)
+
+Implemented `Stage M3` from the moon-world plan. Moons now derive a
+first-pass climate layer instead of relying only on a single bulk
+surface temperature. The new model adds parent reflected light, parent
+thermal emission, eclipse duty cycle, and synchronous-geometry contrast,
+then emits moon-specific climate state, climate zones, seasonality, a
+surface-temperature range, eclipse cooling, and planetshine forcing.
+
+The Moon page now surfaces these climate outputs directly, and moon
+habitability now consumes the explicit moon climate block instead of the
+earlier frozen-surface shortcut.
+
+**Tests** (tests/moonClimate.test.js,
+tests/inputDraftStability.ui.test.js)
+
+- Added direct illumination and eclipse regressions
+- Added moon climate integration checks for zones and livability
+- Added Moon-page UI assertions for the new climate outputs and tooltip
+  copy
+
+### Moon Hydrosphere and Ocean System
+
+**Implemented the second moon-world tranche with explicit moon hydrosphere states**
+(engine/moon/hydrosphere.js, engine/habitability/hydrosphere.js,
+engine/habitability/context.js, engine/moon.js, ui/moonPage.js,
+tests/moonHydrosphere.test.js, tests/moonHabitability.test.js,
+tests/inputDraftStability.ui.test.js, .gitignore)
+
+Implemented `Stage M2` from the moon-world plan. Moons now derive a
+separate hydrosphere state instead of relying on the earlier thin shared
+moon-water heuristic. The new moon hydrosphere model distinguishes dry,
+surface-ocean, frozen-surface, subsurface-ocean, and steam cases, and it
+adds first-pass heuristics for water coverage, subsurface-ocean score,
+surface-accessible liquid water, ocean depth, ice-shell thickness, and
+high-pressure-ice barriers.
+
+The Moon page now surfaces this state directly through new hydrosphere
+outputs, so users can see when a moon is frozen at the surface, when a
+buried ocean is supported, and how deep the modeled liquid or ice layers
+are under the current inputs.
+
+**Tests** (tests/moonHydrosphere.test.js,
+tests/moonHabitability.test.js,
+tests/inputDraftStability.ui.test.js)
+
+- Added direct hydrosphere regressions for dry, temperate wet,
+  Europa-like, and Titan-like moon cases
+- Rebased moon habitability expectations onto the new subsurface-ocean
+  hydrosphere state
+- Added Moon-page UI assertions for the new hydrosphere labels and
+  tooltip copy
+
+### Moon Atmosphere Foundation
+
+**Began the moon-world roadmap with first-pass moon atmosphere modeling**
+(engine/moon/atmosphere.js, engine/moon/temperature.js, engine/moon.js,
+engine/habitability/context.js, ui/moonPage.js,
+tests/moonAtmosphere.test.js, tests/moon-nasa-validation.test.js,
+tests/engineWorldFixtures.test.js,
+tests/inputDraftStability.ui.test.js, .gitignore)
+
+Implemented `Stage M1` from the moon-world plan. Moons now derive a
+first-pass atmosphere state with source classification, dominant gas,
+surface pressure, composition summary, density, scale height, and simple
+greenhouse / anti-greenhouse treatment. The moon engine now solves
+volatile inventory, atmosphere state, and temperature together instead
+of exposing only the earlier thin-atmosphere retention estimate.
+
+The Moon page now surfaces the new atmosphere outputs directly,
+including `Atmosphere`, `Surface Pressure`, `Atmosphere Composition`,
+and `Greenhouse Warming`, with updated tooltip wording to explain the
+current model scope.
+
+**Tests** (tests/moonAtmosphere.test.js,
+tests/moon-nasa-validation.test.js,
+tests/engineWorldFixtures.test.js,
+tests/inputDraftStability.ui.test.js)
+
+- Added direct atmosphere regressions for Luna-like, Titan-like,
+  Triton-like, and Io-like moon cases
+- Updated Moon-page UI expectations for the new atmosphere outputs
+- Rebased the icy-moon fixture snapshot and NASA-validation caveats to
+  match the new first-pass atmosphere model
+
+### Rocky Visual Tuning
+
+**Improved Earth-like / shallow-ocean rocky texture colour balance**
+(ui/rockyPlanetStyles.js, ui/celestialArtProfiles.js,
+ui/celestialComposer.js, tests/rockyPlanetStyles.test.js)
+
+Adjusted the rocky-planet texture pipeline so Earth-like and shallow-ocean
+worlds render with a clearer blue ocean signal instead of reading muddy or
+overly brown. The Earth-like ocean tint is now brighter, the Earth-style
+art profiles use a slightly stronger ocean/atmosphere treatment, and the
+ocean fill layer now paints more decisively beneath the continent mask.
+
+### Sol Preset Refresh
+
+**Updated the Sol preset to stay aligned with the current habitability and moon models**
+(ui/solPreset.js, tests/solPresetConsistency.test.js, .gitignore)
+
+Refreshed the built-in Solar System preset so its inputs still make sense
+after the recent hydrosphere and habitability work. Earth now uses a
+realistic water mass fraction, which keeps the preset Earth-like while
+placing it in the more defensible `Shallow oceans` regime under the
+current water-inventory model.
+
+The preset's moon data was also cleaned up: the Bond albedos for the
+moons covered by the local NASA calibration suite now match those
+reference values, several stale >1 geometric-albedo values were removed,
+and the two moons explicitly calibrated in the current moon model now use
+their intended composition overrides (`Io` as `Partially molten`,
+`Enceladus` as `Subsurface ocean`).
+
+### Unified Habitability Model
+
+**Completed Stage 7 unified PHI composition for planets and moons**
+(engine/habitability/solvent.js, engine/habitability/chemistry.js,
+engine/habitability/radiation.js, engine/habitability/persistence.js,
+engine/habitability/schema.js, engine/habitability/context.js,
+engine/habitability/metrics.js, engine/planet.js, engine/moon.js,
+ui/planetPage.js, ui/moonPage.js, tests/habitabilitySolvent.test.js,
+tests/habitabilityChemistry.test.js,
+tests/habitabilityRadiation.test.js,
+tests/habitabilityPersistence.test.js, tests/habitabilityMetrics.test.js,
+tests/moonHabitability.test.js, tests/planet.test.js,
+tests/inputDraftStability.ui.test.js, .gitignore)
+
+Habitability scoring now uses one explicit unified model version,
+`phi-unified-v1`, for both planets and moons. The shared PHI core still
+uses substrate, solvent, energy, and chemistry, but Stage 7 makes the
+major policy layers explicit: solvent pathways, chemistry and
+photochemistry, radiation, and long-term persistence are now all modeled
+as separate bounded submodels instead of being folded into generic
+heuristics.
+
+The current default policy supports surface water and subsurface water.
+Alternative solvents are now implemented as an explicit policy hook but
+remain disabled by default. Europa-like and Enceladus-like moons now
+improve once subsurface-water support is available, while Titan-like
+worlds only improve when alternative-solvent support is explicitly
+enabled.
+
+Planet and Moon habitability cards now surface the unified model version
+and active solvent-policy scope in their KPI metadata and tooltip text.
+
+**Tests** (tests/habitabilitySolvent.test.js,
+tests/habitabilityChemistry.test.js,
+tests/habitabilityRadiation.test.js,
+tests/habitabilityPersistence.test.js, tests/habitabilityMetrics.test.js,
+tests/moonHabitability.test.js, tests/planet.test.js,
+tests/inputDraftStability.ui.test.js)
+
+- Added direct solvent-policy tests for surface-only, subsurface-water,
+  and alternative-solvent behavior
+- Added dedicated chemistry, radiation, and persistence regressions
+- Rebased planet and moon habitability tests onto the unified PHI model
+- Added UI regressions confirming unified version/policy disclosure on
+  both Planet and Moon pages
+
+### Moon Habitability Metrics
+
+**Completed Stage 6 moon ESI and Moon Habitability Index support**
+(engine/habitability/hydrosphere.js, engine/habitability/radiation.js,
+engine/habitability/context.js, engine/habitability/metrics.js,
+engine/moon.js, ui/moonPage.js, tests/moonHabitability.test.js,
+tests/inputDraftStability.ui.test.js, .gitignore)
+
+Implemented the first moon habitability-metrics release. The moon engine
+added `Earth Similarity Index` and `Moon Habitability Index` values,
+backed by a surface-focused moon hydrosphere helper and a direct
+magnetospheric-radiation penalty. This phase introduced the first shared
+moon PHI path before the later Stage 7 unified model replaced the
+intermediate moon-only release state.
+
+The Moon page gained both KPI cards with plain-text breakdowns for
+substrate, solvent, energy, chemistry, stability, and radiation. Stage 6
+itself was intentionally surface-water-only: subsurface oceans and
+alternative solvents remained out of scope until the later unified policy
+work.
+
+**Tests** (tests/moonHabitability.test.js,
+tests/inputDraftStability.ui.test.js)
+
+- Added direct moon habitability coverage for Luna-like, Io-like,
+  Europa-like, Enceladus-like, and temperate wet reference cases
+- Added adapter regressions confirming valid `context-v2` moon outputs
+  and radiation-aware scoring
+- Added a Moon-page UI regression confirming the new KPI cards, rendered
+  breakdown text, and tooltip wording
+
+### Habitability Context Generalization
+
+**Completed Stage 5 normalized context refactor for habitability metrics**
+(engine/habitability/schema.js, engine/habitability/context.js,
+engine/habitability/metrics.js, tests/habitabilityContext.test.js,
+tests/habitabilityMetrics.test.js, tests/planet.test.js, .gitignore)
+
+Moved the habitability metric layer onto a versioned nested
+`context-v2` schema so the scoring core is no longer coupled to a flat,
+planet-specific adapter shape. The rocky-planet adapter now emits the
+normalized context, a fixture-ready moon adapter now exists for future
+moon PHI work, and the metric functions read only the shared nested
+sections for bulk, surface, energy, chemistry, climate, environment,
+and provenance.
+
+This is an architectural phase rather than a user-facing scoring change:
+the current rocky-planet ESI and PHI outputs are intended to remain
+numerically unchanged while the shared schema and validator lock down the
+contract needed for later moon support.
+
+**Tests** (tests/habitabilityContext.test.js,
+tests/habitabilityMetrics.test.js, tests/planet.test.js)
+
+- Added direct schema and adapter coverage for valid planet and moon
+  `context-v2` outputs
+- Added validator regressions for missing core fields, invalid surface
+  fraction totals, and optional-environment normalization
+- Confirmed metric parity for current rocky-planet engine outputs after
+  the nested-schema refactor
+
+### Science Formula Contrast
+
+**Gave light-mode equation cards their own theme token**
+(styles.css)
+
+Science and Maths equation blocks now use dedicated theme variables for
+their background and border, so the light-theme formula surface has
+better contrast without relying on a hardcoded selector colour.
+
+### About Page Licensing
+
+**Added a View License toast to the About page**
+(ui/aboutPage.js, styles.css, tests/aboutPage.ui.test.js)
+
+The About page now includes a `View License` button beside `View
+Changelog`, opening a toast that explains the app code is released under
+MPL-2.0, distinguishes software licensing from generated user output,
+explicitly states that users can use their generated output as they see
+fit, and links to the public license and third-party notices.
+
+### Rocky Habitability Metrics Beta
+
+**Added Stage 1 Earth Similarity Index and Habitability Score metrics**
+(engine/habitability/metrics.js, engine/habitability/context.js,
+engine/planet.js, ui/planetPage.js, tests/planet.test.js,
+tests/planet-nasa-validation.test.js,
+tests/inputDraftStability.ui.test.js)
+
+Implemented the first habitability-metrics phase for rocky planets. The
+planet engine now computes an Earth Similarity Index (ESI) from radius,
+density, escape velocity, and surface temperature, plus a clearly-labeled
+`Habitability Score (Beta)` built from substrate, solvent, energy, and
+chemistry terms.
+
+The Planet page gained both rocky-world KPI cards with plain-text
+breakdowns and tooltip guidance. Gas giants remained out of scope. This
+engine-side metric layer also established the adapter pattern that later
+stages used for moon support and for the PHI upgrades that replaced the
+initial beta score.
+
+**Tests** (tests/planet.test.js, tests/planet-nasa-validation.test.js,
+tests/inputDraftStability.ui.test.js)
+
+- Added direct metric tests for ESI and PHI beta term behavior
+- Added engine integration checks for wet and dry rocky worlds
+- Added NASA-based ESI regressions for Earth, Venus, and Mars
+- Added a Planet-page UI regression confirming the new KPI cards render
+  for rocky planets but not for gas giants
+
+### Shared Hydrosphere Model
+
+**Completed Stage 2 shared hydrosphere and surface-access integration**
+(engine/habitability/hydrosphere.js, engine/habitability/context.js,
+engine/habitability/metrics.js, engine/planet.js,
+engine/population.js, ui/populationPage.js, ui/rockyPlanetStyles.js,
+tests/hydrosphere.test.js, tests/population.test.js,
+tests/rockyPlanetStyles.test.js, tests/planet.test.js, .gitignore)
+
+Implemented the second habitability-metrics phase by moving rocky-world
+surface water interpretation onto a single engine-side hydrosphere
+model. `calcPlanetExact()` now emits shared liquid-ocean, land, ice,
+steam, and surface-accessible-liquid fractions, and the Phase 1
+habitability metrics now read those outputs instead of relying on the
+temporary Stage 1 land/ocean fallback.
+
+Population auto land/ocean handling and rocky-planet rendering now
+consume the same hydrosphere state, removing the earlier disagreement
+between population math and visual ocean coverage. In this phase the
+climate model intentionally remains label-based; the shared hydrosphere
+model is authoritative for PHI, Population, and rocky rendering.
+
+**Tests** (tests/hydrosphere.test.js, tests/population.test.js,
+tests/rockyPlanetStyles.test.js, tests/planet.test.js)
+
+- Added direct hydrosphere regressions for normalization, dry, frozen,
+  low-pressure, and runaway-greenhouse cases
+- Rebased rocky renderer and population tests onto the authoritative
+  hydrosphere fractions
+- Added planet integration checks for emitted hydrosphere outputs and
+  PHI solvent behavior
+
+### Planetary Habitability Index v1
+
+**Completed Stage 3 rocky-world PHI v1**
+(engine/habitability/metrics.js, engine/habitability/context.js,
+engine/planet.js, ui/planetPage.js, tests/habitabilityMetrics.test.js,
+tests/planet.test.js, tests/inputDraftStability.ui.test.js, .gitignore)
+
+Replaced the Stage 1 beta habitability heuristic with `phi-v1`, a more
+defensible rocky-world `Planetary Habitability Index` built on the
+shared Stage 2 hydrosphere outputs. The score keeps the four-term
+geometric-mean structure, but now uses a mixed-land substrate term,
+surface-accessible-liquid solvent term, insolation-plus-internal-heat
+energy term, and a broader chemistry composite.
+
+This phase graduated the rocky-world KPI from `Habitability Score
+(Beta)` to `Planetary Habitability Index`, with gas giants still out of
+scope. It also introduced the intermediate `phi-v1` engine model version
+before later climate-aware and unified-model upgrades replaced it.
+
+**Tests** (tests/habitabilityMetrics.test.js, tests/planet.test.js,
+tests/inputDraftStability.ui.test.js)
+
+- Added direct PHI v1 regression coverage for solvent, substrate,
+  chemistry, energy, and bounds behavior
+- Rebased rocky-world ranking tests onto PHI v1 with a wet low-mass
+  reference world
+- Updated Planet-page UI regressions for the graduated PHI v1 label
+
+### Climate-Aware Habitability
+
+**Completed Stage 4 climate and stability integration for rocky PHI**
+(engine/habitability/climateLivability.js,
+engine/habitability/stability.js, engine/habitability/context.js,
+engine/habitability/metrics.js, engine/planet.js, engine/population.js,
+ui/planetPage.js, tests/habitabilityStability.test.js,
+tests/habitabilityMetrics.test.js, tests/planet.test.js,
+tests/inputDraftStability.ui.test.js, .gitignore)
+
+Upgraded the rocky-world habitability model from `phi-v1` to
+`phi-v2-planet`. The PHI base still uses substrate, solvent, energy, and
+chemistry, but the final score is now multiplied by a climate/stability
+term derived from climate state and climate-zone livability.
+
+This phase also extracts the climate-zone habitability fraction out of
+Population into a shared engine helper, so PHI no longer depends on a
+Population-owned implementation detail. The rocky Planet page keeps the
+same `Planetary Habitability Index` label, but its tooltip and KPI meta
+were updated to reflect the added stability term. This climate-aware
+planet model was later folded into the Stage 7 unified `phi-unified-v1`
+system.
+
+**Tests** (tests/habitabilityStability.test.js,
+tests/habitabilityMetrics.test.js, tests/planet.test.js,
+tests/inputDraftStability.ui.test.js)
+
+- Added direct stability regressions for climate-state penalties,
+  climate-zone livability, and bounded output
+- Rebased PHI direct tests and rocky-world integration checks onto
+  `phi-v2-planet`
+- Added engine checks that the climate multiplier never raises PHI above
+  its four-term base
+- Updated the Planet-page UI regression to require the new stability line
+
 ## 1.21.1 — 2026-03-08
 
 ### Reading Comfort

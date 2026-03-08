@@ -255,6 +255,20 @@ export function buildLesson12(mode) {
     ),
 
     /* ── Mini-calculator ─────────────────────────────────────────── */
+    concept(
+      "Moon Worlds in WorldSmith",
+      /* basic */
+      `<p>WorldSmith now treats moons as small worlds rather than only tidal case studies. The Moon page derives a first-pass atmosphere, hydrosphere, climate, geology, biosphere, and habitability output from the same saved moon inputs used elsewhere in the app.</p>
+      <p>That means a moon can be airless, haze-shrouded, frozen, ocean-bearing, cryovolcanic, or even biologically active depending on its orbit, composition, volatile inventory, and parent-body environment.</p>
+      ${keyIdea("Surface habitability and subsurface potential are not the same thing. A moon can host a subsurface ocean and still remain surface-sterile under the current policy.")}`,
+
+      /* advanced */
+      `<p>In the current model, moon-world outputs are built in layers: volatile retention and greenhouse define the atmosphere, the hydrosphere model distinguishes dry / surface-liquid / frozen / subsurface-ocean / steam cases, the climate model adds parent-coupled illumination and eclipse forcing, geology estimates resurfacing and volatile replenishment, and the biosphere gate checks whether exposed surface conditions remain viable.</p>
+      <p>The exported world file stores the moon inputs, and the atmosphere / hydrosphere / climate / geology / biosphere / habitability outputs are recomputed from those inputs after load. This keeps moon-world behavior consistent across the Moon page, visualizer, import/export, and other snapshot-driven consumers.</p>
+      ${keyIdea("A strong moon habitability score can still come from subsurface support rather than exposed surface life. Read the hydrosphere, biosphere, and solvent-path notes together.")}`,
+      mode,
+    ),
+
     tryIt(
       "Tidal Heating",
       `${tryRow(
