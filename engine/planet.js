@@ -8,27 +8,27 @@
 //
 // Methodology:
 //   - Density from mass + core-mass fraction (CMF) via empirical power-law
-//     with a floor for sub-Earth masses (< 0.6 M⊕).
+//     with a floor for sub-Earth masses (< 0.6 M?).
 //   - Radius, surface gravity, and escape velocity from density + mass.
 //   - Surface temperature via a Stefan-Boltzmann effective-temperature chain
 //     with greenhouse and surface-divisor corrections.
 //   - Atmospheric partial pressures, mean molecular weight, and density from
-//     an N₂/O₂/CO₂/Ar gas mix at a given surface pressure.
+//     an N2/O2/CO2/Ar gas mix at a given surface pressure.
 //   - Circulation cell count keyed to rotation period.
 //   - Sky colours from a PanoptesV-inspired lookup table interpolated over
 //     star temperature and effective surface pressure (adjusted for
-//     gravity/temperature column-density), with CO₂ tint correction.
+//     gravity/temperature column-density), with CO2 tint correction.
 //     Interpolation uses OKLab colour space for perceptual uniformity.
 //
 // Inputs:  starMassMsol, starAgeGyr, and a planet object containing mass,
 //          CMF, axial tilt, albedo, greenhouse effect, observer height,
 //          rotation period, orbital elements, surface pressure, and gas
 //          mix percentages.
-// Outputs: { star, inputs, derived, display } — clamped inputs echoed back,
+// Outputs: { star, inputs, derived, display } � clamped inputs echoed back,
 //          numeric derived values for downstream use, and pre-formatted
 //          display strings for the UI.
 
-import { clamp, fmt } from "./utils.js";
+import { clamp, fmt, toFinite } from "./utils.js";
 import { calcStar } from "./star.js";
 import { findNearestResonance } from "./debrisDisk.js";
 import {
@@ -90,7 +90,7 @@ const PI = Math.PI;
 const STAR_MASS_TO_KG = 1.989e30;
 
 const EARTH_RADIUS_KM = 6371;
-const EARTH_DENSITY_GCM3 = 5.51; // Earth mean bulk density (g/cm³)
+const EARTH_DENSITY_GCM3 = 5.51; // Earth mean bulk density (g/cm�)
 const DAYS_PER_YEAR = 365.256; // Julian year (IAU)
 
 const VELOCITY_EARTH_KMS = 11.186;
@@ -109,7 +109,7 @@ export const ISOTOPE_HEAT_FRACTIONS = { u238: 0.39, u235: 0.04, th232: 0.4, k40:
 
 // --- Mantle outgassing model ---
 // Ortenzi et al. (2020, Sci. Rep. 10, 10907): mantle redox state
-// controls whether outgassing is CO₂+H₂O (oxidised) or H₂+CO (reduced).
+// controls whether outgassing is CO2+H2O (oxidised) or H2+CO (reduced).
 const MANTLE_OXIDATION_MAP = {
   "highly-reduced": { deltaIW: -4, primarySpecies: "H\u2082 + CO", label: "Highly reduced" },
   reduced: {
@@ -125,14 +125,14 @@ function mantleOutgassing(oxidationState) {
   const entry = MANTLE_OXIDATION_MAP[oxidationState] || MANTLE_OXIDATION_MAP.earth;
   let hint;
   if (entry.deltaIW <= -3) {
-    // ΔIW ≤ −3: strongly reducing (e.g. enstatite chondrite mantle)
+    // ?IW = -3: strongly reducing (e.g. enstatite chondrite mantle)
     hint =
       "Reducing mantle produces H\u2082-rich atmospheres with low molecular weight and large scale height.";
   } else if (entry.deltaIW <= -1) {
-    // ΔIW −3 to −1: moderately reducing
+    // ?IW -3 to -1: moderately reducing
     hint = "Moderately reducing mantle produces a mix of H\u2082, CO, and CO\u2082.";
   } else if (entry.deltaIW <= 2) {
-    // ΔIW −1 to +2: Earth-like oxidizing (IW+1 to IW+3 range)
+    // ?IW -1 to +2: Earth-like oxidizing (IW+1 to IW+3 range)
     hint =
       "Oxidizing mantle produces CO\u2082 and H\u2082O, creating denser, opaque atmospheres typical of Earth/Venus.";
   } else {
@@ -201,24 +201,25 @@ function buildPlanetSummaryResult({
  * Calculations sheets of the WS8 spreadsheet.
  *
  * @param {object}  params
- * @param {number}  params.starMassMsol        Host star mass (M☉)
+ * @param {number}  params.starMassMsol        Host star mass (M?)
  * @param {number}  params.starAgeGyr          Host star age (Gyr)
+ * @param {number} [params.starMetallicityFeH] Host-star metallicity [Fe/H]
  * @param {object}  params.planet              Planet input fields
- * @param {number}  params.planet.massEarth    Mass (M⊕)
+ * @param {number}  params.planet.massEarth    Mass (M?)
  * @param {number}  params.planet.cmfPct       Core-mass fraction (%)
- * @param {number}  params.planet.axialTiltDeg Axial tilt (degrees, 0–180)
- * @param {number}  params.planet.albedoBond   Bond albedo (0–0.95)
+ * @param {number}  params.planet.axialTiltDeg Axial tilt (degrees, 0�180)
+ * @param {number}  params.planet.albedoBond   Bond albedo (0�0.95)
  * @param {number}  params.planet.greenhouseEffect Dimensionless greenhouse factor
  * @param {number}  params.planet.observerHeightM  Observer height (metres)
  * @param {number}  params.planet.rotationPeriodHours Sidereal rotation period (hours)
  * @param {number}  params.planet.semiMajorAxisAu    Semi-major axis (AU)
- * @param {number}  params.planet.eccentricity       Orbital eccentricity (0–0.99)
+ * @param {number}  params.planet.eccentricity       Orbital eccentricity (0�0.99)
  * @param {number}  params.planet.inclinationDeg     Orbital inclination (degrees)
  * @param {number}  params.planet.longitudeOfPeriapsisDeg Longitude of periapsis (degrees)
  * @param {number}  params.planet.subsolarLongitudeDeg    Sub-solar longitude (degrees)
  * @param {number}  params.planet.pressureAtm  Surface pressure (atm)
  * @param {number}  params.planet.o2Pct        Oxygen fraction (%)
- * @param {number}  params.planet.co2Pct       CO₂ fraction (%)
+ * @param {number}  params.planet.co2Pct       CO2 fraction (%)
  * @param {number}  params.planet.arPct        Argon fraction (%)
  * @param {number} [params.planet.h2oPct=0]    Water vapor fraction (%)
  * @param {number} [params.planet.ch4Pct=0]    Methane fraction (%)
@@ -232,6 +233,7 @@ function buildPlanetSummaryResult({
 export function calcPlanetExact({
   starMassMsol,
   starAgeGyr,
+  starMetallicityFeH,
   starRadiusRsolOverride,
   starLuminosityLsolOverride,
   starTempKOverride,
@@ -244,6 +246,7 @@ export function calcPlanetExact({
   const star = calcStar({
     massMsol: starMassMsol,
     ageGyr: starAgeGyr,
+    metallicityFeH: starMetallicityFeH,
     radiusRsolOverride: starRadiusRsolOverride,
     luminosityLsolOverride: starLuminosityLsolOverride,
     tempKOverride: starTempKOverride,
@@ -251,7 +254,8 @@ export function calcPlanetExact({
   });
 
   // Suggested CMF from stellar metallicity (needed before input resolution)
-  const suggestedCmf = suggestedCmfFromMetallicity(star.metallicityFeH ?? 0);
+  const resolvedStarMetallicityFeH = star.inputs?.metallicityFeH ?? toFinite(starMetallicityFeH, 0);
+  const suggestedCmf = suggestedCmfFromMetallicity(resolvedStarMetallicityFeH);
   const suggestedCmfPct = suggestedCmf * 100;
 
   // Inputs (clamped to sensible bounds)
@@ -261,11 +265,11 @@ export function calcPlanetExact({
   const wmfPct = clamp(planet.wmfPct ?? 0, 0, 50); // water mass fraction %
   const axialTiltDeg = clamp(planet.axialTiltDeg, 0, 180);
 
-  const albedoBond = clamp(planet.albedoBond, 0, 0.95); // ≤0.95: prevents runaway cooling
+  const albedoBond = clamp(planet.albedoBond, 0, 0.95); // =0.95: prevents runaway cooling
   const greenhouseMode = planet.greenhouseMode || "manual";
-  const greenhouseEffectManual = clamp(planet.greenhouseEffect, 0, 500); // 500 K max — Venus-like upper bound
+  const greenhouseEffectManual = clamp(planet.greenhouseEffect, 0, 500); // 500 K max � Venus-like upper bound
 
-  const observerHeightM = clamp(planet.observerHeightM, 0, 10000); // 10 km — above tropopause
+  const observerHeightM = clamp(planet.observerHeightM, 0, 10000); // 10 km � above tropopause
 
   const rotationPeriodHours = clamp(planet.rotationPeriodHours, 0.1, 1e6); // 0.1 h = breakup speed for rocky body
   const semiMajorAxisAu = clamp(planet.semiMajorAxisAu, 0.01, 1e6);
@@ -322,11 +326,11 @@ export function calcPlanetExact({
   const cmf = cmfPct / 100;
   const wmf = wmfPct / 100;
 
-  // Radius-first mass–radius relation (Zeng+2016 CMF scaling with
+  // Radius-first mass�radius relation (Zeng+2016 CMF scaling with
   // mass-dependent compression exponent calibrated to Solar System):
-  //   R(M, CMF) = (1.07 − 0.21 × CMF) × M^α
-  //   α(M) = min(1/3, 0.257 − 0.0161 × ln M)
-  // At low mass α → 1/3 (uncompressed spheres); at M = 1 M⊕ α = 0.257
+  //   R(M, CMF) = (1.07 - 0.21 � CMF) � M^a
+  //   a(M) = min(1/3, 0.257 - 0.0161 � ln M)
+  // At low mass a ? 1/3 (uncompressed spheres); at M = 1 M? a = 0.257
   // (self-compression). Validated: Mercury 0.3%, Venus 0.8%, Earth 0.2%,
   // Mars 0.5%. Replaces the WS8 density-floor formula (16-21% off for
   // sub-Earth iron-rich bodies).
@@ -350,14 +354,14 @@ export function calcPlanetExact({
   const escapeVelocityVEarth = Math.sqrt(massEarth / radiusEarth);
   const escapeVelocityKms = escapeVelocityVEarth * VELOCITY_EARTH_KMS;
 
-  // ── Jeans escape ──────────────────────────────────────────────────
-  // Equilibrium temperature (no greenhouse) — same formula as tEqK below.
+  // -- Jeans escape --------------------------------------------------
+  // Equilibrium temperature (no greenhouse) � same formula as tEqK below.
   const tEqNoGh = equilibriumTemperatureK(star.luminosityLsol, albedoBond, semiMajorAxisAu);
 
   // XUV flux ratio relative to present-day Earth at 1 AU (Ribas et al. 2005)
   const fXuvRatio = computeXuvFluxRatio(star.luminosityLsol, starAgeGyr, semiMajorAxisAu);
 
-  // Exobase temperature: XUV-heated thermosphere countered by CO₂ cooling.
+  // Exobase temperature: XUV-heated thermosphere countered by CO2 cooling.
   const co2Frac = clamp(planet.co2Pct ?? 0, 0, 100) / 100;
   const exobaseTempK = computeExobaseTemp(tEqNoGh, fXuvRatio, pressureAtm, co2Frac);
 
@@ -365,7 +369,7 @@ export function calcPlanetExact({
   const jeansSpecies = computeJeansEscape(escapeVelocityKms, exobaseTempK);
 
   // Auto-strip: when enabled, zero out gases with "Lost" status and recompute
-  // N₂ and gas-mix totals.  The original user inputs are preserved in the
+  // N2 and gas-mix totals.  The original user inputs are preserved in the
   // `inputs` return object; only the physics uses the effective values.
   const atmosphericEscape = !!planet.atmosphericEscape;
   const escapeResult = applyAtmosphericEscape({
@@ -378,7 +382,7 @@ export function calcPlanetExact({
   ({ o2Pct, co2Pct, arPct, h2oPct, ch4Pct, h2Pct, hePct, so2Pct, nh3Pct } =
     escapeResult.gasPercentages);
 
-  // Greenhouse mode: compute τ from gases (core/full) or use manual input.
+  // Greenhouse mode: compute t from gases (core/full) or use manual input.
   const isFull = greenhouseMode === "full";
   const computedTau = calcGreenhouseTau({
     pressureAtm,
@@ -435,11 +439,11 @@ export function calcPlanetExact({
   const bClass = bodyClass(massEarth);
   const watRegime = waterRegime(wmf);
 
-  // Core radius fraction (Zeng & Jacobsen 2017): CRF ≈ CMF^0.5
+  // Core radius fraction (Zeng & Jacobsen 2017): CRF � CMF^0.5
   const coreRadiusFraction = cmf > 0 ? Math.sqrt(cmf) : 0;
   const coreRadiusKm = coreRadiusFraction * radiusKm;
 
-  // Insolation relative to Earth (L/d²)
+  // Insolation relative to Earth (L/d�)
   const insolationEarth = calcInsolationEarthRatio({
     starLuminosityLsol: star.luminosityLsol,
     orbitalDistanceAu: semiMajorAxisAu,
@@ -503,13 +507,13 @@ export function calcPlanetExact({
   const resonance = tidallyEvolved ? selectSpinOrbitResonance({ eccentricity }) : null;
 
   // Orbital period in hours (for resonance rotation period)
-  // Kepler's third law: P² = a³/M → P = √(a³/M) years
+  // Kepler's third law: P� = a�/M ? P = v(a�/M) years
   const orbPeriodYears = calcOrbitalPeriodEarthYears(semiMajorAxisAu, starMassMsol);
   const resonanceRotationHours = resonance
     ? (orbPeriodYears * DAYS_PER_YEAR * 24) / resonance.p
     : null;
 
-  // Only true for 1:1 synchronous lock — higher resonances still illuminate all sides
+  // Only true for 1:1 synchronous lock � higher resonances still illuminate all sides
   const tidallyLockedToStar = tidallyEvolved && resonance.ratio === "1:1";
 
   // Moon tidal heating on the planet (Peale et al. 1979, reciprocal formula).
@@ -566,7 +570,7 @@ export function calcPlanetExact({
   const liquidWaterPossible =
     pressureAtm >= 0.006 && tKel >= 273 && tKel <= waterBoilingK(pressureAtm);
 
-  // Absorbed stellar flux (W/m²) — globally averaged after albedo
+  // Absorbed stellar flux (W/m�) � globally averaged after albedo
   const absorbedFluxWm2 = computeAbsorbedFluxWm2(insolationEarth, albedoBond);
 
   // Climate state classification (snowball / greenhouse flags)
@@ -699,7 +703,7 @@ export function calcPlanetExact({
     addCell(2, "23-30");
     addCell(3, "30-47");
     addCell(4, "47-56");
-    addCell(5, "56-90°");
+    addCell(5, "56-90�");
   }
 
   // Apparent size of star (Calculations C146)
@@ -885,15 +889,15 @@ export function calcPlanetExact({
       vegetationNote: veg.note,
     },
     display: {
-      hz: `${fmt(hzInnerAu, 3)} – ${fmt(hzOuterAu, 3)} AU`,
+      hz: `${fmt(hzInnerAu, 3)} � ${fmt(hzOuterAu, 3)} AU`,
       starRadiusKm: fmt(star.radiusRsol * 696340, 0) + " km",
-      starLuminosity: fmt(star.luminosityLsol, 6) + " L☉",
-      density: fmt(densityGcm3, 3) + " g/cm³",
-      radius: fmt(radiusEarth, 3) + " R⊕",
+      starLuminosity: fmt(star.luminosityLsol, 6) + " L?",
+      density: fmt(densityGcm3, 3) + " g/cm�",
+      radius: fmt(radiusEarth, 3) + " R?",
       gravity: fmt(gravityG, 3) + " g",
       escape: fmt(escapeVelocityKms, 2) + " km/s",
       tempK: fmt(tKel, 0) + " K",
-      tempC: fmt(tC, 0) + " °C",
+      tempC: fmt(tC, 0) + " �C",
       horizon: fmt(horizonKm, 2) + " km",
       peri: fmt(periapsisAu, 4) + " AU",
       apo: fmt(apoapsisAu, 4) + " AU",
@@ -918,9 +922,9 @@ export function calcPlanetExact({
       localDays: fmt(localDaysPerYear, 2) + " local days",
       pressureKpa: fmt(pressureKpa, 2) + " kPa",
       atmWeight: fmt(atmWeightKgMol, 5) + " kg/mol",
-      atmDensity: fmt(atmDensityKgM3, 4) + " kg/m³",
-      apparentStar: fmt(apparentStarDeg, 3) + "°",
-      insolation: fmt(insolationEarth, 3) + "× Earth",
+      atmDensity: fmt(atmDensityKgM3, 4) + " kg/m�",
+      apparentStar: fmt(apparentStarDeg, 3) + "�",
+      insolation: fmt(insolationEarth, 3) + "� Earth",
       tidalLock: atmospherePreventsLocking
         ? "Atmosphere-stabilised"
         : tidallyLockedToStar
@@ -936,9 +940,9 @@ export function calcPlanetExact({
       coreRadius: `${fmt(coreRadiusFraction, 2)} R (${fmt(coreRadiusKm, 0)} km)`,
       suggestedCmf: `~${fmt(suggestedCmfPct, 0)}%`,
       suggestedCmfNote:
-        (star.metallicityFeH ?? 0) === 0
+        resolvedStarMetallicityFeH === 0
           ? "solar metallicity"
-          : `[Fe/H] ${(star.metallicityFeH ?? 0) > 0 ? "+" : ""}${fmt(star.metallicityFeH ?? 0, 2)}, ${(star.metallicityFeH ?? 0) > 0 ? "iron-rich" : "iron-poor"}`,
+          : `[Fe/H] ${resolvedStarMetallicityFeH > 0 ? "+" : ""}${fmt(resolvedStarMetallicityFeH, 2)}, ${resolvedStarMetallicityFeH > 0 ? "iron-rich" : "iron-poor"}`,
       cmfIsAuto,
       magneticField: magField.dynamoActive
         ? `${magField.fieldLabel} (${fmt(magField.surfaceFieldEarths, 2)}\u00d7 Earth)`

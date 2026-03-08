@@ -28,6 +28,14 @@ let storageRecoveryOverlay = null;
 const THEME_KEY = "worldsmith.theme";
 const SPLASH_ENABLED_KEY = "worldsmith.splash.enabled";
 const NAV_LOCK_KEY = "worldsmith.nav.locked";
+const RELEASE_META_SELECTOR = 'meta[name="worldsmith-release"]';
+const RELEASE_SYNC_SESSION_KEY = "worldsmith.release.sync";
+const RELEASE_RELOAD_PARAM = "ws_release";
+const RELEASE_PROBE_PARAM = "ws_release_probe";
+const APP_RELEASE =
+  document.querySelector(RELEASE_META_SELECTOR)?.getAttribute("content")?.trim() ||
+  document.getElementById("versionTag")?.textContent?.trim() ||
+  "";
 
 function currentStorageError() {
   return typeof store.getLastStorageError === "function" ? store.getLastStorageError() : null;
@@ -46,6 +54,73 @@ function issueKey(issue) {
     issue.cause || "",
     issue.detectedAt || "",
   ].join("|");
+}
+
+function extractReleaseFromHtml(html) {
+  const match = String(html || "").match(
+    /<meta\s+name=["']worldsmith-release["']\s+content=["']([^"']+)["']/i,
+  );
+  return match?.[1]?.trim() || "";
+}
+
+function normalizeReleaseReloadUrl() {
+  if (!window.history?.replaceState) return;
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(RELEASE_RELOAD_PARAM)) return;
+  url.searchParams.delete(RELEASE_RELOAD_PARAM);
+  window.history.replaceState(null, "", url.toString());
+}
+
+function clearReleaseSyncMarker(targetRelease = APP_RELEASE) {
+  if (!targetRelease) return;
+  try {
+    const marker = sessionStorage.getItem(RELEASE_SYNC_SESSION_KEY) || "";
+    if (marker === targetRelease || marker.endsWith(`->${targetRelease}`)) {
+      sessionStorage.removeItem(RELEASE_SYNC_SESSION_KEY);
+    }
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+async function maybeReloadToLiveRelease() {
+  if (!APP_RELEASE || typeof fetch !== "function") return false;
+  if (!/^https?:$/i.test(window.location.protocol)) return false;
+  if (["localhost", "127.0.0.1"].includes(window.location.hostname)) return false;
+
+  let liveRelease = "";
+  try {
+    const probeUrl = new URL("./index.html", window.location.href);
+    probeUrl.searchParams.set(RELEASE_PROBE_PARAM, String(Date.now()));
+    const response = await fetch(probeUrl, { cache: "no-store" });
+    if (!response.ok) return false;
+    liveRelease = extractReleaseFromHtml(await response.text());
+  } catch {
+    return false;
+  }
+
+  if (!liveRelease || liveRelease === APP_RELEASE) {
+    clearReleaseSyncMarker(liveRelease || APP_RELEASE);
+    return false;
+  }
+
+  const syncMarker = `${APP_RELEASE}->${liveRelease}`;
+  try {
+    if (sessionStorage.getItem(RELEASE_SYNC_SESSION_KEY) === syncMarker) {
+      console.warn(
+        `[WorldSmith] Release mismatch persists after reload attempt (${APP_RELEASE} -> ${liveRelease}).`,
+      );
+      return false;
+    }
+    sessionStorage.setItem(RELEASE_SYNC_SESSION_KEY, syncMarker);
+  } catch {
+    // Ignore storage failures and still attempt the reload.
+  }
+
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set(RELEASE_RELOAD_PARAM, liveRelease);
+  window.location.replace(nextUrl.toString());
+  return true;
 }
 
 function downloadTextFile(filename, text, mimeType = "application/json") {
@@ -782,13 +857,23 @@ async function startApp() {
   maybeShowStartupSolPresetPrompt();
 }
 
-if (splashEnabled) {
-  showSplashOverlay()
-    .then(() => startApp())
-    .catch((err) => {
-      console.error("[WorldSmith] Splash overlay failed:", err);
-      void startApp();
-    });
-} else {
+async function bootstrapApp() {
+  const reloadingToLiveRelease = await maybeReloadToLiveRelease();
+  if (reloadingToLiveRelease) return;
+
+  normalizeReleaseReloadUrl();
+
+  if (splashEnabled) {
+    showSplashOverlay()
+      .then(() => startApp())
+      .catch((err) => {
+        console.error("[WorldSmith] Splash overlay failed:", err);
+        void startApp();
+      });
+    return;
+  }
+
   void startApp();
 }
+
+void bootstrapApp();

@@ -105,6 +105,7 @@ function getClimateContext(world) {
   const model = calcPlanetExact({
     starMassMsol: Number(world?.star?.massMsol) || 1,
     starAgeGyr: Number(world?.star?.ageGyr) || 4.6,
+    starMetallicityFeH: Number(world?.star?.metallicityFeH) || 0,
     starRadiusRsolOverride: sov.r,
     starLuminosityLsolOverride: sov.l,
     starTempKOverride: sov.t,

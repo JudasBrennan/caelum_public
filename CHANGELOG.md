@@ -4,6 +4,122 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 1.21.1 — 2026-03-08
+
+### Reading Comfort
+
+**Updated global text selection styling and increased main-content line height**
+(styles.css)
+
+Selected text now uses the site theme colours instead of the browser
+default highlight. Main reading areas across the app also now use a
+`1.5rem` line height to improve scanability and reduce cramped text in
+panel content, hints, tutorials, lessons, and changelog views.
+
+### Planet KPI Detail Units
+
+**Added exact SI secondary values to Planet-page radius and gravity KPIs**
+(ui/planetPage.js)
+
+The expanded rocky-planet KPI cards for Radius and Gravity now show exact
+secondary values in meters and meters per second squared, matching the
+existing pattern used by the average surface temperature card.
+
+### Visualizer Spin Direction
+
+**Corrected planet and moon spin direction in the visualizer**
+(ui/visualizer/projectionMath.js, tests/visualizerProjectionMath.test.js)
+
+Fixed the visualizer spin convention so body rotation now resolves
+against the orbit animation correctly instead of appearing inverted.
+Retrograde is now carried by the tilted spin axis alone, rather than
+being applied twice through both axis direction and spin-rate sign.
+
+**Tests** (tests/visualizerProjectionMath.test.js)
+
+- Added a regression asserting prograde and retrograde bodies resolve to
+  opposite effective spin directions in the visualizer math
+
+### Stellar and Moon Physics Corrections
+
+**Fixed metallicity-driven star, planet, and moon inconsistencies**
+(engine/star.js, engine/planet.js, engine/moon.js,
+engine/moon/orbit.js, engine/moon/tides.js, ui/climatePage.js,
+ui/populationPage.js, ui/tectonicsPage.js, ui/moonPage.js,
+ui/planet/inputRender.js, ui/planetPage.js, ui/calendar/stateModel.js,
+ui/visualizer/snapshotModel.js, engine/worldSnapshot.js,
+tests/star.test.js, tests/planet.test.js, tests/moon.test.js,
+tests/planetInputRender.test.js, tests/worldFixtureHelpers.js,
+tests/worldSnapshot.test.js, TODO.md)
+
+Clamped the evolved-star metallicity track to the physically stable range
+used by the Hurley/Tout polynomials so near-solar evolved stars no longer
+produce impossible negative radii at high `[Fe/H]`. The rocky-planet CMF
+auto-suggestion path now reads the actual host-star metallicity instead of
+silently behaving as if every star were solar metallicity.
+
+Moon orbital-fate handling was also corrected so retrograde moons migrate
+inward as expected and small cohesive moons are no longer forced outward
+to a fluid Roche limit before the fate calculation runs. Related UI paths,
+snapshots, and calendar/visualizer helpers now pass star metallicity
+through consistently. The Planet page also now defaults its greenhouse UI
+to manual mode when no mode is set, and the rotation tooltip clarifies
+that day length refers to the current sidereal day.
+
+**Tests** (tests/star.test.js, tests/planet.test.js, tests/moon.test.js,
+tests/planetInputRender.test.js, tests/worldSnapshot.test.js)
+
+- Added regressions for evolved-star metallicity stability, CMF metallicity
+  auto-scaling, Phobos/Triton-style moon-fate edge cases, rocky-form
+  greenhouse defaults, and snapshot parity for metallicity-aware planet
+  calculations
+
+### Planet Page Route Resilience
+
+**Hardened the planet route against incomplete slider/input DOM pairs**
+(ui/bind.js, ui/planetPage.js, tests/inputDraftStability.ui.test.js)
+
+The shared number-and-slider binder now fails closed when a page ends up
+with an incomplete input pair instead of crashing the entire route. The
+Planet page's CMF path was also hardened so mixed or partial render
+states no longer throw during initialization if the slider control is
+missing.
+
+**Tests** (tests/inputDraftStability.ui.test.js)
+
+- Added regressions for missing slider bindings and for Planet-page init
+  with a missing CMF slider
+
+### Tectonics Input Focus
+
+**Stopped tectonics input fields from dropping focus on click**
+(ui/tectonicsPage.js, tests/inputDraftStability.ui.test.js)
+
+Fixed the active mountain-range card selection flow so clicking into a
+number field no longer triggers a full page rerender before typing can
+begin. Selecting a range card now updates the selected state and outputs
+panel without rebuilding the input DOM, which keeps the tectonics text
+inputs focused and editable.
+
+**Tests** (tests/inputDraftStability.ui.test.js)
+
+- Added a regression covering clicks into active-range inputs to ensure
+  focus is preserved and edits still update the selected range
+
+### Release Cache Busting
+
+**Hardened release updates against stale cached HTML and entry assets**
+(index.html, app.js, scripts/build.mjs, README.md, RELEASE_CHECKLIST.md)
+
+The production build now keeps release-busted URLs for `themeBoot.js`,
+`styles.css`, and `app.js` instead of stripping them back to stable
+paths. The app shell also now probes the live `index.html` release
+marker on startup and performs a one-time reload to a fresh document URL
+when the running app version is older than the deployed release.
+
+This does not clear user storage, but it makes stale cached entry assets
+much less likely to strand users on an older release after a deploy.
+
 ## 1.21.0 — 2026-03-08
 
 ### Navigation Lock Toggle

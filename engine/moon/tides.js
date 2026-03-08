@@ -88,6 +88,7 @@ export function computeMoonTidalState({
   zoneOuterKm,
   orbitalPeriodSiderealDays,
   orbitalPeriodSynodicDays,
+  orbitalDirection,
   composition,
   hasCompositionOverride,
 }) {
@@ -205,7 +206,7 @@ export function computeMoonTidalState({
   const qPlanetEff = isGasGiant
     ? GAS_GIANT_HOST_TIDAL_QUALITY_FACTOR
     : EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR;
-  const signFactor = Math.sign(omegaPlanet - nMeanMotion);
+  const signFactor = orbitalDirection === "Retrograde" ? -1 : Math.sign(omegaPlanet - nMeanMotion);
   const dadtPlanet =
     signFactor *
     3 *

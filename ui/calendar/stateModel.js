@@ -887,6 +887,7 @@ export function createCalendarStateStoreBindings({
     const m = calcPlanetExact({
       starMassMsol: N(world?.star?.massMsol, 1),
       starAgeGyr: N(world?.star?.ageGyr, 4.5),
+      starMetallicityFeH: N(world?.star?.metallicityFeH, 0),
       starRadiusRsolOverride: sov.r,
       starLuminosityLsolOverride: sov.l,
       starTempKOverride: sov.t,
@@ -902,6 +903,7 @@ export function createCalendarStateStoreBindings({
     const m = calcMoon({
       starMassMsol: N(world?.star?.massMsol, 1),
       starAgeGyr: N(world?.star?.ageGyr, 4.5),
+      starMetallicityFeH: N(world?.star?.metallicityFeH, 0),
       starRadiusRsolOverride: sovM.r,
       starLuminosityLsolOverride: sovM.l,
       starTempKOverride: sovM.t,

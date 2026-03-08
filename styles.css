@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: MPL-2.0 */
 html {
   background: var(--bg);
 }
@@ -88,6 +87,11 @@ html {
 
 * {
   box-sizing: border-box;
+}
+
+*::selection {
+  background-color: var(--muted);
+  color: var(--panel);
 }
 
 /* ── Custom scrollbars (pill-toggle inspired) ────────── */
@@ -780,6 +784,17 @@ a:hover {
 .panel__body {
   padding: 16px;
   min-width: 0;
+}
+
+.page,
+.panel__body,
+.hint,
+.changelog-toast__body,
+.ws-tutorial__body,
+.sci-section__body,
+.les-section__body,
+.les-concept__body {
+  line-height: 1.5rem;
 }
 
 .grid-2 {

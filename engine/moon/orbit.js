@@ -12,6 +12,7 @@ import {
 
 const KM_PER_REARTH = 6371;
 const SEC_PER_DAY = 86400;
+const RIGID_ROCHE_FACTOR = 1.26;
 
 export function computeMoonOrbit({
   starMassMsol,
@@ -33,8 +34,15 @@ export function computeMoonOrbit({
     daysPerYear: 365.256,
   });
 
+  // Natural moons are solid bodies, not strengthless fluids, so use the
+  // rigid-body Roche limit here. This keeps small cohesive moons like Phobos
+  // outside the guardrail instead of incorrectly forcing them outward to the
+  // fluid disruption boundary.
   const zoneInnerKm =
-    2.44 * planetRadiusEarth * KM_PER_REARTH * (planetDensityGcm3 / moonDensityGcm3) ** (1 / 3);
+    RIGID_ROCHE_FACTOR *
+    planetRadiusEarth *
+    KM_PER_REARTH *
+    (planetDensityGcm3 / moonDensityGcm3) ** (1 / 3);
   const zoneOuterKm =
     auToKilometers(planetSemiMajorAxisAu) *
     (earthMassToKg(planetMassEarth) / (3 * solarMassToKg(starMassMsol))) ** (1 / 3);

@@ -186,6 +186,7 @@ export function initMoonPage(mountEl) {
   const state = {
     starMassMsol: Number(world.star.massMsol),
     starAgeGyr: Number(world.star.ageGyr),
+    starMetallicityFeH: Number(world.star.metallicityFeH) || 0,
     starRadiusRsolOverride: sov0.r,
     starLuminosityLsolOverride: sov0.l,
     starTempKOverride: sov0.t,
@@ -264,7 +265,7 @@ export function initMoonPage(mountEl) {
           <div style="height:8px"></div>
           <div class="label">Physical ${tipIcon(TIP_LABEL["Physical"] || "")}</div>
 
-          ${numWithSlider("m", "Mass", "MMoon", "", 0.001, 1000, 0.001, "Mass")}
+          ${numWithSlider("m", "Mass", "MMoon", "", 1e-8, 1000, 1e-8, "Mass")}
           ${numWithSlider("density", "Density", "g/cm³", "", 0.1, 20, 0.01, "Density")}
           ${numWithSlider("albedo", "Albedo", "", "", 0, 0.95, 0.001, "Albedo")}
 
@@ -349,7 +350,7 @@ export function initMoonPage(mountEl) {
   bindPair("a", aEl, 10, 1e9, 100, "auto");
   bindPair("e", eEl, 0, 0.99, 0.001, "auto");
   bindPair("inc", incEl, 0, 180, 0.1, "auto");
-  bindPair("m", mEl, 0.001, 1000, 0.001, "auto");
+  bindPair("m", mEl, 1e-8, 1000, 1e-8, "auto");
   bindPair("density", densityEl, 0.1, 20, 0.01, "auto");
   bindPair("albedo", albedoEl, 0, 0.95, 0.001, "auto");
   bindPair("initRot", initRotEl, 2, 1000, 0.1, "auto");
@@ -382,6 +383,7 @@ export function initMoonPage(mountEl) {
     const w = loadWorld();
     state.starMassMsol = Number(w.star.massMsol);
     state.starAgeGyr = Number(w.star.ageGyr);
+    state.starMetallicityFeH = Number(w.star.metallicityFeH) || 0;
     const sovW = getStarOverrides(w.star);
     state.starRadiusRsolOverride = sovW.r;
     state.starLuminosityLsolOverride = sovW.l;
@@ -512,6 +514,7 @@ export function initMoonPage(mountEl) {
       model = calcMoon({
         starMassMsol: state.starMassMsol,
         starAgeGyr: state.starAgeGyr,
+        starMetallicityFeH: state.starMetallicityFeH,
         starRadiusRsolOverride: state.starRadiusRsolOverride,
         starLuminosityLsolOverride: state.starLuminosityLsolOverride,
         starTempKOverride: state.starTempKOverride,
@@ -527,6 +530,7 @@ export function initMoonPage(mountEl) {
       model = calcMoon({
         starMassMsol: state.starMassMsol,
         starAgeGyr: state.starAgeGyr,
+        starMetallicityFeH: state.starMetallicityFeH,
         starRadiusRsolOverride: state.starRadiusRsolOverride,
         starLuminosityLsolOverride: state.starLuminosityLsolOverride,
         starTempKOverride: state.starTempKOverride,
@@ -713,6 +717,7 @@ export function initMoonPage(mountEl) {
       guardModel = calcMoon({
         starMassMsol: state.starMassMsol,
         starAgeGyr: state.starAgeGyr,
+        starMetallicityFeH: state.starMetallicityFeH,
         starRadiusRsolOverride: state.starRadiusRsolOverride,
         starLuminosityLsolOverride: state.starLuminosityLsolOverride,
         starTempKOverride: state.starTempKOverride,
@@ -724,6 +729,7 @@ export function initMoonPage(mountEl) {
       guardModel = calcMoon({
         starMassMsol: state.starMassMsol,
         starAgeGyr: state.starAgeGyr,
+        starMetallicityFeH: state.starMetallicityFeH,
         starRadiusRsolOverride: state.starRadiusRsolOverride,
         starLuminosityLsolOverride: state.starLuminosityLsolOverride,
         starTempKOverride: state.starTempKOverride,

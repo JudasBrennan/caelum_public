@@ -247,6 +247,7 @@ function getPlanetTectonicContext(world) {
   const model = calcPlanetExact({
     starMassMsol: Number(world?.star?.massMsol) || 1,
     starAgeGyr,
+    starMetallicityFeH: Number(world?.star?.metallicityFeH) || 0,
     starRadiusRsolOverride: sov.r,
     starLuminosityLsolOverride: sov.l,
     starTempKOverride: sov.t,
@@ -1195,6 +1196,20 @@ export function initTectonicsPage(containerEl) {
     if (srNum) srNum.value = Math.round(srInfo.rateMmYr);
   }
 
+  function syncSelectedRangeCards() {
+    containerEl.querySelectorAll(".tec-range-card[data-idx]").forEach((card) => {
+      const idx = Number(card.dataset.idx);
+      card.classList.toggle("is-selected", idx === state.selectedRangeIdx);
+    });
+  }
+
+  function selectRangeCard(idx) {
+    if (!Number.isFinite(idx)) return;
+    state.selectedRangeIdx = Math.max(0, idx);
+    syncSelectedRangeCards();
+    update();
+  }
+
   function render() {
     const w = loadWorld();
     const ctx = getPlanetTectonicContext(w);
@@ -1833,8 +1848,7 @@ export function initTectonicsPage(containerEl) {
 
     // Range tab switch
     if (t.classList.contains("tec-range-tab")) {
-      state.selectedRangeIdx = Number(t.dataset.idx);
-      render();
+      selectRangeCard(Number(t.dataset.idx));
       return;
     }
 
@@ -1879,8 +1893,7 @@ export function initTectonicsPage(containerEl) {
     // Range card selection
     const card = t.closest(".tec-range-card[data-idx]");
     if (card && !t.classList.contains("tec-range-remove") && !t.closest("select")) {
-      state.selectedRangeIdx = Number(card.dataset.idx);
-      render();
+      selectRangeCard(Number(card.dataset.idx));
       return;
     }
   });

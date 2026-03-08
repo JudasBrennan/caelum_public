@@ -275,6 +275,7 @@ export function buildWorldSnapshot(world, options = {}) {
     model: calcPlanetExact({
       starMassMsol: starConfig.massMsol,
       starAgeGyr: starConfig.ageGyr,
+      starMetallicityFeH: starConfig.metallicityFeH,
       starRadiusRsolOverride: starConfig.radiusRsolOverride,
       starLuminosityLsolOverride: starConfig.luminosityLsolOverride,
       starTempKOverride: starConfig.tempKOverride,
@@ -304,6 +305,7 @@ export function buildWorldSnapshot(world, options = {}) {
         model: calcMoonExact({
           starMassMsol: starConfig.massMsol,
           starAgeGyr: starConfig.ageGyr,
+          starMetallicityFeH: starConfig.metallicityFeH,
           starRadiusRsolOverride: starConfig.radiusRsolOverride,
           starLuminosityLsolOverride: starConfig.luminosityLsolOverride,
           starTempKOverride: starConfig.tempKOverride,
@@ -331,6 +333,7 @@ export function buildWorldSnapshot(world, options = {}) {
         model: calcMoonExact({
           starMassMsol: starConfig.massMsol,
           starAgeGyr: starConfig.ageGyr,
+          starMetallicityFeH: starConfig.metallicityFeH,
           starRadiusRsolOverride: starConfig.radiusRsolOverride,
           starLuminosityLsolOverride: starConfig.luminosityLsolOverride,
           starTempKOverride: starConfig.tempKOverride,

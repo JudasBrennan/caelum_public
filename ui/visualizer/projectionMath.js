@@ -162,15 +162,19 @@ export function crossVec3(a, b) {
 export function computeSpinAngleRad(
   bodyId,
   rotationPeriodDays,
-  axialTiltDeg,
+  _axialTiltDeg,
   simTime,
   hashFn = () => 0,
 ) {
   const phase = hashFn(`${bodyId}:spin`) * Math.PI * 2;
   const period = Number(rotationPeriodDays);
   if (!Number.isFinite(period) || period <= 0) return phase;
-  const dir = normalizeAxialTiltDeg(axialTiltDeg) > 90 ? -1 : 1;
-  return phase + dir * simTime * ((2 * Math.PI) / period);
+  // Orbital motion in the visualizer's x/z plane advances with angular momentum
+  // along -Y. The axial-tilt helpers already encode retrograde by flipping the
+  // body's axis direction through Y, so the spin-rate sign itself should stay
+  // constant here; otherwise retrograde gets applied twice and all bodies end up
+  // with the same effective spin direction.
+  return phase - simTime * ((2 * Math.PI) / period);
 }
 
 export function computeAxisDirection(bodyId, axialTiltDeg, yaw, pitch, hashFn = () => 0) {

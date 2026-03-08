@@ -156,6 +156,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
         const planetCalc = calcPlanetExact({
           starMassMsol,
           starAgeGyr,
+          starMetallicityFeH,
           starRadiusRsolOverride: starOverrides.r,
           starLuminosityLsolOverride: starOverrides.l,
           starTempKOverride: starOverrides.t,
@@ -204,6 +205,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
           moons,
           starMassMsol,
           starAgeGyr,
+          starMetallicityFeH,
           starOverrides,
           parentId: planet.id,
           parentInputs: planetInputs,
@@ -274,6 +276,7 @@ function buildMoonNodes({
   moons,
   starMassMsol,
   starAgeGyr,
+  starMetallicityFeH,
   starOverrides,
   parentId,
   parentInputs,
@@ -285,6 +288,7 @@ function buildMoonNodes({
       buildMoonNode(moon, {
         starMassMsol,
         starAgeGyr,
+        starMetallicityFeH,
         starOverrides,
         parentInputs,
         hashUnit,
@@ -298,7 +302,8 @@ function buildMoonNodes({
 }
 
 function buildMoonNode(moon, context) {
-  const { hashUnit, parentInputs, starAgeGyr, starMassMsol, starOverrides } = context;
+  const { hashUnit, parentInputs, starAgeGyr, starMassMsol, starMetallicityFeH, starOverrides } =
+    context;
   const semiMajorAxisKm = Number(moon.inputs?.semiMajorAxisKm);
   let periodDays = null;
   let radiusKm = null;
@@ -308,6 +313,7 @@ function buildMoonNode(moon, context) {
     moonCalc = calcMoonExact({
       starMassMsol,
       starAgeGyr,
+      starMetallicityFeH,
       starRadiusRsolOverride: starOverrides.r,
       starLuminosityLsolOverride: starOverrides.l,
       starTempKOverride: starOverrides.t,
@@ -417,6 +423,7 @@ function buildGasGiantNode(gasGiant, idx, context) {
           moonCalc = calcMoonExact({
             starMassMsol,
             starAgeGyr,
+            starMetallicityFeH,
             starRadiusRsolOverride: starOverrides.r,
             starLuminosityLsolOverride: starOverrides.l,
             starTempKOverride: starOverrides.t,

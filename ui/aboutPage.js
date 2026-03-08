@@ -10,7 +10,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 1.21.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 1.21.1</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, planetary systems, rocky worlds, gas giants, moons, and debris disks with
           real astrophysics. Model tectonics, climate zones, atmospheres, populations, and calendars.
           Explore your creations in an interactive 3D visualiser with procedural textures, or study
@@ -274,17 +274,25 @@ function release(version, note, items, { open = false } = {}) {
 function changelogHTML() {
   return [
     release(
-      "1.21.0",
-      "(from 1.20.0)",
+      "1.21.1",
+      "(from 1.21.0)",
       [
-        "<b>Input Stability</b> &mdash; Text entry on the Star, Planet, and Moon pages no longer fights your typing. Draft numbers now stay in the field while you edit, making precise manual entry far more reliable on mobile keyboards.",
-        "<b>Save Recovery</b> &mdash; WorldSmith now detects unreadable saved data and shows a recovery flow instead of silently resetting to a blank world. You can clear only the broken current save while keeping backup worlds available for restore.",
-        "<b>Smarter Persistence</b> &mdash; Normal saves are now lighter and no longer rewrite the full backup history every time. Large worlds feel steadier during longer editing sessions, especially on slower browsers and devices.",
-        "<b>Navigation Lock</b> &mdash; The desktop sidebar now includes a padlock beside the theme toggle so you can keep navigation pinned open while you work. The lock is remembered between sessions and stays hidden when the nav is collapsed.",
-        "<b>UI Safety Pass</b> &mdash; Several remaining dynamic selectors, summaries, and detail panes were moved onto safer rendering paths. Edited and imported names with unusual text now behave more predictably across the affected pages.",
+        "<b>Physics Corrections</b> &mdash; Fixed several star, planet, and moon edge cases. Evolved high-metallicity stars no longer produce non-physical radii, CMF auto-calc now follows host-star metallicity, and retrograde moon orbital-fate cases behave more plausibly.",
+        "<b>Visualizer Rotation Fix</b> &mdash; Corrected the visualiser spin convention so planets and moons now rotate in the proper direction relative to their orbits, including retrograde cases.",
+        "<b>Tectonics Input Fix</b> &mdash; Active mountain-range text boxes on the Tectonics page no longer drop focus as soon as you click into them, so manual numeric editing works normally again.",
+        "<b>Safer Updates</b> &mdash; Release updates are now more resilient to stale browser cache. WorldSmith keeps release-busted entry URLs and can detect a newer deployed version before reloading into the current build.",
+        "<b>Route Resilience</b> &mdash; The Planet page now handles incomplete slider/input states more gracefully, reducing crashes caused by mixed-cache or partial render states during startup.",
+        "<b>Detail &amp; Readability Polish</b> &mdash; Rocky-planet Radius and Gravity cards now show exact SI secondary values, and the main reading areas use roomier line spacing for easier scanning.",
       ],
       { open: true },
     ),
+    release("1.21.0", "(from 1.20.0)", [
+      "<b>Input Stability</b> &mdash; Text entry on the Star, Planet, and Moon pages no longer fights your typing. Draft numbers now stay in the field while you edit, making precise manual entry far more reliable on mobile keyboards.",
+      "<b>Save Recovery</b> &mdash; WorldSmith now detects unreadable saved data and shows a recovery flow instead of silently resetting to a blank world. You can clear only the broken current save while keeping backup worlds available for restore.",
+      "<b>Smarter Persistence</b> &mdash; Normal saves are now lighter and no longer rewrite the full backup history every time. Large worlds feel steadier during longer editing sessions, especially on slower browsers and devices.",
+      "<b>Navigation Lock</b> &mdash; The desktop sidebar now includes a padlock beside the theme toggle so you can keep navigation pinned open while you work. The lock is remembered between sessions and stays hidden when the nav is collapsed.",
+      "<b>UI Safety Pass</b> &mdash; Several remaining dynamic selectors, summaries, and detail panes were moved onto safer rendering paths. Edited and imported names with unusual text now behave more predictably across the affected pages.",
+    ]),
     release("1.20.0", "(from 1.19.0)", [
       "<b>Engine Foundations</b> &mdash; Added canonical fixture worlds, a world-level snapshot API, and snapshot-backed adapters so read-only pages now derive stars, systems, planets, gas giants, and moons from one consistent engine path.",
       "<b>Engine Rework</b> &mdash; Split the largest body calculators into smaller internal modules and centralized shared radiative, orbital, escape, materials, and rotation helpers under a dedicated physics layer.",

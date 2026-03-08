@@ -1,4 +1,4 @@
-# WorldSmith Web 1.21.0
+# WorldSmith Web 1.21.1
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, planetary systems, planets, moons, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -126,7 +126,7 @@ npx playwright install chromium
 
 - Bundled production JavaScript (`app.js`, route chunks as needed, worker bundle)
 - Copied only the runtime files and assets needed for deployment
-- `index.html` with cache-busting query strings removed
+- `index.html` stamped with the current release and release-busted top-level runtime URLs
 - `build-summary.json` with machine-readable entry and lazy-chunk size metadata for release verification
 
 ## Data Storage and Safety

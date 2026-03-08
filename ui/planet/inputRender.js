@@ -211,7 +211,7 @@ function createRockyFieldRows(fields, tipLabels) {
 
 export function renderRockyInputForm(container, { planet, tipLabels } = {}) {
   const p = planet?.inputs || {};
-  const greenhouseMode = p.greenhouseMode || "core";
+  const greenhouseMode = p.greenhouseMode || "manual";
   const radioisotopeMode = p.radioisotopeMode || "simple";
   const mantleOxidation = p.mantleOxidation || "earth";
 
@@ -360,7 +360,9 @@ export function renderRockyInputForm(container, { planet, tipLabels } = {}) {
   ].map((option) => ({ ...option, selected: option.value === mantleOxidation }));
 
   const greenhouseValue =
-    greenhouseMode === "full" || greenhouseMode === "manual" ? greenhouseMode : "core";
+    greenhouseMode === "core" || greenhouseMode === "full" || greenhouseMode === "manual"
+      ? greenhouseMode
+      : "manual";
   const tectonicValue =
     !p.tectonicRegime || p.tectonicRegime === "auto" ? "mobile" : p.tectonicRegime;
 

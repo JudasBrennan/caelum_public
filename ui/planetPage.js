@@ -107,7 +107,7 @@ const TIP_LABEL = {
   "Orbit & Rotation":
     "Orbital and rotational inputs used for year length, seasons, and climate-related outputs.",
   "Rotation Period":
-    "Sidereal rotation period (day length) in Earth hours.\n\nHabitable range: ~6\u201348 hours.\n\nEarth = 23.93 hours.",
+    "Current sidereal rotation period (day length) in Earth hours.\n\nHabitable range: ~6\u201348 hours.\n\nEarth = 23.93 hours.",
   "Semi-Major axis":
     "Orbital distance from the host star in AU. Habitable planets should lie within the habitable zone.\n\nEarth = 1 AU = ~150,000,000 km",
   Eccentricity:
@@ -771,6 +771,7 @@ export function initPlanetPage(mountEl) {
           const m = calcPlanetExact({
             starMassMsol: Number(w.star.massMsol),
             starAgeGyr: Number(w.star.ageGyr),
+            starMetallicityFeH: Number(w.star.metallicityFeH) || 0,
             starRadiusRsolOverride: sov.r,
             starLuminosityLsolOverride: sov.l,
             starTempKOverride: sov.t,
@@ -831,7 +832,7 @@ export function initPlanetPage(mountEl) {
     const ghManualRow = bodyInputsEl.querySelector("#ghManualRow");
     const ghComputedRow = bodyInputsEl.querySelector("#ghComputedRow");
     const expertGasRow = bodyInputsEl.querySelector("#expertGasRow");
-    const curMode = p.greenhouseMode || "core";
+    const curMode = p.greenhouseMode || "manual";
     if (ghHintEl) ghHintEl.textContent = ghHintTexts[curMode] || "";
 
     bodyInputsEl.querySelectorAll('input[name="ghMode"]').forEach((radio) => {
@@ -942,6 +943,7 @@ export function initPlanetPage(mountEl) {
     const model = calcPlanetExact({
       starMassMsol: Number(world.star.massMsol),
       starAgeGyr: Number(world.star.ageGyr),
+      starMetallicityFeH: Number(world.star.metallicityFeH) || 0,
       starRadiusRsolOverride: sov.r,
       starLuminosityLsolOverride: sov.l,
       starTempKOverride: sov.t,
@@ -995,9 +997,17 @@ export function initPlanetPage(mountEl) {
         value: model.display.compositionClass,
         meta: `CMF ${fmt(model.inputs.cmfPct, 1)}%${d.cmfIsAuto ? " (auto)" : ""}, WMF ${fmt(model.inputs.wmfPct, 2)}%`,
       },
-      { label: "Radius", value: model.display.radius },
+      {
+        label: "Radius",
+        value: model.display.radius,
+        meta: `${fmt(d.radiusKm * 1000, 0)} m`,
+      },
       { label: "Density", value: model.display.density },
-      { label: "Gravity", value: model.display.gravity },
+      {
+        label: "Gravity",
+        value: model.display.gravity,
+        meta: `${fmt(d.gravityMs2, 2)} m/s²`,
+      },
       { label: "Escape Velocity", value: model.display.escape },
       {
         label: "Magnetic Field",
@@ -1414,6 +1424,7 @@ export function initPlanetPage(mountEl) {
         const result = calcPlanetExact({
           starMassMsol: star.mass,
           starAgeGyr: star.age,
+          starMetallicityFeH: 0,
           planet: {
             ...VEG_GRID_PLANET,
             pressureAtm,
@@ -1434,6 +1445,7 @@ export function initPlanetPage(mountEl) {
       const probe = calcPlanetExact({
         starMassMsol: star.mass,
         starAgeGyr: star.age,
+        starMetallicityFeH: 0,
         planet: { ...VEG_GRID_PLANET, pressureAtm: 1, semiMajorAxisAu: orbit },
       });
       if (!probe.derived.vegetationTwilightPaleHex) continue;
@@ -1444,6 +1456,7 @@ export function initPlanetPage(mountEl) {
           const result = calcPlanetExact({
             starMassMsol: star.mass,
             starAgeGyr: star.age,
+            starMetallicityFeH: 0,
             planet: { ...VEG_GRID_PLANET, pressureAtm, semiMajorAxisAu: orbit },
           });
           const derived = result.derived;
@@ -2231,12 +2244,14 @@ export function initPlanetPage(mountEl) {
         const inputs = {
           name: "Earth",
           massEarth: 1.0,
-          cmfPct: 32.0,
+          cmfPct: 33.0,
+          wmfPct: 0.02,
           axialTiltDeg: 23.44,
-          albedoBond: 0.3,
-          greenhouseEffect: 1.0,
+          albedoBond: 0.306,
+          greenhouseEffect: 0,
+          greenhouseMode: "core",
           observerHeightM: 1.75,
-          rotationPeriodHours: 24.0,
+          rotationPeriodHours: 23.934,
           semiMajorAxisAu: 1.0,
           eccentricity: 0.0167,
           inclinationDeg: 0.0,
@@ -2246,6 +2261,8 @@ export function initPlanetPage(mountEl) {
           o2Pct: 20.95,
           co2Pct: 0.04,
           arPct: 0.93,
+          h2oPct: 0.4,
+          ch4Pct: 0.00018,
           radioisotopeAbundance: 1.0,
           radioisotopeMode: "simple",
           u238Abundance: 1.0,

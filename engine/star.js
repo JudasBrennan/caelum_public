@@ -301,6 +301,7 @@ export function populationLabel(metallicityFeH) {
 // Hurley convention).
 
 const Z_SUN_SSE = 0.02;
+const MAX_EVOLUTION_FEH = 0.5;
 
 /** Convert [Fe/H] to metal mass fraction Z (SSE convention, Z☉ = 0.02). */
 export function feHtoZ(feH) {
@@ -567,7 +568,12 @@ export function calcStar({
   const m = clamp(massMsol, 0.075, 100);
   const age = clamp(ageGyr, 0, 20); // sanity clamp; sheet doesn't hard-limit
   const evolved = evolutionMode === "evolved";
-  const Z = evolved ? feHtoZ(metallicityFeH) : Z_SUN_SSE;
+  // The Hurley/Tout ZAMS radius polynomials become non-physical above about
+  // +0.5 dex for some ~solar-mass stars. Clamp only the evolution-track
+  // metallicity input; user-facing metallicity remains unchanged for labels,
+  // probabilities, and other downstream consumers.
+  const evolutionFeH = evolved ? clamp(toFinite(metallicityFeH, 0), -3, MAX_EVOLUTION_FEH) : 0;
+  const Z = evolved ? feHtoZ(evolutionFeH) : Z_SUN_SSE;
 
   const radiusRsolAuto = evolved ? evolvedRadius(m, Z, age) : massToRadius(m);
   const luminosityLsolAuto = evolved ? evolvedLuminosity(m, Z, age) : massToLuminosity(m);

@@ -83,6 +83,7 @@ function buildMoonSummaryResult({
 export function calcMoonExact({
   starMassMsol,
   starAgeGyr,
+  starMetallicityFeH,
   starRadiusRsolOverride,
   starLuminosityLsolOverride,
   starTempKOverride,
@@ -97,6 +98,7 @@ export function calcMoonExact({
     calcPlanetExact({
       starMassMsol,
       starAgeGyr,
+      starMetallicityFeH,
       starRadiusRsolOverride,
       starLuminosityLsolOverride,
       starTempKOverride,
@@ -117,7 +119,7 @@ export function calcMoonExact({
   const surfaceFieldEarths = clamp(parent.derived?.surfaceFieldEarths ?? 0, 0, 1000);
   const radioisotopeAbundance = clamp(parent.derived?.radioisotopeAbundance ?? 1, 0.01, 5);
 
-  const mMoonMM = clamp(moon.massMoon ?? 1.0, 0.001, 10000);
+  const mMoonMM = clamp(moon.massMoon ?? 1.0, 1e-8, 10000);
   const rhoMoonGcm3 = clamp(moon.densityGcm3 ?? 3.34, 0.1, 100);
   const albedo = clamp(moon.albedo ?? 0.11, 0, 0.95);
   const aMoonKmInput = clamp(moon.semiMajorAxisKm ?? 384748, 10, 1e9);
@@ -171,6 +173,7 @@ export function calcMoonExact({
     zoneOuterKm: orbit.zoneOuterKm,
     orbitalPeriodSiderealDays: orbit.orbitalPeriodSiderealDays,
     orbitalPeriodSynodicDays: orbit.orbitalPeriodSynodicDays,
+    orbitalDirection: orbit.orbitalDirection,
     composition: moonComposition,
     hasCompositionOverride: Boolean(moon.compositionOverride),
   });
