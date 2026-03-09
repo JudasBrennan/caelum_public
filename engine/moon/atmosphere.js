@@ -1,35 +1,43 @@
 // SPDX-License-Identifier: MPL-2.0
 // Moon atmosphere helpers.
 //
-// Stage M1 turns retained volatile outputs into an explicit moon
-// atmosphere model so moons can expose pressure, gas mix, greenhouse
-// warming, and atmosphere class through the engine rather than ad-hoc UI
-// formatting.
+// Turns retained volatile outputs into an explicit moon atmosphere model so
+// moons can expose pressure, gas mix, greenhouse warming, and atmosphere
+// class through the engine rather than ad-hoc UI formatting.
 
 import { computeGreenhouseTau } from "../planet/atmosphere.js";
 import { clamp, toFinite } from "../utils.js";
+import {
+  canonicalHabitabilitySpeciesLabel,
+  normalizeHabitabilityInventory,
+  normalizeHabitabilitySpecies,
+} from "../habitability/species.js";
 
 const ATM_TO_PA = 101325;
 const R_GAS = 8.3145;
 
 const SPECIES_PROFILES = {
-  "N₂": { key: "n2", mwKgMol: 0.028, greenhouseKey: null },
-  CO: { key: "co", mwKgMol: 0.028, greenhouseKey: "co" },
-  "CH₄": { key: "ch4", mwKgMol: 0.016, greenhouseKey: "ch4" },
-  "CO₂": { key: "co2", mwKgMol: 0.044, greenhouseKey: "co2" },
-  "NH₃": { key: "nh3", mwKgMol: 0.017, greenhouseKey: "nh3" },
-  "SO₂": { key: "so2", mwKgMol: 0.064, greenhouseKey: "so2" },
-  "H₂O": { key: "h2o", mwKgMol: 0.018, greenhouseKey: "h2o" },
+  n2: { key: "n2", mwKgMol: 0.028, greenhouseKey: null },
+  co: { key: "co", mwKgMol: 0.028, greenhouseKey: "co" },
+  ch4: { key: "ch4", mwKgMol: 0.016, greenhouseKey: "ch4" },
+  co2: { key: "co2", mwKgMol: 0.044, greenhouseKey: "co2" },
+  nh3: { key: "nh3", mwKgMol: 0.017, greenhouseKey: "nh3" },
+  so2: { key: "so2", mwKgMol: 0.064, greenhouseKey: "so2" },
+  h2o: { key: "h2o", mwKgMol: 0.018, greenhouseKey: "h2o" },
+  o2: { key: "o2", mwKgMol: 0.032, greenhouseKey: null },
+  ar: { key: "ar", mwKgMol: 0.04, greenhouseKey: null },
 };
 
 const ATMOSPHERIC_AVAILABILITY = {
-  "N₂": 1,
-  CO: 0.05,
-  "CH₄": 0.15,
-  "CO₂": 0.02,
-  "NH₃": 0.05,
-  "SO₂": 1,
-  "H₂O": 1,
+  n2: 1,
+  co: 0.05,
+  ch4: 0.15,
+  co2: 0.02,
+  nh3: 0.05,
+  so2: 1,
+  h2o: 1,
+  o2: 1,
+  ar: 1,
 };
 
 function emptyComposition() {
@@ -41,6 +49,8 @@ function emptyComposition() {
     nh3: 0,
     so2: 0,
     h2o: 0,
+    o2: 0,
+    ar: 0,
   };
 }
 
@@ -61,17 +71,23 @@ function deriveSourceClass({
   tidalFeedbackActive,
 }) {
   if (!retainedSpecies.length || totalPressurePa <= 0) return "None";
-  if (tidalFeedbackActive && retainedSpecies.some((entry) => entry.species === "SO₂")) {
+  if (
+    tidalFeedbackActive &&
+    retainedSpecies.some((entry) => normalizeHabitabilitySpecies(entry.species) === "so2")
+  ) {
     return "Volcanic / outgassed";
   }
-  if (totalPressurePa >= 5000 && ["N₂", "CH₄", "CO"].includes(String(dominantSpecies || ""))) {
+  if (
+    totalPressurePa >= 5000 &&
+    ["n2", "ch4", "co"].includes(normalizeHabitabilitySpecies(dominantSpecies))
+  ) {
     return "Retained volatile atmosphere";
   }
   return "Sublimation-driven atmosphere";
 }
 
 function scaledAtmospherePressurePa(entry) {
-  const species = String(entry?.species || "");
+  const species = normalizeHabitabilitySpecies(entry?.species);
   const availability = ATMOSPHERIC_AVAILABILITY[species] ?? 1;
   return Math.max(toFinite(entry?.pressurePa, 0), 0) * availability;
 }
@@ -80,7 +96,7 @@ function computeComposition(retainedSpecies, totalPressurePa) {
   const composition = emptyComposition();
   if (totalPressurePa <= 0) return composition;
   for (const entry of retainedSpecies) {
-    const profile = SPECIES_PROFILES[String(entry?.species || "")];
+    const profile = SPECIES_PROFILES[normalizeHabitabilitySpecies(entry?.species)];
     if (!profile) continue;
     composition[profile.key] += scaledAtmospherePressurePa(entry) / totalPressurePa;
   }
@@ -96,18 +112,22 @@ function normalizeCompositionPct(composition) {
     nh3Pct: composition.nh3 * 100,
     so2Pct: composition.so2 * 100,
     h2oPct: composition.h2o * 100,
+    o2Pct: composition.o2 * 100,
+    arPct: composition.ar * 100,
   };
 }
 
 function compositionSummary(compositionPct) {
   const entries = [
-    ["N₂", compositionPct.n2Pct],
+    ["N\u2082", compositionPct.n2Pct],
     ["CO", compositionPct.coPct],
-    ["CH₄", compositionPct.ch4Pct],
-    ["CO₂", compositionPct.co2Pct],
-    ["NH₃", compositionPct.nh3Pct],
-    ["SO₂", compositionPct.so2Pct],
-    ["H₂O", compositionPct.h2oPct],
+    ["CH\u2084", compositionPct.ch4Pct],
+    ["CO\u2082", compositionPct.co2Pct],
+    ["NH\u2083", compositionPct.nh3Pct],
+    ["SO\u2082", compositionPct.so2Pct],
+    ["H\u2082O", compositionPct.h2oPct],
+    ["O\u2082", compositionPct.o2Pct],
+    ["Ar", compositionPct.arPct],
   ]
     .filter(([, pct]) => pct >= 0.01)
     .sort((left, right) => right[1] - left[1])
@@ -162,7 +182,7 @@ export function computeMoonAtmosphere({
   gravityMs2 = 0,
   tidalFeedbackActive = false,
 } = {}) {
-  const retainedSpecies = (Array.isArray(volatileInventory) ? volatileInventory : []).filter(
+  const retainedSpecies = normalizeHabitabilityInventory(volatileInventory).filter(
     (entry) => entry?.status === "Thin atmosphere" && scaledAtmospherePressurePa(entry) > 0,
   );
   const totalPressurePa = retainedSpecies.reduce(
@@ -182,7 +202,7 @@ export function computeMoonAtmosphere({
   const greenhouse = computeGreenhouseModel({ pressureAtm, compositionPct });
 
   const meanMolecularWeightKgMol = Object.entries(composition).reduce((sum, [key, share]) => {
-    const profile = Object.values(SPECIES_PROFILES).find((entry) => entry.key === key);
+    const profile = SPECIES_PROFILES[key];
     return sum + share * (profile?.mwKgMol || 0);
   }, 0);
   const densityKgM3 =
@@ -203,7 +223,9 @@ export function computeMoonAtmosphere({
       totalPressurePa,
       tidalFeedbackActive,
     }),
-    dominantSpecies,
+    dominantSpecies: canonicalHabitabilitySpeciesLabel(
+      normalizeHabitabilitySpecies(dominantSpecies),
+    ),
     surfacePressurePa: totalPressurePa,
     surfacePressureAtm: pressureAtm,
     meanMolecularWeightKgMol,

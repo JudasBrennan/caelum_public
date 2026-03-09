@@ -917,6 +917,7 @@ function buildOrbitalMechanics() {
     formula(
       "Moon Worlds in WorldSmith",
       `<p>WorldSmith&rsquo;s moon-world outputs are built as a layered model rather than a single published formula. The Moon page combines atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs into one reference state for each moon.</p>
+      <p><b>ESI vs. Habitability Index:</b> ESI is the standard four-term Earth Similarity Index (radius, density, escape velocity, temperature). WorldSmith&rsquo;s <i>Habitability Index</i> is a custom comparative metric: PHI-inspired, but not a direct implementation of the published literature PHI. It chooses a solvent pathway first (surface water, subsurface water, or alternative solvent when enabled), then scores substrate, solvent, energy, chemistry, stability, radiation, and persistence under that pathway.</p>
       <ul style="font-size:13px;color:var(--muted);margin:4px 0 4px 18px">
         <li><b>Atmosphere</b> combines volatile availability, escape, source type, and greenhouse or anti-greenhouse behaviour.</li>
         <li><b>Hydrosphere</b> separates dry, surface-ocean, frozen-surface, subsurface-ocean, and steam states, including high-pressure-ice barriers where applicable.</li>

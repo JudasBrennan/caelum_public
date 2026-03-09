@@ -12,7 +12,10 @@
 //   drawRockyPlanetViz()         → 8–20 px system poster scale
 
 import { clamp } from "../engine/utils.js";
-import { hydrosphereStateFromPlanet } from "../engine/habitability/hydrosphere.js";
+import {
+  baselineHydrosphereFractionsForRegime,
+  hydrosphereStateFromPlanet,
+} from "../engine/habitability/hydrosphere.js";
 import { tintPalette } from "./renderUtils.js";
 import { renderRockyPreviewNative } from "./threeNativePreview.js";
 
@@ -62,12 +65,22 @@ function resolveHydrosphere(derived, inputs) {
     return derived.hydrosphere;
   }
   const explicitWmf = Number(inputs?.wmfPct ?? derived?.wmfPct);
+  const explicitMassEarth = Number(inputs?.massEarth ?? derived?.massEarth);
+  const explicitRadiusKm = Number(derived?.radiusKm);
+  const regime =
+    derived?.waterRegime || (Number.isFinite(explicitWmf) && explicitWmf > 0 ? undefined : "Dry");
+  if (
+    !Number.isFinite(explicitWmf) ||
+    !Number.isFinite(explicitMassEarth) ||
+    !Number.isFinite(explicitRadiusKm)
+  ) {
+    return baselineHydrosphereFractionsForRegime(regime || "Dry");
+  }
   return hydrosphereStateFromPlanet({
-    waterRegime:
-      derived?.waterRegime || (Number.isFinite(explicitWmf) && explicitWmf > 0 ? undefined : "Dry"),
-    wmfPct: inputs?.wmfPct ?? derived?.wmfPct,
-    massEarth: inputs?.massEarth ?? derived?.massEarth,
-    radiusKm: derived?.radiusKm,
+    waterRegime: regime,
+    wmfPct: explicitWmf,
+    massEarth: explicitMassEarth,
+    radiusKm: explicitRadiusKm,
     surfaceTempK: derived?.surfaceTempK,
     pressureAtm: inputs?.pressureAtm ?? derived?.pressureAtm,
     climateState: derived?.climateState,
@@ -92,7 +105,8 @@ export function computeRockyVisualProfile(derived, inputs) {
   );
   const oceanColour = OCEAN_COLOURS[d.compositionClass] || DEFAULT_OCEAN_COLOUR;
   const tempK = d.surfaceTempK || 288;
-  const frozen = Number(hydrosphere.permanentIceFraction || 0) > 0 && oceanCoverage > 0;
+  const frozen =
+    oceanCoverage > 0 && (Number(hydrosphere.permanentIceFraction || 0) > 0 || tempK < 273);
 
   // Ice caps
   let iceCaps;

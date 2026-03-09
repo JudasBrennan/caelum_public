@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 import { clamp, round, toFinite } from "../utils.js";
 import { waterBoilingK } from "../planet/composition.js";
+import { normalizeHabitabilityInventory } from "../habitability/species.js";
 
 const LUNAR_MASS_KG = 7.342e22;
 const LUNAR_RADIUS_M = 1737.4e3;
@@ -53,11 +54,9 @@ function normalizeFractions(state) {
 }
 
 function moonWaterInventoryEntry(volatileInventory = []) {
-  const inventory = Array.isArray(volatileInventory) ? volatileInventory : [];
-  return inventory.find((volatile) => {
-    const species = String(volatile?.species || "");
-    return species.includes("H") && species.includes("O");
-  });
+  return normalizeHabitabilityInventory(volatileInventory).find(
+    (volatile) => volatile?.canonicalSpecies === "h2o",
+  );
 }
 
 function classifyMoonComposition({ compositionOverride, compositionClass, densityGcm3 }) {
@@ -212,7 +211,7 @@ export function hydrosphereStateFromMoon({
     return {
       regime: "Dry",
       hydrosphereState: "Dry surface",
-      modelVersion: "moon-hydrosphere-v1",
+      modelVersion: "moon-hydrosphere-v2",
       compositionKey,
       waterMassFraction: 0,
       equivalentWaterDepthM: 0,
@@ -226,6 +225,8 @@ export function hydrosphereStateFromMoon({
       subsurfaceOceanScore: 0,
       highPressureIceBarrier: false,
       highPressureIceThresholdKm: round(highPressureIceThresholdKm(gravityG), 1),
+      iceShellThicknessKm: 0,
+      subsurfaceOceanDepthKm: 0,
       estimatedSurfaceOceanDepthKm: 0,
       estimatedSubsurfaceOceanDepthKm: 0,
       estimatedIceShellThicknessKm: 0,
@@ -315,7 +316,7 @@ export function hydrosphereStateFromMoon({
   return {
     regime,
     hydrosphereState,
-    modelVersion: "moon-hydrosphere-v1",
+    modelVersion: "moon-hydrosphere-v2",
     compositionKey,
     waterMassFraction: round(waterMassFraction, 4),
     equivalentWaterDepthM: round(equivalentWaterDepthM, 1),
@@ -329,6 +330,8 @@ export function hydrosphereStateFromMoon({
     subsurfaceOceanScore: round(subsurfaceOceanScore, 3),
     highPressureIceBarrier,
     highPressureIceThresholdKm: round(highPressureThresholdKm, 1),
+    iceShellThicknessKm: round(estimatedIceShellThicknessKm, 1),
+    subsurfaceOceanDepthKm: round(estimatedSubsurfaceOceanDepthKm, 1),
     estimatedSurfaceOceanDepthKm: round(estimatedSurfaceOceanDepthKm, 1),
     estimatedSubsurfaceOceanDepthKm: round(estimatedSubsurfaceOceanDepthKm, 1),
     estimatedIceShellThicknessKm: round(estimatedIceShellThicknessKm, 1),

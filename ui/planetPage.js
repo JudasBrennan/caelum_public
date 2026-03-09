@@ -23,11 +23,9 @@ import {
   renderPlanetSlotSelector,
   renderVegetationGrid,
 } from "./planet/domRender.js";
-import {
-  createKpiGrid,
-  createReadoutSections,
-  renderTectonicProbabilityBar,
-} from "./planet/outputRender.js";
+import { createKpiGrid, renderTectonicProbabilityBar } from "./planet/outputRender.js";
+import { createDerivedDetails } from "./derivedDetails.js";
+import { renderKpiSections } from "./kpiSections.js";
 import { renderGasGiantInputForm, renderRockyInputForm } from "./planet/inputRender.js";
 import {
   GAS_GIANT_RADIUS_MAX_RJ,
@@ -158,8 +156,8 @@ const TIP_LABEL = {
     "Global climate stability classification based on surface temperature and absorbed stellar flux.\n\nStable: normal climate regime.\nSnowball: global glaciation from ice-albedo feedback (T < 240 K with surface water).\nMoist greenhouse: stratospheric water vapour enables hydrogen escape, risking long-term ocean loss (T > 340 K).\nRunaway greenhouse: absorbed flux exceeds the outgoing radiation limit; surface water boils off (flux > 282 W/m\u00b2).\n\nDry worlds are always classified as Stable.\n\nReference: Goldblatt et al. (2013); Kasting (1988); Budyko (1969).",
   "Earth Similarity Index":
     "Earth Similarity Index (ESI) is a 0-1 Earth-likeness score based on radius, density, escape velocity, and average surface temperature.\n\n1.0 = Earth-like across those four inputs. Lower values indicate a less Earth-like rocky world.\n\nESI is not a direct habitability verdict.",
-  "Planetary Habitability Index":
-    "Unified rocky-world habitability index shown on a 0-1 scale (phi-unified-v1).\n\nBuilt from substrate, solvent, energy, chemistry, stability, radiation, and persistence. The current default policy supports surface water and subsurface water. Alternative solvents remain disabled by default unless the policy is explicitly expanded.\n\nThis is a comparative guide, not a final scientific verdict.",
+  "Habitability Index":
+    "WorldSmith comparative habitability model for rocky worlds.\n\nThis is PHI-inspired, not a direct literature PHI implementation. The score depends on the selected solvent pathway and the active solvent-policy support for surface water, subsurface water, and alternative solvents.\n\nUse the expanded KPI details to see the current pathway, policy version, and term breakdown.",
   "Magnetic Field":
     "Estimated surface magnetic field strength relative to Earth (1.0\u00d7 = Earth's field).\n\nUses simplified Olson & Christensen (2006) dynamo scaling: field strength depends on core size, bulk density, heat flux, and core solidification state.\n\nTidal heating from assigned moons can extend core liquid lifetime, potentially sustaining a dynamo that would otherwise shut down. Shown as 'tidally sustained' when moon heating exceeds 10% of the planet's internal heat budget.\n\nA dipolar field (like Earth's) provides strong magnetospheric protection. Multipolar fields (slow rotators, P > ~96 h) are ~20\u00d7 weaker at the surface.\n\nStrong (> 0.5\u00d7): good protection from stellar wind\nModerate (0.1\u20130.5\u00d7): partial protection\nWeak (< 0.1\u00d7): minimal protection\nNone: no active dynamo",
   "Moon Tidal Heating":
@@ -981,19 +979,26 @@ export function initPlanetPage(mountEl) {
       isoEffEl.textContent = `Effective abundance: ${fmt(Math.max(a, 0.01), 2)}\u00d7 Earth`;
     }
 
-    const habitabilityPolicyLabel = d.habitabilityBreakdown?.supportedSolventPathways
-      ?.alternativeSolvents
-      ? "surface + subsurface + alt solvents"
-      : d.habitabilityBreakdown?.supportedSolventPathways?.subsurfaceWater
-        ? "surface + subsurface water"
-        : "surface water only";
+    const habitabilityPolicyVersion =
+      d.habitabilityBreakdown?.solventPolicyVersion || "surface-plus-subsurface-water-v1";
+    const habitabilityPolicyLabel =
+      habitabilityPolicyVersion === "surface-subsurface-plus-alt-solvents-v1"
+        ? "surface + subsurface + alt solvents"
+        : habitabilityPolicyVersion === "surface-plus-subsurface-water-v1"
+          ? "surface + subsurface water"
+          : "surface water only";
 
-    const items = [
+    const allRockyItems = [
       {
+        kind: "preview",
         label: "Appearance",
-        value: d.compositionClass,
-        meta: d.waterRegime,
-        isRockyPreview: true,
+        tip: TIP_LABEL.Appearance || "",
+        actions: [
+          { className: "small rp-recipe-btn", text: "Recipes" },
+          { className: "small rp-pause-btn", text: "Pause" },
+        ],
+        canvasClass: "rocky-preview-canvas",
+        meta: `${d.compositionClass} - ${d.waterRegime}`,
       },
       {
         label: "Body Class",
@@ -1064,7 +1069,7 @@ export function initPlanetPage(mountEl) {
         meta: `~${fmt(model.inputs.wmfPct, 2)}% water by mass`,
       },
       {
-        label: "Planetary Habitability Index",
+        label: "Habitability Index",
         value: model.display.habitabilityIndex,
         meta:
           `Substrate ${fmt(d.habitabilityBreakdown?.substrate ?? 0, 2)} | ` +
@@ -1074,7 +1079,9 @@ export function initPlanetPage(mountEl) {
           `Stability ${fmt(d.habitabilityBreakdown?.stabilityMultiplier ?? 0, 2)} | ` +
           `Radiation ${fmt(d.habitabilityBreakdown?.radiationMultiplier ?? 0, 2)} | ` +
           `Persistence ${fmt(d.habitabilityBreakdown?.persistenceMultiplier ?? 0, 2)}\n` +
-          `${d.habitabilityModelVersion || "phi-unified-v1"} | ${habitabilityPolicyLabel}`,
+          `Pathway ${d.habitabilityBreakdown?.solventPathway || "none"} | ` +
+          `${habitabilityPolicyLabel}\n` +
+          `${d.habitabilityModelVersion || "phi-unified-v2"} | ${habitabilityPolicyVersion}`,
       },
       model.display.moonTidalHeating && {
         label: "Moon Tidal Heating",
@@ -1161,7 +1168,7 @@ export function initPlanetPage(mountEl) {
 
     // Twilight vegetation KPI (only for tidally locked K/M worlds)
     if (d.vegetationTwilightPaleHex) {
-      items.push({
+      allRockyItems.push({
         label: "Vegetation (Twilight)",
         tipLabel: "Vegetation colour (twilight)",
         value: `${d.vegetationTwilightPaleHex} → ${d.vegetationTwilightDeepHex}`,
@@ -1177,6 +1184,63 @@ export function initPlanetPage(mountEl) {
       });
     }
 
+    const summaryLabels = new Set([
+      "Appearance",
+      "Body Class",
+      "Radius",
+      "Gravity",
+      "Avg Surface Temp",
+      "Water Regime",
+      "Climate State",
+      "Habitability Index",
+    ]);
+    const identityLabels = new Set(["Body Class", "Composition", "Core Radius", "Suggested CMF"]);
+    const physicalLabels = new Set([
+      "Radius",
+      "Density",
+      "Gravity",
+      "Escape Velocity",
+      "Magnetic Field",
+    ]);
+    const environmentLabels = new Set([
+      "Avg Surface Temp",
+      "Climate State",
+      "Water Regime",
+      "Sky Colour (Sun High)",
+      "Sky Colour (Low Sun)",
+      "Vegetation Colour",
+      "Vegetation (Twilight)",
+    ]);
+    const systemLabels = new Set(["Year Length", "Horizon Distance", "Star Apparent Size"]);
+    const activityLabels = new Set(["Moon Tidal Heating", "Tectonic Regime", "Outgassing"]);
+    const habitabilityLabels = new Set(["Earth Similarity Index", "Habitability Index"]);
+    const normalizeRockyItem = (item) => ({
+      ...item,
+      tip: item.tip || TIP_LABEL[item.tipLabel] || TIP_LABEL[item.label] || "",
+      kpiClass: item.kpiClass ? `kpi--compact ${item.kpiClass}`.trim() : "kpi--compact",
+    });
+    const summaryItems = allRockyItems
+      .filter((item) => item && summaryLabels.has(item.label))
+      .map((item) => normalizeRockyItem(item));
+    const identityItems = allRockyItems
+      .filter((item) => item && identityLabels.has(item.label))
+      .map((item) => normalizeRockyItem(item));
+    const physicalItems = allRockyItems
+      .filter((item) => item && physicalLabels.has(item.label))
+      .map((item) => normalizeRockyItem(item));
+    const environmentItems = allRockyItems
+      .filter((item) => item && environmentLabels.has(item.label))
+      .map((item) => normalizeRockyItem(item));
+    const systemItems = allRockyItems
+      .filter((item) => item && systemLabels.has(item.label))
+      .map((item) => normalizeRockyItem(item));
+    const activityItems = allRockyItems
+      .filter((item) => item && activityLabels.has(item.label))
+      .map((item) => normalizeRockyItem(item));
+    const habitabilityItems = allRockyItems
+      .filter((item) => item && habitabilityLabels.has(item.label))
+      .map((item) => normalizeRockyItem(item));
+    const items = allRockyItems;
     const n2Pct = fmt(d.n2Pct, 2);
     const gasMixNote = d.gasMixClamped
       ? `\nAtmosphere note: gas inputs total ${fmt(d.gasInputTotalPct, 2)}%. N2 is clamped to 0% for derived outputs.`
@@ -1245,7 +1309,7 @@ export function initPlanetPage(mountEl) {
 
     // Capture the existing canvas before replacing children to preserve WebGL context
     const prevRockyCanvas = bodyOutputsEl.querySelector(".rocky-preview-canvas");
-    const kpiGrid = createKpiGrid(
+    createKpiGrid(
       items.filter(Boolean).map((item) => {
         if (item.isRockyPreview) {
           return {
@@ -1272,53 +1336,242 @@ export function initPlanetPage(mountEl) {
         };
       }),
     );
-    const readoutSections = createReadoutSections([
+    const derivedDetails = createDerivedDetails(
+      [
+        {
+          id: "planet-details-identity",
+          title: "Identity & Class",
+          items: [
+            { label: "Body Class", value: model.display.bodyClass },
+            {
+              label: "Composition",
+              value: model.display.compositionClass,
+              meta: `CMF ${fmt(model.inputs.cmfPct, 1)}%${d.cmfIsAuto ? " (auto)" : ""}, WMF ${fmt(model.inputs.wmfPct, 2)}%`,
+            },
+            { label: "Core Radius", value: model.display.coreRadius },
+            {
+              label: "Suggested CMF",
+              value: model.display.suggestedCmf,
+              meta: model.display.suggestedCmfNote,
+            },
+          ],
+        },
+        {
+          id: "planet-details-physical",
+          title: "Physical State",
+          items: [
+            {
+              label: "Radius",
+              value: model.display.radius,
+              meta: `${fmt(d.radiusKm * 1000, 0)} m`,
+            },
+            { label: "Density", value: model.display.density },
+            {
+              label: "Gravity",
+              value: model.display.gravity,
+              meta: `${fmt(d.gravityMs2, 2)} m/s²`,
+            },
+            { label: "Escape Velocity", value: model.display.escape },
+            {
+              label: "Magnetic Field",
+              value: model.display.magneticField,
+              meta: d.dynamoActive
+                ? `${model.display.fieldMorphology}, ${d.coreState}${d.planetTidalFraction > 0.1 ? " (tidally sustained)" : ""}`
+                : d.dynamoReason,
+            },
+          ],
+        },
+        {
+          id: "planet-details-environment",
+          title: "Environment",
+          items: [
+            { label: "Greenhouse", value: ghModeLine },
+            { label: "Atmospheric pressure", value: model.display.pressureKpa },
+            { label: "Gas mix", value: gasMixLine },
+            { label: "Partial pressures", value: ppLine },
+            { label: "Atmospheric weight", value: model.display.atmWeight },
+            { label: "Atmospheric density", value: `${model.display.atmDensity}${gasMixNote}` },
+            ...(je
+              ? [
+                  {
+                    label: "Atmospheric escape",
+                    value: `T_exo ${fmt(je.exobaseTempK, 0)} K`,
+                    meta: `XUV ${fmt(je.xuvFluxRatio, 2)}× Earth`,
+                  },
+                ]
+              : []),
+            ...(jeansLines
+              ? [
+                  {
+                    label: "Atmospheric escape detail",
+                    value: jeansLines.replace(/\n+/g, " | ").trim(),
+                  },
+                ]
+              : []),
+            { label: "Avg Surface Temp", value: `${model.display.tempK} | ${model.display.tempC}` },
+            {
+              label: "Climate State",
+              value: model.display.climateState,
+              meta: `Absorbed flux: ${model.display.absorbedFlux}`,
+            },
+            {
+              label: "Water Regime",
+              value: model.display.waterRegime,
+              meta: `~${fmt(model.inputs.wmfPct, 2)}% water by mass`,
+            },
+            { label: "Cell count", value: String(d.circulationCellCount) },
+            {
+              label: "Circulation bands",
+              value: d.circulationCellRanges.length
+                ? d.circulationCellRanges
+                    .map((cell) => `${cell.name}: ${cell.rangeDegNS}° N/S`)
+                    .join(" | ")
+                : "-",
+            },
+          ],
+        },
+        {
+          id: "planet-details-system",
+          title: "System Context",
+          items: [
+            { label: "Habitable zone", value: model.display.hz },
+            { label: "In habitable zone", value: d.inHabitableZone ? "Yes" : "No" },
+            { label: "Insolation", value: model.display.insolation },
+            { label: "Tidal lock", value: model.display.tidalLock },
+            ...(d.planetTidalHeatingW > 0 && !model.display.moonTidalHeating
+              ? [
+                  {
+                    label: "Moon tidal heating",
+                    value: `negligible (${fmt(d.planetTidalHeatingEarth, 4)}× Earth geothermal)`,
+                  },
+                ]
+              : []),
+            { label: "Liquid water", value: d.liquidWaterPossible ? "Possible" : "Unlikely" },
+            { label: "Rotation direction", value: d.rotationDirection },
+            {
+              label: "Year Length",
+              value: `${model.display.yearDays} | ${model.display.localDays}`,
+            },
+            { label: "Horizon Distance", value: model.display.horizon },
+            { label: "Star Apparent Size", value: model.display.apparentStar },
+            { label: "Tropics", value: `${d.tropics}° N/S` },
+            { label: "Polar circles", value: `${d.polarCircles}° N/S` },
+            {
+              label: "Periapsis",
+              value: `${model.display.peri}${model.display.tempPeri ? ` (${model.display.tempPeri})` : ""}`,
+            },
+            {
+              label: "Apoapsis",
+              value: `${model.display.apo}${model.display.tempApo ? ` (${model.display.tempApo})` : ""}`,
+            },
+            { label: "Nearest resonance", value: model.display.resonance },
+            ...(model.display.volatileSummary
+              ? [{ label: "Volatile ices", value: model.display.volatileSummary }]
+              : []),
+          ],
+        },
+        {
+          id: "planet-details-activity",
+          title: "Activity & Radiation",
+          items: [
+            ...(model.display.moonTidalHeating
+              ? [
+                  {
+                    label: "Moon Tidal Heating",
+                    value: model.display.moonTidalHeating,
+                    meta:
+                      d.planetTidalFraction >= 0.1
+                        ? "Significant for core/dynamo"
+                        : "Negligible for core",
+                  },
+                ]
+              : []),
+            {
+              label: "Tectonic Regime",
+              value: model.display.tectonicRegime + (model.display.tectonicIsAuto ? " (auto)" : ""),
+              meta:
+                d.tectonicAdvisory +
+                " | " +
+                ["stagnant", "mobile", "episodic", "plutonicSquishy"]
+                  .map(
+                    (r) =>
+                      `${r === "plutonicSquishy" ? "Plut.-squishy" : r.charAt(0).toUpperCase() + r.slice(1)}: ${Math.round(d.tectonicProbabilities[r] * 100)}%`,
+                  )
+                  .join(" | "),
+            },
+            {
+              label: "Outgassing",
+              value: model.display.outgassing,
+              meta: `${d.mantleOxidation} oxidation state`,
+            },
+            ...(je?.stripped?.length
+              ? [{ label: "Stripped gases", value: je.stripped.join(", ") }]
+              : []),
+          ],
+        },
+        {
+          id: "planet-details-habitability",
+          title: "Habitability",
+          items: [
+            {
+              label: "Earth Similarity Index",
+              value: model.display.earthSimilarityIndex,
+              meta:
+                `Radius ${fmt(d.earthSimilarityBreakdown?.radius ?? 0, 2)} | ` +
+                `Density ${fmt(d.earthSimilarityBreakdown?.density ?? 0, 2)} | ` +
+                `Escape ${fmt(d.earthSimilarityBreakdown?.escapeVelocity ?? 0, 2)} | ` +
+                `Temp ${fmt(d.earthSimilarityBreakdown?.surfaceTemp ?? 0, 2)}`,
+            },
+            {
+              label: "Habitability Index",
+              value: model.display.habitabilityIndex,
+              meta:
+                `Substrate ${fmt(d.habitabilityBreakdown?.substrate ?? 0, 2)} | ` +
+                `Solvent ${fmt(d.habitabilityBreakdown?.solvent ?? 0, 2)} | ` +
+                `Energy ${fmt(d.habitabilityBreakdown?.energy ?? 0, 2)} | ` +
+                `Chemistry ${fmt(d.habitabilityBreakdown?.chemistry ?? 0, 2)} | ` +
+                `Stability ${fmt(d.habitabilityBreakdown?.stabilityMultiplier ?? 0, 2)} | ` +
+                `Radiation ${fmt(d.habitabilityBreakdown?.radiationMultiplier ?? 0, 2)} | ` +
+                `Persistence ${fmt(d.habitabilityBreakdown?.persistenceMultiplier ?? 0, 2)} | ` +
+                `Pathway ${d.habitabilityBreakdown?.solventPathway || "none"} | ${habitabilityPolicyLabel} | ` +
+                `${d.habitabilityModelVersion || "phi-unified-v2"} | ${habitabilityPolicyVersion}`,
+            },
+          ],
+        },
+      ],
+      { title: "Derived Details" },
+    );
+    bodyOutputsEl.replaceChildren();
+    renderKpiSections(bodyOutputsEl, [
+      { id: "planet-summary", title: "Summary", items: summaryItems },
       {
-        title: "Orbit & habitability",
-        tip: TIP_LABEL["Details"],
-        lines: [
-          `Habitable zone: ${model.display.hz}`,
-          `In habitable zone: ${d.inHabitableZone ? "Yes" : "No"}`,
-          `Insolation: ${model.display.insolation}`,
-          `Tidal lock: ${model.display.tidalLock}`,
-          d.planetTidalHeatingW > 0 && !model.display.moonTidalHeating
-            ? `Moon tidal heating: negligible (${fmt(d.planetTidalHeatingEarth, 4)}\u00d7 Earth geothermal)`
-            : null,
-          `Liquid water: ${d.liquidWaterPossible ? "Possible" : "Unlikely"}`,
-          `Rotation direction: ${d.rotationDirection}`,
-          `Tropics: ${d.tropics}\u00b0 N/S`,
-          `Polar circles: ${d.polarCircles}\u00b0 N/S`,
-          `Periapsis: ${model.display.peri}${model.display.tempPeri ? ` (T\u2091q ${model.display.tempPeri})` : ""}`,
-          `Apoapsis: ${model.display.apo}${model.display.tempApo ? ` (T\u2091q ${model.display.tempApo})` : ""}`,
-          `Nearest resonance: ${model.display.resonance}`,
-          model.display.volatileSummary ? `Volatile ices: ${model.display.volatileSummary}` : null,
-        ],
+        id: "planet-identity",
+        title: "Identity & Class",
+        density: "compact",
+        items: identityItems,
+      },
+      { id: "planet-physical", title: "Physical State", density: "compact", items: physicalItems },
+      {
+        id: "planet-environment",
+        title: "Environment",
+        density: "compact",
+        items: environmentItems,
+      },
+      { id: "planet-system", title: "System Context", density: "compact", items: systemItems },
+      {
+        id: "planet-activity",
+        title: "Activity & Radiation",
+        density: "compact",
+        items: activityItems,
       },
       {
-        title: "Atmosphere",
-        tip: TIP_LABEL["Derived atmosphere"],
-        lines: [
-          ghModeLine,
-          `Atmospheric pressure: ${model.display.pressureKpa}`,
-          gasMixLine,
-          ppLine,
-          `Atmospheric weight: ${model.display.atmWeight}`,
-          `Atmospheric density: ${model.display.atmDensity}${gasMixNote}`,
-          jeansLines,
-        ],
-      },
-      {
-        title: "Atmospheric circulation",
-        tip: TIP_LABEL["Atmospheric circulation"],
-        lines: [
-          `Cell count: ${d.circulationCellCount}`,
-          d.circulationCellRanges.length
-            ? d.circulationCellRanges.map((cell) => `${cell.name}: ${cell.rangeDegNS}\u00b0 N/S`)
-            : "-",
-        ],
+        id: "planet-habitability",
+        title: "Habitability",
+        density: "compact",
+        items: habitabilityItems,
       },
     ]);
-    bodyOutputsEl.replaceChildren(kpiGrid, ...readoutSections);
+    if (derivedDetails) bodyOutputsEl.append(derivedDetails);
 
     // Render rocky planet preview canvas (animated native celestial controller)
     let rockyCvs = bodyOutputsEl.querySelector(".rocky-preview-canvas");
@@ -1885,7 +2138,6 @@ export function initPlanetPage(mountEl) {
           : "";
     const metNote = m.inputs.metallicitySource === "derived" ? "Derived from mass" : "";
 
-    // Derive style and ring display from physics (keeps stored value in sync)
     const derivedStyle = suggestStyles(m).primary;
     const depthClass = m.ringProperties?.opticalDepthClass;
     const showRings = depthClass === "Dense" || depthClass === "Moderate";
@@ -1903,165 +2155,261 @@ export function initPlanetPage(mountEl) {
     }
 
     const prevGasCanvas = bodyOutputsEl.querySelector(".gg-preview-canvas");
-    const kpiGrid = createKpiGrid([
-      {
-        kind: "preview",
-        label: "Appearance",
-        tip: TIP_LABEL["Sudarsky"] || "",
-        actions: [
-          { className: "small gg-recipe-btn", text: "Recipes" },
-          { className: "small gg-pause-btn", text: "Pause" },
-        ],
-        canvasClass: "gg-preview-canvas",
-        canvasDataset: {
-          style: derivedStyle,
-          rings: String(showRings),
-        },
-        meta: `${styleLabel(derivedStyle)} — Class ${m.classification.sudarsky}`,
+    const appearanceItem = {
+      kind: "preview",
+      label: "Appearance",
+      tip: TIP_LABEL["Sudarsky"] || "",
+      actions: [
+        { className: "small gg-recipe-btn", text: "Recipes" },
+        { className: "small gg-pause-btn", text: "Pause" },
+      ],
+      canvasClass: "gg-preview-canvas",
+      canvasDataset: {
+        style: derivedStyle,
+        rings: String(showRings),
       },
-      {
-        label: "Mass",
-        tip: TIP_LABEL["GG Mass"] || "",
-        value: m.display.mass,
-        meta: massNote,
-      },
-      {
-        label: "Metallicity",
-        tip: TIP_LABEL["GG Metallicity"] || "",
-        value: m.display.metallicity,
-        meta: metNote,
-      },
-      {
-        label: "Radius",
-        tip: TIP_LABEL["GG Output Radius"] || "",
-        value: m.display.radius,
-        meta: radiusNote,
-      },
-      {
-        label: "Density",
-        tip: TIP_LABEL["GG Density"] || "",
-        value: m.display.density,
-      },
-      {
-        label: "Gravity",
-        tip: TIP_LABEL["GG Gravity"] || "",
-        value: m.display.gravity,
-      },
-      {
-        label: "Escape Velocity",
-        tip: TIP_LABEL["GG Escape Velocity"] || "",
-        value: m.display.escapeVelocity,
-      },
-      {
-        label: "Magnetic Field",
-        tip: TIP_LABEL["GG Magnetic Field"] || "",
-        value: m.display.magneticField,
-        meta: `${m.display.magneticMorphology} — ${m.magnetic.dynamoReason}`,
-      },
-      {
-        label: "Equilibrium Temp",
-        tip: TIP_LABEL["GG Equilibrium Temp"] || "",
-        value: m.display.equilibriumTemp,
-        meta: `T_eff ${m.display.effectiveTemp}`,
-      },
-      {
-        label: "Orbital Period",
-        tip: TIP_LABEL["GG Orbital Period"] || "",
-        value: m.display.orbitalPeriod,
-        meta: m.display.orbitalVelocity,
-      },
-    ]);
-    const readoutSections = createReadoutSections([
-      {
-        title: "Atmosphere",
-        tip: TIP_LABEL["GG Derived"],
-        lines: [
-          `H₂ ${m.atmosphere.h2Pct}%, He ${m.atmosphere.hePct}%${m.atmosphere.ch4Pct > 0 ? `, CH₄ ${m.atmosphere.ch4Pct}%` : ""}${m.atmosphere.coPct > 0 ? `, CO ${m.atmosphere.coPct}%` : ""}`,
-          `Dominant trace: ${m.atmosphere.dominantTrace}`,
-          `Cloud layers: ${clouds}`,
-          `Bond albedo: ${fmt(m.thermal.bondAlbedo, 2)}`,
-          `Internal heat ratio: ${fmt(m.thermal.internalHeatRatio, 2)}`,
-        ],
-      },
-      {
-        title: "Orbit",
-        lines: [
-          `Insolation: ${m.display.insolation}`,
-          m.display.peri ? `Periapsis: ${m.display.peri} (${m.display.tempPeri})` : null,
-          m.display.apo ? `Apoapsis: ${m.display.apo} (${m.display.tempApo})` : null,
-          `Orbital direction: ${m.display.orbitalDirection}`,
-          `Local days per year: ${m.display.localDaysPerYear}`,
-          `Nearest resonance: ${m.display.resonance}`,
-        ],
-      },
-      {
-        title: "Magnetism",
-        tip: TIP_LABEL["GG Magnetic Field"],
-        lines: [
-          `Magnetosphere: ${m.display.magnetosphere}`,
-          `Moon tidal heating: ${m.display.moonTidalHeating}`,
-          `Atmospheric sputtering: ${m.display.sputteringPlasma}`,
-        ],
-      },
-      {
-        title: "Gravity & zones",
-        lines: [
-          `Hill sphere: ${m.display.hillSphere}`,
-          `Roche limit: ${m.display.rocheLimit}`,
-          `Chaotic zone: ${m.display.chaoticZone}`,
-          `Ring zone: ${fmt(m.gravity.ringZoneInnerKm, 0)}–${fmt(m.gravity.ringZoneOuterKm, 0)} km`,
-        ],
-      },
-      {
-        title: "Dynamics",
-        tip: TIP_LABEL["GG Oblateness"],
-        lines: [
-          `Bands: ${m.display.bands}`,
-          `Wind speed: ${m.display.windSpeed}`,
-          `Oblateness: ${m.display.oblateness}`,
-          `Equatorial/Polar: ${m.display.equatorialRadius}`,
-        ],
-      },
-      {
-        title: "Interior",
-        tip: TIP_LABEL["GG Interior"],
-        lines: [
-          `Heavy elements: ${m.display.heavyElements}`,
-          `Bulk metallicity: ${m.display.bulkMetallicity}`,
-        ],
-      },
-      {
-        title: "Stability",
-        tip: TIP_LABEL["GG Mass Loss"],
-        lines: [
-          `Mass loss: ${m.display.massLossRate}`,
-          `Evaporation: ${m.display.evaporationTimescale}`,
-          `Roche lobe: ${m.display.rocheLobeRadius}`,
-          m.display.jeansEscape,
-        ],
-      },
-      {
-        title: "Suggested radius",
-        tip: TIP_LABEL["GG Suggested Radius"],
-        lines: [m.display.suggestedRadius, m.display.radiusAgeNote],
-      },
-      {
-        title: "Rings",
-        tip: TIP_LABEL["GG Ring Properties"],
-        lines: [`Type: ${m.display.ringType}`, `Details: ${m.display.ringDetails}`],
-      },
-      {
-        title: "Tidal evolution",
-        tip: TIP_LABEL["GG Tidal"],
-        lines: [
-          `Tidal locking: ${m.display.tidalLocking}`,
-          `Circularisation: ${m.display.circularisation}`,
-        ],
-      },
-    ]);
-    bodyOutputsEl.replaceChildren(kpiGrid, ...readoutSections);
+      meta: `${styleLabel(derivedStyle)} - Class ${m.classification.sudarsky}`,
+    };
+    const classItem = {
+      label: "Class",
+      tip: TIP_LABEL["Sudarsky"] || "",
+      value: `Class ${m.classification.sudarsky}`,
+      meta: styleLabel(derivedStyle),
+    };
+    const massItem = {
+      label: "Mass",
+      tip: TIP_LABEL["GG Mass"] || "",
+      value: m.display.mass,
+      meta: massNote,
+    };
+    const metallicityItem = {
+      label: "Metallicity",
+      tip: TIP_LABEL["GG Metallicity"] || "",
+      value: m.display.metallicity,
+      meta: metNote,
+    };
+    const radiusItem = {
+      label: "Radius",
+      tip: TIP_LABEL["GG Output Radius"] || "",
+      value: m.display.radius,
+      meta: radiusNote,
+    };
+    const densityItem = {
+      label: "Density",
+      tip: TIP_LABEL["GG Density"] || "",
+      value: m.display.density,
+    };
+    const gravityItem = {
+      label: "Gravity",
+      tip: TIP_LABEL["GG Gravity"] || "",
+      value: m.display.gravity,
+    };
+    const escapeVelocityItem = {
+      label: "Escape Velocity",
+      tip: TIP_LABEL["GG Escape Velocity"] || "",
+      value: m.display.escapeVelocity,
+    };
+    const magneticFieldItem = {
+      label: "Magnetic Field",
+      tip: TIP_LABEL["GG Magnetic Field"] || "",
+      value: m.display.magneticField,
+      meta: `${m.display.magneticMorphology} - ${m.magnetic.dynamoReason}`,
+    };
+    const equilibriumTempItem = {
+      label: "Equilibrium Temp",
+      tip: TIP_LABEL["GG Equilibrium Temp"] || "",
+      value: m.display.equilibriumTemp,
+      meta: `T_eff ${m.display.effectiveTemp}`,
+    };
+    const orbitalPeriodItem = {
+      label: "Orbital Period",
+      tip: TIP_LABEL["GG Orbital Period"] || "",
+      value: m.display.orbitalPeriod,
+      meta: m.display.orbitalVelocity,
+    };
+    const ringsItem = {
+      label: "Rings",
+      tip: TIP_LABEL["GG Ring Properties"] || "",
+      value: m.display.ringType,
+      meta: m.display.ringDetails,
+    };
+    const atmosphereItem = {
+      label: "Atmosphere",
+      tip: TIP_LABEL["GG Derived"] || "",
+      value: m.atmosphere.dominantTrace,
+      meta: `Clouds ${clouds}`,
+    };
+    const insolationItem = {
+      label: "Insolation",
+      value: m.display.insolation,
+    };
+    const magnetosphereItem = {
+      label: "Magnetosphere",
+      value: m.display.magnetosphere,
+    };
+    const moonTidalHeatingItem = {
+      label: "Moon Tidal Heating",
+      value: m.display.moonTidalHeating,
+    };
+    const massLossItem = {
+      label: "Mass Loss",
+      tip: TIP_LABEL["GG Mass Loss"] || "",
+      value: m.display.massLossRate,
+      meta: m.display.evaporationTimescale,
+    };
 
-    // Render gas giant preview canvas (animated native celestial controller)
+    const summaryItems = [
+      appearanceItem,
+      classItem,
+      massItem,
+      radiusItem,
+      equilibriumTempItem,
+      orbitalPeriodItem,
+      magneticFieldItem,
+      ringsItem,
+    ];
+    const identityItems = [classItem, metallicityItem];
+    const physicalItems = [massItem, radiusItem, densityItem, gravityItem, escapeVelocityItem];
+    const environmentItems = [equilibriumTempItem, atmosphereItem, ringsItem];
+    const systemItems = [orbitalPeriodItem, insolationItem];
+    const activityItems = [
+      magneticFieldItem,
+      magnetosphereItem,
+      moonTidalHeatingItem,
+      massLossItem,
+    ];
+
+    const derivedDetails = createDerivedDetails(
+      [
+        {
+          id: "gas-giant-details-identity",
+          title: "Identity & Class",
+          items: [
+            { label: "Class", value: `Class ${m.classification.sudarsky}` },
+            { label: "Style", value: styleLabel(derivedStyle) },
+            { label: "Metallicity", value: m.display.metallicity, meta: metNote },
+            { label: "Heavy elements", value: m.display.heavyElements },
+            { label: "Bulk metallicity", value: m.display.bulkMetallicity },
+          ],
+        },
+        {
+          id: "gas-giant-details-physical",
+          title: "Physical State",
+          items: [
+            { label: "Mass", value: m.display.mass, meta: massNote },
+            { label: "Radius", value: m.display.radius, meta: radiusNote },
+            { label: "Density", value: m.display.density },
+            { label: "Gravity", value: m.display.gravity },
+            { label: "Escape Velocity", value: m.display.escapeVelocity },
+            { label: "Suggested radius", value: m.display.suggestedRadius },
+            { label: "Radius age note", value: m.display.radiusAgeNote },
+            { label: "Oblateness", value: m.display.oblateness },
+            { label: "Equatorial/Polar", value: m.display.equatorialRadius },
+          ],
+        },
+        {
+          id: "gas-giant-details-environment",
+          title: "Environment",
+          items: [
+            {
+              label: "Atmosphere mix",
+              value: `H2 ${m.atmosphere.h2Pct}%, He ${m.atmosphere.hePct}%${m.atmosphere.ch4Pct > 0 ? `, CH4 ${m.atmosphere.ch4Pct}%` : ""}${m.atmosphere.coPct > 0 ? `, CO ${m.atmosphere.coPct}%` : ""}`,
+            },
+            { label: "Dominant trace", value: m.atmosphere.dominantTrace },
+            { label: "Cloud layers", value: clouds },
+            { label: "Bond albedo", value: fmt(m.thermal.bondAlbedo, 2) },
+            { label: "Internal heat ratio", value: fmt(m.thermal.internalHeatRatio, 2) },
+            { label: "Equilibrium Temp", value: m.display.equilibriumTemp },
+            { label: "Effective Temp", value: m.display.effectiveTemp },
+            { label: "Ring type", value: m.display.ringType },
+            { label: "Ring details", value: m.display.ringDetails },
+          ],
+        },
+        {
+          id: "gas-giant-details-system",
+          title: "System Context",
+          items: [
+            {
+              label: "Orbital Period",
+              value: m.display.orbitalPeriod,
+              meta: m.display.orbitalVelocity,
+            },
+            { label: "Insolation", value: m.display.insolation },
+            ...(m.display.peri
+              ? [{ label: "Periapsis", value: `${m.display.peri} (${m.display.tempPeri})` }]
+              : []),
+            ...(m.display.apo
+              ? [{ label: "Apoapsis", value: `${m.display.apo} (${m.display.tempApo})` }]
+              : []),
+            { label: "Orbital direction", value: m.display.orbitalDirection },
+            { label: "Local days per year", value: m.display.localDaysPerYear },
+            { label: "Nearest resonance", value: m.display.resonance },
+            { label: "Hill sphere", value: m.display.hillSphere },
+            { label: "Roche limit", value: m.display.rocheLimit },
+            { label: "Chaotic zone", value: m.display.chaoticZone },
+            {
+              label: "Ring zone",
+              value: `${fmt(m.gravity.ringZoneInnerKm, 0)}-${fmt(m.gravity.ringZoneOuterKm, 0)} km`,
+            },
+          ],
+        },
+        {
+          id: "gas-giant-details-activity",
+          title: "Activity & Radiation",
+          items: [
+            {
+              label: "Magnetic Field",
+              value: m.display.magneticField,
+              meta: m.display.magneticMorphology,
+            },
+            { label: "Magnetosphere", value: m.display.magnetosphere },
+            { label: "Moon tidal heating", value: m.display.moonTidalHeating },
+            { label: "Atmospheric sputtering", value: m.display.sputteringPlasma },
+            { label: "Bands", value: m.display.bands },
+            { label: "Wind speed", value: m.display.windSpeed },
+            { label: "Mass loss", value: m.display.massLossRate },
+            { label: "Evaporation", value: m.display.evaporationTimescale },
+            { label: "Roche lobe", value: m.display.rocheLobeRadius },
+            { label: "Jeans escape", value: m.display.jeansEscape },
+            { label: "Tidal locking", value: m.display.tidalLocking },
+            { label: "Circularisation", value: m.display.circularisation },
+          ],
+        },
+      ],
+      { title: "Derived Details" },
+    );
+
+    bodyOutputsEl.replaceChildren();
+    renderKpiSections(bodyOutputsEl, [
+      { id: "gas-giant-summary", title: "Summary", items: summaryItems },
+      {
+        id: "gas-giant-identity",
+        title: "Identity & Class",
+        density: "compact",
+        items: identityItems,
+      },
+      {
+        id: "gas-giant-physical",
+        title: "Physical State",
+        density: "compact",
+        items: physicalItems,
+      },
+      {
+        id: "gas-giant-environment",
+        title: "Environment",
+        density: "compact",
+        items: environmentItems,
+      },
+      { id: "gas-giant-system", title: "System Context", density: "compact", items: systemItems },
+      {
+        id: "gas-giant-activity",
+        title: "Activity & Radiation",
+        density: "compact",
+        items: activityItems,
+      },
+    ]);
+    if (derivedDetails) bodyOutputsEl.append(derivedDetails);
+
     let gasCanvas = bodyOutputsEl.querySelector(".gg-preview-canvas");
     if (prevGasCanvas && gasCanvas && prevGasCanvas !== gasCanvas) {
       prevGasCanvas.dataset.style = derivedStyle;
@@ -2083,7 +2431,6 @@ export function initPlanetPage(mountEl) {
       celestialPreviewController.detach();
     }
 
-    // Recipe picker (in output KPI, like rocky/moon)
     bodyOutputsEl.querySelector(".gg-recipe-btn")?.addEventListener("click", () => {
       openGgRecipePicker((recipe) => {
         const w = loadWorld();
@@ -2096,7 +2443,6 @@ export function initPlanetPage(mountEl) {
           g.rotationPeriodHours = recipe.apply.rotationPeriodHours;
         if (recipe.apply.metallicity !== undefined) g.metallicity = recipe.apply.metallicity;
         g.appearanceRecipeId = recipe.id;
-        // Auto-derive style and rings from new physics
         const ggCalc = calcGasGiant({
           massMjup: g.massMjup,
           radiusRj: g.radiusRj,
@@ -2117,7 +2463,6 @@ export function initPlanetPage(mountEl) {
       });
     });
 
-    // Pause / resume rotation
     const ggPauseBtn = bodyOutputsEl.querySelector(".gg-pause-btn");
     if (ggPauseBtn) {
       ggPauseBtn.addEventListener("click", () => {
@@ -2127,7 +2472,6 @@ export function initPlanetPage(mountEl) {
       });
     }
   }
-
   /* ── Gas giant recipe picker modal ─────────────────────────────── */
 
   function openGgRecipePicker(onSelect) {

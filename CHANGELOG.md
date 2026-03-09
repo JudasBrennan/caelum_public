@@ -4,6 +4,102 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 1.22.1 - 2026-03-09
+
+### KPI Output Redesign
+
+**Reworked dense output pages around grouped KPI sections, unified celestial section names, lighter stat rows, and explicit detail expansion**
+(ui/kpiSections.js, ui/statRows.js, ui/derivedDetails.js, ui/planet/outputRender.js,
+ui/moon/domRender.js, ui/moonPage.js, ui/starPage.js,
+ui/planetPage.js, ui/tectonicsPage.js, ui/populationPage.js,
+styles.css, STYLE_GUIDE.md, tests/inputDraftStability.ui.test.js,
+tests/moonDomRender.test.js, tests/planetOutputRender.test.js)
+
+Dense pages no longer rely on one flat wall of KPI cards. The Star,
+Planet, and Moon pages now share one celestial-output language across
+rocky planets, gas giants, and moons:
+`Summary`, `Identity & Class`, `Physical State`, `Environment`,
+`System Context`, `Activity & Radiation`, `Habitability`, plus one
+shared collapsible `Derived Details` block that uses lighter stat rows
+for the secondary output layer. Tectonics and Population now use lighter
+stat rows for more secondary readouts instead of repeating full
+KPI-card grids.
+
+This pass also added explicit tap/click expansion support for KPI
+detail, so touch users are no longer dependent on hover to read
+secondary output text on dense pages.
+
+The redesign was completed across both rocky and gas-giant Planet-page
+outputs, so all celestial-body editors now follow the same section
+order instead of mixing the older gas-giant readout layout with the new
+sectioned KPI model.
+
+Follow-up fixes tightened the shared `Derived Details` stat-row layout
+so long secondary values wrap cleanly instead of obscuring their labels,
+and corrected the special colour KPI cards so they show only one
+disclosure chevron and keep the sky-colour title row at a stable
+one-line height.
+
+### Habitability Science Corrections
+
+**Rebuilt the WorldSmith habitability model into a pathway-aware `phi-unified-v2` while keeping `ESI` literature-faithful**
+(engine/habitability/constants.js, engine/habitability/species.js,
+engine/habitability/schema.js, engine/habitability/context.js,
+engine/habitability/hydrosphere.js, engine/habitability/solvent.js,
+engine/habitability/chemistry.js, engine/habitability/radiation.js,
+engine/habitability/persistence.js, engine/habitability/stability.js,
+engine/habitability/metrics.js, engine/moon/atmosphere.js,
+engine/moon/hydrosphere.js, engine/planet.js,
+tests/habitabilitySpecies.test.js,
+tests/habitabilitySolvent.test.js,
+tests/habitabilityChemistry.test.js,
+tests/habitabilityPersistence.test.js,
+tests/habitabilityRadiation.test.js,
+tests/habitabilityStability.test.js,
+tests/habitabilityMetrics.test.js,
+tests/hydrosphere.test.js,
+tests/moonHabitability.test.js,
+tests/planet.test.js)
+
+Implemented the full filed PHI / ESI science-corrections plan from
+`filed-plans/PHI_ESI_SCIENCE_CORRECTIONS_PLAN.md`. `ESI` remains the
+standard four-term Earth-likeness metric, but the WorldSmith
+habitability score is now explicitly a custom PHI-inspired comparative
+model with `surface-water`, `subsurface-water`, and
+`alternative-solvent` pathways, explicit policy versions, and
+pathway-specific solvent, chemistry, radiation, persistence, and
+stability handling.
+
+This pass also fixed the key science defects from the review: canonical
+species normalization now removes label and alias drift across the
+habitability stack, planet and moon contexts now carry the missing
+radiogenic/internal-heating support fields, dry and frozen worlds no
+longer leak surface-solvent credit, Titan-like alternative-solvent
+support stays policy-gated, subsurface moons are scored through their
+own solvent/stability/radiation path instead of surface-water logic, and
+the hydrosphere model now uses the locked blended depth-based surface
+coverage rules.
+
+### Habitability UI and Documentation Alignment
+
+**Updated the Planet and Moon pages to present the new score honestly and expose its active pathway**
+(ui/planetPage.js, ui/moonPage.js, ui/sciencePage.js,
+ui/rockyPlanetStyles.js, tests/inputDraftStability.ui.test.js,
+tests/rockyPlanetStyles.test.js, tests/celestialVisual.test.js)
+
+The user-facing KPI is now consistently presented as `Habitability
+Index`, with tooltip copy that explicitly says it is a WorldSmith
+comparative metric rather than a direct literature PHI implementation.
+The expanded KPI state now exposes the selected solvent pathway, policy
+version, and model version so users can tell when a score is coming from
+surface water, subsurface oceans, or alternative solvents.
+
+The Science page now documents that distinction directly, and the rocky
+visual fallback path was tightened so recipe previews and regime-only
+visual tests keep their expected baseline ocean coverage instead of
+accidentally picking up the full physical depth-blend path when the
+preview data does not include a real hydrosphere state.
+
 ## 1.22.0 — 2026-03-09
 
 ### Moon Workflow Integration

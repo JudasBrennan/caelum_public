@@ -5,6 +5,8 @@ import { calcPlanetExact } from "../engine/planet.js";
 import { fmt } from "../engine/utils.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { escapeHtml } from "./uiHelpers.js";
+import { statRowsHTML } from "./statRows.js";
+import { enableKpiInteractions } from "./planet/outputRender.js";
 import {
   getSelectedPlanet,
   getStarOverrides,
@@ -552,24 +554,24 @@ export function initPopulationPage(containerEl) {
 
                 <canvas id="popCascadeCanvas" class="pop-cascade-canvas"></canvas>
 
-                <div class="kpi-grid" style="margin-top:8px">
-                  <div class="kpi-wrap"><div class="kpi">
-                    <div class="kpi__label">Surface Area ${tipIcon(TIP_LABEL["Surface Area"])}</div>
-                    <div class="kpi__value">${escapeHtml(model.display.surfaceArea)}</div>
-                  </div></div>
-                  <div class="kpi-wrap"><div class="kpi">
-                    <div class="kpi__label">Land Area ${tipIcon(TIP_LABEL["Land Area"])}</div>
-                    <div class="kpi__value">${escapeHtml(model.display.landArea)}</div>
-                  </div></div>
-                  <div class="kpi-wrap"><div class="kpi">
-                    <div class="kpi__label">Habitable Area ${tipIcon(TIP_LABEL["Habitable Area"])}</div>
-                    <div class="kpi__value">${escapeHtml(model.display.habitableArea)}</div>
-                  </div></div>
-                  <div class="kpi-wrap"><div class="kpi">
-                    <div class="kpi__label">Productive Area ${tipIcon(TIP_LABEL["Productive Area"])}</div>
-                    <div class="kpi__value">${escapeHtml(model.display.productiveArea)}</div>
-                  </div></div>
-                </div>
+                ${statRowsHTML([
+                  {
+                    labelHtml: `Surface Area ${tipIcon(TIP_LABEL["Surface Area"])}`,
+                    value: model.display.surfaceArea,
+                  },
+                  {
+                    labelHtml: `Land Area ${tipIcon(TIP_LABEL["Land Area"])}`,
+                    value: model.display.landArea,
+                  },
+                  {
+                    labelHtml: `Habitable Area ${tipIcon(TIP_LABEL["Habitable Area"])}`,
+                    value: model.display.habitableArea,
+                  },
+                  {
+                    labelHtml: `Productive Area ${tipIcon(TIP_LABEL["Productive Area"])}`,
+                    value: model.display.productiveArea,
+                  },
+                ])}
               </div>
 
               <div class="subsection">
@@ -601,16 +603,16 @@ export function initPopulationPage(containerEl) {
 
                 <canvas id="popGrowthCanvas" class="pop-growth-canvas"></canvas>
 
-                <div class="kpi-grid" style="margin-top:8px">
-                  <div class="kpi-wrap"><div class="kpi">
-                    <div class="kpi__label">Doubling Time ${tipIcon(TIP_LABEL["Doubling Time"])}</div>
-                    <div class="kpi__value">${escapeHtml(model.display.doublingTime)}</div>
-                  </div></div>
-                  <div class="kpi-wrap"><div class="kpi">
-                    <div class="kpi__label">Overall Density ${tipIcon(TIP_LABEL["Overall Density"])}</div>
-                    <div class="kpi__value">${escapeHtml(model.display.overallDensity)}</div>
-                  </div></div>
-                </div>
+                ${statRowsHTML([
+                  {
+                    labelHtml: `Doubling Time ${tipIcon(TIP_LABEL["Doubling Time"])}`,
+                    value: model.display.doublingTime,
+                  },
+                  {
+                    labelHtml: `Overall Density ${tipIcon(TIP_LABEL["Overall Density"])}`,
+                    value: model.display.overallDensity,
+                  },
+                ])}
               </div>
             </div>
 
@@ -679,6 +681,7 @@ export function initPopulationPage(containerEl) {
       </div>`;
 
     attachTooltips(containerEl);
+    enableKpiInteractions(containerEl);
 
     requestAnimationFrame(() => {
       const growthCanvas = containerEl.querySelector("#popGrowthCanvas");

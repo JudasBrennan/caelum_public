@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Shared habitability metrics for rocky planets and moons.
-//
-// ESI measures Earth-likeness. Stage 7 unifies PHI under explicit solvent,
-// chemistry, radiation, and persistence submodels so planets and moons use
-// the same explainable scoring core.
 
 import { clamp, toFinite } from "../utils.js";
 import { normalizeHabitabilityContext } from "./schema.js";
-import { resolveClimateStability } from "./stability.js";
+import { resolvePathwayStability } from "./stability.js";
 import { computeUnifiedSolventModel } from "./solvent.js";
 import { computeHabitabilityChemistryModel } from "./chemistry.js";
 import { computeHabitabilityRadiationModel } from "./radiation.js";
@@ -31,6 +27,30 @@ function safeMetric(value, fallback = 0) {
   return Math.max(toFinite(value, fallback), 0);
 }
 
+function weightedMean(values = [], weights = []) {
+  let numerator = 0;
+  let denominator = 0;
+  for (let index = 0; index < values.length; index += 1) {
+    const value = clamp(toFinite(values[index], 0), 0, 1);
+    const weight = Math.max(toFinite(weights[index], 0), 0);
+    numerator += value * weight;
+    denominator += weight;
+  }
+  return denominator > 0 ? numerator / denominator : 0;
+}
+
+function centeredWindowScore(value, center, halfWidth) {
+  if (!Number.isFinite(value) || !Number.isFinite(center) || !Number.isFinite(halfWidth)) return 0;
+  if (halfWidth <= 0) return 0;
+  return clamp(1 - Math.abs(value - center) / halfWidth, 0, 1);
+}
+
+function pressureWindowScore(pressureAtm) {
+  const pressure = Math.max(toFinite(pressureAtm, 0), 0);
+  if (pressure <= 0) return 0;
+  return clamp(1 - Math.abs(Math.log10(Math.max(pressure, 0.01))) / 2.2, 0, 1);
+}
+
 function similarityComponent(value, earthValue, weight) {
   const metric = safeMetric(value);
   const reference = safeMetric(earthValue);
@@ -42,6 +62,116 @@ function similarityComponent(value, earthValue, weight) {
   return {
     similarity,
     weighted: similarity ** (weight / 4),
+  };
+}
+
+function selectPathwayTerm(selectedPathway, values) {
+  if (selectedPathway === "surface-water") return values.surface;
+  if (selectedPathway === "subsurface-water") return values.subsurface;
+  if (selectedPathway === "alternative-solvent") return values.alternative;
+  return 0;
+}
+
+function computeSubstrateScores(context, solventModel) {
+  const surface = context.surface;
+  const coastlineMixScore = clamp(1 - Math.abs(surface.landFraction - 0.35) / 0.65, 0, 1);
+  const exposedSurfaceScore = clamp(
+    surface.landFraction + 0.35 * surface.liquidOceanFraction,
+    0,
+    1,
+  );
+  const surfaceScore = weightedMean([coastlineMixScore, exposedSurfaceScore], [0.65, 0.35]);
+
+  const shellInterfaceScore = solventModel.pathwayInputs?.shellAccessScore || 0;
+  const barrierInterfaceScore = surface.highPressureIceBarrier ? 0.2 : 1;
+  const subsurfaceScore = weightedMean(
+    [surface.subsurfaceOceanScore, shellInterfaceScore, barrierInterfaceScore],
+    [0.4, 0.35, 0.25],
+  );
+
+  const basinCoverageFraction =
+    surface.liquidOceanFraction > 0
+      ? surface.liquidOceanFraction
+      : solventModel.pathwayInputs?.altBasinCoverageFraction || 0;
+  const basinCoverageScore = clamp(basinCoverageFraction / 0.25, 0, 1);
+  const solidInterfaceScore = clamp(
+    surface.landFraction + 0.25 * surface.permanentIceFraction,
+    0,
+    1,
+  );
+  const pressurePersistenceScore = pressureWindowScore(surface.pressureAtm);
+  const alternativeScore = weightedMean(
+    [basinCoverageScore, solidInterfaceScore, pressurePersistenceScore],
+    [0.4, 0.35, 0.25],
+  );
+
+  return {
+    surface: clamp(surfaceScore, 0, 1),
+    subsurface: clamp(subsurfaceScore, 0, 1),
+    alternative: clamp(alternativeScore, 0, 1),
+    breakdown: {
+      coastlineMixScore,
+      exposedSurfaceScore,
+      shellInterfaceScore,
+      barrierInterfaceScore,
+      basinCoverageScore,
+      solidInterfaceScore,
+      pressurePersistenceScore,
+    },
+  };
+}
+
+function computeEnergyScores(context, solventModel) {
+  const surface = context.surface;
+  const energy = context.energy;
+  const stellarTemperateScore = Number.isFinite(toFinite(energy.stellarHeatSupport, NaN))
+    ? clamp(toFinite(energy.stellarHeatSupport, 0), 0, 1)
+    : clamp(1 - Math.abs(Math.log2(Math.max(toFinite(energy.insolationEarth, 0), 1e-6))) / 2, 0, 1);
+  const internalHeatSupport = Number.isFinite(toFinite(energy.internalHeatSupport, NaN))
+    ? clamp(toFinite(energy.internalHeatSupport, 0), 0, 1)
+    : clamp(
+        Math.log10(
+          1 +
+            Math.max(toFinite(energy.tidalHeatingEarth, 0), 0) +
+            Math.max(toFinite(energy.radiogenicHeatingEarth, 0), 0),
+        ) / 1.8,
+        0,
+        1,
+      );
+  const overheatPenalty =
+    energy.tidalHeatingEarth <= 0.1
+      ? 1
+      : clamp(1 - Math.log10(Math.max(energy.tidalHeatingEarth, 0.1) / 0.1) / 2, 0, 1);
+  const surfaceScore = weightedMean(
+    [stellarTemperateScore, internalHeatSupport, overheatPenalty],
+    [0.65, 0.15, 0.2],
+  );
+  const subsurfaceScore = weightedMean(
+    [internalHeatSupport, overheatPenalty, clamp(0.25 + 0.75 * stellarTemperateScore, 0, 1)],
+    [0.55, 0.25, 0.2],
+  );
+  const solventTempWindow =
+    String(surface.alternativeSolventCandidate || "") === "ammonia-brines"
+      ? centeredWindowScore(surface.surfaceTempK, 200, 35)
+      : centeredWindowScore(surface.surfaceTempK, 94, 22);
+  const alternativeScore = weightedMean(
+    [
+      solventModel.pathwayInputs?.solventTempWindow || solventTempWindow,
+      internalHeatSupport,
+      overheatPenalty,
+    ],
+    [0.55, 0.2, 0.25],
+  );
+  return {
+    surface: clamp(surfaceScore, 0, 1),
+    subsurface: clamp(subsurfaceScore, 0, 1),
+    alternative: clamp(alternativeScore, 0, 1),
+    breakdown: {
+      stellarTemperateScore,
+      internalHeatSupport,
+      overheatPenalty,
+      solventTempWindow: solventModel.pathwayInputs?.solventTempWindow || solventTempWindow,
+    },
   };
 }
 
@@ -97,115 +227,76 @@ export function computeMoonHabitabilityIndex(context = {}, options = {}) {
 
 export function computeUnifiedHabitabilityIndex(context = {}, { solventPolicy } = {}) {
   const normalized = normalizeHabitabilityContext(context);
-  const surface = normalized.surface;
-  const energyContext = normalized.energy;
-  const climate = normalized.climate;
-  const landFraction = clamp(toFinite(surface.landFraction, 0), 0, 1);
-  const liquidOceanFraction = clamp(toFinite(surface.liquidOceanFraction, 0), 0, 1);
-  const landBalanceScore = clamp(1 - Math.abs(landFraction - 0.35) / 0.7, 0, 1);
-  const exposedSurfaceScore = clamp(landFraction + 0.25 * liquidOceanFraction, 0, 1);
-  const substrate = clamp(0.7 * landBalanceScore + 0.3 * exposedSurfaceScore, 0, 1);
-
   const solventModel = computeUnifiedSolventModel(normalized, { policy: solventPolicy });
-  const solvent = solventModel.score;
-
-  const insolationEarth = Math.max(safeMetric(energyContext.insolationEarth, 1e-6), 1e-6);
-  const stellarEnergyScore = clamp(1 - Math.abs(Math.log2(insolationEarth)) / 2, 0, 1);
-  const planetTidalHeatingEarth = safeMetric(energyContext.tidalHeatingEarth, 0);
-  const internalHeatPenalty =
-    planetTidalHeatingEarth <= 0.1
-      ? 1
-      : clamp(1 - Math.log10(planetTidalHeatingEarth / 0.1) / 2, 0, 1);
-  const geophysicalEnergyScore = clamp(
-    Math.log10(1 + planetTidalHeatingEarth + safeMetric(energyContext.radiogenicHeatingEarth, 0)) /
-      2,
-    0,
-    1,
-  );
-  let energy = clamp(0.85 * stellarEnergyScore + 0.15 * internalHeatPenalty, 0, 1);
-  if (solventModel.selectedPathway === "subsurface-water") {
-    energy = Math.max(energy, clamp(0.25 + 0.75 * geophysicalEnergyScore, 0, 1));
-  } else if (solventModel.selectedPathway === "alternative-solvent") {
-    energy = Math.max(
-      energy,
-      clamp(0.15 + 0.65 * Math.max(stellarEnergyScore, geophysicalEnergyScore), 0, 1),
-    );
-  }
-
-  const chemistryModel = computeHabitabilityChemistryModel(normalized);
+  const selectedPathway = solventModel.selectedPathway;
+  const substrateScores = computeSubstrateScores(normalized, solventModel);
+  const energyScores = computeEnergyScores(normalized, solventModel);
+  const chemistryModel = computeHabitabilityChemistryModel(normalized, { selectedPathway });
+  const substrate = selectPathwayTerm(selectedPathway, substrateScores);
+  const energy = selectPathwayTerm(selectedPathway, energyScores);
   const chemistry = chemistryModel.score;
-
+  const solvent = solventModel.score;
   const baseScore = clamp((substrate * solvent * energy * chemistry) ** 0.25, 0, 1);
-  const climateBreakdown = resolveClimateStability({
-    climateState: climate.climateState,
-    climateLivabilityFraction: climate.climateLivabilityFraction,
-    collapsePenalty: climate.collapsePenalty,
+  const stabilityModel = resolvePathwayStability(normalized, {
+    selectedPathway,
+    solventModel,
   });
-  const stabilityMultiplier = clamp(
-    Math.max(climateBreakdown.stabilityMultiplier, toFinite(solventModel.stabilityFloor, 0)),
-    0,
-    1,
-  );
   const radiationModel = computeHabitabilityRadiationModel(normalized, {
-    photochemicalShieldingScore: chemistryModel.breakdown.photochemicalShieldingScore,
+    selectedPathway,
+    photochemicalShieldingScore: chemistryModel.breakdown.uvScreeningScore,
   });
   const persistenceModel = computeHabitabilityPersistenceModel(normalized, {
-    stabilityFloor: solventModel.stabilityFloor,
+    selectedPathway,
+    pathwayPersistenceScore: stabilityModel.stabilityMultiplier,
   });
   const score = clamp(
-    baseScore * stabilityMultiplier * radiationModel.multiplier * persistenceModel.multiplier,
+    baseScore *
+      stabilityModel.stabilityMultiplier *
+      radiationModel.multiplier *
+      persistenceModel.multiplier,
     0,
     1,
   );
 
   return {
     score,
-    version: "phi-unified-v1",
+    version: "phi-unified-v2",
     breakdown: {
       substrate,
       solvent,
       energy,
       chemistry,
-      stabilityMultiplier,
+      climateStatePenalty: stabilityModel.climateStatePenalty,
+      collapsePenalty: stabilityModel.collapsePenalty,
+      stabilityMultiplier: stabilityModel.stabilityMultiplier,
       radiationMultiplier: radiationModel.multiplier,
       persistenceMultiplier: persistenceModel.multiplier,
-      climateLivabilityFraction: climateBreakdown.climateLivabilityFraction,
-      climateLivabilityScore: climateBreakdown.climateLivabilityScore,
-      climateStatePenalty: climateBreakdown.climateStatePenalty,
-      collapsePenalty: climateBreakdown.collapsePenalty,
-      landBalanceScore,
-      exposedSurfaceScore,
-      liquidOceanFraction,
-      stellarEnergyScore,
-      internalHeatPenalty,
-      geophysicalEnergyScore,
-      solventModel: solventModel.modelVersion,
+      solventPathway: selectedPathway,
       solventPolicyVersion: solventModel.policyVersion,
-      solventPathway: solventModel.selectedPathway,
-      supportedSolventPathways: solventModel.supportedPathways,
-      surfaceWaterScore: solventModel.breakdown.surfaceWaterScore,
-      subsurfaceWaterScore: solventModel.breakdown.subsurfaceWaterScore,
-      altSolventScore: solventModel.breakdown.altSolventScore,
-      surfaceAccessibilityPenalty: solventModel.breakdown.surfaceAccessibilityPenalty,
-      alternativeSolventCandidate: solventModel.breakdown.alternativeSolventCandidate,
-      chemistryModel: chemistryModel.modelVersion,
-      atmosphereRetentionScore: chemistryModel.breakdown.atmosphereRetentionScore,
-      volatileInventoryScore: chemistryModel.breakdown.volatileInventoryScore,
-      redoxScore: chemistryModel.breakdown.redoxScore,
-      photochemicalShieldingScore: chemistryModel.breakdown.photochemicalShieldingScore,
-      pressureScore: chemistryModel.breakdown.pressureScore,
-      xuvProtectionScore: chemistryModel.breakdown.xuvProtectionScore,
-      radiationModel: radiationModel.modelVersion,
-      magnetosphereMultiplier: radiationModel.breakdown.magnetosphereMultiplier,
-      stellarExposureMultiplier: radiationModel.breakdown.stellarExposureMultiplier,
-      surfaceShieldingScore: radiationModel.breakdown.surfaceShieldingScore,
-      stellarRadiationMultiplier: radiationModel.breakdown.stellarRadiationMultiplier,
-      persistenceModel: persistenceModel.modelVersion,
-      ageScore: persistenceModel.breakdown.ageScore,
-      xuvScore: persistenceModel.breakdown.xuvScore,
-      atmosphericEscapeScore: persistenceModel.breakdown.atmosphericEscapeScore,
-      climatePersistenceScore: persistenceModel.breakdown.climatePersistenceScore,
-      tidalPersistenceScore: persistenceModel.breakdown.tidalScore,
+      pathwayScores: solventModel.pathwayScores,
+      modelVersions: {
+        solvent: solventModel.modelVersion,
+        chemistry: chemistryModel.modelVersion,
+        radiation: radiationModel.modelVersion,
+        persistence: persistenceModel.modelVersion,
+        stability: stabilityModel.modelVersion,
+        hydrosphere: normalized.provenance.hydrosphereModelVersion || "",
+      },
+      substrateBreakdown: substrateScores.breakdown,
+      energyBreakdown: energyScores.breakdown,
+      chemistryBreakdown: chemistryModel.breakdown,
+      stabilityBreakdown: {
+        climateLivabilityFraction: stabilityModel.climateLivabilityFraction,
+        climateLivabilityScore: stabilityModel.climateLivabilityScore,
+        climateStatePenalty: stabilityModel.climateStatePenalty,
+        collapsePenalty: stabilityModel.collapsePenalty,
+        surfaceCollapsePenalty: stabilityModel.surfaceCollapsePenalty,
+        subsurfaceCollapsePenalty: stabilityModel.subsurfaceCollapsePenalty,
+        altCollapsePenalty: stabilityModel.altCollapsePenalty,
+        shellPersistenceScore: stabilityModel.shellPersistenceScore,
+      },
+      radiationBreakdown: radiationModel.breakdown,
+      persistenceBreakdown: persistenceModel.breakdown,
     },
   };
 }

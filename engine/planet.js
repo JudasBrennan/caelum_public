@@ -88,6 +88,7 @@ import {
   computePlanetHabitabilityIndex,
 } from "./habitability/metrics.js";
 import { hydrosphereStateFromPlanet } from "./habitability/hydrosphere.js";
+import { EARTH_INTERNAL_HEAT_FLUX_WM2 } from "./habitability/constants.js";
 
 export { tectonicProbabilities } from "./planet/tectonics.js";
 export { computeGreenhouseTau } from "./planet/atmosphere.js";
@@ -538,6 +539,8 @@ export function calcPlanetExact({
   const surfaceAreaM2 = 4 * PI * radiusM ** 2;
   const planetTidalHeatingWm2 = surfaceAreaM2 > 0 ? planetTidalHeatingW / surfaceAreaM2 : 0;
   const internalHeatW = EARTH_INTERNAL_HEAT_W * massEarth * radioisotopeAbundance;
+  const radiogenicHeatingWm2 = surfaceAreaM2 > 0 ? internalHeatW / surfaceAreaM2 : 0;
+  const radiogenicHeatingEarth = radiogenicHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2;
   const planetTidalFraction = internalHeatW > 0 ? planetTidalHeatingW / internalHeatW : 0;
 
   // Magnetic field model
@@ -777,7 +780,9 @@ export function calcPlanetExact({
       permanentIceFraction: hydrosphere.permanentIceFraction,
       steamFraction: hydrosphere.steamFraction,
       surfaceAccessibleLiquidFraction: hydrosphere.surfaceAccessibleLiquidFraction,
-      planetTidalHeatingEarth: planetTidalHeatingWm2 / 0.087,
+      planetTidalHeatingEarth: planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2,
+      radiogenicHeatingWm2,
+      radiogenicHeatingEarth,
       surfaceFieldEarths: magField.surfaceFieldEarths,
       mantleOxidationKey: planet.mantleOxidation || "earth",
       primaryOutgassedSpecies: outgassing.primarySpecies,
@@ -977,7 +982,9 @@ export function calcPlanetExact({
       planetTidalHeatingW,
       planetTidalHeatingWm2,
       planetTidalFraction,
-      planetTidalHeatingEarth: planetTidalHeatingWm2 / 0.087,
+      planetTidalHeatingEarth: planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2,
+      radiogenicHeatingWm2,
+      radiogenicHeatingEarth,
 
       // Mantle & tectonics (Phase C)
       tectonicRegime: tecRegime,
@@ -1064,8 +1071,12 @@ export function calcPlanetExact({
           : magField.fieldMorphology.charAt(0).toUpperCase() + magField.fieldMorphology.slice(1),
       outgassing: outgassing.primarySpecies,
       moonTidalHeating:
-        planetTidalHeatingWm2 / 0.087 >= 0.01
-          ? `${fmt(planetTidalHeatingWm2 / 0.087, 2)}\u00d7 Earth geothermal`
+        planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2 >= 0.01
+          ? `${fmt(planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2, 2)}\u00d7 Earth geothermal`
+          : null,
+      radiogenicHeating:
+        radiogenicHeatingEarth >= 0.01
+          ? `${fmt(radiogenicHeatingEarth, 2)}\u00d7 Earth radiogenic`
           : null,
       tectonicRegime:
         tecRegime === "plutonic-squishy"

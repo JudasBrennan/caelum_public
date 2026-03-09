@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 import { createElement, replaceChildren } from "../domHelpers.js";
-import { createKpiGrid, createReadoutSections } from "../planet/outputRender.js";
+import { createKpiGrid, enableKpiInteractions } from "../planet/outputRender.js";
+import { renderKpiSections } from "../kpiSections.js";
+import { renderDerivedDetails } from "../derivedDetails.js";
 
 function createOptionNode(value, label) {
   return createElement("option", {
@@ -74,11 +76,16 @@ export function renderMoonSelector(selectEl, moons = [], selectedValue = "") {
 export function renderMoonKpis(container, items = []) {
   const grid = createKpiGrid(items);
   replaceChildren(container, [...grid.childNodes]);
+  enableKpiInteractions(container);
   return container;
 }
 
-export function renderMoonLimits(container, sections = []) {
-  replaceChildren(container, createReadoutSections(sections));
+export function renderMoonKpiSections(container, sections = []) {
+  return renderKpiSections(container, sections);
+}
+
+export function renderMoonDerivedDetails(container, sections = [], options = {}) {
+  renderDerivedDetails(container, sections, options);
   return container;
 }
 

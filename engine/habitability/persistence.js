@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
-// Long-term persistence multiplier for unified PHI.
+// Long-term persistence multiplier for WorldSmith habitability.
 
 import { clamp, toFinite } from "../utils.js";
 import { normalizeHabitabilityContext } from "./schema.js";
-
-const HEAVY_SPECIES = ["n2", "o2", "co2", "ar"];
 
 function weightedMean(values = [], weights = []) {
   let numerator = 0;
@@ -36,16 +34,16 @@ function xuvPersistenceScore(xuvFluxRatio) {
 function pressureWindowScore(pressureAtm) {
   const pressure = Math.max(toFinite(pressureAtm, 0), 0);
   if (pressure <= 0) return 0;
-  return clamp(1 - Math.abs(Math.log10(Math.max(pressure, 0.01))) / 2, 0, 1);
+  return clamp(1 - Math.abs(Math.log10(Math.max(pressure, 0.01))) / 2.2, 0, 1);
 }
 
-function retainedHeavySpeciesScore(pressureAtm, jeansEscapeSpecies = {}) {
-  if (Math.max(toFinite(pressureAtm, 0), 0) <= 0) return 0;
-  const retained = HEAVY_SPECIES.reduce((count, species) => {
-    const status = jeansEscapeSpecies?.[species]?.status;
+function retainedHeavySpeciesScore(jeansEscapeSpecies = {}) {
+  const keys = ["n2", "o2", "co2", "ar"];
+  const retained = keys.reduce((count, key) => {
+    const status = jeansEscapeSpecies?.[key]?.status;
     return status && status !== "Lost" ? count + 1 : count;
   }, 0);
-  return retained / HEAVY_SPECIES.length;
+  return retained / keys.length;
 }
 
 function tidalPersistenceScore(tidalHeatingEarth) {
@@ -57,7 +55,10 @@ function tidalPersistenceScore(tidalHeatingEarth) {
   return 0.2;
 }
 
-export function computeHabitabilityPersistenceModel(context = {}, { stabilityFloor = 0 } = {}) {
+export function computeHabitabilityPersistenceModel(
+  context = {},
+  { selectedPathway = "none", pathwayPersistenceScore = 0 } = {},
+) {
   const normalized = normalizeHabitabilityContext(context);
   const surface = normalized.surface;
   const chemistry = normalized.chemistry;
@@ -67,34 +68,32 @@ export function computeHabitabilityPersistenceModel(context = {}, { stabilityFlo
 
   const ageScore = ageMaturityScore(environment.stellarAgeGyr);
   const xuvScore = xuvPersistenceScore(energy.xuvFluxRatio);
-  const atmosphericEscapeScore = weightedMean(
+  const escapeScore = weightedMean(
     [
       pressureWindowScore(surface.pressureAtm),
-      retainedHeavySpeciesScore(surface.pressureAtm, chemistry.jeansEscapeSpecies),
-      xuvScore,
+      retainedHeavySpeciesScore(chemistry.jeansEscapeSpecies),
     ],
-    [0.35, 0.4, 0.25],
+    [0.45, 0.55],
   );
-  const climatePersistenceScore = clamp(
-    Math.max(toFinite(climate.stabilityMultiplier, 0), toFinite(stabilityFloor, 0)) *
-      clamp(toFinite(climate.collapsePenalty, 1), 0, 1),
-    0,
-    1,
-  );
+  const resolvedPathwayPersistenceScore =
+    selectedPathway === "none"
+      ? clamp(toFinite(climate.stabilityMultiplier, 0), 0, 1)
+      : clamp(toFinite(pathwayPersistenceScore, 0), 0, 1);
   const tidalScore = tidalPersistenceScore(energy.tidalHeatingEarth);
   const multiplier = weightedMean(
-    [ageScore, xuvScore, atmosphericEscapeScore, climatePersistenceScore, tidalScore],
+    [ageScore, xuvScore, escapeScore, resolvedPathwayPersistenceScore, tidalScore],
     [0.2, 0.2, 0.25, 0.2, 0.15],
   );
 
   return {
     multiplier: clamp(multiplier, 0, 1),
-    modelVersion: "persistence-v1",
+    modelVersion: "persistence-v2",
     breakdown: {
       ageScore,
       xuvScore,
-      atmosphericEscapeScore,
-      climatePersistenceScore,
+      escapeScore,
+      climatePersistenceScore: resolvedPathwayPersistenceScore,
+      pathwayPersistenceScore: resolvedPathwayPersistenceScore,
       tidalScore,
     },
   };

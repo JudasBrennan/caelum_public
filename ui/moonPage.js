@@ -10,8 +10,8 @@ import {
 } from "./celestialVisualPreview.js";
 import {
   createMoonRecipePickerOverlay,
-  renderMoonKpis,
-  renderMoonLimits,
+  renderMoonKpiSections,
+  renderMoonDerivedDetails,
   renderMoonParentSelector,
   renderMoonSelector,
 } from "./moon/domRender.js";
@@ -247,9 +247,10 @@ const TIP_LABEL = {
   "Earth Similarity Index":
     "Compares this moon to Earth using radius, density, escape velocity, and surface temperature." +
     "\n\nRange: 0 to 1, where 1 is most Earth-like. Earth-likeness is not the same as direct habitability.",
-  "Moon Habitability Index":
-    "Unified moon habitability index on a 0-1 scale (phi-unified-v1)." +
-    "\n\nThe current default policy supports surface water and subsurface water, includes magnetospheric radiation and persistence, and keeps alternative solvents disabled by default unless the policy is explicitly expanded.",
+  "Habitability Index":
+    "WorldSmith comparative habitability model for moons." +
+    "\n\nThis is PHI-inspired, not a direct literature PHI implementation. The score depends on the selected solvent pathway and the active solvent-policy support for surface water, subsurface water, and alternative solvents." +
+    "\n\nUse the expanded KPI details to see the current pathway, policy version, and term breakdown.",
 };
 
 const TUTORIAL_STEPS = [
@@ -413,9 +414,9 @@ export function initMoonPage(mountEl) {
       <div class="panel">
         <div class="panel__header"><h2>Outputs</h2></div>
         <div class="panel__body">
-          <div class="kpi-grid" id="kpis"></div>
+          <div id="kpis"></div>
 
-          <div id="limits" style="margin-top:14px"></div>
+          <div id="details"></div>
         </div>
       </div>
     </div>
@@ -454,7 +455,7 @@ export function initMoonPage(mountEl) {
   const initRotEl = wrap.querySelector("#initRot");
 
   const kpisEl = wrap.querySelector("#kpis");
-  const limitsEl = wrap.querySelector("#limits");
+  const detailsEl = wrap.querySelector("#details");
   let noticeTimer = null;
   const pairBindings = {};
 
@@ -686,197 +687,227 @@ export function initMoonPage(mountEl) {
       : model.display.orbitalFate.startsWith("Escape")
         ? "Outward drift"
         : "Stable";
-    const moonHabitabilityPolicyLabel = moonHabitabilityBreakdown.supportedSolventPathways
-      ?.alternativeSolvents
-      ? "surface + subsurface + alt solvents"
-      : moonHabitabilityBreakdown.supportedSolventPathways?.subsurfaceWater
-        ? "surface + subsurface water"
-        : "surface water only";
+    const moonHabitabilityPolicyVersion =
+      moonHabitabilityBreakdown.solventPolicyVersion || "surface-plus-subsurface-water-v1";
+    const moonHabitabilityPolicyLabel =
+      moonHabitabilityPolicyVersion === "surface-subsurface-plus-alt-solvents-v1"
+        ? "surface + subsurface + alt solvents"
+        : moonHabitabilityPolicyVersion === "surface-plus-subsurface-water-v1"
+          ? "surface + subsurface water"
+          : "surface water only";
 
-    const items = [
-      // APPEARANCE PREVIEW
-      {
-        label: "Appearance",
-        isMoonPreview: true,
-        value: moonProfile.displayClass,
-        meta: moonProfile.terrain.type.replace("-", " "),
-      },
-      // MAJOR MOON PHYSICAL CHARACTERISTICS
-      { label: "Composition", value: model.display.compositionClass, meta: "" },
-      { label: "Radius", value: model.display.radius, meta: "derived" },
-      { label: "Gravity", value: model.display.gravity, meta: "" },
-      { label: "Escape Velocity", value: model.display.esc, meta: "" },
-      { label: "Albedo", value: fmt(state.moon.albedo, 3), meta: "" },
-      { label: "Equilibrium Temp", value: model.display.equilibriumTemp, meta: "" },
-      { label: "Surface Temp", value: model.display.surfaceTemp, meta: "" },
-      { label: "Climate State", value: model.display.climateState, meta: "" },
-      { label: "Surface Temp Range", value: model.display.surfaceTempRange, meta: "" },
-      {
-        label: "Climate Zones",
-        value: model.display.climateZones,
-        meta: model.display.climateZoneSummary,
-      },
-      { label: "Seasonality", value: model.display.seasonality, meta: "" },
-      { label: "Planetshine", value: model.display.planetshine, meta: "" },
-      { label: "Eclipse Cooling", value: model.display.eclipseCooling, meta: "" },
-      {
-        label: "Earth Similarity Index",
-        value: model.display.earthSimilarityIndex,
-        meta:
-          `Radius ${fmt(earthSimilarityBreakdown.radius ?? 0, 2)} | ` +
-          `Density ${fmt(earthSimilarityBreakdown.density ?? 0, 2)} | ` +
-          `Escape ${fmt(earthSimilarityBreakdown.escapeVelocity ?? 0, 2)} | ` +
-          `Temp ${fmt(earthSimilarityBreakdown.surfaceTemp ?? 0, 2)}`,
-      },
-      {
-        label: "Moon Habitability Index",
-        value: model.display.habitabilityIndex,
-        meta:
-          `Substrate ${fmt(moonHabitabilityBreakdown.substrate ?? 0, 2)} | ` +
-          `Solvent ${fmt(moonHabitabilityBreakdown.solvent ?? 0, 2)} | ` +
-          `Energy ${fmt(moonHabitabilityBreakdown.energy ?? 0, 2)} | ` +
-          `Chemistry ${fmt(moonHabitabilityBreakdown.chemistry ?? 0, 2)} | ` +
-          `Stability ${fmt(moonHabitabilityBreakdown.stabilityMultiplier ?? 0, 2)} | ` +
-          `Radiation ${fmt(moonHabitabilityBreakdown.radiationMultiplier ?? 0, 2)} | ` +
-          `Persistence ${fmt(moonHabitabilityBreakdown.persistenceMultiplier ?? 0, 2)}\n` +
-          `${model.habitability?.habitabilityModelVersion || "phi-unified-v1"} | ${moonHabitabilityPolicyLabel}`,
-      },
-      {
-        label: "Biosphere",
-        value: compactBiosphereValue,
-        meta:
-          `${model.display.surfaceBiosphere}\n` +
-          `Score ${fmt(biosphere.surfaceBiologyScore ?? 0, 2)}`,
-      },
-      { label: "Plant Life", value: model.display.plantLife, meta: "" },
-      {
-        label: "Vegetation",
-        value: model.biosphere?.vegetationEligible ? "Yes" : "No",
-        meta:
-          model.display.vegetation === "Supported"
-            ? "Surface vegetation is supported by the current biosphere gate"
-            : model.display.vegetationNote,
-      },
-      {
-        label: "Life Limits",
-        value: compactLifeLimits,
-        meta: model.display.biosphereLimits,
-      },
-      ...(model.biosphere?.vegetationEligible
-        ? [
-            {
-              label: "Veg Colours",
-              value: "Available",
-              meta: `${model.display.vegetationColours}\n${model.display.vegetationNote}`,
-            },
-          ]
-        : []),
+    const buildMoonKpi = (label, value, meta = "", overrides = {}) => ({
+      label,
+      tip: TIP_LABEL[label] || "",
+      value,
+      meta,
+      kpiClass: `kpi--compact ${overrides.kpiClass || ""}`.trim(),
+      ...overrides,
+    });
 
-      // MAJOR MOON ORBITAL CHARACTERISTICS
-      { label: "Orbital Period (sidereal)", value: model.display.sidereal, meta: "" },
-      { label: "Orbital Period (synodic)", value: model.display.synodic, meta: "" },
-      { label: "Rotation Period", value: model.display.rot, meta: "" },
-      { label: "Initial Rotation Period", value: model.display.initialRot, meta: "" },
+    const habitabilityMeta =
+      `Substrate ${fmt(moonHabitabilityBreakdown.substrate ?? 0, 2)} | ` +
+      `Solvent ${fmt(moonHabitabilityBreakdown.solvent ?? 0, 2)} | ` +
+      `Energy ${fmt(moonHabitabilityBreakdown.energy ?? 0, 2)} | ` +
+      `Chemistry ${fmt(moonHabitabilityBreakdown.chemistry ?? 0, 2)} | ` +
+      `Stability ${fmt(moonHabitabilityBreakdown.stabilityMultiplier ?? 0, 2)} | ` +
+      `Radiation ${fmt(moonHabitabilityBreakdown.radiationMultiplier ?? 0, 2)} | ` +
+      `Persistence ${fmt(moonHabitabilityBreakdown.persistenceMultiplier ?? 0, 2)}\n` +
+      `Pathway ${moonHabitabilityBreakdown.solventPathway || "none"} | ${moonHabitabilityPolicyLabel}\n` +
+      `${model.habitability?.habitabilityModelVersion || "phi-unified-v2"} | ${moonHabitabilityPolicyVersion}`;
 
-      // TIDES CALCULATOR
-      { label: "Total Tidal Force", value: model.display.tides, meta: "" },
-      { label: "Moon Contribution", value: model.display.moonPct, meta: "" },
-      { label: "Star Contribution", value: model.display.starPct, meta: "" },
-      { label: "Surface Ices", value: model.display.surfaceIces, meta: "" },
-      { label: "Hydrosphere", value: model.display.hydrosphereState, meta: "" },
-      { label: "Surface Water", value: model.display.surfaceWater, meta: "" },
-      { label: "Subsurface Ocean", value: model.display.subsurfaceOcean, meta: "" },
-      { label: "Ocean Depth", value: model.display.oceanDepth, meta: "" },
-      { label: "Ice Shell", value: model.display.iceShell, meta: "" },
-      { label: "High-Pressure Ice", value: model.display.highPressureIce, meta: "" },
+    const prevMoonCanvas = kpisEl.querySelector(".moon-preview-canvas");
+    const sections = [
       {
-        label: "Atmosphere",
-        value: model.display.atmosphereClass,
-        meta: model.display.atmosphereSource,
-      },
-      { label: "Surface Pressure", value: model.display.surfacePressure, meta: "" },
-      {
-        label: "Atmosphere Mix",
-        value: compactAtmosphereMix,
-        meta: model.display.atmosphereComposition,
-      },
-      { label: "Greenhouse Warming", value: model.display.greenhouseWarming, meta: "" },
-      {
-        label: "Volcanic Activity",
-        value: model.display.volcanicActivity,
-        meta: `score ${fmt(geology.volcanicActivityScore ?? 0, 2)}`,
-      },
-      {
-        label: "Cryovolcanism",
-        value: model.display.cryovolcanicActivity,
-        meta: `score ${fmt(geology.cryovolcanicActivityScore ?? 0, 2)}`,
+        id: "moon-summary",
+        title: "Summary",
+        items: [
+          {
+            kind: "preview",
+            label: "Appearance",
+            tip: TIP_LABEL.Appearance || "",
+            actions: [
+              { className: "small moon-recipe-btn", text: "Recipes" },
+              { className: "small moon-pause-btn", text: "Pause" },
+            ],
+            canvasClass: "moon-preview-canvas",
+            metaChildren: [
+              moonProfile.displayClass,
+              " \u2014 ",
+              moonProfile.terrain.type.replace("-", " "),
+            ],
+          },
+          buildMoonKpi("Composition", model.display.compositionClass),
+          buildMoonKpi("Radius", model.display.radius, "derived"),
+          buildMoonKpi("Gravity", model.display.gravity),
+          buildMoonKpi("Surface Temp", model.display.surfaceTemp),
+          buildMoonKpi("Hydrosphere", model.display.hydrosphereState),
+          buildMoonKpi("Atmosphere", model.display.atmosphereClass, model.display.atmosphereSource),
+          buildMoonKpi("Habitability Index", model.display.habitabilityIndex, habitabilityMeta),
+        ],
       },
       {
-        label: "Resurfacing",
-        value: compactResurfacing,
-        meta:
-          `${model.display.resurfacing}\n` +
-          (geology.resurfacingDominantProcess === "none"
-            ? ""
-            : `${geology.resurfacingDominantProcess || "mixed"}-driven`),
+        id: "moon-identity",
+        title: "Identity & Class",
+        density: "compact",
+        items: [
+          buildMoonKpi("Composition", model.display.compositionClass),
+          buildMoonKpi("Albedo", fmt(state.moon.albedo, 3)),
+        ],
       },
       {
-        label: "Volatile Supply",
-        value: model.display.volatileReplenishment,
-        meta: `score ${fmt(geology.volatileReplenishmentScore ?? 0, 2)}`,
+        id: "moon-physical",
+        title: "Physical State",
+        density: "compact",
+        items: [
+          buildMoonKpi("Mass", `${fmt(state.moon.massMoon, 3)} M☾`),
+          buildMoonKpi("Density", `${fmt(state.moon.densityGcm3, 2)} g/cm³`),
+          buildMoonKpi("Radius", model.display.radius, "derived"),
+          buildMoonKpi("Gravity", model.display.gravity),
+          buildMoonKpi("Escape Velocity", model.display.esc),
+        ],
       },
       {
-        label: "Ocean Persistence",
-        value: model.display.oceanPersistence,
-        meta: `score ${fmt(geology.oceanPersistenceScore ?? 0, 2)}`,
+        id: "moon-environment",
+        title: "Environment",
+        density: "compact",
+        items: [
+          buildMoonKpi("Atmosphere", model.display.atmosphereClass, model.display.atmosphereSource),
+          buildMoonKpi("Surface Pressure", model.display.surfacePressure),
+          buildMoonKpi("Atmosphere Mix", compactAtmosphereMix, model.display.atmosphereComposition),
+          buildMoonKpi("Greenhouse Warming", model.display.greenhouseWarming),
+          buildMoonKpi("Hydrosphere", model.display.hydrosphereState),
+          buildMoonKpi("Surface Ices", model.display.surfaceIces),
+          buildMoonKpi("Surface Water", model.display.surfaceWater),
+          buildMoonKpi("Subsurface Ocean", model.display.subsurfaceOcean),
+          buildMoonKpi("Ocean Depth", model.display.oceanDepth),
+          buildMoonKpi("Ice Shell", model.display.iceShell),
+          buildMoonKpi("High-Pressure Ice", model.display.highPressureIce),
+          buildMoonKpi("Equilibrium Temp", model.display.equilibriumTemp),
+          buildMoonKpi("Climate State", model.display.climateState),
+          buildMoonKpi("Surface Temp Range", model.display.surfaceTempRange),
+          buildMoonKpi(
+            "Climate Zones",
+            model.display.climateZones,
+            model.display.climateZoneSummary,
+          ),
+          buildMoonKpi("Seasonality", model.display.seasonality),
+        ],
       },
       {
-        label: "Tidal Heating",
-        value: model.display.tidalHeating,
-        meta: model.display.tidalHeatingTotal,
+        id: "moon-system",
+        title: "System Context",
+        density: "compact",
+        items: [
+          buildMoonKpi("Orbital Period (sidereal)", model.display.sidereal),
+          buildMoonKpi("Orbital Period (synodic)", model.display.synodic),
+          buildMoonKpi("Rotation Period", model.display.rot),
+          buildMoonKpi("Initial Rotation Period", model.display.initialRot),
+          buildMoonKpi("Planetshine", model.display.planetshine),
+          buildMoonKpi("Eclipse Cooling", model.display.eclipseCooling),
+          buildMoonKpi("Orbital Recession", model.display.recession),
+          buildMoonKpi(
+            "Orbital Fate",
+            compactOrbitalFate,
+            compactOrbitalFate === "Stable"
+              ? "No strong inward decay or outward escape trend is currently predicted"
+              : model.display.orbitalFate,
+          ),
+        ],
       },
-      { label: "Tidal Heating (\u00D7 Earth)", value: model.display.tidalHeatingXEarth, meta: "" },
-      { label: "Radiogenic Heating", value: model.display.radiogenicHeating, meta: "" },
-      { label: "Orbital Recession", value: model.display.recession, meta: "" },
       {
-        label: "Orbital Fate",
-        value: compactOrbitalFate,
-        meta:
-          compactOrbitalFate === "Stable"
-            ? "No strong inward decay or outward escape trend is currently predicted"
-            : model.display.orbitalFate,
+        id: "moon-activity",
+        title: "Activity & Radiation",
+        density: "compact",
+        items: [
+          buildMoonKpi("Total Tidal Force", model.display.tides),
+          buildMoonKpi("Moon Contribution", model.display.moonPct),
+          buildMoonKpi("Star Contribution", model.display.starPct),
+          buildMoonKpi(
+            "Tidal Heating",
+            model.display.tidalHeating,
+            model.display.tidalHeatingTotal,
+          ),
+          buildMoonKpi("Tidal Heating (\u00D7 Earth)", model.display.tidalHeatingXEarth),
+          buildMoonKpi(
+            "Volcanic Activity",
+            model.display.volcanicActivity,
+            `score ${fmt(geology.volcanicActivityScore ?? 0, 2)}`,
+          ),
+          buildMoonKpi(
+            "Cryovolcanism",
+            model.display.cryovolcanicActivity,
+            `score ${fmt(geology.cryovolcanicActivityScore ?? 0, 2)}`,
+          ),
+          buildMoonKpi(
+            "Resurfacing",
+            compactResurfacing,
+            `${model.display.resurfacing}\n${
+              geology.resurfacingDominantProcess === "none"
+                ? "No dominant resurfacing driver"
+                : `${geology.resurfacingDominantProcess || "mixed"}-driven`
+            }`,
+          ),
+          buildMoonKpi(
+            "Volatile Supply",
+            model.display.volatileReplenishment,
+            `score ${fmt(geology.volatileReplenishmentScore ?? 0, 2)}`,
+          ),
+          buildMoonKpi(
+            "Ocean Persistence",
+            model.display.oceanPersistence,
+            `score ${fmt(geology.oceanPersistenceScore ?? 0, 2)}`,
+          ),
+          buildMoonKpi("Radiogenic Heating", model.display.radiogenicHeating),
+          buildMoonKpi(
+            "Magnetosphere Dose",
+            model.display.magnetosphericRad,
+            model.display.magnetosphericLabel,
+          ),
+        ],
       },
       {
-        label: "Magnetosphere Dose",
-        value: model.display.magnetosphericRad,
-        meta: model.display.magnetosphericLabel,
+        id: "moon-habitability",
+        title: "Habitability",
+        density: "compact",
+        items: [
+          buildMoonKpi("Habitability Index", model.display.habitabilityIndex, habitabilityMeta),
+          buildMoonKpi(
+            "Earth Similarity Index",
+            model.display.earthSimilarityIndex,
+            `Radius ${fmt(earthSimilarityBreakdown.radius ?? 0, 2)} | ` +
+              `Density ${fmt(earthSimilarityBreakdown.density ?? 0, 2)} | ` +
+              `Escape ${fmt(earthSimilarityBreakdown.escapeVelocity ?? 0, 2)} | ` +
+              `Temp ${fmt(earthSimilarityBreakdown.surfaceTemp ?? 0, 2)}`,
+          ),
+          buildMoonKpi(
+            "Biosphere",
+            compactBiosphereValue,
+            `${model.display.surfaceBiosphere}\nScore ${fmt(biosphere.surfaceBiologyScore ?? 0, 2)}`,
+          ),
+          buildMoonKpi("Plant Life", model.display.plantLife),
+          buildMoonKpi(
+            "Vegetation",
+            model.biosphere?.vegetationEligible ? "Yes" : "No",
+            model.display.vegetation === "Supported"
+              ? "Surface vegetation is supported by the current biosphere gate"
+              : model.display.vegetationNote,
+          ),
+          buildMoonKpi("Life Limits", compactLifeLimits, model.display.biosphereLimits),
+          ...(model.biosphere?.vegetationEligible
+            ? [
+                buildMoonKpi(
+                  "Veg Colours",
+                  "Available",
+                  `${model.display.vegetationColours}\n${model.display.vegetationNote}`,
+                ),
+              ]
+            : []),
+        ],
       },
     ];
 
-    const prevMoonCanvas = kpisEl.querySelector(".moon-preview-canvas");
-    renderMoonKpis(
-      kpisEl,
-      items.map((item) =>
-        item.isMoonPreview
-          ? {
-              kind: "preview",
-              label: item.label,
-              actions: [
-                { className: "small moon-recipe-btn", text: "Recipes" },
-                { className: "small moon-pause-btn", text: "Pause" },
-              ],
-              canvasClass: "moon-preview-canvas",
-              metaChildren: [item.value, " \u2014 ", item.meta || ""],
-            }
-          : {
-              label: item.label,
-              tip: TIP_LABEL[item.label] || "",
-              kpiClass: `kpi--compact ${item.kpiClass || ""}`.trim(),
-              value: item.value,
-              meta: item.meta,
-            },
-      ),
-    );
+    renderMoonKpiSections(kpisEl, sections);
 
     // Render moon preview canvas (animated native celestial controller)
     let moonCvs = kpisEl.querySelector(".moon-preview-canvas");
@@ -921,32 +952,178 @@ export function initMoonPage(mountEl) {
       });
     }
 
-    renderMoonLimits(limitsEl, [
-      {
-        title: "Orbital limits",
-        tip: TIP_LABEL.Limits || "",
-        style: "margin-top:0",
-        lines: [
-          `Moon Zone (Inner): ${model.display.zoneInner}`,
-          `Moon Zone (Outer): ${model.display.zoneOuter}`,
-          `Periapsis: ${model.display.peri}`,
-          `Apoapsis: ${model.display.apo}`,
-          `Orbital direction: ${model.orbit.orbitalDirection}`,
-        ],
-      },
-      {
-        title: "Tidal locking",
-        tip: TIP_LABEL["Tidal locking"] || "",
-        lines: [
-          `Moon locked to Planet: ${model.display.moonLocked}`,
-          `Planet locked to Moon: ${model.display.planetLockedMoon}`,
-          `Planet locked to Star: ${model.display.planetLockedStar}`,
-          `Lock time (Moon\u2192Planet): ${model.display.tMoonLock}`,
-          `Lock time (Planet\u2192Moon): ${model.display.tPlanetMoon}`,
-          `Lock time (Planet\u2192Star): ${model.display.tPlanetStar}`,
-        ],
-      },
-    ]);
+    renderMoonDerivedDetails(
+      detailsEl,
+      [
+        {
+          id: "moon-details-identity",
+          title: "Identity & Class",
+          items: [
+            { label: "Name", value: state.moonName || state.moon.name || "Moon" },
+            { label: "Composition", value: model.display.compositionClass },
+            { label: "Albedo", value: fmt(state.moon.albedo, 3) },
+          ],
+        },
+        {
+          id: "moon-details-physical",
+          title: "Physical State",
+          items: [
+            { label: "Mass", value: `${fmt(state.moon.massMoon, 3)} M☾` },
+            { label: "Density", value: `${fmt(state.moon.densityGcm3, 2)} g/cm³` },
+            { label: "Radius", value: model.display.radius },
+            { label: "Gravity", value: model.display.gravity },
+            { label: "Escape Velocity", value: model.display.esc },
+          ],
+        },
+        {
+          id: "moon-details-environment",
+          title: "Environment",
+          items: [
+            {
+              label: "Atmosphere",
+              value: model.display.atmosphereClass,
+              meta: model.display.atmosphereSource,
+            },
+            { label: "Surface Pressure", value: model.display.surfacePressure },
+            {
+              label: "Atmosphere Mix",
+              value: compactAtmosphereMix,
+              meta: model.display.atmosphereComposition,
+            },
+            { label: "Greenhouse Warming", value: model.display.greenhouseWarming },
+            { label: "Hydrosphere", value: model.display.hydrosphereState },
+            { label: "Surface Water", value: model.display.surfaceWater },
+            { label: "Subsurface Ocean", value: model.display.subsurfaceOcean },
+            { label: "Ocean Depth", value: model.display.oceanDepth },
+            { label: "Ice Shell", value: model.display.iceShell },
+            { label: "High-Pressure Ice", value: model.display.highPressureIce },
+            { label: "Climate State", value: model.display.climateState },
+            {
+              label: "Climate Zones",
+              value: model.display.climateZones,
+              meta: model.display.climateZoneSummary,
+            },
+            { label: "Seasonality", value: model.display.seasonality },
+          ],
+        },
+        {
+          id: "moon-details-system",
+          title: "System Context",
+          items: [
+            { label: "Moon Zone (Inner)", value: model.display.zoneInner },
+            { label: "Moon Zone (Outer)", value: model.display.zoneOuter },
+            { label: "Periapsis", value: model.display.peri },
+            { label: "Apoapsis", value: model.display.apo },
+            { label: "Orbital Direction", value: model.orbit.orbitalDirection },
+            { label: "Orbital Period (sidereal)", value: model.display.sidereal },
+            { label: "Orbital Period (synodic)", value: model.display.synodic },
+            { label: "Rotation Period", value: model.display.rot },
+            { label: "Initial Rotation Period", value: model.display.initialRot },
+            { label: "Planetshine", value: model.display.planetshine },
+            { label: "Eclipse Cooling", value: model.display.eclipseCooling },
+            { label: "Orbital Recession", value: model.display.recession },
+            { label: "Orbital Fate", value: model.display.orbitalFate },
+            { label: "Moon locked to Planet", value: model.display.moonLocked },
+            { label: "Planet locked to Moon", value: model.display.planetLockedMoon },
+            { label: "Planet locked to Star", value: model.display.planetLockedStar },
+            { label: "Lock time (Moon→Planet)", value: model.display.tMoonLock },
+            { label: "Lock time (Planet→Moon)", value: model.display.tPlanetMoon },
+            { label: "Lock time (Planet→Star)", value: model.display.tPlanetStar },
+          ],
+        },
+        {
+          id: "moon-details-activity",
+          title: "Activity & Radiation",
+          items: [
+            { label: "Total Tidal Force", value: model.display.tides },
+            { label: "Moon Contribution", value: model.display.moonPct },
+            { label: "Star Contribution", value: model.display.starPct },
+            {
+              label: "Tidal Heating",
+              value: model.display.tidalHeating,
+              meta: model.display.tidalHeatingTotal,
+            },
+            { label: "Tidal Heating (× Earth)", value: model.display.tidalHeatingXEarth },
+            {
+              label: "Volcanic Activity",
+              value: model.display.volcanicActivity,
+              meta: `score ${fmt(geology.volcanicActivityScore ?? 0, 2)}`,
+            },
+            {
+              label: "Cryovolcanism",
+              value: model.display.cryovolcanicActivity,
+              meta: `score ${fmt(geology.cryovolcanicActivityScore ?? 0, 2)}`,
+            },
+            {
+              label: "Resurfacing",
+              value: compactResurfacing,
+              meta:
+                geology.resurfacingDominantProcess === "none"
+                  ? "No dominant resurfacing driver"
+                  : `${geology.resurfacingDominantProcess || "mixed"}-driven`,
+            },
+            {
+              label: "Volatile Supply",
+              value: model.display.volatileReplenishment,
+              meta: `score ${fmt(geology.volatileReplenishmentScore ?? 0, 2)}`,
+            },
+            {
+              label: "Ocean Persistence",
+              value: model.display.oceanPersistence,
+              meta: `score ${fmt(geology.oceanPersistenceScore ?? 0, 2)}`,
+            },
+            { label: "Radiogenic Heating", value: model.display.radiogenicHeating },
+            {
+              label: "Magnetosphere Dose",
+              value: model.display.magnetosphericRad,
+              meta: model.display.magnetosphericLabel,
+            },
+          ],
+        },
+        {
+          id: "moon-details-habitability",
+          title: "Habitability",
+          items: [
+            {
+              label: "Habitability Index",
+              value: model.display.habitabilityIndex,
+              meta: habitabilityMeta.replace(/\n/g, " | "),
+            },
+            {
+              label: "Earth Similarity Index",
+              value: model.display.earthSimilarityIndex,
+              meta:
+                `Radius ${fmt(earthSimilarityBreakdown.radius ?? 0, 2)} | ` +
+                `Density ${fmt(earthSimilarityBreakdown.density ?? 0, 2)} | ` +
+                `Escape ${fmt(earthSimilarityBreakdown.escapeVelocity ?? 0, 2)} | ` +
+                `Temp ${fmt(earthSimilarityBreakdown.surfaceTemp ?? 0, 2)}`,
+            },
+            {
+              label: "Biosphere",
+              value: model.display.surfaceBiosphere,
+              meta: `Score ${fmt(biosphere.surfaceBiologyScore ?? 0, 2)}`,
+            },
+            { label: "Plant Life", value: model.display.plantLife },
+            {
+              label: "Vegetation",
+              value: model.display.vegetation,
+              meta: model.display.vegetationNote,
+            },
+            { label: "Life Limits", value: compactLifeLimits, meta: model.display.biosphereLimits },
+            ...(model.biosphere?.vegetationEligible
+              ? [
+                  {
+                    label: "Veg Colours",
+                    value: model.display.vegetationColours,
+                    meta: model.display.vegetationNote,
+                  },
+                ]
+              : []),
+          ],
+        },
+      ],
+      { title: "Derived Details" },
+    );
   }
 
   function loadIntoInputs() {

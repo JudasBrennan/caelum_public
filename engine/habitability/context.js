@@ -4,12 +4,14 @@
 // Stage 5 moves the metric layer onto a normalized nested schema so planets
 // and moons can share one scoring core.
 
-import { toFinite } from "../utils.js";
+import { clamp, toFinite } from "../utils.js";
 import { hydrosphereStateFromMoon, hydrosphereStateFromPlanet } from "./hydrosphere.js";
 import { moonRadiationProfile } from "./radiation.js";
 import { assertHabitabilityContext, normalizeHabitabilityContext } from "./schema.js";
 import { resolveClimateStability } from "./stability.js";
 import { computeXuvFluxRatio } from "../planet/atmosphere.js";
+import { EARTH_INTERNAL_HEAT_FLUX_WM2 } from "./constants.js";
+import { inventoryRetainedSpeciesMap, normalizeHabitabilityInventory } from "./species.js";
 
 const LUNAR_RADIUS_IN_EARTHS = 1737.4 / 6371;
 const EARTH_ESCAPE_VELOCITY_KMS = 11.186;
@@ -22,11 +24,9 @@ function planetBodyClassFor(massEarth, bodyClass) {
 }
 
 function moonWaterVolatileEntry(volatileInventory = []) {
-  const inventory = Array.isArray(volatileInventory) ? volatileInventory : [];
-  return inventory.find((volatile) => {
-    const species = String(volatile?.species || "");
-    return species.includes("H") && species.includes("O");
-  });
+  return normalizeHabitabilityInventory(volatileInventory).find(
+    (volatile) => volatile?.canonicalSpecies === "h2o",
+  );
 }
 
 function normalizeAtmosphereComposition(raw = {}) {
@@ -42,7 +42,42 @@ function normalizeAtmosphereComposition(raw = {}) {
     he: Math.max(toFinite(composition.he, 0), 0),
     so2: Math.max(toFinite(composition.so2, 0), 0),
     nh3: Math.max(toFinite(composition.nh3, 0), 0),
+    co: Math.max(toFinite(composition.co, 0), 0),
   };
+}
+
+function pressureWindowScore(pressureAtm) {
+  const pressure = Math.max(toFinite(pressureAtm, 0), 0);
+  if (pressure <= 0) return 0;
+  return clamp(1 - Math.abs(Math.log10(Math.max(pressure, 0.01))) / 2.2, 0, 1);
+}
+
+function computeInternalHeatSupport(tidalHeatingEarth, radiogenicHeatingEarth) {
+  return clamp(
+    Math.log10(
+      1 +
+        Math.max(toFinite(tidalHeatingEarth, 0), 0) +
+        Math.max(toFinite(radiogenicHeatingEarth, 0), 0),
+    ) / 1.8,
+    0,
+    1,
+  );
+}
+
+function computeStellarHeatSupport(insolationEarth) {
+  const insolation = Math.max(toFinite(insolationEarth, 0), 1e-6);
+  return clamp(1 - Math.abs(Math.log2(insolation)) / 2, 0, 1);
+}
+
+function surfaceRadiationShieldingFactor({
+  pressureAtm,
+  surfaceFieldEarths,
+  intrinsicFieldKnown = true,
+}) {
+  const pressureShield = pressureWindowScore(pressureAtm);
+  if (intrinsicFieldKnown === false) return pressureShield;
+  const fieldShield = clamp(Math.max(toFinite(surfaceFieldEarths, 0), 0) / 0.3, 0, 1);
+  return clamp(0.65 * pressureShield + 0.35 * fieldShield, 0, 1);
 }
 
 function deriveAlternativeSolventCandidate({ surfaceTempK, pressureAtm, atmosphereComposition }) {
@@ -87,20 +122,24 @@ function moonAtmosphereComposition(modelOrInventory = [], surfacePressurePa = 0)
   const explicitTotal = Object.values(atmosphereComposition).reduce((sum, value) => sum + value, 0);
   if (explicitTotal > 0) return atmosphereComposition;
 
-  const volatileInventory = Array.isArray(modelOrInventory)
-    ? modelOrInventory
-    : modelOrInventory?.volatiles?.inventory;
+  const volatileInventory = normalizeHabitabilityInventory(
+    Array.isArray(modelOrInventory) ? modelOrInventory : modelOrInventory?.volatiles?.inventory,
+  );
   const totalPressurePa = Math.max(toFinite(surfacePressurePa, 0), 0);
   if (totalPressurePa <= 0) return normalizeAtmosphereComposition();
   const composition = {};
-  for (const entry of Array.isArray(volatileInventory) ? volatileInventory : []) {
+  for (const entry of volatileInventory) {
     if (!entry?.retained || !entry?.pressurePa) continue;
     const share = Math.max(toFinite(entry.pressurePa, 0), 0) / totalPressurePa;
-    if (entry.species === "N₂") composition.n2 = share;
-    else if (entry.species === "CO₂") composition.co2 = share;
-    else if (entry.species === "CH₄") composition.ch4 = share;
-    else if (entry.species === "NH₃") composition.nh3 = share;
-    else if (entry.species === "H₂O") composition.h2o = share;
+    if (entry.canonicalSpecies === "n2") composition.n2 = share;
+    else if (entry.canonicalSpecies === "co2") composition.co2 = share;
+    else if (entry.canonicalSpecies === "ch4") composition.ch4 = share;
+    else if (entry.canonicalSpecies === "nh3") composition.nh3 = share;
+    else if (entry.canonicalSpecies === "h2o") composition.h2o = share;
+    else if (entry.canonicalSpecies === "co") composition.co = share;
+    else if (entry.canonicalSpecies === "so2") composition.so2 = share;
+    else if (entry.canonicalSpecies === "o2") composition.o2 = share;
+    else if (entry.canonicalSpecies === "ar") composition.ar = share;
   }
   return normalizeAtmosphereComposition(composition);
 }
@@ -139,24 +178,7 @@ function deriveMoonBodyClass(model = {}, hydrosphere) {
 }
 
 function moonJeansEscapeSpeciesFromInventory(volatileInventory = []) {
-  const mapping = {
-    "N₂": "n2",
-    N2: "n2",
-    "CO₂": "co2",
-    CO2: "co2",
-    Ar: "ar",
-    "O₂": "o2",
-    O2: "o2",
-  };
-  const inventory = Array.isArray(volatileInventory) ? volatileInventory : [];
-  return inventory.reduce((species, entry) => {
-    const key = mapping[String(entry?.species || "")];
-    if (!key) return species;
-    species[key] = {
-      status: entry?.status === "Thin atmosphere" ? "Retained" : "Lost",
-    };
-    return species;
-  }, {});
+  return inventoryRetainedSpeciesMap(volatileInventory);
 }
 
 function deriveMoonClimateState(hydrosphere) {
@@ -198,6 +220,12 @@ export function buildPlanetHabitabilityContext(model = {}) {
     pressureAtm: inputs.pressureAtm,
     atmosphereComposition,
   });
+  const radiogenicHeatingEarth = Math.max(toFinite(derived.radiogenicHeatingEarth, 0), 0);
+  const internalHeatSupport = computeInternalHeatSupport(
+    derived.planetTidalHeatingEarth,
+    radiogenicHeatingEarth,
+  );
+  const stellarHeatSupport = computeStellarHeatSupport(derived.insolationEarth);
   const context = normalizeHabitabilityContext({
     version: "context-v2",
     bodyType: "planet",
@@ -222,17 +250,25 @@ export function buildPlanetHabitabilityContext(model = {}) {
         hydrosphere.surfaceAccessibleLiquidFraction,
         toFinite(derived.surfaceAccessibleLiquidFraction, 0),
       ),
+      waterCoverageFraction: toFinite(hydrosphere.liquidOceanFraction, 0),
+      iceShellThicknessKm: 0,
+      subsurfaceOceanDepthKm: 0,
+      highPressureIceBarrier: false,
+      subsurfaceOceanScore: 0,
       subsurfaceOceanPotential: derivePlanetSubsurfacePotential(model, hydrosphere),
       alternativeSolventCandidate,
     },
     energy: {
       insolationEarth: toFinite(derived.insolationEarth, 0),
       tidalHeatingEarth: toFinite(derived.planetTidalHeatingEarth, 0),
-      radiogenicHeatingEarth: 0,
+      radiogenicHeatingEarth,
       xuvFluxRatio: toFinite(derived.jeansEscape?.xuvFluxRatio, 0),
+      internalHeatSupport,
+      stellarHeatSupport,
     },
     chemistry: {
       surfaceFieldEarths: toFinite(derived.surfaceFieldEarths, 0),
+      intrinsicFieldKnown: true,
       jeansEscapeSpecies: derived.jeansEscape?.species || {},
       atmosphereComposition,
       volatileInventory: [],
@@ -250,6 +286,11 @@ export function buildPlanetHabitabilityContext(model = {}) {
     environment: {
       magnetosphericRadRemDay: 0,
       radiationPenalty: 1,
+      surfaceRadiationShieldingFactor: surfaceRadiationShieldingFactor({
+        pressureAtm: inputs.pressureAtm,
+        surfaceFieldEarths: derived.surfaceFieldEarths,
+        intrinsicFieldKnown: true,
+      }),
       stellarAgeGyr: toFinite(model.star?.inputs?.ageGyr ?? model.star?.ageGyr, 0),
       tidallyLockedToPrimary: false,
       tidallyLockedToStar: derived.tidallyLockedToStar === true,
@@ -326,6 +367,17 @@ export function buildMoonHabitabilityContext(model = {}) {
     pressureAtm: surfacePressurePa / 101325,
     atmosphereComposition,
   });
+  const radiogenicHeatingEarth =
+    Math.max(toFinite(temperature.radiogenicWm2, 0), 0) / EARTH_INTERNAL_HEAT_FLUX_WM2;
+  const moonIntrinsicField = Math.max(toFinite(model.physical?.surfaceFieldEarths, 0), 0);
+  const intrinsicFieldKnown = Number.isFinite(model?.physical?.surfaceFieldEarths);
+  const insolationEarth =
+    planetSemiMajorAxisAu > 0 ? starLuminosityLsol / planetSemiMajorAxisAu ** 2 : 0;
+  const internalHeatSupport = computeInternalHeatSupport(
+    tides.tidalHeatingEarth,
+    radiogenicHeatingEarth,
+  );
+  const stellarHeatSupport = computeStellarHeatSupport(insolationEarth);
 
   const context = normalizeHabitabilityContext({
     version: "context-v2",
@@ -345,25 +397,35 @@ export function buildMoonHabitabilityContext(model = {}) {
       permanentIceFraction: hydrosphere.permanentIceFraction,
       steamFraction: hydrosphere.steamFraction,
       surfaceAccessibleLiquidFraction: hydrosphere.surfaceAccessibleLiquidFraction,
+      waterCoverageFraction: toFinite(
+        hydrosphere.waterCoverageFraction,
+        hydrosphere.liquidOceanFraction + hydrosphere.permanentIceFraction,
+      ),
+      iceShellThicknessKm: toFinite(hydrosphere.estimatedIceShellThicknessKm, 0),
+      subsurfaceOceanDepthKm: toFinite(hydrosphere.estimatedSubsurfaceOceanDepthKm, 0),
+      highPressureIceBarrier: hydrosphere.highPressureIceBarrier === true,
+      subsurfaceOceanScore: toFinite(hydrosphere.subsurfaceOceanScore, 0),
       subsurfaceOceanPotential: deriveMoonSubsurfacePotential(model, hydrosphere),
       alternativeSolventCandidate,
     },
     energy: {
-      insolationEarth:
-        planetSemiMajorAxisAu > 0 ? starLuminosityLsol / planetSemiMajorAxisAu ** 2 : 0,
+      insolationEarth,
       tidalHeatingEarth: toFinite(tides.tidalHeatingEarth, 0),
-      radiogenicHeatingEarth: 0,
+      radiogenicHeatingEarth,
       xuvFluxRatio: computeXuvFluxRatio(
         starLuminosityLsol,
         toFinite(model.star?.ageGyr, 0),
         planetSemiMajorAxisAu,
       ),
+      internalHeatSupport,
+      stellarHeatSupport,
     },
     chemistry: {
-      surfaceFieldEarths: 0,
+      surfaceFieldEarths: intrinsicFieldKnown ? moonIntrinsicField : 0,
+      intrinsicFieldKnown,
       jeansEscapeSpecies: moonJeansEscapeSpeciesFromInventory(volatiles.inventory),
       atmosphereComposition,
-      volatileInventory: Array.isArray(volatiles.inventory) ? volatiles.inventory : [],
+      volatileInventory: normalizeHabitabilityInventory(volatiles.inventory),
       mantleOxidationKey:
         deriveMoonBodyClass(model, hydrosphere) === "icy-moon" ? "reduced" : "earth",
       primaryOutgassedSpecies: String(
@@ -381,6 +443,11 @@ export function buildMoonHabitabilityContext(model = {}) {
     environment: {
       magnetosphericRadRemDay: toFinite(radiation.magnetosphericRadRemDay, 0),
       radiationPenalty: toFinite(radiationProfile.radiationPenalty, 1),
+      surfaceRadiationShieldingFactor: surfaceRadiationShieldingFactor({
+        pressureAtm: surfacePressurePa / 101325,
+        surfaceFieldEarths: intrinsicFieldKnown ? moonIntrinsicField : 0,
+        intrinsicFieldKnown,
+      }),
       stellarAgeGyr: toFinite(model.star?.ageGyr, 0),
       tidallyLockedToPrimary: tides.moonLockedToPlanet === "Yes",
       tidallyLockedToStar: false,

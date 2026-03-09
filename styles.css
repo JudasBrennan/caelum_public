@@ -924,12 +924,40 @@ button.primary:hover {
 .kpi__label {
   color: var(--muted);
   font-size: 11px;
+  padding-right: 34px;
 }
 .kpi__value {
   margin-top: 4px;
   font-size: 16px;
   font-weight: 800;
   letter-spacing: 0.2px;
+}
+.kpi__toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--overlay-color), 0.12);
+  background: rgba(var(--overlay-color), 0.06);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+}
+.kpi-wrap--expandable {
+  cursor: pointer;
+}
+.kpi-wrap--expandable.is-expanded > .kpi > .kpi__toggle,
+.kpi-wrap--expandable:hover > .kpi > .kpi__toggle,
+.kpi-wrap--expandable:focus-within > .kpi > .kpi__toggle {
+  background: rgba(var(--accent-rgb), 0.14);
+  border-color: rgba(var(--accent-rgb), 0.28);
+  color: var(--text);
+}
+.kpi-wrap--expandable.is-expanded > .kpi > .kpi__toggle {
+  transform: rotate(180deg);
 }
 .kpi.kpi--compact > .kpi__label,
 .kpi.kpi--compact > .kpi__value {
@@ -956,7 +984,8 @@ button.primary:hover {
 }
 /* Hover/focus: reveal meta inside the card (transition only on open) */
 .kpi-wrap:hover > .kpi > .kpi__meta:not(:empty),
-.kpi-wrap:focus-within > .kpi > .kpi__meta:not(:empty) {
+.kpi-wrap:focus-within > .kpi > .kpi__meta:not(:empty),
+.kpi-wrap.is-expanded > .kpi > .kpi__meta:not(:empty) {
   max-height: 200px;
   padding-top: 6px;
   opacity: 1;
@@ -968,7 +997,8 @@ button.primary:hover {
 }
 /* Lift card out of flow so it overlays neighbours (wrapper keeps the grid slot) */
 .kpi-wrap:hover > .kpi:has(.kpi__meta:not(:empty)),
-.kpi-wrap:focus-within > .kpi:has(.kpi__meta:not(:empty)) {
+.kpi-wrap:focus-within > .kpi:has(.kpi__meta:not(:empty)),
+.kpi-wrap.is-expanded > .kpi:has(.kpi__meta:not(:empty)) {
   position: absolute;
   top: 0;
   left: 0;
@@ -976,21 +1006,156 @@ button.primary:hover {
   z-index: 10;
 }
 /* Indicator: small chevron on KPIs with hidden detail */
-.kpi:has(.kpi__meta:not(:empty)) .kpi__label::after {
-  content: "\25BE";
-  display: inline-block;
-  margin-left: 5px;
-  font-size: 13px;
-  opacity: 0.55;
-  vertical-align: middle;
-}
-
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   /* Extra bottom space so the last row's expanded cards are not clipped by panel overflow:hidden */
   padding-bottom: 48px;
+}
+.kpi-grid--compact {
+  gap: 8px;
+}
+.kpi-section {
+  margin-top: 14px;
+}
+.kpi-section:first-child {
+  margin-top: 0;
+}
+.kpi-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.kpi-section__title {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.kpi-section > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.kpi-section > summary::-webkit-details-marker {
+  display: none;
+}
+.kpi-section > summary .kpi-section__title::after {
+  content: " \25be";
+  opacity: 0.55;
+}
+.kpi-section[open] > summary .kpi-section__title::after {
+  content: " \25b4";
+}
+.kpi-section--compact .kpi > .kpi__label {
+  font-size: 10px;
+}
+.kpi-section--compact .kpi > .kpi__value {
+  font-size: 14px;
+}
+.derived-details {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(var(--overlay-color), 0.03);
+  overflow: clip;
+}
+.derived-details__summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+}
+.derived-details__summary::-webkit-details-marker {
+  display: none;
+}
+.derived-details__title {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.derived-details__title::after {
+  content: " \25be";
+  opacity: 0.55;
+}
+.derived-details[open] > .derived-details__summary .derived-details__title::after {
+  content: " \25b4";
+}
+.derived-details__body {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+}
+.derived-details__section {
+  margin-top: 14px;
+}
+.derived-details__section:first-child {
+  margin-top: 0;
+}
+.derived-details__section-header {
+  margin-bottom: 8px;
+}
+.derived-details__section-title {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.stat-rows {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.derived-details__section > .stat-rows {
+  margin-top: 0;
+}
+.stat-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr);
+  align-items: start;
+  gap: 4px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--overlay-color), 0.03);
+}
+.stat-row__label {
+  color: var(--muted);
+  font-size: 11px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.stat-row__value {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  min-width: 0;
+  max-width: 100%;
+  text-align: right;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.stat-row__meta {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--mono);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .stat-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .stat-row__value {
+    text-align: left;
+  }
 }
 
 .badge {
@@ -2497,26 +2662,30 @@ input.auto-value {
   mix-blend-mode: soft-light;
   opacity: 0.85;
 }
-.kpi--colour[data-gradient="radial"] > * {
+.kpi--colour[data-gradient="radial"] > :not(.kpi__toggle) {
   position: relative;
   z-index: 1;
 }
 
 /* Bright background (data-light="1", default) — dark text */
 .kpi.kpi--colour .kpi__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 44px;
   color: rgba(20, 24, 32, 0.62) !important;
 }
 .kpi.kpi--colour .kpi__value {
   font-size: 16px;
   letter-spacing: 0.5px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
   color: rgba(20, 24, 32, 0.92) !important;
 }
 .kpi.kpi--colour .kpi__meta {
   color: rgba(20, 24, 32, 0.82) !important;
-}
-.kpi.kpi--colour:has(.kpi__meta:not(:empty)) .kpi__label::after {
-  color: rgba(20, 24, 32, 0.5);
-  opacity: 1;
 }
 .kpi.kpi--colour .tip-icon {
   color: rgba(20, 24, 32, 0.7);
@@ -2533,18 +2702,20 @@ input.auto-value {
   color: rgba(220, 224, 236, 0.96) !important;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
 }
-.kpi.kpi--colour[data-light="0"]:has(.kpi__meta:not(:empty)) .kpi__label::after {
-  color: rgba(200, 206, 220, 0.55);
-}
 .kpi.kpi--colour[data-light="0"] .tip-icon {
   color: rgba(200, 206, 220, 0.85);
   border-color: rgba(200, 206, 220, 0.25);
   background: rgba(200, 206, 220, 0.08);
 }
 
-.kpi--colour[data-gradient="radial"][data-horizon="1"] > * {
+.kpi--colour[data-gradient="radial"][data-horizon="1"] > :not(.kpi__toggle) {
   position: relative;
   z-index: 1;
+}
+
+.kpi.kpi--colour .kpi__toggle {
+  position: absolute;
+  z-index: 2;
 }
 
 /* Extra warm/brighter rim bias for "sun near horizon" discs (more like the reference images) */

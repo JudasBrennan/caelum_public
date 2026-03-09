@@ -29,6 +29,26 @@ function normalizeContent(content) {
   return [content];
 }
 
+function hasKpiMetaContent(item = {}) {
+  const children =
+    item.metaChildren != null ? normalizeContent(item.metaChildren) : normalizeContent(item.meta);
+  return children.some((child) => child != null && child !== false && String(child).trim() !== "");
+}
+
+function createKpiToggleButton(item, tipText = "") {
+  if (!hasKpiMetaContent(item)) return null;
+  return createElement("button", {
+    className: "kpi__toggle",
+    attrs: {
+      type: "button",
+      "aria-expanded": "false",
+      "aria-label": `Show details for ${item.label || "KPI"}`,
+      title: tipText ? `${item.label || "KPI"} details` : "Show details",
+    },
+    text: "\u25be",
+  });
+}
+
 function createKpiMeta(item) {
   const children =
     item.metaChildren != null ? normalizeContent(item.metaChildren) : normalizeContent(item.meta);
@@ -36,36 +56,72 @@ function createKpiMeta(item) {
   return createElement("div", { className: "kpi__meta" }, children);
 }
 
-function createKpiCard(item) {
-  if (item.kind === "preview") {
-    const labelChildren = [item.label, " ", createTipIconNode(item.tip || "")];
-    for (const action of item.actions || []) {
-      labelChildren.push(" ");
-      labelChildren.push(
-        createElement("button", {
-          className: action.className || "small",
-          attrs: { type: "button", id: action.id || null },
-          text: action.text || "",
-        }),
-      );
-    }
-    const canvas = createElement("canvas", {
-      className: item.canvasClass || "",
-      attrs: {
-        width: item.canvasWidth || 180,
-        height: item.canvasHeight || 180,
-      },
-      dataset: item.canvasDataset || {},
-    });
-    return createElement("div", { className: "kpi-wrap" }, [
+function createPreviewCard(item, wrapClass, expandable, tipText) {
+  const labelChildren = [item.label, " ", createTipIconNode(tipText)];
+  for (const action of item.actions || []) {
+    labelChildren.push(" ");
+    labelChildren.push(
+      createElement("button", {
+        className: action.className || "small",
+        attrs: { type: "button", id: action.id || null },
+        text: action.text || "",
+      }),
+    );
+  }
+  const canvas = createElement("canvas", {
+    className: item.canvasClass || "",
+    attrs: {
+      width: item.canvasWidth || 180,
+      height: item.canvasHeight || 180,
+    },
+    dataset: item.canvasDataset || {},
+  });
+  return createElement(
+    "div",
+    { className: wrapClass, dataset: { expandable: expandable ? "1" : null } },
+    [
       createElement("div", { className: "kpi kpi--preview" }, [
         createElement("div", { className: "kpi__label" }, labelChildren),
+        createKpiToggleButton(item, tipText),
         canvas,
         createKpiMeta(item),
       ]),
-    ]);
-  }
+    ],
+  );
+}
 
+function createSunPreviewCard(item, wrapClass, expandable, tipText) {
+  return createElement(
+    "div",
+    {
+      className: `${wrapClass} kpi-wrap--sun-preview`.trim(),
+      dataset: { expandable: expandable ? "1" : null },
+    },
+    [
+      createElement("div", { className: "kpi kpi--sun-preview" }, [
+        createElement("div", { className: "kpi__label" }, [
+          item.label,
+          tipText ? " " : "",
+          createTipIconNode(tipText),
+        ]),
+        createKpiToggleButton(item, tipText),
+        createElement("canvas", {
+          className: "sun-preview-canvas",
+          attrs: { width: "180", height: "180", "aria-label": "Star visual preview" },
+        }),
+        createElement(
+          "div",
+          { className: "kpi__value sun-preview-value" },
+          normalizeContent(item.value),
+        ),
+        createElement("div", { className: "sun-preview-caption" }, normalizeContent(item.meta)),
+        createKpiMeta(item),
+      ]),
+    ],
+  );
+}
+
+function createStandardCard(item, wrapClass, expandable, tipText) {
   const kpiNode = createElement(
     "div",
     {
@@ -76,14 +132,33 @@ function createKpiCard(item) {
       createElement("div", { className: "kpi__label" }, [
         item.label,
         " ",
-        createTipIconNode(item.tip || ""),
+        createTipIconNode(tipText),
       ]),
+      createKpiToggleButton(item, tipText),
       createElement("div", { className: "kpi__value" }, normalizeContent(item.value)),
       createKpiMeta(item),
     ],
   );
   setInlineStyles(kpiNode, item.kpiStyle || {});
-  return createElement("div", { className: "kpi-wrap" }, [kpiNode]);
+  return createElement(
+    "div",
+    { className: wrapClass, dataset: { expandable: expandable ? "1" : null } },
+    [kpiNode],
+  );
+}
+
+function createKpiCard(item) {
+  const tipText = item.tip || "";
+  const expandable = hasKpiMetaContent(item);
+  const wrapClass =
+    `kpi-wrap ${expandable ? "kpi-wrap--expandable" : ""} ${item.wrapClass || ""}`.trim();
+  if (item.kind === "preview") {
+    return createPreviewCard(item, wrapClass, expandable, tipText);
+  }
+  if (item.kind === "sunVisual") {
+    return createSunPreviewCard(item, wrapClass, expandable, tipText);
+  }
+  return createStandardCard(item, wrapClass, expandable, tipText);
 }
 
 export function createKpiGrid(items = []) {
@@ -92,6 +167,95 @@ export function createKpiGrid(items = []) {
     { className: "kpi-grid" },
     (items || []).filter(Boolean).map((item) => createKpiCard(item)),
   );
+}
+
+function closestKpiWrap(target) {
+  return target?.closest?.(".kpi-wrap--expandable") || null;
+}
+
+function closeSiblingKpis(activeWrap) {
+  const grid = activeWrap?.closest?.(".kpi-grid");
+  if (!grid) return;
+  grid.querySelectorAll(".kpi-wrap--expandable.is-expanded").forEach((wrap) => {
+    if (wrap === activeWrap) return;
+    wrap.classList.remove("is-expanded");
+    const toggle = wrap.querySelector(".kpi__toggle");
+    if (toggle) toggle.setAttribute("aria-expanded", "false");
+  });
+}
+
+function toggleKpiWrap(wrap) {
+  if (!wrap) return;
+  const nextExpanded = !wrap.classList.contains("is-expanded");
+  closeSiblingKpis(wrap);
+  wrap.classList.toggle("is-expanded", nextExpanded);
+  const toggle = wrap.querySelector(".kpi__toggle");
+  if (toggle) toggle.setAttribute("aria-expanded", nextExpanded ? "true" : "false");
+}
+
+function prepareKpiInteractions(root) {
+  if (!root) return;
+  root.querySelectorAll(".kpi-wrap").forEach((wrap) => {
+    const meta = wrap.querySelector(".kpi__meta");
+    const metaText = meta?.textContent?.trim?.() || "";
+    if (!meta || !metaText) return;
+    wrap.classList.add("kpi-wrap--expandable");
+    wrap.dataset.expandable = "1";
+    const kpi = wrap.querySelector(".kpi");
+    if (!kpi || kpi.querySelector(".kpi__toggle")) return;
+    const label = kpi.querySelector(".kpi__label");
+    const labelText = label?.textContent?.trim?.() || "KPI";
+    const toggle = createElement("button", {
+      className: "kpi__toggle",
+      attrs: {
+        type: "button",
+        "aria-expanded": "false",
+        "aria-label": `Show details for ${labelText}`,
+        title: `Show details for ${labelText}`,
+      },
+      text: "\u25be",
+    });
+    kpi.appendChild(toggle);
+  });
+}
+
+export function enableKpiInteractions(root) {
+  if (!root) return root;
+  prepareKpiInteractions(root);
+  if (root.dataset.kpiInteractionBound === "1") return root;
+  root.dataset.kpiInteractionBound = "1";
+
+  root.addEventListener("click", (event) => {
+    const toggleButton = event.target.closest(".kpi__toggle");
+    if (toggleButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleKpiWrap(toggleButton.closest(".kpi-wrap--expandable"));
+      return;
+    }
+
+    const wrap = closestKpiWrap(event.target);
+    if (!wrap) return;
+    const interactiveAncestor = event.target.closest(
+      'button, a, input, select, textarea, summary, [role="button"]',
+    );
+    if (interactiveAncestor && !interactiveAncestor.classList.contains("kpi__toggle")) return;
+    toggleKpiWrap(wrap);
+  });
+
+  root.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const wrap = closestKpiWrap(event.target);
+    if (!wrap) return;
+    const interactiveAncestor = event.target.closest(
+      'button, a, input, select, textarea, summary, [role="button"]',
+    );
+    if (interactiveAncestor && !interactiveAncestor.classList.contains("kpi__toggle")) return;
+    event.preventDefault();
+    toggleKpiWrap(wrap);
+  });
+
+  return root;
 }
 
 function expandLines(lines = []) {

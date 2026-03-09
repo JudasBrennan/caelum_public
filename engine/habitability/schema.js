@@ -19,6 +19,11 @@ function fraction(value, fallback = 0) {
   return clamp(toFinite(value, fallback), 0, 1);
 }
 
+function optionalFraction(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? clamp(numeric, 0, 1) : NaN;
+}
+
 function objectOrEmpty(value) {
   return value && typeof value === "object" ? value : {};
 }
@@ -61,6 +66,11 @@ export function normalizeHabitabilityContext(rawContext = {}) {
       permanentIceFraction: fraction(surface.permanentIceFraction, 0),
       steamFraction: fraction(surface.steamFraction, 0),
       surfaceAccessibleLiquidFraction: fraction(surface.surfaceAccessibleLiquidFraction, 0),
+      waterCoverageFraction: fraction(surface.waterCoverageFraction, 0),
+      iceShellThicknessKm: finiteNonNegative(surface.iceShellThicknessKm, 0),
+      subsurfaceOceanDepthKm: finiteNonNegative(surface.subsurfaceOceanDepthKm, 0),
+      highPressureIceBarrier: surface.highPressureIceBarrier === true,
+      subsurfaceOceanScore: fraction(surface.subsurfaceOceanScore, 0),
       subsurfaceOceanPotential: surface.subsurfaceOceanPotential === true,
       alternativeSolventCandidate: String(surface.alternativeSolventCandidate || ""),
     },
@@ -69,9 +79,12 @@ export function normalizeHabitabilityContext(rawContext = {}) {
       tidalHeatingEarth: finiteNonNegative(energy.tidalHeatingEarth, 0),
       radiogenicHeatingEarth: finiteNonNegative(energy.radiogenicHeatingEarth, 0),
       xuvFluxRatio: finiteNonNegative(energy.xuvFluxRatio, 0),
+      internalHeatSupport: optionalFraction(energy.internalHeatSupport),
+      stellarHeatSupport: optionalFraction(energy.stellarHeatSupport),
     },
     chemistry: {
       surfaceFieldEarths: finiteNonNegative(chemistry.surfaceFieldEarths, 0),
+      intrinsicFieldKnown: chemistry.intrinsicFieldKnown !== false,
       jeansEscapeSpecies:
         chemistry.jeansEscapeSpecies && typeof chemistry.jeansEscapeSpecies === "object"
           ? chemistry.jeansEscapeSpecies
@@ -97,6 +110,9 @@ export function normalizeHabitabilityContext(rawContext = {}) {
     environment: {
       magnetosphericRadRemDay: finiteNonNegative(environment.magnetosphericRadRemDay, 0),
       radiationPenalty: fraction(environment.radiationPenalty, 1),
+      surfaceRadiationShieldingFactor: optionalFraction(
+        environment.surfaceRadiationShieldingFactor,
+      ),
       stellarAgeGyr: finiteNonNegative(environment.stellarAgeGyr, 0),
       tidallyLockedToPrimary: environment.tidallyLockedToPrimary === true,
       tidallyLockedToStar: environment.tidallyLockedToStar === true,

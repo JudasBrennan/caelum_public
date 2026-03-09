@@ -10,7 +10,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 1.22.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 1.22.1</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, planetary systems, rocky worlds, gas giants, moons, and debris disks with
           real astrophysics. Model tectonics, climate zones, atmospheres, populations, and calendars.
           Explore your creations in an interactive 3D visualiser with procedural textures, or study
@@ -284,17 +284,22 @@ function release(version, note, items, { open = false } = {}) {
 function changelogHTML() {
   return [
     release(
-      "1.22.0",
-      "(from 1.21.1)",
+      "1.22.1",
+      "(from 1.22.0)",
       [
-        "<b>Moon Worlds</b> &mdash; Moons now model atmosphere, hydrosphere, climate, geology, biosphere, and habitability as one connected world state. You can build frozen ocean moons, hazy moons, volcanic moons, and biologically active moons from the same Moon workflow.",
-        "<b>Moon Visuals</b> &mdash; Moon previews and recipes now react to modeled oceans, haze, vegetation, cryovolcanism, and captured-body shape. Irregular moons render as lumpy bodies, and atmospheric moons use a softer limb haze instead of the old solid aura.",
-        "<b>Unified Habitability</b> &mdash; Planet and Moon habitability now use one shared PHI model with explicit surface-water, subsurface-water, chemistry, radiation, and persistence handling. Subsurface-ocean moons can now score honestly without implying exposed surface life.",
-        "<b>Moon Workflow Integration</b> &mdash; Moon-world state now survives save, load, import, and export, and it appears in the Visualiser focus panel. The Lessons and Science pages now explain the moon-world model and the surface-versus-subsurface distinction.",
-        "<b>Preset and Visual Refresh</b> &mdash; The Sol preset was refreshed to stay aligned with the new moon and habitability models, and Earth-like shallow-ocean rocky worlds now render with a clearer blue-ocean balance.",
+        "<b>Unified Celestial Outputs</b> &mdash; Star, Planet, and Moon pages now share the same sectioned KPI layout, so dense output pages read as structured reports instead of one long wall of cards. Secondary values also open reliably on touch devices with explicit tap-to-expand detail.",
+        "<b>Habitability Corrections</b> &mdash; The habitability model was recalibrated around clearer surface-water, subsurface-water, and alternative-solvent pathways while keeping the standard Earth Similarity Index intact. Planet and Moon pages now explain the active pathway directly, so scores are easier to interpret honestly.",
+        "<b>UI Polish</b> &mdash; Long derived-detail rows now wrap cleanly, and the special colour cards keep a stable one-line title row with a single disclosure chevron. The result is a denser but calmer output layer across the most information-heavy pages.",
       ],
       { open: true },
     ),
+    release("1.22.0", "(from 1.21.1)", [
+      "<b>Moon Worlds</b> &mdash; Moons now model atmosphere, hydrosphere, climate, geology, biosphere, and habitability as one connected world state. You can build frozen ocean moons, hazy moons, volcanic moons, and biologically active moons from the same Moon workflow.",
+      "<b>Moon Visuals</b> &mdash; Moon previews and recipes now react to modeled oceans, haze, vegetation, cryovolcanism, and captured-body shape. Irregular moons render as lumpy bodies, and atmospheric moons use a softer limb haze instead of the old solid aura.",
+      "<b>Unified Habitability</b> &mdash; Planet and Moon habitability now use one shared PHI model with explicit surface-water, subsurface-water, chemistry, radiation, and persistence handling. Subsurface-ocean moons can now score honestly without implying exposed surface life.",
+      "<b>Moon Workflow Integration</b> &mdash; Moon-world state now survives save, load, import, and export, and it appears in the Visualiser focus panel. The Lessons and Science pages now explain the moon-world model and the surface-versus-subsurface distinction.",
+      "<b>Preset and Visual Refresh</b> &mdash; The Sol preset was refreshed to stay aligned with the new moon and habitability models, and Earth-like shallow-ocean rocky worlds now render with a clearer blue-ocean balance.",
+    ]),
     release("1.21.1", "(from 1.21.0)", [
       "<b>Habitability Metrics Beta</b> &mdash; Rocky planets now show an Earth Similarity Index and a clearly-labeled Habitability Score (Beta). The new score is a first-pass comparative metric built from substrate, solvent, energy, and chemistry terms, and it is hidden on gas giants.",
       "<b>Physics Corrections</b> &mdash; Fixed several star, planet, and moon edge cases. Evolved high-metallicity stars no longer produce non-physical radii, CMF auto-calc now follows host-star metallicity, and retrograde moon orbital-fate cases behave more plausibly.",

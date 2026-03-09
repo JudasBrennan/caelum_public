@@ -4,7 +4,8 @@ import { computeStellarActivityModel } from "../engine/stellarActivity.js";
 import { clamp, fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { createCelestialVisualPreviewController } from "./celestialVisualPreview.js";
-import { createElement, replaceChildren } from "./domHelpers.js";
+import { renderDerivedDetails } from "./derivedDetails.js";
+import { renderKpiSections } from "./kpiSections.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { loadWorld, updateWorld } from "./store.js";
 import { createTutorial } from "./tutorial.js";
@@ -106,67 +107,6 @@ const TUTORIAL_STEPS = [
       "and moon calculations on other pages.",
   },
 ];
-
-function tipIconNode(text) {
-  if (!text) return null;
-  return createElement("span", {
-    className: "tip-icon",
-    attrs: { tabindex: "0", role: "note", "aria-label": "Info" },
-    dataset: { tip: text },
-    text: "i",
-  });
-}
-
-function renderStarKpis(container, items = []) {
-  replaceChildren(
-    container,
-    (items || []).map((item) => {
-      const tipText = TIP_LABEL[item.tipLabel] || TIP_LABEL[item.label] || "";
-      if (item.kind === "sunVisual") {
-        return createElement("div", { className: "kpi-wrap kpi-wrap--sun-preview" }, [
-          createElement("div", { className: "kpi kpi--sun-preview" }, [
-            createElement("div", { className: "kpi__label" }, [
-              item.label,
-              tipText ? " " : "",
-              tipIconNode(tipText),
-              createElement("span", {
-                className: "kpi__expand-indicator",
-                attrs: { "aria-hidden": "true" },
-                text: "\u25be",
-              }),
-            ]),
-            createElement("canvas", {
-              className: "sun-preview-canvas",
-              attrs: { width: "180", height: "180", "aria-label": "Star visual preview" },
-            }),
-            createElement("div", { className: "kpi__value sun-preview-value", text: item.value }),
-            createElement("div", { className: "sun-preview-caption", text: item.meta }),
-          ]),
-        ]);
-      }
-
-      return createElement("div", { className: "kpi-wrap" }, [
-        createElement(
-          "div",
-          {
-            className: `kpi ${item.kpiClass || ""}`.trim(),
-            attrs: { style: item.kpiStyle || null },
-          },
-          [
-            createElement("div", { className: "kpi__label" }, [
-              item.label,
-              tipText ? " " : "",
-              tipIconNode(tipText),
-            ]),
-            createElement("div", { className: "kpi__value", text: item.value }),
-            createElement("div", { className: "kpi__meta", text: item.meta }),
-          ],
-        ),
-      ]);
-    }),
-  );
-  return container;
-}
 
 export function initStarPage(mountEl) {
   const defaults = { name: "Star", massMsol: 0.8653, ageGyr: 6.254 }; // workbook defaults
@@ -354,12 +294,8 @@ export function initStarPage(mountEl) {
       <div class="panel">
         <div class="panel__header"><h2>Outputs</h2></div>
         <div class="panel__body">
-          <div class="kpi-grid" id="kpis"></div>
-
-          <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:center">
-            <span id="lifeBadge" class="badge"></span>
-            <span id="classBadge" class="badge"></span>
-          </div>
+          <div id="kpis"></div>
+          <div id="details"></div>
         </div>
       </div>
     </div>
@@ -378,8 +314,7 @@ export function initStarPage(mountEl) {
   const ageEl = wrap.querySelector("#age");
   const metallicityEl = wrap.querySelector("#metallicity");
   const kpisEl = wrap.querySelector("#kpis");
-  const lifeBadge = wrap.querySelector("#lifeBadge");
-  const classBadge = wrap.querySelector("#classBadge");
+  const detailsEl = wrap.querySelector("#details");
   const physicsModeRadios = wrap.querySelectorAll('[name="physicsMode"]');
   const advancedDerivRowEl = wrap.querySelector("#advancedDerivRow");
   const physicsDerivRadios = wrap.querySelectorAll('[name="physicsDerivMode"]');
@@ -581,101 +516,237 @@ export function initStarPage(mountEl) {
       activity.teffBin === "FGK"
         ? "Solar-cycle envelope split into associated + background"
         : "Empirical split model outside FGK solar envelope";
+    const life = model.earthLikeLifePossible;
 
-    const items = [
-      {
-        kind: "sunVisual",
-        label: "Star Visualiser",
-        tipLabel: "Star Colour",
-        value: `${model.starColourHex}`,
-        meta: "Hex (derived from temperature) - Animated at 0.5 d/s with flares + CMEs",
-      },
-      { label: "Maximum Age", value: fmt(model.maxAgeGyr, 3), meta: "Gyr" },
-      {
-        label: "Radius",
-        value: fmt(model.radiusRsol, 3),
-        meta:
-          "Rsol | " +
-          fmt(model.metric.radiusKm, 0) +
-          " km" +
-          (model.radiusOverridden ? " (Override)" : ""),
-      },
-      {
-        label: "Luminosity",
-        value: fmt(model.luminosityLsol, 3),
-        meta:
-          "Lsol | " +
-          fmt(model.metric.luminosityW, 0) +
-          " W" +
-          (model.luminosityOverridden ? " (Override)" : ""),
-      },
-      { label: "Density", value: fmt(model.densityGcm3, 3), meta: "g/cm³" },
-      { label: "Temperature", value: fmt(model.tempK, 0), meta: "K" },
-      {
-        label: "Habitable Zone",
-        value: model.display.hzAu,
-        meta: "AU | " + model.display.hzMkm + " million km",
-      },
-      {
-        label: "Giant Planet Probability",
-        value: `${fmt(model.giantPlanetProbability * 100, 1)}%`,
-        meta: "Fischer & Valenti (2005); Johnson et al. (2010)",
-      },
-      {
-        label: "Population",
-        tipLabel: "Stellar Population",
-        value: shortPopulationLabel(model.populationLabel),
-        meta: `${model.populationLabel} | [Fe/H] = ${fmt(model.inputs.metallicityFeH, 2)}`,
-      },
-      {
-        label: "Activity Regime",
-        value: `${activity.teffBin}/${activity.ageBand}`,
-        meta: "Teff + age bins",
-      },
-      {
-        label: "N32 Rate",
-        tipLabel: "Energetic Flare Rate (>1e32 erg)",
-        value: fmt(activity.energeticFlareRatePerDay, 3),
-        meta: "flares/day (>1e32 erg)",
-      },
-      {
-        label: "Energetic Flare Recurrence",
-        value: energeticRecurrenceText,
-        meta: "for >1e32 erg flares",
-      },
-      {
-        label: "Total Flare Rate (>1e30 erg)",
-        value: fmt(activity.totalFlareRatePerDay, 3),
-        meta: "flares/day",
-      },
-      {
-        label: "Total Flare Recurrence",
-        value: totalRecurrenceText,
-        meta: "for >1e30 erg flares",
-      },
-      {
-        label: "Associated CME Rate",
-        value: fmt(activity.cmeAssociatedRatePerDay, 3),
-        meta: "CME/day",
-      },
-      {
-        label: "Background CME Rate",
-        value: fmt(activity.cmeBackgroundRatePerDay, 3),
-        meta: "CME/day",
-      },
-      {
-        label: "Total CME Rate",
-        value: fmt(activity.cmeTotalRatePerDay, 3),
-        meta: cmeTotalMeta,
-      },
-      {
-        label: "Solar CME Envelope (FGK)",
-        value: activity.teffBin === "FGK" ? "0.5 to 6.0/day" : "n/a",
-        meta: activity.teffBin === "FGK" ? "Solar-cycle observed range" : "FGK stars only",
-      },
-    ];
+    const starKpi = (label, value, meta = "", overrides = {}) => ({
+      label,
+      tip: TIP_LABEL[overrides.tipLabel || label] || "",
+      value,
+      meta,
+      ...overrides,
+    });
 
-    renderStarKpis(kpisEl, items);
+    renderKpiSections(kpisEl, [
+      {
+        id: "star-summary",
+        title: "Summary",
+        items: [
+          starKpi(
+            "Star Visualiser",
+            `${model.starColourHex}`,
+            "Hex (derived from temperature) - Animated at 0.5 d/s with flares + CMEs",
+            {
+              kind: "sunVisual",
+              tipLabel: "Star Colour",
+            },
+          ),
+          starKpi("Class", model.spectralClass),
+          starKpi(
+            "Radius",
+            fmt(model.radiusRsol, 3),
+            `Rsol | ${fmt(model.metric.radiusKm, 0)} km${model.radiusOverridden ? " (Override)" : ""}`,
+          ),
+          starKpi(
+            "Luminosity",
+            fmt(model.luminosityLsol, 3),
+            `Lsol | ${fmt(model.metric.luminosityW, 0)} W${model.luminosityOverridden ? " (Override)" : ""}`,
+          ),
+          starKpi("Temperature", fmt(model.tempK, 0), "K"),
+          starKpi("Habitable Zone", model.display.hzAu, `AU | ${model.display.hzMkm} million km`),
+          starKpi("Activity Regime", `${activity.teffBin}/${activity.ageBand}`, "Teff + age bins"),
+          starKpi("Earth-like Life?", life),
+        ],
+      },
+      {
+        id: "star-identity",
+        title: "Identity & Class",
+        density: "compact",
+        items: [
+          starKpi("Current Age", fmt(state.ageGyr, 3), "Gyr"),
+          starKpi("Metallicity [Fe/H]", fmt(state.metallicityFeH, 2), "dex"),
+          starKpi(
+            "Population",
+            shortPopulationLabel(model.populationLabel),
+            `${model.populationLabel} | [Fe/H] = ${fmt(model.inputs.metallicityFeH, 2)}`,
+            { tipLabel: "Stellar Population" },
+          ),
+        ],
+      },
+      {
+        id: "star-physical",
+        title: "Physical State",
+        density: "compact",
+        items: [
+          starKpi("Maximum Age", fmt(model.maxAgeGyr, 3), "Gyr"),
+          starKpi(
+            "Radius",
+            fmt(model.radiusRsol, 3),
+            `Rsol | ${fmt(model.metric.radiusKm, 0)} km${model.radiusOverridden ? " (Override)" : ""}`,
+          ),
+          starKpi(
+            "Luminosity",
+            fmt(model.luminosityLsol, 3),
+            `Lsol | ${fmt(model.metric.luminosityW, 0)} W${model.luminosityOverridden ? " (Override)" : ""}`,
+          ),
+          starKpi("Density", fmt(model.densityGcm3, 3), "g/cm³"),
+          starKpi("Temperature", fmt(model.tempK, 0), "K"),
+        ],
+      },
+      {
+        id: "star-environment",
+        title: "Environment",
+        density: "compact",
+        items: [
+          starKpi("Habitable Zone", model.display.hzAu, `AU | ${model.display.hzMkm} million km`),
+        ],
+      },
+      {
+        id: "star-system",
+        title: "System Context",
+        density: "compact",
+        items: [
+          starKpi(
+            "Giant Planet Probability",
+            `${fmt(model.giantPlanetProbability * 100, 1)}%`,
+            "Fischer & Valenti (2005); Johnson et al. (2010)",
+          ),
+        ],
+      },
+      {
+        id: "star-activity",
+        title: "Activity & Radiation",
+        density: "compact",
+        items: [
+          starKpi("Activity Regime", `${activity.teffBin}/${activity.ageBand}`, "Teff + age bins"),
+          starKpi("N32 Rate", fmt(activity.energeticFlareRatePerDay, 3), "flares/day (>1e32 erg)", {
+            tipLabel: "Energetic Flare Rate (>1e32 erg)",
+          }),
+          starKpi("Energetic Flare Recurrence", energeticRecurrenceText, "for >1e32 erg flares"),
+          starKpi(
+            "Total Flare Rate (>1e30 erg)",
+            fmt(activity.totalFlareRatePerDay, 3),
+            "flares/day",
+          ),
+          starKpi("Total Flare Recurrence", totalRecurrenceText, "for >1e30 erg flares"),
+          starKpi("Associated CME Rate", fmt(activity.cmeAssociatedRatePerDay, 3), "CME/day"),
+          starKpi("Background CME Rate", fmt(activity.cmeBackgroundRatePerDay, 3), "CME/day"),
+          starKpi("Total CME Rate", fmt(activity.cmeTotalRatePerDay, 3), cmeTotalMeta),
+          starKpi(
+            "Solar CME Envelope (FGK)",
+            activity.teffBin === "FGK" ? "0.5 to 6.0/day" : "n/a",
+            activity.teffBin === "FGK" ? "Solar-cycle observed range" : "FGK stars only",
+          ),
+        ],
+      },
+      {
+        id: "star-habitability",
+        title: "Habitability",
+        density: "compact",
+        items: [starKpi("Earth-like Life?", life)],
+      },
+    ]);
+
+    renderDerivedDetails(
+      detailsEl,
+      [
+        {
+          id: "star-details-identity",
+          title: "Identity & Class",
+          items: [
+            { label: "Name", value: state.name },
+            { label: "Class", value: model.spectralClass },
+            { label: "Current Age", value: `${fmt(state.ageGyr, 3)} Gyr` },
+            { label: "Metallicity [Fe/H]", value: `${fmt(state.metallicityFeH, 2)} dex` },
+            { label: "Population", value: model.populationLabel },
+            { label: "Stellar Evolution", value: model.evolutionMode === "evolved" ? "On" : "Off" },
+            {
+              label: "Physics Mode",
+              value: state.physicsMode === "advanced" ? "Advanced" : "Simple",
+            },
+          ],
+        },
+        {
+          id: "star-details-physical",
+          title: "Physical State",
+          items: [
+            { label: "Maximum Age", value: `${fmt(model.maxAgeGyr, 3)} Gyr` },
+            {
+              label: "Radius",
+              value: `${fmt(model.radiusRsol, 3)} Rsol`,
+              meta: `${fmt(model.metric.radiusKm, 0)} km`,
+            },
+            {
+              label: "Luminosity",
+              value: `${fmt(model.luminosityLsol, 3)} Lsol`,
+              meta: `${fmt(model.metric.luminosityW, 0)} W`,
+            },
+            { label: "Density", value: `${fmt(model.densityGcm3, 3)} g/cm³` },
+            { label: "Temperature", value: `${fmt(model.tempK, 0)} K` },
+          ],
+        },
+        {
+          id: "star-details-environment",
+          title: "Environment",
+          items: [
+            {
+              label: "Habitable Zone",
+              value: model.display.hzAu,
+              meta: `${model.display.hzMkm} million km`,
+            },
+            { label: "Star Colour", value: model.starColourHex },
+          ],
+        },
+        {
+          id: "star-details-system",
+          title: "System Context",
+          items: [
+            {
+              label: "Giant Planet Probability",
+              value: `${fmt(model.giantPlanetProbability * 100, 1)}%`,
+              meta: "Fischer & Valenti (2005); Johnson et al. (2010)",
+            },
+          ],
+        },
+        {
+          id: "star-details-activity",
+          title: "Activity & Radiation",
+          items: [
+            { label: "Activity Regime", value: `${activity.teffBin}/${activity.ageBand}` },
+            { label: "N32 Rate", value: `${fmt(activity.energeticFlareRatePerDay, 3)} flares/day` },
+            { label: "Energetic Flare Recurrence", value: energeticRecurrenceText },
+            {
+              label: "Total Flare Rate (>1e30 erg)",
+              value: `${fmt(activity.totalFlareRatePerDay, 3)} flares/day`,
+            },
+            { label: "Total Flare Recurrence", value: totalRecurrenceText },
+            {
+              label: "Associated CME Rate",
+              value: `${fmt(activity.cmeAssociatedRatePerDay, 3)} CME/day`,
+            },
+            {
+              label: "Background CME Rate",
+              value: `${fmt(activity.cmeBackgroundRatePerDay, 3)} CME/day`,
+            },
+            {
+              label: "Total CME Rate",
+              value: `${fmt(activity.cmeTotalRatePerDay, 3)} CME/day`,
+              meta: cmeTotalMeta,
+            },
+            {
+              label: "Solar CME Envelope (FGK)",
+              value: activity.teffBin === "FGK" ? "0.5 to 6.0/day" : "n/a",
+              meta: activity.teffBin === "FGK" ? "Solar-cycle observed range" : "FGK stars only",
+            },
+          ],
+        },
+        {
+          id: "star-details-habitability",
+          title: "Habitability",
+          items: [{ label: "Earth-like Life?", value: life }],
+        },
+      ],
+      { title: "Derived Details" },
+    );
 
     sunPreviewController.attach(kpisEl.querySelector(".sun-preview-canvas"), {
       starName: state.name,
@@ -685,17 +756,6 @@ export function initStarPage(mountEl) {
       starColourHex: model.starColourHex,
       activity,
     });
-
-    const life = model.earthLikeLifePossible;
-    lifeBadge.textContent = `Earth-like Life? ${life}`;
-    lifeBadge.classList.remove("good", "warn", "bad");
-    if (life === "Yes") lifeBadge.classList.add("good");
-    else if (life === "Star Too Young") lifeBadge.classList.add("warn");
-    else lifeBadge.classList.add("bad");
-
-    classBadge.textContent = `Class: ${model.spectralClass}`;
-    classBadge.classList.remove("good", "warn", "bad");
-    classBadge.classList.add(model.spectralClass.startsWith("G") ? "good" : "badge");
 
     if (model.evolutionMode === "evolved") {
       const rz = model.radiusRsolZams;

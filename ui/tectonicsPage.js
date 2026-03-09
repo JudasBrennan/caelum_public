@@ -11,6 +11,8 @@ import { attachTooltips, tipIcon } from "./tooltip.js";
 import { createTutorial } from "./tutorial.js";
 import { replaceSelectOptions } from "./domHelpers.js";
 import { escapeHtml } from "./uiHelpers.js";
+import { statRowsHTML } from "./statRows.js";
+import { enableKpiInteractions } from "./planet/outputRender.js";
 import {
   getSelectedPlanet,
   getStarOverrides,
@@ -970,6 +972,27 @@ export function initTectonicsPage(containerEl) {
   /** Generate the HTML content for the outputs panel. */
   function outputsHTML(model, activeProfile, selIdx, arcDist) {
     return `
+              <div class="subsection">
+                <h3>Summary</h3>
+                <div class="kpi-grid" style="margin-top:8px">
+                  <div class="kpi-wrap"><div class="kpi">
+                    <div class="kpi__label">Max Peak Height ${tipIcon(TIP_LABEL["Max Peak Height"])}</div>
+                    <div class="kpi__value">${model.display.maxPeakHeight}</div>
+                  </div></div>
+                  <div class="kpi-wrap"><div class="kpi">
+                    <div class="kpi__label">Max Ocean Depth ${tipIcon(TIP_LABEL["Max Ocean Depth"])}</div>
+                    <div class="kpi__value">${model.display.maxOceanDepth}</div>
+                  </div></div>
+                  <div class="kpi-wrap"><div class="kpi">
+                    <div class="kpi__label">Ridge Height ${tipIcon(TIP_LABEL["Ridge Height"])}</div>
+                    <div class="kpi__value">${model.display.ridgeHeight}</div>
+                  </div></div>
+                  <div class="kpi-wrap"><div class="kpi">
+                    <div class="kpi__label">Margin Width ${tipIcon(TIP_LABEL["Margin Width"])}</div>
+                    <div class="kpi__value">${fmt(model.tectonics.margin.totalWidthKm, 0)} km</div>
+                  </div></div>
+                </div>
+              </div>
               ${
                 activeProfile
                   ? `
@@ -1005,26 +1028,24 @@ export function initTectonicsPage(containerEl) {
                     ${state.isostasyMode === "airy" ? `<span class="tec-legend-item"><span class="tec-legend-swatch tec-legend-swatch--crust"></span>Crustal Roots</span>` : ""}
                     ${state.isostasyMode === "pratt" ? `<span class="tec-legend-item"><span class="tec-legend-swatch tec-legend-swatch--crust"></span>Moho</span>` : ""}
                   </div>
-                  <div class="kpi-grid" style="margin-top:8px">
-                    <div class="kpi-wrap"><div class="kpi">
-                      <div class="kpi__label">Total Width ${tipIcon(TIP_LABEL["Cross-Section Width"])}</div>
-                      <div class="kpi__value">${fmt(activeProfile.totalWidthKm, 0)} km</div>
-                    </div></div>
-                    <div class="kpi-wrap"><div class="kpi">
-                      <div class="kpi__label">Highest Zone Avg. ${tipIcon(TIP_LABEL["Highest Zone"])}</div>
-                      <div class="kpi__value">${fmt(activeProfile.peakM, 0)} m</div>
-                    </div></div>
-                    ${
-                      arcDist != null
-                        ? `
-                      <div class="kpi-wrap"><div class="kpi">
-                        <div class="kpi__label">Arc Distance ${tipIcon(TIP_LABEL["Arc Distance"])}</div>
-                        <div class="kpi__value">${fmt(arcDist, 0)} km</div>
-                      </div></div>
-                    `
-                        : ""
-                    }
-                  </div>
+                  ${statRowsHTML([
+                    {
+                      labelHtml: `Total Width ${tipIcon(TIP_LABEL["Cross-Section Width"])}`,
+                      value: `${fmt(activeProfile.totalWidthKm, 0)} km`,
+                    },
+                    {
+                      labelHtml: `Highest Zone Avg. ${tipIcon(TIP_LABEL["Highest Zone"])}`,
+                      value: `${fmt(activeProfile.peakM, 0)} m`,
+                    },
+                    ...(arcDist != null
+                      ? [
+                          {
+                            labelHtml: `Arc Distance ${tipIcon(TIP_LABEL["Arc Distance"])}`,
+                            value: `${fmt(arcDist, 0)} km`,
+                          },
+                        ]
+                      : []),
+                  ])}
                 </div>
               `
                   : `<p class="hint">Add a mountain range to see the cross-section.</p>`
@@ -1062,10 +1083,16 @@ export function initTectonicsPage(containerEl) {
                     .map(
                       (sp, i) =>
                         `<canvas id="tecShieldCanvas${i}" class="tec-canvas" style="height:180px"></canvas>
-                      <div class="kpi-grid" style="margin-top:4px;margin-bottom:12px">
-                        <div class="kpi-wrap"><div class="kpi"><div class="kpi__label">Height ${tipIcon(TIP_LABEL["Shield Height"])}</div><div class="kpi__value">${fmt(sp.heightM, 0)} m</div></div></div>
-                        <div class="kpi-wrap"><div class="kpi"><div class="kpi__label">Base Radius ${tipIcon(TIP_LABEL["Base Radius"])}</div><div class="kpi__value">${fmt(sp.baseRadiusKm, 0)} km</div></div></div>
-                      </div>`,
+                      ${statRowsHTML([
+                        {
+                          labelHtml: `Height ${tipIcon(TIP_LABEL["Shield Height"])}`,
+                          value: `${fmt(sp.heightM, 0)} m`,
+                        },
+                        {
+                          labelHtml: `Base Radius ${tipIcon(TIP_LABEL["Base Radius"])}`,
+                          value: `${fmt(sp.baseRadiusKm, 0)} km`,
+                        },
+                      ])}`,
                     )
                     .join("")}
                 </div>
@@ -1082,9 +1109,12 @@ export function initTectonicsPage(containerEl) {
                     .map(
                       (rp, i) =>
                         `<canvas id="tecRiftCanvas${i}" class="tec-canvas" style="height:200px"></canvas>
-                      <div class="kpi-grid" style="margin-top:4px;margin-bottom:12px">
-                        <div class="kpi-wrap"><div class="kpi"><div class="kpi__label">Total Width ${tipIcon(TIP_LABEL["Rift Total Width"])}</div><div class="kpi__value">${fmt(rp.totalWidthKm, 0)} km</div></div></div>
-                      </div>`,
+                      ${statRowsHTML([
+                        {
+                          labelHtml: `Total Width ${tipIcon(TIP_LABEL["Rift Total Width"])}`,
+                          value: `${fmt(rp.totalWidthKm, 0)} km`,
+                        },
+                      ])}`,
                     )
                     .join("")}
                 </div>
@@ -1095,31 +1125,31 @@ export function initTectonicsPage(containerEl) {
               <div class="subsection">
                 <h3>Ocean Depth Curve ${tipIcon(TIP_LABEL["Ocean Depth Curve"])}</h3>
                 <canvas id="tecOceanCanvas" class="tec-canvas"></canvas>
-                <div class="kpi-grid" style="margin-top:8px">
-                  <div class="kpi-wrap"><div class="kpi">
-                    <div class="kpi__label">Ridge Height ${tipIcon(TIP_LABEL["Ridge Height"])}</div>
-                    <div class="kpi__value">${model.display.ridgeHeight}</div>
-                  </div></div>
-                  <div class="kpi-wrap"><div class="kpi">
-                    <div class="kpi__label">Max Ocean Depth ${tipIcon(TIP_LABEL["Max Ocean Depth"])}</div>
-                    <div class="kpi__value">${model.display.maxOceanDepth}</div>
-                  </div></div>
-                  <div class="kpi-wrap"><div class="kpi">
-                    <div class="kpi__label">Spreading Rate ${tipIcon(TIP_LABEL["Spreading Rate"])}</div>
-                    <div class="kpi__value">${model.display.spreadingRate}</div>
-                  </div></div>
-                </div>
+                ${statRowsHTML([
+                  {
+                    labelHtml: `Ridge Height ${tipIcon(TIP_LABEL["Ridge Height"])}`,
+                    value: model.display.ridgeHeight,
+                  },
+                  {
+                    labelHtml: `Max Ocean Depth ${tipIcon(TIP_LABEL["Max Ocean Depth"])}`,
+                    value: model.display.maxOceanDepth,
+                  },
+                  {
+                    labelHtml: `Spreading Rate ${tipIcon(TIP_LABEL["Spreading Rate"])}`,
+                    value: model.display.spreadingRate,
+                  },
+                ])}
               </div>
 
               <div class="subsection">
                 <h3>Continental Margin ${tipIcon(TIP_LABEL["Continental Margin"])}</h3>
                 <canvas id="tecMarginCanvas" class="tec-canvas"></canvas>
-                <div class="kpi-grid" style="margin-top:8px">
-                  <div class="kpi-wrap"><div class="kpi">
-                    <div class="kpi__label">Total Width ${tipIcon(TIP_LABEL["Margin Width"])}</div>
-                    <div class="kpi__value">${fmt(model.tectonics.margin.totalWidthKm, 0)} km</div>
-                  </div></div>
-                </div>
+                ${statRowsHTML([
+                  {
+                    labelHtml: `Total Width ${tipIcon(TIP_LABEL["Margin Width"])}`,
+                    value: `${fmt(model.tectonics.margin.totalWidthKm, 0)} km`,
+                  },
+                ])}
               </div>`;
   }
 
@@ -1189,6 +1219,7 @@ export function initTectonicsPage(containerEl) {
     if (!el) return;
     el.innerHTML = outputsHTML(model, activeProfile, selIdx, arcDist);
     attachTooltips(el);
+    enableKpiInteractions(containerEl);
     drawOutputCanvases(el, model, activeProfile, arcDist);
 
     // Sync input-side spreading rate display
@@ -1525,6 +1556,7 @@ export function initTectonicsPage(containerEl) {
       </div>`;
 
     attachTooltips(containerEl);
+    enableKpiInteractions(containerEl);
     const planetSelect = containerEl.querySelector("#tecPlanetSelect");
     if (planetSelect) {
       replaceSelectOptions(

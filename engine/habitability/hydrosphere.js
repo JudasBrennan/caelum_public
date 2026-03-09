@@ -93,16 +93,29 @@ function computeAccessibleLiquidFraction(state, regime, climateState) {
   return clamp(accessible, 0, 1);
 }
 
+export function physicalWaterCoverageFromDepthM(depthM) {
+  const depth = Math.max(toFinite(depthM, 0), 0);
+  if (depth <= 0) return 0;
+  if (depth <= 10) return 0.02 * (depth / 10);
+  if (depth <= 100) return 0.02 + ((depth - 10) / 90) * 0.08;
+  if (depth <= 1000) return 0.1 + ((depth - 100) / 900) * 0.25;
+  if (depth <= 4000) return 0.35 + ((depth - 1000) / 3000) * 0.4;
+  if (depth <= 10000) return 0.75 + ((depth - 4000) / 6000) * 0.17;
+  if (depth <= 30000) return 0.92 + ((depth - 10000) / 20000) * 0.06;
+  return 0.98;
+}
+
 export function baselineHydrosphereFractionsForRegime(waterRegime) {
   const regime = BASELINE_FRACTIONS[waterRegime] ? waterRegime : "Shallow oceans";
   const baseline = BASELINE_FRACTIONS[regime];
   return {
     regime,
-    modelVersion: "heuristic-v1",
+    modelVersion: "hydrosphere-v2",
     liquidOceanFraction: baseline.liquidOceanFraction,
     landFraction: baseline.landFraction,
     permanentIceFraction: baseline.permanentIceFraction,
     steamFraction: baseline.steamFraction,
+    waterCoverageFraction: baseline.liquidOceanFraction + baseline.permanentIceFraction,
     surfaceAccessibleLiquidFraction: computeAccessibleLiquidFraction(baseline, regime, "Stable"),
     notes: ["baseline-regime-map"],
   };
@@ -150,16 +163,29 @@ export function hydrosphereStateFromPlanet({
     notes.push("no-water-inventory");
     return {
       regime,
-      modelVersion: "heuristic-v1",
+      modelVersion: "hydrosphere-v2",
       equivalentWaterDepthM: 0,
       liquidOceanFraction: 0,
       landFraction: 1,
       permanentIceFraction: 0,
       steamFraction: 0,
+      waterCoverageFraction: 0,
       surfaceAccessibleLiquidFraction: 0,
       notes,
     };
   }
+
+  const equivalentWaterDepthM = estimateEquivalentWaterDepthM({ massEarth, wmfPct, radiusKm });
+  const physicalCoverage = physicalWaterCoverageFromDepthM(equivalentWaterDepthM);
+  const blendedLiquidCoverage = 0.35 * baseline.liquidOceanFraction + 0.65 * physicalCoverage;
+  state.liquidOceanFraction = clamp(blendedLiquidCoverage, 0, 1);
+  state.landFraction = Math.max(0, 1 - state.liquidOceanFraction);
+  if (regime === "Ice world") {
+    state.liquidOceanFraction = 0;
+    state.permanentIceFraction = 1;
+    state.landFraction = 0;
+  }
+  notes.push("depth-coverage-blend");
 
   if (pressure < MIN_LIQUID_PRESSURE_ATM && state.liquidOceanFraction > 0) {
     if (tempK > 0 && tempK < 273) {
@@ -196,12 +222,16 @@ export function hydrosphereStateFromPlanet({
   const normalized = normalizeFractions(state);
   return {
     regime,
-    modelVersion: "heuristic-v1",
-    equivalentWaterDepthM: round(estimateEquivalentWaterDepthM({ massEarth, wmfPct, radiusKm }), 1),
+    modelVersion: "hydrosphere-v2",
+    equivalentWaterDepthM: round(equivalentWaterDepthM, 1),
     liquidOceanFraction: round(normalized.liquidOceanFraction, 3),
     landFraction: round(normalized.landFraction, 3),
     permanentIceFraction: round(normalized.permanentIceFraction, 3),
     steamFraction: round(normalized.steamFraction, 3),
+    waterCoverageFraction: round(
+      normalized.liquidOceanFraction + normalized.permanentIceFraction,
+      3,
+    ),
     surfaceAccessibleLiquidFraction: round(
       computeAccessibleLiquidFraction(normalized, regime, stateClimate),
       3,
