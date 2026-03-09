@@ -10,7 +10,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 1.22.1</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 1.23.0 BETA</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, planetary systems, rocky worlds, gas giants, moons, and debris disks with
           real astrophysics. Model tectonics, climate zones, atmospheres, populations, and calendars.
           Explore your creations in an interactive 3D visualiser with procedural textures, or study
@@ -256,6 +256,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Connected planetary science, climate, and the search for life into one public vision of inhabited worlds, helping define how modern astronomy imagines living moons and planets.",
   },
+  "1.23.0 BETA": {
+    name: "Alfred Wegener",
+    born: 1880,
+    died: 1930,
+    country: "Germany",
+    summary:
+      "Proposed continental drift and helped lay the conceptual foundations for plate tectonics, making moving continents a scientifically coherent picture of planetary surfaces.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -284,15 +292,20 @@ function release(version, note, items, { open = false } = {}) {
 function changelogHTML() {
   return [
     release(
-      "1.22.1",
-      "(from 1.22.0)",
+      "1.23.0 BETA",
+      "(beta, from 1.22.1)",
       [
-        "<b>Unified Celestial Outputs</b> &mdash; Star, Planet, and Moon pages now share the same sectioned KPI layout, so dense output pages read as structured reports instead of one long wall of cards. Secondary values also open reliably on touch devices with explicit tap-to-expand detail.",
-        "<b>Habitability Corrections</b> &mdash; The habitability model was recalibrated around clearer surface-water, subsurface-water, and alternative-solvent pathways while keeping the standard Earth Similarity Index intact. Planet and Moon pages now explain the active pathway directly, so scores are easier to interpret honestly.",
-        "<b>UI Polish</b> &mdash; Long derived-detail rows now wrap cleanly, and the special colour cards keep a stable one-line title row with a single disclosure chevron. The result is a denser but calmer output layer across the most information-heavy pages.",
+        "<b>Tectonics Simulator Beta</b> &mdash; The Tectonics page now includes a real plate-simulator preview with a persistent mostly-hex cell grid, seeded or painted plate ownership, rigid-plate playback, subduction-side resolution, and per-cell geology diagnostics.",
+        "<b>Terrain and Topography Output</b> &mdash; The simulator now derives terrain, bathymetry, shaded relief, and a dedicated topography map mode from the tectonic model. Terrain previews are smoother and more terrain-like, and the export buttons now expose the matching raster outputs directly.",
+        "<b>Plate Editing Workflow</b> &mdash; Plate authoring now supports select, brush, fill, and erase tools, separate ownership versus crust painting, richer selected-cell readouts, and JSON plate-map / crust-map imports. This gives the simulator a usable pre-climate authoring workflow instead of a seed-only preview.",
       ],
       { open: true },
     ),
+    release("1.22.1", "(from 1.22.0)", [
+      "<b>Unified Celestial Outputs</b> &mdash; Star, Planet, and Moon pages now share the same sectioned KPI layout, so dense output pages read as structured reports instead of one long wall of cards. Secondary values also open reliably on touch devices with explicit tap-to-expand detail.",
+      "<b>Habitability Corrections</b> &mdash; The habitability model was recalibrated around clearer surface-water, subsurface-water, and alternative-solvent pathways while keeping the standard Earth Similarity Index intact. Planet and Moon pages now explain the active pathway directly, so scores are easier to interpret honestly.",
+      "<b>UI Polish</b> &mdash; Long derived-detail rows now wrap cleanly, and the special colour cards keep a stable one-line title row with a single disclosure chevron. The result is a denser but calmer output layer across the most information-heavy pages.",
+    ]),
     release("1.22.0", "(from 1.21.1)", [
       "<b>Moon Worlds</b> &mdash; Moons now model atmosphere, hydrosphere, climate, geology, biosphere, and habitability as one connected world state. You can build frozen ocean moons, hazy moons, volcanic moons, and biologically active moons from the same Moon workflow.",
       "<b>Moon Visuals</b> &mdash; Moon previews and recipes now react to modeled oceans, haze, vegetation, cryovolcanism, and captured-body shape. Irregular moons render as lumpy bodies, and atmospheric moons use a softer limb haze instead of the old solid aura.",

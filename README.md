@@ -1,4 +1,4 @@
-# WorldSmith Web 1.22.1
+# WorldSmith Web 1.23.0 BETA
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, planetary systems, planets, moons, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -14,7 +14,7 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Unified planet and moon habitability metrics with explicit surface-water, subsurface-water, chemistry, radiation, and persistence handling.
 - Unified body rendering pipeline across Planet, System Poster, Visualiser, and Apparent views.
 - Resonance-driven debris disk suggestions and derived disk physics.
-- Tectonics with mountain ranges, shield volcanoes, rift valleys, seafloor spreading, and plate canvas with Voronoi tessellation.
+- Tectonics with mountain ranges, shield volcanoes, rift valleys, seafloor spreading, and a new plate-simulator beta with paintable cell ownership, rigid-plate playback, and terrain/topography exports.
 - Climate zones with latitude-based Koppen classification, aridity profiles, and tidally-locked zone modelling.
 - Population modelling with carrying capacity, logistic growth, land-use cascades, and Zipf rank-size distribution.
 - Apparent size and brightness modelling for stars, planets, and moons.

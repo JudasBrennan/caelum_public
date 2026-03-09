@@ -4,6 +4,75 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 1.23.0 BETA - 2026-03-10
+
+### Tectonics Simulator Beta
+
+**Added the first tectonics-simulator slices: seeded rigid-plate preview first, then a persistent mostly-hex cell-grid foundation**
+(engine/tectonics-sim/grid.js, engine/tectonics-sim/model.js, ui/tectonicsSimulator.js,
+ui/tectonicsPage.js, ui/store/worldSchema.js,
+styles.css, tests/tectonicsSimulator.test.js,
+tests/inputDraftStability.ui.test.js, tests/worldMigration.test.js)
+
+Added an initial plate-simulator preview to the Tectonics page. This
+first slice focuses on seeded rigid-plate authoring rather than full
+cell-painted simulation: users can inspect a flat-map and globe view,
+select and edit seeded plates, change crust type and Euler motion, and
+persist the simulator state inside the normal world save.
+
+The next pass replaced the pure seed-owned preview with a persistent
+logical grid made of mostly hex-like spherical cells, stored per-cell
+ownership in the world schema, and added shared select/paint modes so
+cell reassignment already survives save/load. That means later brush,
+fill, and playback work can now build on a real cell substrate instead
+of replacing the initial preview model.
+
+The latest pass completes the plate-editor MVP on top of that substrate:
+the simulator now has `select`, `brush`, `fill`, and `erase` tools,
+separate `plate ownership` vs `cell crust` paint targets, per-cell
+crust overrides, and JSON plate-map / crust-map imports. Users can now
+sketch a plate layout directly on the persistent mostly-hex grid instead
+of relying only on seeded preview ownership.
+
+The grid-resolution controls now also expose a `Very Fine` `512`-cell
+tier, which is the current practical upper bound for the editor before
+the later worker and playback stages land.
+
+The simulator still derives first-pass tectonic layers from the existing
+plate and tectonics engine seams, including boundary classification,
+crust-age heuristics, elevation, volcanism, and seismicity, so the tool
+already behaves as a useful geology authoring scaffold while the later
+simulation stages are still pending.
+
+The next passes completed the rest of the pre-climate tectonics
+simulator work. The model now derives local plate-motion vectors,
+boundary kinematics, convergent-margin asymmetry (`subducting` vs
+`overriding`), trench/arc/collision roles, deterministic rigid-plate
+playback from the painted baseline, and continuous geology fields for
+ridge, trench, arc, collision, coast, shelf, slope, hotspot, and swell
+influence.
+
+The Tectonics page now exposes the matching simulator controls and
+outputs: play/pause/step/reset playback, a scrubber, per-plate motion
+readouts, per-cell boundary role and motion diagnostics, a shaded
+terrain preview, and export actions for current geology layers,
+heightmaps, bathymetry, terrain colour, and shaded relief.
+
+The terrain previewer itself was then upgraded from nearest-cell
+sampling to blended geology-field sampling, with a higher internal
+preview resolution, smoother shelf/slope transitions, tectonic-context
+terrain noise, and improved hillshading so the output reads more like a
+terrain raster and less like an enlarged cell map.
+
+That terrain tooling now also includes a dedicated `Topography Map`
+mode with a stronger hypsometric palette and contour-style relief
+accenting, so mountains, shelves, abyssal plains, and trenches read
+much more clearly in the simulator preview and exported maps.
+
+This means Stages 3-6 of the tectonics simulator plan are now complete:
+the simulator reaches the point where it can act as a standalone
+tectonic and terrain authoring tool before climate logic begins.
+
 ## 1.22.1 - 2026-03-09
 
 ### KPI Output Redesign

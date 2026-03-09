@@ -10,6 +10,7 @@ import { fmt } from "../engine/utils.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { createTutorial } from "./tutorial.js";
 import { replaceSelectOptions } from "./domHelpers.js";
+import { initTectonicsSimulator } from "./tectonicsSimulator.js";
 import { escapeHtml } from "./uiHelpers.js";
 import { statRowsHTML } from "./statRows.js";
 import { enableKpiInteractions } from "./planet/outputRender.js";
@@ -924,6 +925,7 @@ const TUTORIAL_STEPS = [
 // ── Page controller ──────────────────────────────────────
 
 export function initTectonicsPage(containerEl) {
+  let cleanupTectonicsSimulator = null;
   const world = loadWorld();
   const planets = listPlanets(world);
 
@@ -1221,6 +1223,19 @@ export function initTectonicsPage(containerEl) {
     attachTooltips(el);
     enableKpiInteractions(containerEl);
     drawOutputCanvases(el, model, activeProfile, arcDist);
+    if (typeof cleanupTectonicsSimulator === "function") {
+      cleanupTectonicsSimulator();
+      cleanupTectonicsSimulator = null;
+    }
+    const tecSimRoot = containerEl.querySelector("#tecSimulatorRoot");
+    if (tecSimRoot) {
+      cleanupTectonicsSimulator = initTectonicsSimulator(tecSimRoot, {
+        planetContext: { ...pCtx, maxPeakHeightM: model.tectonics.maxPeakHeightM },
+        tectonicRegime: regime,
+        ridgeHeightM: state.ridgeHeightM,
+        spreadingRateFraction: state.spreadingRateFraction,
+      });
+    }
 
     // Sync input-side spreading rate display
     const srNum = containerEl.querySelector("#tecSpreadingRate");
@@ -1553,6 +1568,15 @@ export function initTectonicsPage(containerEl) {
           </div>
         </div>
 
+        <div class="panel">
+          <div class="panel__header">
+            <h2>Plate Simulator Preview</h2>
+          </div>
+          <div class="panel__body">
+            <div id="tecSimulatorRoot"></div>
+          </div>
+        </div>
+
       </div>`;
 
     attachTooltips(containerEl);
@@ -1569,6 +1593,19 @@ export function initTectonicsPage(containerEl) {
       );
     }
     drawOutputCanvases(containerEl, model, activeProfile, arcDist);
+    if (typeof cleanupTectonicsSimulator === "function") {
+      cleanupTectonicsSimulator();
+      cleanupTectonicsSimulator = null;
+    }
+    const tecSimRoot = containerEl.querySelector("#tecSimulatorRoot");
+    if (tecSimRoot) {
+      cleanupTectonicsSimulator = initTectonicsSimulator(tecSimRoot, {
+        planetContext: { ...ctx, maxPeakHeightM: model.tectonics.maxPeakHeightM },
+        tectonicRegime: regime,
+        ridgeHeightM: state.ridgeHeightM,
+        spreadingRateFraction: state.spreadingRateFraction,
+      });
+    }
   }
 
   render();
@@ -1929,4 +1966,8 @@ export function initTectonicsPage(containerEl) {
       return;
     }
   });
+
+  return () => {
+    if (typeof cleanupTectonicsSimulator === "function") cleanupTectonicsSimulator();
+  };
 }

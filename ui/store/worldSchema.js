@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 import { LOCAL_CLUSTER_DEFAULTS } from "../../engine/localCluster.js";
+import { createDefaultTectonicsSimulatorState } from "../../engine/tectonics-sim/model.js";
 import { mergeDefaults } from "./deepMerge.js";
 
-export const SCHEMA_VERSION = 56;
+export const SCHEMA_VERSION = 60;
 
 function hasNonEmptyPlainObject(value) {
   return (
@@ -91,6 +92,7 @@ export function defaultWorld() {
       margin: { shelfWidthKm: 80, shelfDepthM: 130, slopeAngleDeg: 3.5 },
       shieldVolcanoes: [],
       riftValleys: [],
+      simulator: createDefaultTectonicsSimulatorState(),
     },
     // Population page inputs (civilization parameters)
     population: {
