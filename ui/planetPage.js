@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { calcPlanetExact, ISOTOPE_HEAT_FRACTIONS } from "../engine/planet.js";
 import { calcStar } from "../engine/star.js";
 import { calcSystem } from "../engine/system.js";
@@ -1953,7 +1952,7 @@ export function initPlanetPage(mountEl) {
     }
 
     const auEl = bodyInputsEl.querySelector("#ggAu");
-    const auSlider = bodyInputsEl.querySelector("#ggAuSlider");
+    const auSlider = bodyInputsEl.querySelector("#ggAu_slider");
     bindNumberAndSlider({
       numberEl: auEl,
       sliderEl: auSlider,
@@ -1968,7 +1967,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const radiusEl = bodyInputsEl.querySelector("#ggRadius");
-    const radiusSlider = bodyInputsEl.querySelector("#ggRadiusSlider");
+    const radiusSlider = bodyInputsEl.querySelector("#ggRadius_slider");
     bindNumberAndSlider({
       numberEl: radiusEl,
       sliderEl: radiusSlider,
@@ -1983,7 +1982,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const massEl = bodyInputsEl.querySelector("#ggMass");
-    const massSlider = bodyInputsEl.querySelector("#ggMassSlider");
+    const massSlider = bodyInputsEl.querySelector("#ggMass_slider");
     bindNumberAndSlider({
       numberEl: massEl,
       sliderEl: massSlider,
@@ -1998,7 +1997,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const rotEl = bodyInputsEl.querySelector("#ggRotation");
-    const rotSlider = bodyInputsEl.querySelector("#ggRotationSlider");
+    const rotSlider = bodyInputsEl.querySelector("#ggRotation_slider");
     bindNumberAndSlider({
       numberEl: rotEl,
       sliderEl: rotSlider,
@@ -2013,7 +2012,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const metEl = bodyInputsEl.querySelector("#ggMetallicity");
-    const metSlider = bodyInputsEl.querySelector("#ggMetallicitySlider");
+    const metSlider = bodyInputsEl.querySelector("#ggMetallicity_slider");
     bindNumberAndSlider({
       numberEl: metEl,
       sliderEl: metSlider,
@@ -2028,7 +2027,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const eccEl = bodyInputsEl.querySelector("#ggEcc");
-    const eccSlider = bodyInputsEl.querySelector("#ggEccSlider");
+    const eccSlider = bodyInputsEl.querySelector("#ggEcc_slider");
     bindNumberAndSlider({
       numberEl: eccEl,
       sliderEl: eccSlider,
@@ -2043,7 +2042,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const incEl = bodyInputsEl.querySelector("#ggInc");
-    const incSlider = bodyInputsEl.querySelector("#ggIncSlider");
+    const incSlider = bodyInputsEl.querySelector("#ggInc_slider");
     bindNumberAndSlider({
       numberEl: incEl,
       sliderEl: incSlider,
@@ -2058,7 +2057,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const tiltEl = bodyInputsEl.querySelector("#ggTilt");
-    const tiltSlider = bodyInputsEl.querySelector("#ggTiltSlider");
+    const tiltSlider = bodyInputsEl.querySelector("#ggTilt_slider");
     bindNumberAndSlider({
       numberEl: tiltEl,
       sliderEl: tiltSlider,

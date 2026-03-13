@@ -5909,6 +5909,41 @@ input.auto-value {
   display: grid;
   gap: 14px;
 }
+.tec-sim__workspace {
+  display: grid;
+  gap: 14px;
+}
+.tec-sim__workspace-header-group {
+  display: grid;
+  gap: 12px;
+}
+.tec-sim__workspace-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.tec-sim__toggle-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.tec-sim__toggle-btn {
+  border-radius: 999px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+}
+.tec-sim__toggle-btn.is-active {
+  background: rgba(var(--accent-rgb), 0.18);
+  color: var(--text);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.28) inset;
+}
 .tec-sim__hint {
   margin: 0;
 }
@@ -5917,6 +5952,19 @@ input.auto-value {
   flex-wrap: wrap;
   gap: 12px;
   align-items: end;
+}
+.tec-sim__workspace-title {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.tec-sim__workspace-heading {
+  margin: 0;
+  font-size: 1.3rem;
+  line-height: 1.1;
+}
+.tec-sim__workspace-copy {
+  margin: 0;
 }
 .tec-sim__control {
   display: grid;
@@ -5935,6 +5983,9 @@ input.auto-value {
   grid-template-columns: minmax(220px, auto) minmax(0, 1fr);
   gap: 12px 16px;
   align-items: end;
+}
+.tec-sim__playback--compact {
+  grid-template-columns: 1fr;
 }
 .tec-sim__playback-main {
   display: grid;
@@ -5970,10 +6021,74 @@ input.auto-value {
 .tec-sim__summary .kpi {
   min-height: 96px;
 }
-.tec-sim__views {
+.tec-sim__drawer {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  overflow: hidden;
+}
+.tec-sim__drawer.is-hidden {
+  display: none;
+}
+.tec-sim__drawer > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.tec-sim__drawer > summary::-webkit-details-marker {
+  display: none;
+}
+.tec-sim__drawer[open] > summary {
+  background: rgba(255, 255, 255, 0.02);
+}
+.tec-sim__drawer > :not(summary) {
+  padding: 12px 14px;
+}
+.tec-sim__drawer-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
-  gap: 14px;
+  gap: 12px;
+}
+.tec-sim__rail-shell {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  display: grid;
+  gap: 12px;
+}
+.tec-sim__rail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tec-sim__rail-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tec-sim__rail-tab,
+.tec-sim__dock-tab {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  padding: 7px 12px;
+}
+.tec-sim__rail-tab.is-active,
+.tec-sim__dock-tab.is-active {
+  color: var(--text);
+  background: rgba(var(--accent-rgb), 0.18);
+  border-color: rgba(var(--accent-rgb), 0.32);
+}
+.tec-sim__rail-panel.is-hidden,
+.tec-sim__dock-panel.is-hidden {
+  display: none;
 }
 .tec-sim__view {
   border: 1px solid var(--border);
@@ -5981,8 +6096,7 @@ input.auto-value {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
   padding: 12px;
 }
-.tec-sim__view-title,
-.tec-sim__section-title {
+.section-title {
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--muted);
@@ -5995,6 +6109,16 @@ input.auto-value {
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
   padding: 12px;
+}
+.tec-sim__status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 .tec-sim__terrain-header {
   display: flex;
@@ -6009,6 +6133,9 @@ input.auto-value {
   flex-wrap: wrap;
   gap: 10px 12px;
   align-items: end;
+}
+.tec-sim__terrain-stage {
+  position: relative;
 }
 .tec-sim__canvas {
   width: 100%;
@@ -6025,6 +6152,128 @@ input.auto-value {
 }
 .tec-sim__canvas--terrain {
   aspect-ratio: 2 / 1;
+}
+.tec-sim__terrain-inspector-panel {
+  display: grid;
+  gap: 10px;
+}
+.tec-sim__terrain-overlay {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  display: none;
+  min-width: 220px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(7, 13, 32, 0.78);
+  backdrop-filter: blur(8px);
+  color: var(--muted);
+  font-size: 0.82rem;
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.22);
+  z-index: 2;
+}
+.tec-sim__terrain-inspector {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  min-width: 230px;
+  max-width: min(320px, calc(100% - 28px));
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(7, 13, 32, 0.78);
+  backdrop-filter: blur(8px);
+  color: var(--muted);
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.22);
+  z-index: 2;
+}
+.tec-sim__terrain-inspector[hidden] {
+  display: none;
+}
+.tec-sim__terrain-inspector-title {
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tec-sim__terrain-inspector-grid {
+  display: grid;
+  gap: 7px;
+}
+.tec-sim__terrain-inspector-grid div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+.tec-sim__terrain-inspector-grid span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.tec-sim__terrain-inspector-grid strong {
+  color: var(--text);
+  font-size: 0.9rem;
+  text-align: right;
+}
+.tec-sim__terrain-overlay.is-active {
+  display: grid;
+  gap: 8px;
+}
+.tec-sim__terrain-overlay-row {
+  display: grid;
+  gap: 6px;
+}
+.tec-sim__terrain-overlay-row.is-hidden {
+  display: none;
+}
+.tec-sim__terrain-overlay span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.tec-sim__terrain-overlay select {
+  width: 100%;
+  min-width: 0;
+}
+.tec-sim__terrain-overlay input[type="range"] {
+  width: 100%;
+  margin: 0;
+}
+.tec-sim__terrain-colour-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tec-sim__terrain-colour-field input[type="color"] {
+  width: 56px;
+  min-width: 56px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  cursor: pointer;
+}
+.tec-sim__terrain-colour-field input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+.tec-sim__terrain-colour-field input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 8px;
+}
+.tec-sim__terrain-colour-field input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 8px;
+}
+.tec-sim__terrain-overlay strong {
+  color: var(--text);
+  font-size: 0.92rem;
 }
 .tec-sim__legend {
   display: flex;
@@ -6044,11 +6293,6 @@ input.auto-value {
   height: 14px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-}
-.tec-sim__bottom {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.95fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px;
 }
 .tec-sim__plates,
 .tec-sim__editor {
@@ -6095,29 +6339,345 @@ input.auto-value {
   font-size: 0.84rem;
   color: var(--muted);
 }
-.tec-sim__derived {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
+.tec-sim--stage {
+  gap: 18px;
 }
-.tec-sim__derived-row {
+.tec-sim__commandbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+}
+.tec-sim__action-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.tec-sim__action-btn,
+.tec-sim__pill {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  padding: 8px 12px;
+  transition:
+    background 0.16s,
+    border-color 0.16s,
+    color 0.16s,
+    transform 0.16s;
+}
+.tec-sim__action-btn.is-active,
+.tec-sim__pill.is-active {
+  color: var(--text);
+  background:
+    linear-gradient(135deg, rgba(var(--accent-rgb), 0.2), rgba(59, 130, 246, 0.08)),
+    rgba(255, 255, 255, 0.04);
+  border-color: rgba(var(--accent-rgb), 0.36);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.22) inset;
+}
+.tec-sim__stage-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: baseline;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 8px;
+  gap: 0;
+  align-items: start;
 }
-.tec-sim__derived-row span {
+.tec-sim__stage-shell {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 34%),
+    linear-gradient(160deg, rgba(8, 15, 30, 0.9), rgba(12, 20, 36, 0.78));
+  box-shadow: 0 28px 60px rgba(2, 8, 23, 0.3);
+  display: grid;
+  gap: 16px;
+}
+.tec-sim__sidebar {
+  width: 380px;
+  max-height: 80vh;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 28px 28px 0;
+  padding: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.08), transparent 34%),
+    linear-gradient(160deg, rgba(8, 15, 30, 0.9), rgba(12, 20, 36, 0.78));
+  box-shadow: 0 28px 60px rgba(2, 8, 23, 0.3);
+  display: grid;
+  gap: 14px;
+}
+.tec-sim__sidebar.is-collapsed {
+  display: none;
+}
+.tec-sim__sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tec-sim__sidebar-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tec-sim__sidebar-body {
+  display: grid;
+  gap: 14px;
+}
+.tec-sim__sidebar-panel {
+  display: grid;
+  gap: 12px;
+}
+.tec-sim__sidebar-panel.is-hidden {
+  display: none;
+}
+.tec-sim__quickbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: end;
+}
+.tec-sim__quick-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tec-sim__quick-select {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+}
+.tec-sim__quick-select > span {
+  font-size: 0.78rem;
   color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tec-sim__stage-chrome {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 22px;
+}
+.tec-sim__loading-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  background: rgba(8, 14, 26, 0.72);
+  backdrop-filter: blur(6px);
+  z-index: 4;
+  place-items: center;
+  place-content: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.tec-sim__stage-chrome.is-loading .tec-sim__loading-overlay {
+  display: grid;
+}
+.tec-sim__loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: tec-sim-spin 0.8s linear infinite;
+}
+@keyframes tec-sim-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.tec-sim__stage-canvas {
+  width: 100%;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(59, 130, 246, 0.08), rgba(0, 0, 0, 0.16)),
+    rgba(0, 0, 0, 0.2);
+}
+.tec-sim__stage-canvas--flat {
+  aspect-ratio: 2 / 1;
+}
+.tec-sim__stage-canvas--sphere {
+  aspect-ratio: 1 / 1;
+  max-width: min(100%, 860px);
+  margin-inline: auto;
+}
+.tec-sim__stage-note {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  max-width: min(460px, calc(100% - 36px));
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(6, 11, 22, 0.72);
+  backdrop-filter: blur(14px);
+  color: var(--muted);
+  font-size: 0.88rem;
+  box-shadow: 0 18px 28px rgba(2, 8, 23, 0.24);
+  pointer-events: none;
+}
+.tec-sim__inspector-card {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 14, 26, 0.82);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 26px 44px rgba(2, 8, 23, 0.28);
+  color: var(--text);
+  z-index: 3;
+  pointer-events: none;
+}
+.tec-sim__inspector-card[hidden] {
+  display: none;
+}
+.tec-sim__inspector-card {
+  top: 18px;
+  right: 18px;
+  width: min(360px, calc(100% - 36px));
+  max-height: calc(100% - 36px);
+  overflow: auto;
+  border-radius: 24px;
+  padding: 16px;
+}
+.tec-sim__sheet-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tec-sim__sheet-close {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0;
+}
+.tec-sim__sheet-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tec-sim__sheet-panel {
+  display: grid;
+  gap: 12px;
+}
+.tec-sim__sheet-panel.is-hidden {
+  display: none;
+}
+.tec-sim__sheet-subsection {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+}
+.tec-sim__inspector-section {
+  display: grid;
+  gap: 12px;
+}
+.tec-sim__help-grid {
+  display: grid;
+  gap: 10px;
+}
+.tec-sim__help-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.tec-sim__help-item kbd {
+  min-width: 64px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 5px 8px;
+  color: var(--text);
+  text-align: center;
+}
+.tec-sim__summary-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.9fr);
+  gap: 14px;
+  align-items: start;
+}
+.tec-sim__summary-note {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  padding: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    rgba(8, 14, 26, 0.62);
+  display: grid;
+  gap: 12px;
 }
 @media (max-width: 900px) {
   .tec-sim__playback {
     grid-template-columns: 1fr;
   }
-  .tec-sim__views,
-  .tec-sim__bottom {
+  .tec-sim__summary-strip {
     grid-template-columns: 1fr;
+  }
+  .tec-sim__action-cluster {
+    justify-content: flex-start;
+  }
+  .tec-sim__stage-layout {
+    grid-template-columns: 1fr;
+  }
+  .tec-sim__stage-shell {
+    padding: 14px;
+  }
+  .tec-sim__sidebar {
+    width: auto;
+    max-height: min(60vh, 400px);
+    border-radius: 0 0 28px 28px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .tec-sim__inspector-card {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    width: auto;
+    max-height: min(72vh, 520px);
+    bottom: 12px;
+  }
+  .tec-sim__stage-note {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+  }
+}
+@media (max-width: 720px) {
+  .tec-sim__terrain-overlay {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    min-width: 0;
+  }
+  .tec-sim__terrain-inspector {
+    right: 10px;
+    left: 10px;
+    top: 10px;
+    min-width: 0;
+    max-width: none;
+  }
+  .tec-sim__quickbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .tec-sim__quick-select {
+    min-width: 0;
   }
 }
 

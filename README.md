@@ -1,4 +1,4 @@
-# WorldSmith Web 1.23.0 BETA
+# WorldSmith Web 1.23.1 BETA
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, planetary systems, planets, moons, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 

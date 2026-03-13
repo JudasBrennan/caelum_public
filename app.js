@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { initStarPage } from "./ui/starPage.js";
 import { initSystemPage } from "./ui/systemPage.js";
 import { initOuterObjectsPage } from "./ui/outerObjectsPage.js";
@@ -9,6 +8,7 @@ import { initImportExportPage } from "./ui/importExportPage.js";
 import { initAboutPage } from "./ui/aboutPage.js";
 import { initApparentPage } from "./ui/apparentPage.js";
 import { initTectonicsPage } from "./ui/tectonicsPage.js";
+import { initTectonicsSimulatorPage } from "./ui/tectonicsSimulatorPage.js";
 import { initClimatePage } from "./ui/climatePage.js";
 import { initPopulationPage } from "./ui/populationPage.js";
 import * as store from "./ui/store.js";
@@ -550,6 +550,7 @@ const PAGE_MAP = {
     return mod.initSciencePage;
   }, "Science and Maths"),
   tectonics: eagerPage(initTectonicsPage, "Tectonics"),
+  "tectonics-simulator": eagerPage(initTectonicsSimulatorPage, "Plate Simulator Workspace"),
   climate: eagerPage(initClimatePage, "Climate Zones"),
   population: eagerPage(initPopulationPage, "Population"),
   lessons: lazyPage(async () => {

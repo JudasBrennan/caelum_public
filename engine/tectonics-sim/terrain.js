@@ -1,9 +1,33 @@
-// SPDX-License-Identifier: MPL-2.0
 import { latLonToXYZ } from "../plates.js";
 import { clamp } from "../utils.js";
+import {
+  buildContourMaskRaster,
+  buildContourSourceRaster,
+  buildHillshadeRaster,
+  buildSlopeAspectRasters,
+} from "./terrainDerivatives.js";
+import {
+  applyTerrainCoastlineColor,
+  buildTerrainModeStyle,
+  colorAspectAngle,
+  colorSlopeAngle,
+  colorSlopeAspectValue,
+  colorTerrainHeight,
+} from "./terrainStyles.js";
 
-const TERRAIN_CACHE = new Map();
-const MAX_CACHE = 16;
+const TERRAIN_GEOMETRY_CACHE = new Map();
+const TERRAIN_DERIVATIVE_CACHE = new Map();
+const TERRAIN_CONTOUR_CACHE = new Map();
+const TERRAIN_MODE_CACHE = new Map();
+const TERRAIN_LOOKUP_CACHE = new Map();
+const MAX_CACHE = 12;
+const TERRAIN_LOOKUP_CANDIDATES = 16;
+const EMPTY_CELL = 65535;
+
+const TERRAIN_PREVIEW_SIZES = Object.freeze({
+  interactive: Object.freeze({ width: 512, height: 256 }),
+  settled: Object.freeze({ width: 1024, height: 512 }),
+});
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -48,118 +72,28 @@ function fractalNoise(lonDeg, latDeg, octaves = 3, seed = 1) {
   return totalAmp > 0 ? sum / totalAmp : 0;
 }
 
-function colorRamp(stops, value) {
-  if (!stops.length) return [0, 0, 0];
-  if (value <= stops[0][0]) return stops[0][1];
-  for (let i = 1; i < stops.length; i += 1) {
-    if (value > stops[i][0]) continue;
-    const [prevValue, prevColor] = stops[i - 1];
-    const [nextValue, nextColor] = stops[i];
-    const t = smoothstep(prevValue, nextValue, value);
-    return [
-      Math.round(lerp(prevColor[0], nextColor[0], t)),
-      Math.round(lerp(prevColor[1], nextColor[1], t)),
-      Math.round(lerp(prevColor[2], nextColor[2], t)),
-    ];
-  }
-  return stops[stops.length - 1][1];
+function setCache(map, key, value) {
+  map.set(key, value);
+  if (map.size <= MAX_CACHE) return;
+  const firstKey = map.keys().next().value;
+  if (firstKey) map.delete(firstKey);
 }
 
-function terrainColor(heightM) {
-  if (heightM < 0) {
-    return colorRamp(
-      [
-        [-11000, [7, 27, 67]],
-        [-7000, [12, 47, 98]],
-        [-4000, [25, 78, 140]],
-        [-1200, [74, 124, 168]],
-        [-250, [116, 151, 179]],
-        [0, [160, 186, 191]],
-      ],
-      heightM,
-    );
-  }
-
-  return colorRamp(
-    [
-      [0, [84, 106, 70]],
-      [350, [102, 126, 79]],
-      [1200, [126, 137, 92]],
-      [2600, [140, 122, 89]],
-      [4200, [165, 145, 117]],
-      [6500, [186, 169, 152]],
-      [9000, [232, 230, 228]],
-      [12000, [250, 249, 248]],
-    ],
-    heightM,
-  );
+function getTerrainTime(model) {
+  return model.snapshot?.timeMyr ?? model.state?.timeMyr ?? model.timeMyr ?? 0;
 }
 
-function topographyColor(heightM) {
-  if (heightM < 0) {
-    return colorRamp(
-      [
-        [-11000, [11, 22, 72]],
-        [-8000, [18, 46, 122]],
-        [-6000, [20, 73, 164]],
-        [-3500, [31, 116, 196]],
-        [-1800, [72, 175, 221]],
-        [-600, [122, 214, 235]],
-        [-80, [190, 240, 245]],
-        [0, [220, 248, 247]],
-      ],
-      heightM,
-    );
-  }
-
-  return colorRamp(
-    [
-      [0, [138, 210, 132]],
-      [120, [118, 194, 108]],
-      [450, [163, 210, 112]],
-      [900, [211, 213, 134]],
-      [1800, [202, 181, 115]],
-      [3000, [175, 136, 86]],
-      [4500, [146, 108, 79]],
-      [6200, [176, 164, 160]],
-      [8500, [242, 240, 237]],
-      [12000, [255, 255, 255]],
-    ],
-    heightM,
-  );
+function getTerrainGridId(model) {
+  return model.grid?.id || model.gridId || `cells-${model.cells?.length || 0}`;
 }
 
-function grayscaleColor(value, min, max) {
-  const t = smoothstep(min, max, value);
-  const v = Math.round(lerp(20, 245, t));
-  return [v, v, v];
-}
-
-function contourFactor(heightM) {
-  const interval = heightM < 0 ? 500 : 250;
-  const remainder = Math.abs(heightM % interval);
-  const dist = Math.min(remainder, interval - remainder);
-  return 1 - smoothstep(0, interval * 0.18, dist);
-}
-
-function buildRasterKey(model, width, height, mode) {
+function buildGeometryKey(model, width, height) {
   return JSON.stringify({
     width,
     height,
-    mode,
-    timeMyr: model.snapshot?.timeMyr ?? model.state?.timeMyr ?? 0,
-    grid: model.grid.id,
-    plates: model.state?.plates?.map((plate) => [
-      plate.id,
-      plate.latDeg,
-      plate.lonDeg,
-      plate.eulerPoleLat,
-      plate.eulerPoleLon,
-      plate.angularVelDegMyr,
-    ]),
-    cellOwners: model.snapshot?.cellPlateIds ?? model.state?.cellPlateIds,
-    cellCrust: model.snapshot?.cellCrustTypes ?? model.state?.cellCrustTypes,
-    terrainStamp: model.cells?.map((cell) => [
+    timeMyr: getTerrainTime(model),
+    grid: getTerrainGridId(model),
+    terrainStamp: (model.cells || []).map((cell) => [
       cell.id,
       Math.round(cell.terrainElevationM ?? cell.elevationM ?? 0),
       Number((cell.ridgeStrength ?? 0).toFixed(2)),
@@ -177,31 +111,170 @@ function buildRasterKey(model, width, height, mode) {
   });
 }
 
-function setCache(key, value) {
-  TERRAIN_CACHE.set(key, value);
-  if (TERRAIN_CACHE.size <= MAX_CACHE) return;
-  const firstKey = TERRAIN_CACHE.keys().next().value;
-  if (firstKey) TERRAIN_CACHE.delete(firstKey);
+function buildModeKey(geometryKey, mode, options = {}) {
+  if (mode === "slope" || mode === "aspect" || mode === "slopeaspect") {
+    return `${mode}::${geometryKey}`;
+  }
+  const presetId =
+    mode === "heightmap" ? "raw-height" : String(options.terrainStylePreset || "physical");
+  const reliefStrength =
+    mode === "heightmap" ? "1.00" : (Number(options.reliefStrength) || 1).toFixed(2);
+  const coastlineEmphasis =
+    mode === "heightmap" ? "0.00" : (Number(options.coastlineEmphasis) || 1).toFixed(2);
+  const prefix = `${mode}:${presetId}:${reliefStrength}:${coastlineEmphasis}`;
+  if (mode === "topography") {
+    return `${prefix}:${Math.max(25, Number(options.topographyBandStepM) || 250)}:${String(
+      options.topographyPeakColor || "",
+    ).toLowerCase()}::${geometryKey}`;
+  }
+  return `${prefix}::${geometryKey}`;
+}
+
+function buildDerivativeKey(geometryKey, planetRadiusM) {
+  return `${geometryKey}::${Math.round(Number(planetRadiusM) || 6371000)}`;
+}
+
+function buildContourKey(geometryKey, topographyBandStepM, majorEvery = 5) {
+  return `${geometryKey}::${Math.max(25, Number(topographyBandStepM) || 250)}::${Math.max(
+    1,
+    Number(majorEvery) || 5,
+  )}`;
+}
+
+function extractCenterVec(cell) {
+  if (cell?.centerVec) {
+    return {
+      x: Number(cell.centerVec.x) || 0,
+      y: Number(cell.centerVec.y) || 0,
+      z: Number(cell.centerVec.z) || 0,
+    };
+  }
+  return latLonToXYZ(cell.centerLatDeg, cell.centerLonDeg);
+}
+
+function getLookupDimensions(cellCount) {
+  const lonBins = Math.max(96, Math.min(256, Math.round(Math.sqrt(Math.max(24, cellCount)) * 10)));
+  return {
+    lonBins,
+    latBins: Math.max(48, Math.round(lonBins / 2)),
+  };
+}
+
+function buildLookupKey(gridId, cellCount, lonBins, latBins, candidateCount) {
+  return `${gridId}:${cellCount}:${lonBins}x${latBins}:${candidateCount}`;
+}
+
+function insertNearest(nearest, entry, limit) {
+  if (nearest.length < limit) {
+    nearest.push(entry);
+    nearest.sort((left, right) => right.score - left.score);
+    return;
+  }
+  if (entry.score <= nearest[nearest.length - 1].score) return;
+  nearest[nearest.length - 1] = entry;
+  nearest.sort((left, right) => right.score - left.score);
+}
+
+function getSpatialLookup(model, candidateCount = TERRAIN_LOOKUP_CANDIDATES) {
+  const cells = model.cells || [];
+  const gridId = getTerrainGridId(model);
+  const { lonBins, latBins } = getLookupDimensions(cells.length);
+  const key = buildLookupKey(gridId, cells.length, lonBins, latBins, candidateCount);
+  const cached = TERRAIN_LOOKUP_CACHE.get(key);
+  if (cached) return cached;
+
+  const cellVectors = cells.map(extractCenterVec);
+  const candidates = new Uint16Array(lonBins * latBins * candidateCount);
+  candidates.fill(EMPTY_CELL);
+
+  for (let by = 0; by < latBins; by += 1) {
+    const latDeg = 90 - ((by + 0.5) / latBins) * 180;
+    for (let bx = 0; bx < lonBins; bx += 1) {
+      const lonDeg = ((bx + 0.5) / lonBins) * 360 - 180;
+      const vec = latLonToXYZ(latDeg, lonDeg);
+      const nearest = [];
+      for (let i = 0; i < cellVectors.length; i += 1) {
+        const candidate = cellVectors[i];
+        const score = candidate.x * vec.x + candidate.y * vec.y + candidate.z * vec.z;
+        insertNearest(nearest, { index: i, score }, candidateCount);
+      }
+      const start = (by * lonBins + bx) * candidateCount;
+      for (let i = 0; i < nearest.length; i += 1) {
+        candidates[start + i] = nearest[i].index;
+      }
+    }
+  }
+
+  const lookup = { lonBins, latBins, candidateCount, candidates };
+  TERRAIN_LOOKUP_CACHE.set(key, lookup);
+  return lookup;
 }
 
 function buildBlendedSampler(model, neighborCount = 4) {
-  const cellVectors = model.cells.map(
-    (cell) => cell.centerVec || latLonToXYZ(cell.centerLatDeg, cell.centerLonDeg),
-  );
+  const cells = model.cells || [];
+  const cellVectors = cells.map(extractCenterVec);
+  const lookup = getSpatialLookup(model);
+  const count = cells.length;
+
+  const baseElevations = new Float32Array(count);
+  const ridgeStrengths = new Float32Array(count);
+  const trenchStrengths = new Float32Array(count);
+  const arcStrengths = new Float32Array(count);
+  const collisionStrengths = new Float32Array(count);
+  const hotspotInfluences = new Float32Array(count);
+  const superswellInfluences = new Float32Array(count);
+  const coastalStrengths = new Float32Array(count);
+  const erosionFactors = new Float32Array(count);
+  const coastDistances = new Float32Array(count);
+  const shelfDistances = new Float32Array(count);
+  const slopeDistances = new Float32Array(count);
+  const oceanMask = new Uint8Array(count);
+
+  for (let i = 0; i < count; i += 1) {
+    const cell = cells[i];
+    const elevation = cell.terrainElevationM ?? cell.elevationM ?? 0;
+    baseElevations[i] = elevation;
+    ridgeStrengths[i] = cell.ridgeStrength ?? 0;
+    trenchStrengths[i] = cell.trenchStrength ?? 0;
+    arcStrengths[i] = cell.arcStrength ?? 0;
+    collisionStrengths[i] = cell.collisionStrength ?? 0;
+    hotspotInfluences[i] = cell.hotspotInfluence ?? 0;
+    superswellInfluences[i] = cell.superswellInfluence ?? 0;
+    coastalStrengths[i] = cell.coastalStrength ?? 0;
+    erosionFactors[i] = cell.erosionFactor ?? 0;
+    coastDistances[i] = cell.coastDistance ?? 0;
+    shelfDistances[i] = cell.shelfDistance ?? 0;
+    slopeDistances[i] = cell.slopeDistance ?? 0;
+    oceanMask[i] = elevation < 0 ? 1 : 0;
+  }
+
   return (latDeg, lonDeg) => {
     const vec = latLonToXYZ(latDeg, lonDeg);
+    const bx = Math.max(
+      0,
+      Math.min(lookup.lonBins - 1, Math.floor(((lonDeg + 180) / 360) * lookup.lonBins)),
+    );
+    const by = Math.max(
+      0,
+      Math.min(lookup.latBins - 1, Math.floor(((90 - latDeg) / 180) * lookup.latBins)),
+    );
+    const start = (by * lookup.lonBins + bx) * lookup.candidateCount;
     const nearest = [];
-    for (let i = 0; i < cellVectors.length; i += 1) {
-      const candidate = cellVectors[i];
+
+    for (let i = 0; i < lookup.candidateCount; i += 1) {
+      const index = lookup.candidates[start + i];
+      if (index === EMPTY_CELL || index >= count) continue;
+      const candidate = cellVectors[index];
       const score = candidate.x * vec.x + candidate.y * vec.y + candidate.z * vec.z;
-      if (nearest.length < neighborCount) {
-        nearest.push({ index: i, score });
-        nearest.sort((a, b) => b.score - a.score);
-        continue;
+      insertNearest(nearest, { index, score }, neighborCount);
+    }
+
+    if (!nearest.length) {
+      for (let i = 0; i < cellVectors.length; i += 1) {
+        const candidate = cellVectors[i];
+        const score = candidate.x * vec.x + candidate.y * vec.y + candidate.z * vec.z;
+        insertNearest(nearest, { index: i, score }, neighborCount);
       }
-      if (score <= nearest[nearest.length - 1].score) continue;
-      nearest[nearest.length - 1] = { index: i, score };
-      nearest.sort((a, b) => b.score - a.score);
     }
 
     let totalWeight = 0;
@@ -229,23 +302,21 @@ function buildBlendedSampler(model, neighborCount = 4) {
     };
 
     for (let i = 0; i < nearest.length; i += 1) {
-      const { index } = nearest[i];
+      const index = nearest[i].index;
       const weight = totalWeight > 0 ? weights[i] / totalWeight : 1 / nearest.length;
-      const cell = model.cells[index];
-      const elevation = cell.terrainElevationM ?? cell.elevationM ?? 0;
-      sample.baseElevationM += elevation * weight;
-      sample.ridgeStrength += (cell.ridgeStrength ?? 0) * weight;
-      sample.trenchStrength += (cell.trenchStrength ?? 0) * weight;
-      sample.arcStrength += (cell.arcStrength ?? 0) * weight;
-      sample.collisionStrength += (cell.collisionStrength ?? 0) * weight;
-      sample.hotspotInfluence += (cell.hotspotInfluence ?? 0) * weight;
-      sample.superswellInfluence += (cell.superswellInfluence ?? 0) * weight;
-      sample.coastalStrength += (cell.coastalStrength ?? 0) * weight;
-      sample.erosionFactor += (cell.erosionFactor ?? 0) * weight;
-      sample.coastDistance += (cell.coastDistance ?? 0) * weight;
-      sample.shelfDistance += (cell.shelfDistance ?? 0) * weight;
-      sample.slopeDistance += (cell.slopeDistance ?? 0) * weight;
-      sample.oceanFraction += (elevation < 0 ? 1 : 0) * weight;
+      sample.baseElevationM += baseElevations[index] * weight;
+      sample.ridgeStrength += ridgeStrengths[index] * weight;
+      sample.trenchStrength += trenchStrengths[index] * weight;
+      sample.arcStrength += arcStrengths[index] * weight;
+      sample.collisionStrength += collisionStrengths[index] * weight;
+      sample.hotspotInfluence += hotspotInfluences[index] * weight;
+      sample.superswellInfluence += superswellInfluences[index] * weight;
+      sample.coastalStrength += coastalStrengths[index] * weight;
+      sample.erosionFactor += erosionFactors[index] * weight;
+      sample.coastDistance += coastDistances[index] * weight;
+      sample.shelfDistance += shelfDistances[index] * weight;
+      sample.slopeDistance += slopeDistances[index] * weight;
+      sample.oceanFraction += oceanMask[index] * weight;
     }
 
     sample.landFraction = 1 - sample.oceanFraction;
@@ -349,65 +420,27 @@ function smoothHeights(heights, featureMask, width, height, iterations = 2) {
   return current;
 }
 
-function shadeHeightField(heights, width, height, mode) {
-  const shades = new Float32Array(width * height);
-  const light = { x: -0.55, y: -0.35, z: 0.76 };
-  const lightLen = Math.hypot(light.x, light.y, light.z) || 1;
-  light.x /= lightLen;
-  light.y /= lightLen;
-  light.z /= lightLen;
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const index = y * width + x;
-      if (mode === "height" || mode === "heightmap" || mode === "bathymetry") {
-        shades[index] = 0.92;
-        continue;
-      }
-      const left = heights[y * width + Math.max(0, x - 1)];
-      const right = heights[y * width + Math.min(width - 1, x + 1)];
-      const up = heights[Math.max(0, y - 1) * width + x];
-      const down = heights[Math.min(height - 1, y + 1) * width + x];
-      const leftFar = heights[y * width + Math.max(0, x - 3)];
-      const rightFar = heights[y * width + Math.min(width - 1, x + 3)];
-      const upFar = heights[Math.max(0, y - 3) * width + x];
-      const downFar = heights[Math.min(height - 1, y + 3) * width + x];
-      const dx = (right - left) * 0.75 + (rightFar - leftFar) * 0.25;
-      const dy = (down - up) * 0.75 + (downFar - upFar) * 0.25;
-      const normal = {
-        x: -dx / 900,
-        y: -dy / 900,
-        z: 1,
-      };
-      const normLen = Math.hypot(normal.x, normal.y, normal.z) || 1;
-      normal.x /= normLen;
-      normal.y /= normLen;
-      normal.z /= normLen;
-      const diffuse = clamp(normal.x * light.x + normal.y * light.y + normal.z * light.z, -1, 1);
-      const base =
-        mode === "topography"
-          ? clamp(0.58 + diffuse * 0.42, 0.42, 1.22)
-          : clamp(0.62 + diffuse * 0.34, 0.48, 1.18);
-      shades[index] = base;
-    }
+function shadeForMode(hillshadeValue, mode, reliefStrength = 1) {
+  let shade = 1;
+  if (mode === "height" || mode === "heightmap") {
+    shade = 1;
+  } else if (mode === "bathymetry") {
+    shade = 0.86 + hillshadeValue * 0.12;
+  } else if (mode === "topography") {
+    shade = 0.74 + hillshadeValue * 0.22;
+  } else {
+    shade = 0.52 + hillshadeValue * 0.56;
   }
-  return shades;
+  const strength = clamp(Number(reliefStrength) || 1, 0, 2.5);
+  return clamp(1 + (shade - 1) * strength, 0, 2);
 }
 
-export function buildTerrainRaster(model, { width = 1024, height = 512, mode = "shaded" } = {}) {
-  const key = buildRasterKey(model, width, height, mode);
-  const cached = TERRAIN_CACHE.get(key);
-  if (cached) {
-    return {
-      ...cached,
-      colors: new Uint8ClampedArray(cached.colors),
-      heights: new Float32Array(cached.heights),
-      cellIds: new Uint16Array(cached.cellIds),
-    };
-  }
+function buildTerrainGeometry(model, { width = 1024, height = 512 } = {}) {
+  const geometryKey = buildGeometryKey(model, width, height);
+  const cached = TERRAIN_GEOMETRY_CACHE.get(geometryKey);
+  if (cached) return cached;
 
   const sampleFields = buildBlendedSampler(model);
-  const colors = new Uint8ClampedArray(width * height * 4);
   const heights = new Float32Array(width * height);
   const cellIds = new Uint16Array(width * height);
   const featureMask = new Float32Array(width * height);
@@ -430,45 +463,239 @@ export function buildTerrainRaster(model, { width = 1024, height = 512, mode = "
     }
   }
 
-  const smoothedHeights = smoothHeights(heights, featureMask, width, height, 2);
-  const shades = shadeHeightField(smoothedHeights, width, height, mode);
+  const geometry = {
+    width,
+    height,
+    geometryKey,
+    heights: smoothHeights(heights, featureMask, width, height, 2),
+    cellIds,
+  };
+  setCache(TERRAIN_GEOMETRY_CACHE, geometryKey, geometry);
+  return geometry;
+}
 
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const index = y * width + x;
-      const center = smoothedHeights[index];
-      const shade = shades[index];
+function buildTerrainDerivativesFromGeometry(geometry, { planetRadiusM = 6371000 } = {}) {
+  const derivativeKey = buildDerivativeKey(geometry.geometryKey, planetRadiusM);
+  const cached = TERRAIN_DERIVATIVE_CACHE.get(derivativeKey);
+  if (cached) return cached;
+
+  const { slopeDeg, aspectDeg } = buildSlopeAspectRasters(
+    geometry.heights,
+    geometry.width,
+    geometry.height,
+    {
+      planetRadiusM,
+    },
+  );
+  const hillshade = buildHillshadeRaster(geometry.heights, geometry.width, geometry.height, {
+    planetRadiusM,
+    slopeDeg,
+    aspectDeg,
+  });
+
+  const derivatives = {
+    width: geometry.width,
+    height: geometry.height,
+    derivativeKey,
+    slopeDeg,
+    aspectDeg,
+    hillshade,
+  };
+  setCache(TERRAIN_DERIVATIVE_CACHE, derivativeKey, derivatives);
+  return derivatives;
+}
+
+function buildTerrainContourMasksFromGeometry(
+  geometry,
+  { topographyBandStepM = 250, majorEvery = 5 } = {},
+) {
+  const contourKey = buildContourKey(geometry.geometryKey, topographyBandStepM, majorEvery);
+  const cached = TERRAIN_CONTOUR_CACHE.get(contourKey);
+  if (cached) return cached;
+
+  const contourHeights = buildContourSourceRaster(
+    geometry.heights,
+    geometry.width,
+    geometry.height,
+    {
+      passes: 2,
+    },
+  );
+  const contourMasks = buildContourMaskRaster(contourHeights, geometry.width, geometry.height, {
+    minorStepM: topographyBandStepM,
+    majorEvery,
+  });
+  const result = {
+    width: geometry.width,
+    height: geometry.height,
+    contourKey,
+    contourHeights,
+    ...contourMasks,
+  };
+  setCache(TERRAIN_CONTOUR_CACHE, contourKey, result);
+  return result;
+}
+
+function buildModeRaster(geometry, derivatives, contourMasks, mode, options = {}) {
+  const modeKey = buildModeKey(geometry.geometryKey, mode, options);
+  const cached = TERRAIN_MODE_CACHE.get(modeKey);
+  if (cached) return cached;
+
+  const colors = new Uint8ClampedArray(geometry.width * geometry.height * 4);
+  const topographyBandStepM = Math.max(25, Number(options.topographyBandStepM) || 250);
+  const style = buildTerrainModeStyle(mode, {
+    terrainStylePreset: options.terrainStylePreset,
+    reliefStrength: options.reliefStrength,
+    coastlineEmphasis: options.coastlineEmphasis,
+    topographyBandStepM,
+    topographyPeakColor: options.topographyPeakColor,
+  });
+
+  for (let y = 0; y < geometry.height; y += 1) {
+    for (let x = 0; x < geometry.width; x += 1) {
+      const index = y * geometry.width + x;
+      const center = geometry.heights[index];
       let rgb;
-      if (mode === "heightmap") {
-        rgb = grayscaleColor(center, -11000, 12000);
-      } else if (mode === "bathymetry") {
-        rgb = grayscaleColor(Math.min(0, center), -11000, 0);
-      } else if (mode === "topography") {
-        rgb = topographyColor(center);
+      if (mode === "slope") {
+        rgb = colorSlopeAngle(derivatives.slopeDeg[index]);
+      } else if (mode === "aspect") {
+        rgb = colorAspectAngle(derivatives.aspectDeg[index]);
+      } else if (mode === "slopeaspect") {
+        rgb = colorSlopeAspectValue(derivatives.slopeDeg[index], derivatives.aspectDeg[index]);
       } else {
-        rgb = terrainColor(center);
+        const shade = shadeForMode(derivatives.hillshade[index], mode, style.reliefStrength);
+        rgb = colorTerrainHeight(style, center, {
+          topographyBandStepM,
+          applyBands: mode === "topography",
+        });
+        if (mode !== "heightmap") {
+          rgb = applyTerrainCoastlineColor(style, rgb, center);
+        }
+        rgb = rgb.map((channel) => clamp(channel * shade, 0, 255));
       }
       const [r, g, b] = rgb;
-      const contour =
-        mode === "topography" ? 1 - contourFactor(center) * (center < 0 ? 0.16 : 0.12) : 1;
       const pixel = index * 4;
-      colors[pixel] = clamp(r * shade * contour, 0, 255);
-      colors[pixel + 1] = clamp(g * shade * contour, 0, 255);
-      colors[pixel + 2] = clamp(b * shade * contour, 0, 255);
+      colors[pixel] = r;
+      colors[pixel + 1] = g;
+      colors[pixel + 2] = b;
       colors[pixel + 3] = 255;
     }
   }
 
-  const result = { width, height, mode, colors, heights: smoothedHeights, cellIds };
-  setCache(key, result);
+  const result = {
+    width: geometry.width,
+    height: geometry.height,
+    mode,
+    colors,
+    heights: geometry.heights,
+    cellIds: geometry.cellIds,
+    slopeDeg: derivatives.slopeDeg,
+    aspectDeg: derivatives.aspectDeg,
+    hillshade: derivatives.hillshade,
+    contourHeights: contourMasks.contourHeights,
+    minorContourMask: contourMasks.minorContourMask,
+    majorContourMask: contourMasks.majorContourMask,
+    coastContourMask: contourMasks.coastContourMask,
+    terrainStylePreset: style.presetId,
+    reliefStrength: style.reliefStrength,
+    coastlineEmphasis: style.coastlineEmphasis,
+    topographyPeakColor: style.topographyPeakColor,
+  };
+  setCache(TERRAIN_MODE_CACHE, modeKey, result);
+  return result;
+}
+
+export function buildTerrainDerivativeRaster(
+  model,
+  { width = 1024, height = 512, topographyBandStepM = 250 } = {},
+) {
+  const geometry = buildTerrainGeometry(model, { width, height });
+  const derivatives = buildTerrainDerivativesFromGeometry(geometry, {
+    planetRadiusM: Number(model.planetRadiusM) || 6371000,
+  });
+  const contourMasks = buildTerrainContourMasksFromGeometry(geometry, { topographyBandStepM });
   return {
-    ...result,
-    colors: new Uint8ClampedArray(colors),
-    heights: new Float32Array(smoothedHeights),
-    cellIds: new Uint16Array(cellIds),
+    width: geometry.width,
+    height: geometry.height,
+    heights: geometry.heights,
+    cellIds: geometry.cellIds,
+    slopeDeg: derivatives.slopeDeg,
+    aspectDeg: derivatives.aspectDeg,
+    hillshade: derivatives.hillshade,
+    contourHeights: contourMasks.contourHeights,
+    minorContourMask: contourMasks.minorContourMask,
+    majorContourMask: contourMasks.majorContourMask,
+    coastContourMask: contourMasks.coastContourMask,
   };
 }
 
+export function buildTerrainRaster(
+  model,
+  {
+    width = 1024,
+    height = 512,
+    mode = "shaded",
+    topographyBandStepM = 250,
+    terrainStylePreset = "physical",
+    reliefStrength = 1,
+    coastlineEmphasis = 1,
+    topographyPeakColor = null,
+  } = {},
+) {
+  const geometry = buildTerrainGeometry(model, { width, height });
+  const derivatives = buildTerrainDerivativesFromGeometry(geometry, {
+    planetRadiusM: Number(model.planetRadiusM) || 6371000,
+  });
+  const contourMasks = buildTerrainContourMasksFromGeometry(geometry, { topographyBandStepM });
+  return buildModeRaster(geometry, derivatives, contourMasks, mode, {
+    topographyBandStepM,
+    terrainStylePreset,
+    reliefStrength,
+    coastlineEmphasis,
+    topographyPeakColor,
+  });
+}
+
+export function serializeTerrainModel(model) {
+  return {
+    grid: {
+      id: getTerrainGridId(model),
+      count: Number(model.grid?.count) || Number(model.cells?.length) || 0,
+    },
+    timeMyr: getTerrainTime(model),
+    cells: (model.cells || []).map((cell) => {
+      const centerVec = extractCenterVec(cell);
+      return {
+        id: cell.id,
+        centerLatDeg: cell.centerLatDeg,
+        centerLonDeg: cell.centerLonDeg,
+        centerVec,
+        terrainElevationM: cell.terrainElevationM ?? cell.elevationM ?? 0,
+        elevationM: cell.elevationM ?? 0,
+        ridgeStrength: cell.ridgeStrength ?? 0,
+        trenchStrength: cell.trenchStrength ?? 0,
+        arcStrength: cell.arcStrength ?? 0,
+        collisionStrength: cell.collisionStrength ?? 0,
+        hotspotInfluence: cell.hotspotInfluence ?? 0,
+        superswellInfluence: cell.superswellInfluence ?? 0,
+        coastalStrength: cell.coastalStrength ?? 0,
+        erosionFactor: cell.erosionFactor ?? 0,
+        coastDistance: cell.coastDistance ?? 0,
+        shelfDistance: cell.shelfDistance ?? 0,
+        slopeDistance: cell.slopeDistance ?? 0,
+      };
+    }),
+  };
+}
+
+export function getTerrainPreviewSize(quality = "settled") {
+  return TERRAIN_PREVIEW_SIZES[quality] || TERRAIN_PREVIEW_SIZES.settled;
+}
+
 export function clearTerrainRasterCache() {
-  TERRAIN_CACHE.clear();
+  TERRAIN_GEOMETRY_CACHE.clear();
+  TERRAIN_DERIVATIVE_CACHE.clear();
+  TERRAIN_CONTOUR_CACHE.clear();
+  TERRAIN_MODE_CACHE.clear();
+  TERRAIN_LOOKUP_CACHE.clear();
 }

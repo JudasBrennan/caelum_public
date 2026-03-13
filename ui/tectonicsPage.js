@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import {
   calcTectonics,
   listMountainTypes,
@@ -10,7 +9,6 @@ import { fmt } from "../engine/utils.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { createTutorial } from "./tutorial.js";
 import { replaceSelectOptions } from "./domHelpers.js";
-import { initTectonicsSimulator } from "./tectonicsSimulator.js";
 import { escapeHtml } from "./uiHelpers.js";
 import { statRowsHTML } from "./statRows.js";
 import { enableKpiInteractions } from "./planet/outputRender.js";
@@ -232,7 +230,7 @@ const MTN_TYPES = listMountainTypes();
  *             surfaceTempK: number, h2oPct: number,
  *             compositionClass: string, tidalHeatingWm2: number }}
  */
-function getPlanetTectonicContext(world) {
+export function getPlanetTectonicContext(world) {
   const fallback = {
     gravityG: 1,
     massEarth: 1,
@@ -925,7 +923,6 @@ const TUTORIAL_STEPS = [
 // ── Page controller ──────────────────────────────────────
 
 export function initTectonicsPage(containerEl) {
-  let cleanupTectonicsSimulator = null;
   const world = loadWorld();
   const planets = listPlanets(world);
 
@@ -1223,19 +1220,6 @@ export function initTectonicsPage(containerEl) {
     attachTooltips(el);
     enableKpiInteractions(containerEl);
     drawOutputCanvases(el, model, activeProfile, arcDist);
-    if (typeof cleanupTectonicsSimulator === "function") {
-      cleanupTectonicsSimulator();
-      cleanupTectonicsSimulator = null;
-    }
-    const tecSimRoot = containerEl.querySelector("#tecSimulatorRoot");
-    if (tecSimRoot) {
-      cleanupTectonicsSimulator = initTectonicsSimulator(tecSimRoot, {
-        planetContext: { ...pCtx, maxPeakHeightM: model.tectonics.maxPeakHeightM },
-        tectonicRegime: regime,
-        ridgeHeightM: state.ridgeHeightM,
-        spreadingRateFraction: state.spreadingRateFraction,
-      });
-    }
 
     // Sync input-side spreading rate display
     const srNum = containerEl.querySelector("#tecSpreadingRate");
@@ -1570,10 +1554,34 @@ export function initTectonicsPage(containerEl) {
 
         <div class="panel">
           <div class="panel__header">
-            <h2>Plate Simulator Preview</h2>
+            <h2>Plate Simulator Workspace</h2>
           </div>
           <div class="panel__body">
-            <div id="tecSimulatorRoot"></div>
+            <p>
+              The simulator now lives on its own dedicated route so plate editing, geology
+              inspection, terrain preview, and export share one viewport-first workspace.
+            </p>
+            <div class="kpi-grid">
+              <div class="kpi-wrap"><div class="kpi">
+                <div class="kpi__label">Mode</div>
+                <div class="kpi__value">Dedicated Page</div>
+                <div class="kpi__meta">State persists across route entry and reload.</div>
+              </div></div>
+              <div class="kpi-wrap"><div class="kpi">
+                <div class="kpi__label">Active Planet</div>
+                <div class="kpi__value">${escapeHtml(selectedPlanet?.name || selectedPlanet?.inputs?.name || "No planet")}</div>
+                <div class="kpi__meta">${escapeHtml(regime)} regime</div>
+              </div></div>
+              <div class="kpi-wrap"><div class="kpi">
+                <div class="kpi__label">Terrain Context</div>
+                <div class="kpi__value">${fmt(ctx.gravityG, 2)} g</div>
+                <div class="kpi__meta">${fmt(state.ridgeHeightM, 0)} m ridge height</div>
+              </div></div>
+            </div>
+            <div class="button-row">
+              <button type="button" id="tecOpenSimulator">Open Plate / Geology Workspace</button>
+              <button type="button" id="tecOpenTerrainWorkspace">Open Terrain Workspace</button>
+            </div>
           </div>
         </div>
 
@@ -1593,19 +1601,6 @@ export function initTectonicsPage(containerEl) {
       );
     }
     drawOutputCanvases(containerEl, model, activeProfile, arcDist);
-    if (typeof cleanupTectonicsSimulator === "function") {
-      cleanupTectonicsSimulator();
-      cleanupTectonicsSimulator = null;
-    }
-    const tecSimRoot = containerEl.querySelector("#tecSimulatorRoot");
-    if (tecSimRoot) {
-      cleanupTectonicsSimulator = initTectonicsSimulator(tecSimRoot, {
-        planetContext: { ...ctx, maxPeakHeightM: model.tectonics.maxPeakHeightM },
-        tectonicRegime: regime,
-        ridgeHeightM: state.ridgeHeightM,
-        spreadingRateFraction: state.spreadingRateFraction,
-      });
-    }
   }
 
   render();
@@ -1852,6 +1847,15 @@ export function initTectonicsPage(containerEl) {
   containerEl.addEventListener("click", (e) => {
     const t = e.target;
 
+    if (t.id === "tecOpenSimulator") {
+      location.hash = "#/tectonics-simulator?mode=plate";
+      return;
+    }
+    if (t.id === "tecOpenTerrainWorkspace") {
+      location.hash = "#/tectonics-simulator?mode=terrain";
+      return;
+    }
+
     // Isostasy toggle
     if (t.classList.contains("tec-iso-btn")) {
       state.isostasyMode = t.dataset.iso || "off";
@@ -1967,7 +1971,5 @@ export function initTectonicsPage(containerEl) {
     }
   });
 
-  return () => {
-    if (typeof cleanupTectonicsSimulator === "function") cleanupTectonicsSimulator();
-  };
+  return () => {};
 }

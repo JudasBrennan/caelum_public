@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: MPL-2.0
 import { oceanDepth, spreadingRate } from "../tectonics.js";
 import { calcPlates, latLonToXYZ } from "../plates.js";
 import { clamp } from "../utils.js";
+import { getDefaultTopographyPeakColor } from "./terrainStyles.js";
 import {
   computeBoundaryKinematics,
   computeLocalMotion,
@@ -11,7 +11,7 @@ import {
 import { getTectonicsSimulatorGrid, TECTONICS_GRID_RESOLUTIONS } from "./grid.js";
 import { computePlaybackSnapshot } from "./playback.js";
 
-export const TECTONICS_SIMULATOR_VERSION = 4;
+export const TECTONICS_SIMULATOR_VERSION = 5;
 
 export const TECTONICS_SIMULATOR_TOOLS = [
   { id: "select", label: "Select" },
@@ -48,6 +48,21 @@ export const TECTONICS_SIMULATOR_LAYERS = [
   { id: "elevation", label: "Elevation" },
   { id: "volcanism", label: "Volcanism" },
   { id: "seismicity", label: "Seismicity" },
+];
+
+const WORKSPACE_MODES = ["plate", "terrain"];
+const WORKSPACE_PROJECTIONS = ["flat", "sphere"];
+const WORKSPACE_PLATE_RAIL_TABS = ["plates", "tools", "layers", "selection"];
+const WORKSPACE_TERRAIN_RAIL_TABS = ["view", "selection"];
+const WORKSPACE_TERRAIN_MODES = [
+  "shaded",
+  "topography",
+  "height",
+  "bathymetry",
+  "slope",
+  "aspect",
+  "slopeaspect",
+  "heightmap",
 ];
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
@@ -111,6 +126,110 @@ function normalizeBrushRadius(value) {
   return Math.max(0, Math.min(3, Math.round(toFinite(value, 1))));
 }
 
+function normalizeWorkspaceMode(value) {
+  return WORKSPACE_MODES.includes(value) ? value : "plate";
+}
+
+function normalizeWorkspaceProjection(value) {
+  return WORKSPACE_PROJECTIONS.includes(value) ? value : "flat";
+}
+
+function normalizeWorkspaceTab(value, valid, fallback) {
+  return valid.includes(value) ? value : fallback;
+}
+
+function normalizeTerrainMode(value) {
+  return WORKSPACE_TERRAIN_MODES.includes(value) ? value : "shaded";
+}
+
+function createDefaultWorkspaceState() {
+  return {
+    mode: "plate",
+    projection: "flat",
+    plateRailTab: "plates",
+    terrainRailTab: "view",
+    dockTab: "summary",
+    leftRailCollapsed: false,
+    inspectorCollapsed: false,
+    dockCollapsed: false,
+    controlsOpen: false,
+    exportOpen: false,
+    helpOpen: false,
+    playbackExpanded: false,
+    terrainMode: "shaded",
+    topographyBandStepM: 250,
+    topographyMajorEvery: 5,
+    topographyShowMinorContours: true,
+    topographyShowOceanContours: true,
+    terrainStylePreset: "physical",
+    terrainTopographyPeakColor: getDefaultTopographyPeakColor("physical"),
+    terrainTopographyPeakCustomized: false,
+    terrainReliefStrength: 1,
+    terrainCoastlineEmphasis: 1,
+    terrainExportPreset: "preview",
+    terrainExportSize: "preview",
+    inspectorFx: null,
+    inspectorFy: null,
+  };
+}
+
+function normalizeWorkspaceState(rawWorkspace) {
+  const source =
+    rawWorkspace && typeof rawWorkspace === "object" && !Array.isArray(rawWorkspace)
+      ? rawWorkspace
+      : {};
+  const terrainStylePreset = String(source.terrainStylePreset || "physical");
+  const terrainTopographyPeakCustomized = Boolean(source.terrainTopographyPeakCustomized);
+  return {
+    mode: normalizeWorkspaceMode(source.mode),
+    projection: normalizeWorkspaceProjection(source.projection),
+    plateRailTab: normalizeWorkspaceTab(source.plateRailTab, WORKSPACE_PLATE_RAIL_TABS, "plates"),
+    terrainRailTab: normalizeWorkspaceTab(
+      source.terrainRailTab,
+      WORKSPACE_TERRAIN_RAIL_TABS,
+      "view",
+    ),
+    inspectorCollapsed: Boolean(source.inspectorCollapsed),
+    sidebarTab:
+      typeof source.sidebarTab === "string" &&
+      ["controls", "timeline", "style", "export"].includes(source.sidebarTab)
+        ? source.sidebarTab
+        : null,
+    terrainMode: normalizeTerrainMode(source.terrainMode),
+    topographyBandStepM: clamp(toFinite(source.topographyBandStepM, 250), 100, 1000),
+    topographyMajorEvery: clamp(Math.round(toFinite(source.topographyMajorEvery, 5)), 2, 10),
+    topographyShowMinorContours:
+      source.topographyShowMinorContours == null
+        ? true
+        : Boolean(source.topographyShowMinorContours),
+    topographyShowOceanContours:
+      source.topographyShowOceanContours == null
+        ? true
+        : Boolean(source.topographyShowOceanContours),
+    terrainStylePreset,
+    terrainTopographyPeakColor:
+      typeof source.terrainTopographyPeakColor === "string" &&
+      /^#?[0-9a-f]{6}$/i.test(source.terrainTopographyPeakColor)
+        ? source.terrainTopographyPeakColor.startsWith("#")
+          ? source.terrainTopographyPeakColor
+          : `#${source.terrainTopographyPeakColor}`
+        : getDefaultTopographyPeakColor(terrainStylePreset),
+    terrainTopographyPeakCustomized,
+    terrainReliefStrength: clamp(toFinite(source.terrainReliefStrength, 1), 0, 2),
+    terrainCoastlineEmphasis: clamp(toFinite(source.terrainCoastlineEmphasis, 1), 0, 2),
+    terrainExportPreset: String(source.terrainExportPreset || "preview"),
+    terrainExportSize: String(source.terrainExportSize || "preview"),
+    inspectorFx:
+      Number.isFinite(Number(source.inspectorFx)) && source.inspectorFx != null
+        ? clamp(Number(source.inspectorFx), 0, 1)
+        : null,
+    inspectorFy:
+      Number.isFinite(Number(source.inspectorFy)) && source.inspectorFy != null
+        ? clamp(Number(source.inspectorFy), 0, 1)
+        : null,
+  };
+}
+
 function getGridForState(stateLike) {
   return getTectonicsSimulatorGrid(normalizeGridResolution(stateLike?.gridResolution));
 }
@@ -121,6 +240,7 @@ function cloneNormalizedState(state) {
     plates: state.plates.map((plate) => ({ ...plate })),
     cellPlateIds: [...state.cellPlateIds],
     cellCrustTypes: [...state.cellCrustTypes],
+    workspace: { ...state.workspace },
   };
 }
 
@@ -340,6 +460,7 @@ export function createDefaultTectonicsSimulatorState() {
     selectedCellId: grid.cells[0]?.id || null,
     cellPlateIds: createDefaultCellAssignments(grid, plates),
     cellCrustTypes: Array.from({ length: grid.cells.length }, () => null),
+    workspace: createDefaultWorkspaceState(),
   };
 }
 
@@ -386,6 +507,7 @@ export function normalizeTectonicsSimulatorState(raw) {
       : Array.from({ length: grid.cells.length }, () => null);
   const selectedCellId =
     grid.cells.find((cell) => cell.id === source.selectedCellId)?.id || grid.cells[0]?.id || null;
+  const workspace = normalizeWorkspaceState(source.workspace);
 
   return {
     version: TECTONICS_SIMULATOR_VERSION,
@@ -402,6 +524,7 @@ export function normalizeTectonicsSimulatorState(raw) {
     selectedCellId,
     cellPlateIds,
     cellCrustTypes,
+    workspace,
   };
 }
 

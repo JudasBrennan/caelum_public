@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 export function initAboutPage(mountEl) {
   const el = document.createElement("div");
   el.className = "page";
@@ -10,7 +9,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 1.23.0 BETA</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 1.23.1 BETA</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, planetary systems, rocky worlds, gas giants, moons, and debris disks with
           real astrophysics. Model tectonics, climate zones, atmospheres, populations, and calendars.
           Explore your creations in an interactive 3D visualiser with procedural textures, or study
@@ -292,6 +291,14 @@ function release(version, note, items, { open = false } = {}) {
 function changelogHTML() {
   return [
     release(
+      "1.23.1 BETA",
+      "(beta, from 1.23.0 BETA)",
+      [
+        "<b>Gas Giant Input Fix</b> &mdash; Gas-giant numeric inputs on the Planet page now update correctly again after the shared slider-id migration. This patch mainly targets the broken manual-entry path that was most noticeable on mobile devices.",
+      ],
+      { open: true },
+    ),
+    release(
       "1.23.0 BETA",
       "(beta, from 1.22.1)",
       [
@@ -299,7 +306,7 @@ function changelogHTML() {
         "<b>Terrain and Topography Output</b> &mdash; The simulator now derives terrain, bathymetry, shaded relief, and a dedicated topography map mode from the tectonic model. Terrain previews are smoother and more terrain-like, and the export buttons now expose the matching raster outputs directly.",
         "<b>Plate Editing Workflow</b> &mdash; Plate authoring now supports select, brush, fill, and erase tools, separate ownership versus crust painting, richer selected-cell readouts, and JSON plate-map / crust-map imports. This gives the simulator a usable pre-climate authoring workflow instead of a seed-only preview.",
       ],
-      { open: true },
+      { open: false },
     ),
     release("1.22.1", "(from 1.22.0)", [
       "<b>Unified Celestial Outputs</b> &mdash; Star, Planet, and Moon pages now share the same sectioned KPI layout, so dense output pages read as structured reports instead of one long wall of cards. Secondary values also open reliably on touch devices with explicit tap-to-expand detail.",

@@ -4,6 +4,20 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 1.23.1 BETA - 2026-03-10
+
+### Gas Giant Input Fix
+
+**Restored gas-giant numeric input updates after the gas-giant form renderer rename**
+(ui/planetPage.js, tests/inputDraftStability.ui.test.js)
+
+Fixed the Planet-page gas-giant number/slider bindings after the form
+renderer moved those sliders to the shared `*_slider` id pattern. The
+old page selectors were still querying the removed camel-case slider
+ids, which meant gas-giant numeric edits silently failed to commit.
+This was especially visible on mobile, where manual number entry is the
+primary interaction path.
+
 ## 1.23.0 BETA - 2026-03-10
 
 ### Tectonics Simulator Beta

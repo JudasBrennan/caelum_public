@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { clamp } from "../utils.js";
 import { latLonToXYZ, sphericalVoronoi, xyzToLatLon } from "../plates.js";
 
@@ -7,6 +6,7 @@ export const TECTONICS_GRID_RESOLUTIONS = [
   { id: "medium", label: "Medium", count: 162 },
   { id: "fine", label: "Fine", count: 252 },
   { id: "veryFine", label: "Very Fine", count: 512 },
+  { id: "ultra", label: "Ultra (Experimental)", count: 1024 },
 ];
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
@@ -20,7 +20,7 @@ function toResolutionEntry(resolutionId) {
 }
 
 function createFibonacciSeeds(count) {
-  const total = Math.max(24, Math.min(512, Math.round(Number(count) || 92)));
+  const total = Math.max(24, Math.min(1024, Math.round(Number(count) || 92)));
   const seeds = [];
 
   for (let i = 0; i < total; i += 1) {
