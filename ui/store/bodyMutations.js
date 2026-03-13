@@ -26,12 +26,14 @@ export function selectPlanetInWorld(world, planetId) {
 
 export function createPlanetInWorld(world, inputs, { name = "New Planet" } = {}) {
   const id = makeEntityId("p");
+  const normalizedInputs = { ...(inputs || {}) };
+  if (normalizedInputs.ringMode == null) normalizedInputs.ringMode = "auto";
   const planet = {
     id,
     name: name || inputs?.name || "New Planet",
     slotIndex: null,
     locked: false,
-    inputs: { ...(inputs || {}) },
+    inputs: normalizedInputs,
   };
   world.planets.byId[id] = planet;
   world.planets.order.push(id);

@@ -29,6 +29,7 @@
 //          display strings for the UI.
 
 import { clamp, fmt, toFinite } from "./utils.js";
+import { deriveRockyRingScience } from "./planetaryRings.js";
 import { calcStar } from "./star.js";
 import { findNearestResonance } from "./debrisDisk.js";
 import {
@@ -179,6 +180,10 @@ function buildPlanetSummaryResult({
   orbitalPeriodEarthYears,
   orbitalPeriodEarthDays,
   localDaysPerYear,
+  rocheLimitKm,
+  ringScienceSupported,
+  ringScienceReason,
+  ringSourceMoonId,
 }) {
   return {
     star,
@@ -200,6 +205,10 @@ function buildPlanetSummaryResult({
       orbitalPeriodEarthYears,
       orbitalPeriodEarthDays,
       localDaysPerYear,
+      rocheLimitKm,
+      ringScienceSupported,
+      ringScienceReason,
+      ringSourceMoonId,
     },
   };
 }
@@ -422,6 +431,11 @@ export function calcPlanetExact({
   const orbitalPeriodEarthYears = calcOrbitalPeriodEarthYears(semiMajorAxisAu, starMassMsol); // F36
   const orbitalPeriodEarthDays = orbitalPeriodEarthYears * DAYS_PER_YEAR; // F37
   const localDaysPerYear = (orbitalPeriodEarthDays * 24) / rotationPeriodHours; // C37
+  const rockyRingScience = deriveRockyRingScience({
+    hostRadiusKm: radiusKm,
+    hostDensityGcm3: densityGcm3,
+    moons,
+  });
 
   if (detailLevel === "summary") {
     return buildPlanetSummaryResult({
@@ -441,6 +455,10 @@ export function calcPlanetExact({
       orbitalPeriodEarthYears,
       orbitalPeriodEarthDays,
       localDaysPerYear,
+      rocheLimitKm: rockyRingScience.rocheLimitKm,
+      ringScienceSupported: rockyRingScience.ringScienceSupported,
+      ringScienceReason: rockyRingScience.ringScienceReason,
+      ringSourceMoonId: rockyRingScience.ringSourceMoonId,
     });
   }
 
@@ -906,6 +924,10 @@ export function calcPlanetExact({
       orbitalPeriodEarthDays,
       localDaysPerYear,
       orbitalDirection,
+      rocheLimitKm: rockyRingScience.rocheLimitKm,
+      ringScienceSupported: rockyRingScience.ringScienceSupported,
+      ringScienceReason: rockyRingScience.ringScienceReason,
+      ringSourceMoonId: rockyRingScience.ringSourceMoonId,
 
       pressureKpa,
       n2Pct,
@@ -1034,6 +1056,8 @@ export function calcPlanetExact({
       resonance: nearestResonance
         ? `${nearestResonance.label} (${fmt(nearestResonance.resonanceAu, 3)} AU, ${fmt(nearestResonance.deltaPct * 100, 1)}% off)`
         : "No nearby resonance",
+      rocheLimit:
+        rockyRingScience.rocheLimitKm > 0 ? `${fmt(rockyRingScience.rocheLimitKm, 0)} km` : "\u2014",
       yearDays: fmt(orbitalPeriodEarthDays, 2) + " days",
       localDays: fmt(localDaysPerYear, 2) + " local days",
       pressureKpa: fmt(pressureKpa, 2) + " kPa",

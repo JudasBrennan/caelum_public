@@ -45,7 +45,10 @@ function groupMoonInputsByParentId(moonEntries) {
     if (!moonInputsByParentId.has(raw.planetId)) {
       moonInputsByParentId.set(raw.planetId, []);
     }
-    moonInputsByParentId.get(raw.planetId).push(raw.inputs || {});
+    moonInputsByParentId.get(raw.planetId).push({
+      id: raw.id,
+      ...(raw.inputs || {}),
+    });
   }
   return moonInputsByParentId;
 }

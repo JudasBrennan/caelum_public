@@ -214,6 +214,8 @@ export function renderRockyInputForm(container, { planet, tipLabels } = {}) {
   const greenhouseMode = p.greenhouseMode || "manual";
   const radioisotopeMode = p.radioisotopeMode || "simple";
   const mantleOxidation = p.mantleOxidation || "earth";
+  const ringModeValue =
+    p.ringMode === "force-on" || p.ringMode === "force-off" ? p.ringMode : "auto";
 
   const primaryPhysicalField = {
     id: "mass",
@@ -382,6 +384,30 @@ export function renderRockyInputForm(container, { planet, tipLabels } = {}) {
       hint: "Used in exports and print view.",
       value: planet?.name || "New Planet",
     }),
+    createSpacer(8),
+    createSectionLabel("Rings", tipLabels.Rings || ""),
+    createToggle({
+      className: "physics-trio-toggle",
+      id: "ringModePills",
+      name: "ringMode",
+      style: "margin:4px 0 6px",
+      options: [
+        { id: "ringModeAuto", value: "auto", label: "Auto", checked: ringModeValue === "auto" },
+        {
+          id: "ringModeForceOn",
+          value: "force-on",
+          label: "Force on",
+          checked: ringModeValue === "force-on",
+        },
+        {
+          id: "ringModeForceOff",
+          value: "force-off",
+          label: "Force off",
+          checked: ringModeValue === "force-off",
+        },
+      ],
+    }),
+    createHintNode("ringModeHint", "", "margin-top:5px"),
     createSpacer(8),
     createSectionLabel("Physical", tipLabels.Physical || ""),
     ...createRockyFieldRows([primaryPhysicalField], tipLabels),
@@ -617,6 +643,8 @@ export function renderGasGiantInputForm(
   container,
   { giant, slotHint = "", slotOptions = [], tipLabels, ranges } = {},
 ) {
+  const ringModeValue =
+    giant?.ringMode === "force-on" || giant?.ringMode === "force-off" ? giant.ringMode : "auto";
   replaceChildren(container, [
     createSelectRow({
       id: "ggSlot",
@@ -697,6 +725,35 @@ export function renderGasGiantInputForm(
       placeholder: "auto",
       style: "margin-top:8px",
     }),
+    createSpacer(10),
+    createSectionLabel("Rings", tipLabels["GG Rings"] || ""),
+    createToggle({
+      className: "physics-trio-toggle",
+      id: "ggRingModePills",
+      name: "ggRingMode",
+      style: "margin:4px 0 6px",
+      options: [
+        {
+          id: "ggRingModeAuto",
+          value: "auto",
+          label: "Auto",
+          checked: ringModeValue === "auto",
+        },
+        {
+          id: "ggRingModeForceOn",
+          value: "force-on",
+          label: "Force on",
+          checked: ringModeValue === "force-on",
+        },
+        {
+          id: "ggRingModeForceOff",
+          value: "force-off",
+          label: "Force off",
+          checked: ringModeValue === "force-off",
+        },
+      ],
+    }),
+    createHintNode("ggRingModeHint", "", "margin-top:5px"),
     createSpacer(10),
     createSectionLabel("Orbit & Orientation"),
     createSliderRow({

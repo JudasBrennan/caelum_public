@@ -12,6 +12,7 @@
 //   drawRockyPlanetViz()         → 8–20 px system poster scale
 
 import { clamp } from "../engine/utils.js";
+import { rockyRingScienceFromDerived, resolveRingMode } from "../engine/planetaryRings.js";
 import {
   baselineHydrosphereFractionsForRegime,
   hydrosphereStateFromPlanet,
@@ -85,6 +86,39 @@ function resolveHydrosphere(derived, inputs) {
     pressureAtm: inputs?.pressureAtm ?? derived?.pressureAtm,
     climateState: derived?.climateState,
   });
+}
+
+function rockyRingColourFromDerived(derived) {
+  const tempK = Number(derived?.surfaceTempK);
+  if (Number.isFinite(tempK) && tempK <= 180) return "#d9e6f5";
+  if (Number.isFinite(tempK) && tempK >= 450) return "#b89478";
+  if (String(derived?.compositionClass || "").toLowerCase().includes("ice")) return "#d4e1ee";
+  return "#c8b39b";
+}
+
+function buildRockyRingProfile(derived, inputs) {
+  const ringState = resolveRingMode({
+    ringMode: inputs?.ringMode,
+    ...rockyRingScienceFromDerived(derived),
+  });
+  return {
+    enabled: ringState.effectiveEnabled,
+    ringMode: ringState.ringMode,
+    overrideActive: ringState.overrideActive,
+    againstScience: ringState.againstScience,
+    reason: ringState.scienceReason,
+    sourceMoonId: derived?.ringSourceMoonId || null,
+    colour: rockyRingColourFromDerived(derived),
+    inner: 1.3,
+    outer: 2.12,
+    opacity: clamp(
+      Number.isFinite(Number(derived?.rocheLimitKm)) ? 0.3 : 0.24,
+      0.16,
+      0.36,
+    ),
+    tiltDeg: 100,
+    yawDeg: 18,
+  };
 }
 
 export function computeRockyVisualProfile(derived, inputs) {
@@ -183,6 +217,7 @@ export function computeRockyVisualProfile(derived, inputs) {
     terrain: { type: terrainType, craterDensity },
     vegetation: { coverage: vegCoverage, colour: vegColour },
     special,
+    ring: buildRockyRingProfile(d, inp),
     tidallyLocked: !!d.tidallyLockedToStar,
     seed: inp.name || "planet",
   };

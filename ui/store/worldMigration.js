@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 import { LOCAL_CLUSTER_DEFAULTS, normalizeLocalClusterInputs } from "../../engine/localCluster.js";
+import { normalizeRingMode } from "../../engine/planetaryRings.js";
 import { sanitizeImportedValue } from "./importValidation.js";
 import { normalizeGasGiant } from "./gasGiantModel.js";
 import {
@@ -157,6 +158,7 @@ export function migrateWorld(world) {
     for (const planetId of Object.keys(world.planets.byId)) {
       const inputs = world.planets.byId[planetId]?.inputs;
       if (!inputs) continue;
+      if (inputs.ringMode == null) inputs.ringMode = "auto";
       if (!inputs.greenhouseMode) inputs.greenhouseMode = "manual";
       if (inputs.h2oPct == null) inputs.h2oPct = 0;
       if (inputs.ch4Pct == null) inputs.ch4Pct = 0;
@@ -175,6 +177,9 @@ export function migrateWorld(world) {
   }
   if (world.moon && world.moon.compositionOverride === undefined) {
     world.moon.compositionOverride = null;
+  }
+  if (world.planet && world.planet.ringMode == null) {
+    world.planet.ringMode = "auto";
   }
 
   if (world.planets && world.planets.byId) {
@@ -230,6 +235,7 @@ export function migrateWorld(world) {
 
   if (world.tectonics) {
     const tectonics = world.tectonics;
+    if ("simulator" in tectonics) delete tectonics.simulator;
     if (tectonics.spreadingRateFraction == null) tectonics.spreadingRateFraction = 0.5;
     if (!tectonics.isostasyMode) tectonics.isostasyMode = "off";
     if (!tectonics.margin) {
@@ -316,6 +322,14 @@ export function migrateWorld(world) {
   }
 
   canonicalizeSystemFeatures(world, { normalizeGasGiant });
+
+  if (world.system?.gasGiants?.byId) {
+    for (const gasGiantId of Object.keys(world.system.gasGiants.byId)) {
+      const gasGiant = world.system.gasGiants.byId[gasGiantId];
+      if (!gasGiant) continue;
+      gasGiant.ringMode = normalizeRingMode(gasGiant.ringMode);
+    }
+  }
 
   if (world.version !== SCHEMA_VERSION) world.version = SCHEMA_VERSION;
 

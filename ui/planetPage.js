@@ -3,6 +3,15 @@ import { calcPlanetExact, ISOTOPE_HEAT_FRACTIONS } from "../engine/planet.js";
 import { calcStar } from "../engine/star.js";
 import { calcSystem } from "../engine/system.js";
 import { calcGasGiant } from "../engine/gasGiant.js";
+import {
+  gasGiantRingScienceFromCalc,
+  normalizeRingMode,
+  rockyRingScienceFromDerived,
+  resolveRingMode,
+  RING_MODE_AUTO,
+  RING_MODE_FORCE_OFF,
+  RING_MODE_FORCE_ON,
+} from "../engine/planetaryRings.js";
 import { fmt, relativeLuminance } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
@@ -146,6 +155,8 @@ const TIP_LABEL = {
   // ── Rocky planet outputs ──
   Appearance:
     "Physics-driven visual of the planet from space. Surface colour, oceans, ice caps, clouds, and terrain are derived from composition, water regime, temperature, pressure, and tectonics.\n\nClick Recipes to browse preset input combinations for different planet types.",
+  Rings:
+    "Controls whether rocky-planet rings follow the current Roche-limit science or are manually forced on or off. Auto only enables rings when an assigned moon's current periapsis crosses the rocky Roche limit. Forced settings can go against the science and are labelled explicitly.",
   Composition:
     "Interior composition class derived from Core Mass Fraction (CMF) and Water Mass Fraction (WMF).\n\nIron world: CMF > 60% (Mercury-like interior)\nMercury-like: CMF 45\u201360%\nEarth-like: CMF 25\u201345%\nMars-like: CMF 10\u201325%\nCoreless: CMF < 10%\nOcean world: WMF 0.1\u201310%\nIce world: WMF > 10%",
   "Core Radius":
@@ -266,6 +277,8 @@ const TIP_LABEL = {
     "Age-dependent radius from Fortney et al. (2007) cooling models. Young systems have inflated radii; old systems contract toward baseline. Hot Jupiters (T_eq > 1000 K) receive an extra proximity inflation of 0.1\u20130.3 Rj.",
   "GG Ring Properties":
     "Ring composition depends on equilibrium temperature: icy (<150 K), mixed (150\u2013300 K), or rocky (>300 K). Mass scaled from Saturn\u2019s rings. Optical depth classified as Dense (\u03c4 > 1), Moderate (0.1\u20131), or Tenuous (< 0.1).",
+  "GG Rings":
+    "Choose whether rings follow the science recommendation or are manually forced on or off. Auto follows the derived ring science. Forced settings can go against the science and are labelled explicitly.",
   "GG Tidal":
     "Tidal locking timescale \u221d a\u2076: hot Jupiters at <0.05 AU lock within ~1 Gyr. Circularisation timescale \u221d a^6.5. Both compared to the host star\u2019s age to determine current state.",
 };
@@ -293,6 +306,168 @@ function findNearestSlot(targetAu, orbitsAu, occupiedSlots) {
     }
   }
   return bestSlot;
+}
+
+function buildGasGiantCalc(world, giant, sysModel, gasGiants = listSystemGasGiants(world)) {
+  return calcGasGiant({
+    massMjup: giant.massMjup,
+    radiusRj: giant.radiusRj,
+    orbitAu: Number(giant.au) || sysModel.frostLineAu,
+    eccentricity: giant.eccentricity,
+    inclinationDeg: giant.inclinationDeg,
+    axialTiltDeg: giant.axialTiltDeg,
+    rotationPeriodHours: giant.rotationPeriodHours,
+    metallicity: giant.metallicity,
+    otherGiants: gasGiants
+      .filter((candidate) => candidate.id !== giant.id)
+      .map((candidate) => ({ name: candidate.name, au: candidate.au })),
+    moons: listMoons(world)
+      .filter((moon) => moon.planetId === giant.id)
+      .map((moon) => moon.inputs),
+    starMassMsol: Number(world.star.massMsol) || 1,
+    starLuminosityLsol: sysModel.star.luminosityLsol,
+    starAgeGyr: Number(world.star.ageGyr) || 4.6,
+    starRadiusRsol: sysModel.star.radiusRsol,
+  });
+}
+
+function deriveGasGiantAppearanceState(
+  world,
+  giant,
+  sysModel,
+  gasGiants = listSystemGasGiants(world),
+) {
+  const gasCalc = buildGasGiantCalc(world, giant, sysModel, gasGiants);
+  const derivedStyle = suggestStyles(gasCalc).primary;
+  const science = gasGiantRingScienceFromCalc(gasCalc);
+  const ringState = resolveRingMode({
+    ringMode: giant?.ringMode,
+    scienceEnabled: science.scienceEnabled,
+    scienceReason: science.scienceReason,
+  });
+  return { gasCalc, derivedStyle, ringState };
+}
+
+function getGasGiantRingModeLabel(ringMode) {
+  switch (normalizeRingMode(ringMode)) {
+    case RING_MODE_FORCE_ON:
+      return "Force on";
+    case RING_MODE_FORCE_OFF:
+      return "Force off";
+    case RING_MODE_AUTO:
+    default:
+      return "Auto";
+  }
+}
+
+function formatGasGiantRingHint(ringState) {
+  const visibility = ringState.effectiveEnabled ? "Visible" : "Hidden";
+  if (!ringState.overrideActive) {
+    return `Auto: ${visibility}. ${ringState.scienceReason}`;
+  }
+  const overrideNote = ringState.againstScience
+    ? "Manual override goes against the science."
+    : "Manual override matches the science.";
+  return `${getGasGiantRingModeLabel(ringState.ringMode)}: ${visibility}. ${overrideNote} ${ringState.scienceReason}`;
+}
+
+function buildGasGiantRingDisplay(ringState, gasCalc) {
+  const value = ringState.overrideActive
+    ? `${ringState.effectiveEnabled ? "Visible" : "Hidden"} by override`
+    : ringState.effectiveEnabled
+      ? "Visible"
+      : "Hidden";
+  const metaParts = [];
+  const ringType = String(gasCalc?.display?.ringType || "").trim();
+  const ringDetails = String(gasCalc?.display?.ringDetails || "").trim();
+  if (ringType && ringType.toLowerCase() !== "none") metaParts.push(ringType);
+  if (ringDetails && ringDetails.toLowerCase() !== "none") metaParts.push(ringDetails);
+  metaParts.push(ringState.scienceReason);
+  if (ringState.overrideActive) {
+    metaParts.push(
+      ringState.againstScience
+        ? "Manual override goes against the science."
+        : "Manual override matches the science.",
+    );
+  }
+  return {
+    value,
+    meta: metaParts.filter(Boolean).join(" - "),
+  };
+}
+
+function buildRockyPlanetModel(world, planet) {
+  const assignedMoons = listMoons(world)
+    .filter((moon) => moon.planetId === planet.id)
+    .map((moon) => ({
+      id: moon.id,
+      ...(moon.inputs || {}),
+    }));
+  const sov = getStarOverrides(world.star);
+  const sysGiants = listSystemGasGiants(world).map((gasGiant) => ({
+    name: gasGiant.name,
+    au: gasGiant.au,
+  }));
+  return calcPlanetExact({
+    starMassMsol: Number(world.star.massMsol),
+    starAgeGyr: Number(world.star.ageGyr),
+    starMetallicityFeH: Number(world.star.metallicityFeH) || 0,
+    starRadiusRsolOverride: sov.r,
+    starLuminosityLsolOverride: sov.l,
+    starTempKOverride: sov.t,
+    starEvolutionMode: sov.ev,
+    planet: planet.inputs || {},
+    moons: assignedMoons,
+    gasGiants: sysGiants,
+  });
+}
+
+function deriveRockyPlanetAppearanceState(world, planet) {
+  const model = buildRockyPlanetModel(world, planet);
+  const ringScience = rockyRingScienceFromDerived(model?.derived);
+  const ringState = resolveRingMode({
+    ringMode: planet?.inputs?.ringMode,
+    scienceEnabled: ringScience.scienceEnabled,
+    scienceReason: ringScience.scienceReason,
+  });
+  const visualProfile = computeRockyVisualProfile(model?.derived || {}, planet?.inputs || {});
+  return { model, visualProfile, ringState };
+}
+
+function formatRockyRingHint(ringState) {
+  const visibility = ringState.effectiveEnabled ? "Visible" : "Hidden";
+  if (!ringState.overrideActive) {
+    return `Auto: ${visibility}. ${ringState.scienceReason}`;
+  }
+  const overrideNote = ringState.againstScience
+    ? "Manual override goes against the science."
+    : "Manual override matches the science.";
+  return `${getGasGiantRingModeLabel(ringState.ringMode)}: ${visibility}. ${overrideNote} ${ringState.scienceReason}`;
+}
+
+function buildRockyRingDisplay(ringState, derived) {
+  const value = ringState.overrideActive
+    ? `${ringState.effectiveEnabled ? "Visible" : "Hidden"} by override`
+    : ringState.effectiveEnabled
+      ? "Visible"
+      : "Hidden";
+  const metaParts = [];
+  if (Number.isFinite(Number(derived?.rocheLimitKm)) && Number(derived.rocheLimitKm) > 0) {
+    metaParts.push(`Roche limit ${fmt(derived.rocheLimitKm, 0)} km`);
+  }
+  if (derived?.ringSourceMoonId) metaParts.push(`Source moon ${derived.ringSourceMoonId}`);
+  metaParts.push(ringState.scienceReason);
+  if (ringState.overrideActive) {
+    metaParts.push(
+      ringState.againstScience
+        ? "Manual override goes against the science."
+        : "Manual override matches the science.",
+    );
+  }
+  return {
+    value,
+    meta: metaParts.filter(Boolean).join(" - "),
+  };
 }
 
 /* ── Page ────────────────────────────────────────────────────────── */
@@ -533,6 +708,12 @@ export function initPlanetPage(mountEl) {
     }
     const p = planet.inputs || {};
     renderRockyInputForm(bodyInputsEl, { planet, tipLabels: TIP_LABEL });
+    const ringModePillsEl = bodyInputsEl.querySelector("#ringModePills");
+    const ringModeHintEl = bodyInputsEl.querySelector("#ringModeHint");
+    const syncRockyRingHint = (ringState) => {
+      if (ringModeHintEl) ringModeHintEl.textContent = formatRockyRingHint(ringState);
+    };
+    syncRockyRingHint(deriveRockyPlanetAppearanceState(world, planet).ringState);
 
     // Populate slot selector
     const slotSelectEl = bodyInputsEl.querySelector("#slotSelect");
@@ -718,6 +899,20 @@ export function initPlanetPage(mountEl) {
       updatePlanet(w.planets.selectedId, { name, inputs: { name } });
       updateWorld({ planet: { name } });
       scheduleRender();
+    });
+
+    ringModePillsEl?.addEventListener("change", () => {
+      if (hydrating) return;
+      const checked = ringModePillsEl.querySelector('input[name="ringMode"]:checked');
+      const ringMode = normalizeRingMode(checked?.value);
+      const w = loadWorld();
+      updatePlanet(w.planets.selectedId, { inputs: { ringMode } });
+      updateWorld({ planet: { ringMode } });
+      const refreshed = getSelectedPlanet(loadWorld());
+      if (refreshed) {
+        syncRockyRingHint(deriveRockyPlanetAppearanceState(loadWorld(), refreshed).ringState);
+      }
+      scheduleRender(true);
     });
 
     // Slot change
@@ -934,29 +1129,15 @@ export function initPlanetPage(mountEl) {
       renderHint(bodyOutputsEl, "No planet selected.");
       return;
     }
-    const assignedMoons = listMoons(world)
-      .filter((m) => m.planetId === planet.id)
-      .map((m) => m.inputs);
-    const sov = getStarOverrides(world.star);
-    const sysGiants = listSystemGasGiants(world).map((g) => ({
-      name: g.name,
-      au: g.au,
-    }));
-    const model = calcPlanetExact({
-      starMassMsol: Number(world.star.massMsol),
-      starAgeGyr: Number(world.star.ageGyr),
-      starMetallicityFeH: Number(world.star.metallicityFeH) || 0,
-      starRadiusRsolOverride: sov.r,
-      starLuminosityLsolOverride: sov.l,
-      starTempKOverride: sov.t,
-      starEvolutionMode: sov.ev,
-      planet: planet.inputs,
-      moons: assignedMoons,
-      gasGiants: sysGiants,
-    });
+    const { model, visualProfile, ringState } = deriveRockyPlanetAppearanceState(world, planet);
     const d = model.derived;
     const p = planet.inputs || {};
-    const visualProfile = computeRockyVisualProfile(d, p);
+    const ringDisplay = buildRockyRingDisplay(ringState, d);
+    const ringOverrideMeta = ringState.overrideActive
+      ? ringState.againstScience
+        ? "Manual override goes against the science."
+        : "Manual override matches the science."
+      : "Auto mode follows the science.";
     const vegDetailsBtn = document.createElement("button");
     vegDetailsBtn.type = "button";
     vegDetailsBtn.className = "veg-details-btn";
@@ -978,6 +1159,8 @@ export function initPlanetPage(mountEl) {
       const a = d.radioisotopeAbundance;
       isoEffEl.textContent = `Effective abundance: ${fmt(Math.max(a, 0.01), 2)}\u00d7 Earth`;
     }
+    const ringHintEl = bodyInputsEl.querySelector("#ringModeHint");
+    if (ringHintEl) ringHintEl.textContent = formatRockyRingHint(ringState);
 
     const habitabilityPolicyVersion =
       d.habitabilityBreakdown?.solventPolicyVersion || "surface-plus-subsurface-water-v1";
@@ -1067,6 +1250,12 @@ export function initPlanetPage(mountEl) {
         label: "Water Regime",
         value: model.display.waterRegime,
         meta: `~${fmt(model.inputs.wmfPct, 2)}% water by mass`,
+      },
+      {
+        label: "Rings",
+        tipLabel: "Rings",
+        value: ringDisplay.value,
+        meta: ringDisplay.meta,
       },
       {
         label: "Habitability Index",
@@ -1206,6 +1395,7 @@ export function initPlanetPage(mountEl) {
       "Avg Surface Temp",
       "Climate State",
       "Water Regime",
+      "Rings",
       "Sky Colour (Sun High)",
       "Sky Colour (Low Sun)",
       "Vegetation Colour",
@@ -1419,6 +1609,8 @@ export function initPlanetPage(mountEl) {
               value: model.display.waterRegime,
               meta: `~${fmt(model.inputs.wmfPct, 2)}% water by mass`,
             },
+            { label: "Rings", value: ringDisplay.value, meta: ringDisplay.meta },
+            { label: "Ring science", value: ringState.scienceReason, meta: ringOverrideMeta },
             { label: "Cell count", value: String(d.circulationCellCount) },
             {
               label: "Circulation bands",
@@ -1454,6 +1646,12 @@ export function initPlanetPage(mountEl) {
             },
             { label: "Horizon Distance", value: model.display.horizon },
             { label: "Star Apparent Size", value: model.display.apparentStar },
+            { label: "Roche limit", value: model.display.rocheLimit },
+            {
+              label: "Ring source moon",
+              value: d.ringSourceMoonId || "None",
+              meta: d.ringScienceSupported ? "Current source moon for Auto rings" : "",
+            },
             { label: "Tropics", value: `${d.tropics}° N/S` },
             { label: "Polar circles", value: `${d.polarCircles}° N/S` },
             {
@@ -1599,7 +1797,11 @@ export function initPlanetPage(mountEl) {
       openRecipePicker((recipe) => {
         const w = loadWorld();
         const pid = w.planets.selectedId;
-        const nextInputs = { ...recipe.apply, appearanceRecipeId: recipe.id };
+        const nextInputs = {
+          ...recipe.apply,
+          appearanceRecipeId: recipe.id,
+          ringMode: normalizeRingMode(w.planets.byId?.[pid]?.inputs?.ringMode),
+        };
         updatePlanet(pid, { inputs: nextInputs });
         updateWorld({ planet: nextInputs });
         render();
@@ -1888,6 +2090,16 @@ export function initPlanetPage(mountEl) {
     });
     const ggCustomAuRow = bodyInputsEl.querySelector("#ggAu")?.closest(".form-row");
     if (ggCustomAuRow) ggCustomAuRow.id = "ggCustomAuRow";
+    const ggRingModePillsEl = bodyInputsEl.querySelector("#ggRingModePills");
+    const ggRingModeHintEl = bodyInputsEl.querySelector("#ggRingModeHint");
+    const syncRingModeHint = (ringState) => {
+      if (ggRingModeHintEl) ggRingModeHintEl.textContent = formatGasGiantRingHint(ringState);
+    };
+    const getSelectedRingMode = () =>
+      normalizeRingMode(
+        bodyInputsEl.querySelector('input[name="ggRingMode"]:checked')?.value || giant.ringMode,
+      );
+    syncRingModeHint(deriveGasGiantAppearanceState(world, giant, sysModel, gasGiants).ringState);
 
     // Bind sliders and attach events
     let hydrating = true;
@@ -1922,38 +2134,18 @@ export function initPlanetPage(mountEl) {
       g.inclinationDeg = incVal !== "" ? Number(incVal) || null : null;
       const tiltVal = bodyInputsEl.querySelector("#ggTilt").value;
       g.axialTiltDeg = tiltVal !== "" ? Number(tiltVal) || null : null;
-      // Auto-derive visual style and rings from physics
-      const starData = {
-        starMassMsol: Number(world.star.massMsol) || 1,
-        starLuminosityLsol: sysModel.star.luminosityLsol,
-        starAgeGyr: Number(world.star.ageGyr) || 4.6,
-        starRadiusRsol: sysModel.star.radiusRsol,
-      };
-      const ggCalc = calcGasGiant({
-        massMjup: g.massMjup,
-        radiusRj: g.radiusRj,
-        orbitAu: Number(g.au) || sysModel.frostLineAu,
-        eccentricity: g.eccentricity,
-        inclinationDeg: g.inclinationDeg,
-        axialTiltDeg: g.axialTiltDeg,
-        rotationPeriodHours: g.rotationPeriodHours,
-        metallicity: g.metallicity,
-        otherGiants: now.filter((x) => x.id !== g.id).map((x) => ({ name: x.name, au: x.au })),
-        moons: listMoons(loadWorld())
-          .filter((mm) => mm.planetId === g.id)
-          .map((mm) => mm.inputs),
-        ...starData,
-      });
-      g.style = suggestStyles(ggCalc).primary;
-      const depth = ggCalc.ringProperties?.opticalDepthClass;
-      g.rings = depth === "Dense" || depth === "Moderate";
+      g.ringMode = getSelectedRingMode();
+      const { derivedStyle, ringState } = deriveGasGiantAppearanceState(w, g, sysModel, now);
+      g.style = derivedStyle;
+      g.rings = ringState.effectiveEnabled;
+      syncRingModeHint(ringState);
 
       saveSystemGasGiants(now);
       scheduleRender(true);
     }
 
     const auEl = bodyInputsEl.querySelector("#ggAu");
-    const auSlider = bodyInputsEl.querySelector("#ggAuSlider");
+    const auSlider = bodyInputsEl.querySelector("#ggAu_slider");
     bindNumberAndSlider({
       numberEl: auEl,
       sliderEl: auSlider,
@@ -1968,7 +2160,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const radiusEl = bodyInputsEl.querySelector("#ggRadius");
-    const radiusSlider = bodyInputsEl.querySelector("#ggRadiusSlider");
+    const radiusSlider = bodyInputsEl.querySelector("#ggRadius_slider");
     bindNumberAndSlider({
       numberEl: radiusEl,
       sliderEl: radiusSlider,
@@ -1983,7 +2175,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const massEl = bodyInputsEl.querySelector("#ggMass");
-    const massSlider = bodyInputsEl.querySelector("#ggMassSlider");
+    const massSlider = bodyInputsEl.querySelector("#ggMass_slider");
     bindNumberAndSlider({
       numberEl: massEl,
       sliderEl: massSlider,
@@ -1998,7 +2190,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const rotEl = bodyInputsEl.querySelector("#ggRotation");
-    const rotSlider = bodyInputsEl.querySelector("#ggRotationSlider");
+    const rotSlider = bodyInputsEl.querySelector("#ggRotation_slider");
     bindNumberAndSlider({
       numberEl: rotEl,
       sliderEl: rotSlider,
@@ -2013,7 +2205,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const metEl = bodyInputsEl.querySelector("#ggMetallicity");
-    const metSlider = bodyInputsEl.querySelector("#ggMetallicitySlider");
+    const metSlider = bodyInputsEl.querySelector("#ggMetallicity_slider");
     bindNumberAndSlider({
       numberEl: metEl,
       sliderEl: metSlider,
@@ -2028,7 +2220,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const eccEl = bodyInputsEl.querySelector("#ggEcc");
-    const eccSlider = bodyInputsEl.querySelector("#ggEccSlider");
+    const eccSlider = bodyInputsEl.querySelector("#ggEcc_slider");
     bindNumberAndSlider({
       numberEl: eccEl,
       sliderEl: eccSlider,
@@ -2043,7 +2235,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const incEl = bodyInputsEl.querySelector("#ggInc");
-    const incSlider = bodyInputsEl.querySelector("#ggIncSlider");
+    const incSlider = bodyInputsEl.querySelector("#ggInc_slider");
     bindNumberAndSlider({
       numberEl: incEl,
       sliderEl: incSlider,
@@ -2058,7 +2250,7 @@ export function initPlanetPage(mountEl) {
     });
 
     const tiltEl = bodyInputsEl.querySelector("#ggTilt");
-    const tiltSlider = bodyInputsEl.querySelector("#ggTiltSlider");
+    const tiltSlider = bodyInputsEl.querySelector("#ggTilt_slider");
     bindNumberAndSlider({
       numberEl: tiltEl,
       sliderEl: tiltSlider,
@@ -2085,6 +2277,9 @@ export function initPlanetPage(mountEl) {
     bodyInputsEl.querySelector("#ggName").addEventListener("change", () => {
       if (!hydrating) saveGiant();
     });
+    ggRingModePillsEl?.addEventListener("change", () => {
+      if (!hydrating) saveGiant();
+    });
 
     // Fire initial slider sync
     [auEl, radiusEl, massEl, rotEl, metEl, eccEl, incEl, tiltEl].forEach((el) => {
@@ -2099,30 +2294,13 @@ export function initPlanetPage(mountEl) {
       renderHint(bodyOutputsEl, "No gas giant selected.");
       return;
     }
-    const starData = {
-      starMassMsol: Number(world.star.massMsol) || 1,
-      starLuminosityLsol: sysModel.star.luminosityLsol,
-      starAgeGyr: Number(world.star.ageGyr) || 4.6,
-      starRadiusRsol: sysModel.star.radiusRsol,
-    };
     const allGiants = listSystemGasGiants(world);
-    const m = calcGasGiant({
-      massMjup: giant.massMjup,
-      radiusRj: giant.radiusRj,
-      orbitAu: Number(giant.au) || sysModel.frostLineAu,
-      eccentricity: giant.eccentricity,
-      inclinationDeg: giant.inclinationDeg,
-      axialTiltDeg: giant.axialTiltDeg,
-      rotationPeriodHours: giant.rotationPeriodHours,
-      metallicity: giant.metallicity,
-      otherGiants: allGiants
-        .filter((x) => x.id !== giant.id)
-        .map((x) => ({ name: x.name, au: x.au })),
-      moons: listMoons(world)
-        .filter((mm) => mm.planetId === giant.id)
-        .map((mm) => mm.inputs),
-      ...starData,
-    });
+    const { gasCalc: m, derivedStyle, ringState } = deriveGasGiantAppearanceState(
+      world,
+      giant,
+      sysModel,
+      allGiants,
+    );
     const clouds = m.clouds.map((c) => c.name).join(", ") || "None";
     const massNote =
       m.inputs.massSource === "derived"
@@ -2137,22 +2315,31 @@ export function initPlanetPage(mountEl) {
           ? "Default"
           : "";
     const metNote = m.inputs.metallicitySource === "derived" ? "Derived from mass" : "";
-
-    const derivedStyle = suggestStyles(m).primary;
-    const depthClass = m.ringProperties?.opticalDepthClass;
-    const showRings = depthClass === "Dense" || depthClass === "Moderate";
-    if (giant.rings !== showRings || giant.style !== derivedStyle) {
+    const showRings = ringState.effectiveEnabled;
+    if (
+      giant.rings !== showRings ||
+      giant.style !== derivedStyle ||
+      normalizeRingMode(giant.ringMode) !== ringState.ringMode
+    ) {
       giant.rings = showRings;
       giant.style = derivedStyle;
+      giant.ringMode = ringState.ringMode;
       const w = loadWorld();
       const all = listSystemGasGiants(w);
       const g = all.find((x) => x.id === giant.id);
       if (g) {
         g.rings = showRings;
         g.style = derivedStyle;
+        g.ringMode = ringState.ringMode;
         saveSystemGasGiants(all);
       }
     }
+    const ringDisplay = buildGasGiantRingDisplay(ringState, m);
+    const ringOverrideMeta = ringState.overrideActive
+      ? ringState.againstScience
+        ? "Manual override goes against the science."
+        : "Manual override matches the science."
+      : "Auto mode follows the science.";
 
     const prevGasCanvas = bodyOutputsEl.querySelector(".gg-preview-canvas");
     const appearanceItem = {
@@ -2229,9 +2416,9 @@ export function initPlanetPage(mountEl) {
     };
     const ringsItem = {
       label: "Rings",
-      tip: TIP_LABEL["GG Ring Properties"] || "",
-      value: m.display.ringType,
-      meta: m.display.ringDetails,
+      tip: TIP_LABEL["GG Rings"] || TIP_LABEL["GG Ring Properties"] || "",
+      value: ringDisplay.value,
+      meta: ringDisplay.meta,
     };
     const atmosphereItem = {
       label: "Atmosphere",
@@ -2321,6 +2508,12 @@ export function initPlanetPage(mountEl) {
             { label: "Internal heat ratio", value: fmt(m.thermal.internalHeatRatio, 2) },
             { label: "Equilibrium Temp", value: m.display.equilibriumTemp },
             { label: "Effective Temp", value: m.display.effectiveTemp },
+            {
+              label: "Ring visibility",
+              value: ringDisplay.value,
+              meta: getGasGiantRingModeLabel(ringState.ringMode),
+            },
+            { label: "Ring science", value: ringState.scienceReason, meta: ringOverrideMeta },
             { label: "Ring type", value: m.display.ringType },
             { label: "Ring details", value: m.display.ringDetails },
           ],
@@ -2443,21 +2636,11 @@ export function initPlanetPage(mountEl) {
           g.rotationPeriodHours = recipe.apply.rotationPeriodHours;
         if (recipe.apply.metallicity !== undefined) g.metallicity = recipe.apply.metallicity;
         g.appearanceRecipeId = recipe.id;
-        const ggCalc = calcGasGiant({
-          massMjup: g.massMjup,
-          radiusRj: g.radiusRj,
-          orbitAu: Number(g.au) || sysModel.frostLineAu,
-          rotationPeriodHours: g.rotationPeriodHours,
-          metallicity: g.metallicity,
-          starMassMsol: Number(w.star.massMsol) || 1,
-          starLuminosityLsol: sysModel.star.luminosityLsol,
-          starAgeGyr: Number(w.star.ageGyr) || 4.6,
-          starRadiusRsol: sysModel.star.radiusRsol,
-          stellarMetallicityFeH: Number(w.star.metallicityFeH) || 0,
-        });
-        g.style = suggestStyles(ggCalc).primary;
-        const recipeDepth = ggCalc.ringProperties?.opticalDepthClass;
-        g.rings = recipeDepth === "Dense" || recipeDepth === "Moderate";
+        g.ringMode = normalizeRingMode(g.ringMode);
+        const { derivedStyle: recipeStyle, ringState: recipeRingState } =
+          deriveGasGiantAppearanceState(w, g, sysModel, giants);
+        g.style = recipeStyle;
+        g.rings = recipeRingState.effectiveEnabled;
         saveSystemGasGiants(giants);
         scheduleRender(true);
       });
@@ -2618,6 +2801,7 @@ export function initPlanetPage(mountEl) {
       ]);
       bodyActionsEl.querySelector("#btn-earth").addEventListener("click", () => {
         const w = loadWorld();
+        const currentRingMode = normalizeRingMode(w.planets.byId?.[w.planets.selectedId]?.inputs?.ringMode);
         const inputs = {
           name: "Earth",
           massEarth: 1.0,
@@ -2646,6 +2830,7 @@ export function initPlanetPage(mountEl) {
           u235Abundance: 1.0,
           th232Abundance: 1.0,
           k40Abundance: 1.0,
+          ringMode: currentRingMode,
         };
         updatePlanet(w.planets.selectedId, { name: "Earth", inputs });
         updateWorld({ planet: inputs });
@@ -2653,6 +2838,7 @@ export function initPlanetPage(mountEl) {
       });
       bodyActionsEl.querySelector("#btn-pluto").addEventListener("click", () => {
         const w = loadWorld();
+        const currentRingMode = normalizeRingMode(w.planets.byId?.[w.planets.selectedId]?.inputs?.ringMode);
         const inputs = {
           name: "Pluto",
           massEarth: 0.0022,
@@ -2684,6 +2870,7 @@ export function initPlanetPage(mountEl) {
           u235Abundance: null,
           th232Abundance: null,
           k40Abundance: null,
+          ringMode: currentRingMode,
         };
         updatePlanet(w.planets.selectedId, { name: "Pluto", inputs });
         updateWorld({ planet: inputs });
@@ -2709,6 +2896,7 @@ export function initPlanetPage(mountEl) {
           o2Pct: 20.95,
           co2Pct: 0.04,
           arPct: 0.93,
+          ringMode: RING_MODE_AUTO,
         };
         updatePlanet(w.planets.selectedId, { name: "New Planet", inputs });
         updateWorld({ planet: inputs });
@@ -2792,7 +2980,7 @@ export function initPlanetPage(mountEl) {
   wrap.querySelector("#newRockyPlanet").addEventListener("click", () => {
     const w = loadWorld();
     const baseInputs = getSelectedPlanet(w)?.inputs || w.planet;
-    createPlanetFromInputs(baseInputs, { name: "New Planet" });
+    createPlanetFromInputs({ ...baseInputs, ringMode: RING_MODE_AUTO }, { name: "New Planet" });
     selectBodyType("planet");
     render();
   });
@@ -2836,6 +3024,7 @@ export function initPlanetPage(mountEl) {
       au: slot ? sysModel.orbitsAu[slot - 1] : Number(targetAu.toFixed(2)),
       slotIndex: slot,
       style: "jupiter",
+      ringMode: RING_MODE_AUTO,
       radiusRj: randomGasGiantRadiusRj(),
       massMjup: null,
       rotationPeriodHours: null,

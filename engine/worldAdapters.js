@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 import { buildWorldSnapshot, buildWorldStarSystemContext } from "./worldSnapshot.js";
 import { bondToGeometricAlbedo, classifyBodyType } from "./apparent.js";
+import { resolveGasGiantRingState } from "./planetaryRings.js";
 
 const MOON_PHASE_INTEGRAL = 0.9;
 export const SNAPSHOT_MODE_BUDGETS = Object.freeze({
@@ -245,16 +246,24 @@ export function buildSystemPosterSnapshotInputs(world, { orbitMode = "guided" } 
     .filter((entry) => Number.isFinite(entry.au) && entry.au > 0);
 
   const gasGiants = Object.values(snapshot.gasGiantsById || {})
-    .map((entry) => ({
-      id: entry.id,
-      name: entry.name,
-      au: Number(entry.model?.inputs?.orbitAu),
-      radiusKm: Number(entry.model?.physical?.radiusKm),
-      style: entry.source?.style,
-      rings: !!entry.source?.rings,
-      gasCalc: entry.model,
-      source: entry.source,
-    }))
+    .map((entry) => {
+      const ringState = resolveGasGiantRingState({
+        ringMode: entry.source?.ringMode,
+        gasCalc: entry.model,
+        legacyRings: entry.source?.rings,
+      });
+      return {
+        id: entry.id,
+        name: entry.name,
+        au: Number(entry.model?.inputs?.orbitAu),
+        radiusKm: Number(entry.model?.physical?.radiusKm),
+        style: entry.source?.style,
+        ringMode: ringState.ringMode,
+        rings: ringState.effectiveEnabled,
+        gasCalc: entry.model,
+        source: entry.source,
+      };
+    })
     .filter((entry) => Number.isFinite(entry.au) && entry.au > 0);
 
   const moons = Object.values(snapshot.moonsById || {})

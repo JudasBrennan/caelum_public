@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 import { createSeededRng } from "../engine/stellarActivity.js";
+import { gasGiantRingScienceFromCalc } from "../engine/planetaryRings.js";
 import { clamp } from "../engine/utils.js";
 import { getStyleById, computeGasGiantVisualProfile } from "./gasGiantStyles.js";
 import { computeRockyVisualProfile } from "./rockyPlanetStyles.js";
@@ -432,40 +433,10 @@ function firstBooleanValue(...values) {
   return null;
 }
 
-function deriveRingPresenceFromGasCalc(gasCalc) {
-  const ringProps = gasCalc?.ringProperties;
-  if (!ringProps || typeof ringProps !== "object") return null;
-  const depthClass = String(ringProps?.opticalDepthClass || "")
-    .trim()
-    .toLowerCase();
-  if (
-    depthClass &&
-    (depthClass === "none" ||
-      depthClass === "no" ||
-      depthClass === "absent" ||
-      depthClass === "tenuous" ||
-      depthClass === "n/a" ||
-      depthClass === "na")
-  ) {
-    return false;
-  }
-
-  const tau = Number(ringProps?.opticalDepth);
-  if (Number.isFinite(tau) && tau > 0.02) return true;
-
-  const ringMass = Number(ringProps?.estimatedMassKg);
-  if (Number.isFinite(ringMass) && ringMass > 1e14) return true;
-
-  if (depthClass) return true;
-  return null;
-}
-
 function resolveGasRingVisibility(model, gasCalc) {
-  const fromCalc = deriveRingPresenceFromGasCalc(gasCalc);
-  if (typeof fromCalc === "boolean") return fromCalc;
   const explicit = firstBooleanValue(model?.showRings, model?.rings, model?.hasRings);
   if (typeof explicit === "boolean") return explicit;
-  return false;
+  return gasGiantRingScienceFromCalc(gasCalc).scienceEnabled;
 }
 
 function normalizeGasFamily(value, fallback = "banded") {
@@ -533,6 +504,8 @@ function normalizeRockyModel(model) {
     rotationPeriodDays: rotationHours / 24,
     axialTiltDeg: tiltDeg,
     visualProfile,
+    hasRings: !!visualProfile?.ring?.enabled,
+    showRings: !!visualProfile?.ring?.enabled,
   };
 }
 
@@ -674,6 +647,8 @@ function rockyLayers(model, detail) {
   const cloudsAlpha = clamp(0.12 + cloudCoverage * 0.55, 0.08, 0.8);
   const plateAlpha = clamp((1 - oceanCoverage) * 0.75, 0.08, 0.86);
   const landFraction = clamp(1 - oceanCoverage, 0.05, 0.95);
+  const ringInner = clamp(Number(p?.ring?.inner) || 1.3, 1.08, 2.5);
+  const ringOuter = clamp(Number(p?.ring?.outer) || 2.12, ringInner + 0.08, 3.2);
   const continentsMacroScale = clamp(0.72 + (1 - oceanCoverage) * 0.58 + detail * 0.18, 0.45, 1.8);
   const continentsWarp = clamp(0.16 + oceanCoverage * 0.22 + detail * 0.06, 0.08, 0.52);
   const coastErode = clamp(0.16 + oceanCoverage * 0.36, 0.08, 0.6);
@@ -804,7 +779,15 @@ function rockyLayers(model, detail) {
       driftFactor: 1.25,
       params: cloudParams,
     },
-    ring: { enabled: false },
+    ring: {
+      enabled: !!p?.ring?.enabled,
+      colour: normalizeHex(p?.ring?.colour || "#c8b39b"),
+      opacity: clamp(Number(p?.ring?.opacity) || 0.28, 0.08, 0.55),
+      inner: ringInner,
+      outer: ringOuter,
+      tiltDeg: Number(p?.ring?.tiltDeg) || 100,
+      yawDeg: Number(p?.ring?.yawDeg) || 18,
+    },
   };
 
   return applyArtProfile(base, buildRockyArtProfile(model, detail));
