@@ -292,14 +292,16 @@ function scientistCard(version) {
         </div>`;
 }
 
-function release(version, note, items, { open = false } = {}) {
+function release(version, note, items, { open = false, rolledBack = false, rolledBackNote = "" } = {}) {
   const openAttr = open ? " open" : "";
   const lis = items.map((i) => `<li>${i}</li>`).join("\n          ");
   const s = RELEASE_SCIENTISTS[version];
   const surname = s ? ` \u2014 The ${s.name.split(" ").pop()} Release` : "";
+  const title = rolledBack ? `<s>Version ${version}${surname}</s>` : `Version ${version}${surname}`;
+  const statusNote = rolledBack && rolledBackNote ? ` <span class="changelog-release__note"><b>Rolled back:</b> ${rolledBackNote}</span>` : "";
   return `
       <details class="changelog-release"${openAttr}>
-        <summary class="changelog-release__summary"><b>Version ${version}${surname}</b> <span class="changelog-release__note">${note}</span></summary>${scientistCard(version)}
+        <summary class="changelog-release__summary"><b>${title}</b> <span class="changelog-release__note">${note}</span>${statusNote}</summary>${scientistCard(version)}
         <ul>${lis}</ul>
       </details>`;
 }
@@ -339,11 +341,12 @@ function changelogHTML() {
       "1.23.0 BETA",
       "(beta, from 1.22.1)",
       [
-        "<b>Tectonics Simulator Beta</b> &mdash; The Tectonics page now includes a real plate-simulator preview with a persistent mostly-hex cell grid, seeded or painted plate ownership, rigid-plate playback, subduction-side resolution, and per-cell geology diagnostics.",
-        "<b>Terrain and Topography Output</b> &mdash; The simulator now derives terrain, bathymetry, shaded relief, and a dedicated topography map mode from the tectonic model. Terrain previews are smoother and more terrain-like, and the export buttons now expose the matching raster outputs directly.",
-        "<b>Plate Editing Workflow</b> &mdash; Plate authoring now supports select, brush, fill, and erase tools, separate ownership versus crust painting, richer selected-cell readouts, and JSON plate-map / crust-map imports. This gives the simulator a usable pre-climate authoring workflow instead of a seed-only preview.",
+        "<b>Rolled Back</b> &mdash; This beta release is no longer in the codebase. The tectonics-simulator branch was rolled back and its shipped feature set should be treated as historical release notes only, not as current product behavior.",
+        "<b>Tectonics Simulator Beta</b> &mdash; The Tectonics page included a real plate-simulator preview with a persistent mostly-hex cell grid, seeded or painted plate ownership, rigid-plate playback, subduction-side resolution, and per-cell geology diagnostics.",
+        "<b>Terrain and Topography Output</b> &mdash; The simulator derived terrain, bathymetry, shaded relief, and a dedicated topography map mode from the tectonic model. Terrain previews were smoother and more terrain-like, and the export buttons exposed the matching raster outputs directly.",
+        "<b>Plate Editing Workflow</b> &mdash; Plate authoring supported select, brush, fill, and erase tools, separate ownership versus crust painting, richer selected-cell readouts, and JSON plate-map / crust-map imports. This gave the simulator a usable pre-climate authoring workflow instead of a seed-only preview.",
       ],
-      { open: false },
+      { open: false, rolledBack: true, rolledBackNote: "This beta was rolled back and is no longer in the codebase." },
     ),
     release("1.22.1", "(from 1.22.0)", [
       "<b>Unified Celestial Outputs</b> &mdash; Star, Planet, and Moon pages now share the same sectioned KPI layout, so dense output pages read as structured reports instead of one long wall of cards. Secondary values also open reliably on touch devices with explicit tap-to-expand detail.",
