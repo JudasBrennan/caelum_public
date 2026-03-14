@@ -178,6 +178,9 @@ export function migrateWorld(world) {
   if (world.planet) {
     world.planet.ringStyleId = normalizeRingStyleId(world.planet.ringStyleId);
   }
+  if (world.planet && world.planet.ringMode == null) {
+    world.planet.ringMode = "auto";
+  }
 
   if (world.planets && world.planets.byId) {
     for (const planetId of Object.keys(world.planets.byId)) {
