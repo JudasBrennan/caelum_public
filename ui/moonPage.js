@@ -1,14 +1,29 @@
-// SPDX-License-Identifier: MPL-2.0
 import { calcMoon } from "../engine/moon.js";
+import { calcPlanetExact } from "../engine/planet.js";
 import { calcGasGiant } from "../engine/gasGiant.js";
+import { calcStar } from "../engine/star.js";
+import {
+  buildGasGiantMoonParentOverride,
+  buildRockyMoonParentOverride,
+  solveMoonSystem,
+} from "../engine/moon/system.js";
 import { fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
+import { createElement } from "./domHelpers.js";
+import { createGuidedFlowController } from "./guidedCreation/flowController.js";
+import { createGuidedPanel } from "./guidedCreation/components/guidedPanel.js";
+import { consumeGuidedCreationLaunch } from "./guidedCreation/launchState.js";
+import {
+  buildMoonRecipeApplyInputs,
+  ensureMoonGuidedAdapterRegistered,
+} from "./guidedCreation/adapters/moon.js";
 import { computeMoonVisualProfile, MOON_RECIPES } from "./moonStyles.js";
 import {
   createCelestialVisualPreviewController,
   renderCelestialRecipeBatch,
 } from "./celestialVisualPreview.js";
 import {
+  createMoonGuidedCreationOverlay,
   createMoonRecipePickerOverlay,
   renderMoonKpiSections,
   renderMoonDerivedDetails,
@@ -18,9 +33,11 @@ import {
 import {
   loadWorld,
   updateWorld,
+  updatePlanet,
   listPlanets,
   listMoons,
   listSystemGasGiants,
+  saveSystemGasGiants,
   getSelectedMoon,
   getStarOverrides,
   selectMoon,
@@ -28,6 +45,7 @@ import {
   deleteMoon,
   updateMoon,
   assignMoonToPlanet,
+  applyMoonSiblingPatch,
 } from "./store.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { createTutorial } from "./tutorial.js";
@@ -107,6 +125,27 @@ const TIP_LABEL = {
   "Composition Override":
     "Override the density-derived composition class with a specific interior state. Density is a good proxy for cold, solid moons, but it underestimates tidal heating by 10\u2013100\u00D7 for moons with extreme interiors.\n\nAuto (from density): Default. Best for geologically quiet moons.\n\nVery icy: Cometary or outer solar system bodies dominated by volatile ices. Low density (<1 g/cm\u00B3).\n\nIcy: Mostly water ice with some rock. Ganymede, Callisto, Rhea. Density 1\u20132 g/cm\u00B3.\n\nSubsurface ocean: A global liquid ocean beneath a thin ice shell dramatically softens the body and amplifies tidal dissipation. Use for moons showing signs of geological activity despite low density (cryovolcanism, plumes, young surface). Calibrated to Enceladus: predicted heating matches Cassini observations within 10%. WARNING: over-predicts for large moons like Titan (\u223C37\u00D7 too high) \u2014 use Icy for those.\n\nMixed rock/ice: Roughly half rock, half ice. Europa\u2019s density (3.0 g/cm\u00B3) places it here. Good default for moons of giant planets with intermediate density.\n\nRocky: Solid silicate mantle, like Earth\u2019s Moon (3.34 g/cm\u00B3). Appropriate for tidally quiet rocky moons.\n\nPartially molten: Extreme tidal heating has melted the interior, creating a magma ocean or mushy mantle. This makes the body much softer than solid rock, dramatically increasing dissipation. Use for moons in strong orbital resonances with high volcanic activity. Calibrated to Io: predicted heating matches observed 10\u00B9\u2074 W within 1%.\n\nIron-rich: Dense metallic body (>5 g/cm\u00B3). Very stiff, dissipates little energy. Mercury-like composition.",
   Dynamics: "Optional inputs that affect tidal evolution timescales.",
+  "Hydrosphere Mode":
+    "Core keeps the existing density-driven moon water heuristics.\n\nFull adds explicit water inventory, salinity, ammonia, and interior-state controls.\n\nManual lets you set physical moon water/interior inputs directly, but the engine still computes the resulting ocean and ice structure.",
+  "Atmosphere Mode":
+    "Core uses the retained-volatile moon atmosphere path.\n\nFull adds stability diagnostics, source/loss reasoning, and haze/cloud outputs.\n\nManual lets you set pressure and gas mix inputs; the solver then checks whether that atmosphere is stable or transient.",
+  "Orbital Coupling":
+    "Core treats the moon independently.\n\nFull adds sibling-moon resonance detection, forced eccentricity floors, Laplace-chain flags, and a tidal-habitable-zone readout.\n\nManual exposes resonance-group inputs and manual forcing controls.",
+  "Water Mass Fraction":
+    "Explicit moon water inventory as percent of total mass. Core mode ignores this and infers water from composition. Full and Manual modes use it to solve exposed ocean depth, buried ocean depth, and ice-shell structure.",
+  Salinity:
+    "Bulk ocean or ice salinity in percent by mass. Higher salinity lowers the freezing point and helps buried oceans persist.",
+  Ammonia:
+    "Bulk ammonia fraction in the volatile inventory. Ammonia acts as an antifreeze and can support colder subsurface oceans.",
+  "Differentiated Interior":
+    "Flags whether the moon is internally differentiated into a rocky core and volatile-rich outer shell. Differentiation makes long-lived internal oceans more plausible.",
+  "Moon Radioisotopes":
+    "Moon internal heat mode. Simple uses a single abundance multiplier. Advanced exposes the individual U-238, U-235, Th-232, and K-40 controls, mirroring rocky planets.",
+  "Manual Surface Pressure": "Manual surface pressure used only in Moon Atmosphere Manual mode.",
+  "Forced Eccentricity":
+    "Minimum eccentricity maintained by resonant forcing. In Full mode the solver can derive this from sibling resonances; in Manual mode you can set the floor directly.",
+  "Resonance Group":
+    "Manual resonance-chain identifier for moons that should be treated as part of the same forced-eccentricity group.",
   "Initial Rotation Period":
     "Primordial spin period of the moon before tidal braking. Faster spin (shorter period) means more angular momentum to dissipate and a longer time to reach tidal lock.\n\nDefault: 12 hours (model assumption from accretion dynamics). Range varies widely \u2014 fast-spinning bodies can be as short as 2\u20133 hours (near breakup), while captured moons may spin much slower.\n\nThis value feeds directly into the tidal locking timescale calculation.",
   "Tidal Heating":
@@ -117,6 +156,13 @@ const TIP_LABEL = {
     "Rate of orbital migration due to tidal dissipation. Positive = outward (planet spins faster than moon orbits, like Earth\u2013Moon at +3.8 cm/yr). Negative = inward (planet spins slower, like Phobos spiralling toward Mars).\n\nDriven by two competing effects: the planet\u2019s tidal bulge transfers angular momentum, while the moon\u2019s own dissipation damps the orbit inward.",
   "Orbital Fate":
     "Linear extrapolation of the current recession rate to estimate when the moon reaches the Roche limit (tidal disruption) or escapes the Hill sphere.\n\nThis is a rough estimate \u2014 real orbital evolution is non-linear and depends on changing tidal parameters over geological time.",
+  "Nearest Resonance":
+    "Closest sibling-moon mean-motion resonance identified by the coupled moon-system solver.",
+  "Laplace Status":
+    "Whether the moon is currently tagged as part of a Laplace-style resonant chain.",
+  "Tidal HZ": "Moon tidal-habitable-zone readout from the coupled moon-system solver.",
+  Formation:
+    "First-pass moon formation classifier derived from orbit geometry, inclination, distance from the parent, and regular versus irregular moon architecture.",
   Limits: "Derived orbital limits and lock times for the selected moon.",
   "Tidal locking": "Lock times and current lock state for the moon\u2013planet\u2013star system.",
   "Equilibrium Temp":
@@ -135,6 +181,12 @@ const TIP_LABEL = {
   "Surface Temp Range":
     "Estimated climate envelope for the moon's modeled surface temperature.\n\n" +
     "This Stage M3 output combines seasonal forcing, synchronous parentshine contrast, and eclipse cooling into a first-pass min/max surface-temperature range.",
+  "Day/Night Contrast":
+    "First-pass synchronous day-night thermal contrast for the current moon climate.",
+  "Nightside Min":
+    "Estimated nightside minimum temperature after eclipse and synchronous-cooling effects.",
+  "Collapse State":
+    "Atmospheric-collapse risk assessment for thin or volatile atmospheres on locked moons.",
   "Climate Zones":
     "Moon climate-zone summary from the parent-coupled moon climate model.\n\n" +
     "The current implementation reuses the Koppen-style zone classifier with moon-specific mean temperature, water state, pressure, and effective seasonal forcing.",
@@ -162,6 +214,14 @@ const TIP_LABEL = {
   "Greenhouse Warming":
     "Approximate surface warming above the moon's airless equilibrium / internal-heating baseline.\n\n" +
     "This Stage M1 model supports volatile greenhouse warming and a simple methane anti-greenhouse penalty, but not full haze photochemistry yet.",
+  "Atmosphere Stability":
+    "Source-loss balance for the current moon atmosphere. Stable means the current atmosphere is plausibly long-lived; transient means it likely needs active replenishment.",
+  "Atmosphere Lifetime":
+    "Estimated order-of-magnitude lifetime of the modeled atmosphere under the current source and loss assumptions.",
+  "Atmosphere Haze":
+    "First-pass haze class inferred from the dominant atmospheric chemistry and pressure.",
+  "Atmosphere Clouds":
+    "First-pass cloud or aerosol class inferred from pressure, condensables, and surface liquid support.",
   "Volcanic Activity":
     "Derived silicate-volcanism signal from tidal heating, radiogenic heating, interior class, and bulk size/gravity.\n\n" +
     "High values indicate Io-like or strongly molten rocky interiors that are likely to refresh the surface with lava or outgassed material.",
@@ -228,6 +288,10 @@ const TIP_LABEL = {
   "High-Pressure Ice":
     "Flags when the modeled ocean is deep enough that high-pressure ice is likely to form beneath it.\n\n" +
     "If present, the ocean may be partially separated from deeper rocky material by dense ice phases.",
+  "Interior Structure":
+    "Compact readout of the current solved moon interior: ocean depth plus the inferred ice-shell convection regime.",
+  "Ocean Chemistry":
+    "Surface or subsurface ocean chemistry inputs used in Full and Manual hydrosphere modes.",
   "Radiogenic Heating":
     "Internal heat from radioactive decay (U, Th, K) on the moon\u2019s surface." +
     "\n\nScales from Earth\u2019s 44 TW by moon mass and the system\u2019s radioisotope " +
@@ -247,6 +311,8 @@ const TIP_LABEL = {
   "Earth Similarity Index":
     "Compares this moon to Earth using radius, density, escape velocity, and surface temperature." +
     "\n\nRange: 0 to 1, where 1 is most Earth-like. Earth-likeness is not the same as direct habitability.",
+  Appearance:
+    "Physics-driven visual of the moon from space. Surface texture, ice, clouding, haze, and ocean cues are derived from the current solved moon state.\n\nThis preview is now read-only. Use Create This Moon in the Inputs column for Quick, Guided, or Recipes.",
   "Habitability Index":
     "WorldSmith comparative habitability model for moons." +
     "\n\nThis is PHI-inspired, not a direct literature PHI implementation. The score depends on the selected solvent pathway and the active solvent-policy support for surface water, subsurface water, and alternative solvents." +
@@ -283,11 +349,12 @@ const TUTORIAL_STEPS = [
       "planet is locked to its star or moon.",
   },
   {
-    title: "Recipes",
+    title: "Creation Modes",
     body:
-      "Click Recipes on the appearance preview to apply presets like Luna, " +
-      "Europa, Io, or Titan. Each recipe configures orbit and physical inputs " +
-      "for a realistic moon archetype.",
+      "Use Create This Moon at the top of Inputs. Quick applies a moon " +
+      "archetype, Guided walks you to a recommendation, Recipes opens the " +
+      "preset library for exact moon templates like Luna, Europa, Io, or " +
+      "Titan, and Advanced is the direct editor below.",
   },
 ];
 
@@ -358,6 +425,71 @@ export function initMoonPage(mountEl) {
 
           <div style="height:10px"></div>
 
+          <div class="guided-entry-strip" id="moonCreateEntry">
+            <div class="guided-entry-strip__title">Create This Moon</div>
+            <div class="guided-entry-strip__copy">
+              Quick applies a moon archetype, Guided walks you to a recommendation, and Advanced
+              is the direct editor below. Use Recipes alongside Advanced when you want a preset
+              starting point: Recipes will override the current moon inputs.
+            </div>
+            <div class="guided-entry-strip__modes">
+              <button id="moonCreateQuickBtn" type="button" class="guided-entry-strip__mode">
+                Quick
+              </button>
+              <button id="moonCreateGuidedBtn" type="button" class="guided-entry-strip__mode">
+                Guided
+              </button>
+              <button id="moonCreateRecipesBtn" type="button" class="guided-entry-strip__mode">
+                Recipes
+              </button>
+              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page">
+                Advanced
+              </span>
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="label">Moon Science Modes</div>
+          ${modeToggleRow(
+            "hydModePills",
+            "hydMode",
+            "Hydrosphere Mode",
+            "Hydrosphere Mode",
+            [
+              { value: "core", label: "Core", checked: true },
+              { value: "full", label: "Full", checked: false },
+              { value: "manual", label: "Manual", checked: false },
+            ],
+            "hydModeHint",
+          )}
+          ${modeToggleRow(
+            "atmModePills",
+            "atmMode",
+            "Atmosphere Mode",
+            "Atmosphere Mode",
+            [
+              { value: "core", label: "Core", checked: true },
+              { value: "full", label: "Full", checked: false },
+              { value: "manual", label: "Manual", checked: false },
+            ],
+            "atmModeHint",
+          )}
+          ${modeToggleRow(
+            "orbModePills",
+            "orbMode",
+            "Orbital Coupling",
+            "Orbital Coupling",
+            [
+              { value: "core", label: "Core", checked: true },
+              { value: "full", label: "Full", checked: false },
+              { value: "manual", label: "Manual", checked: false },
+            ],
+            "orbModeHint",
+          )}
+
+          <div style="height:10px"></div>
+
 <div class="label">Identity ${tipIcon(TIP_LABEL["Identity"] || "")}</div>
           <div class="form-row">
             <div>
@@ -400,6 +532,83 @@ export function initMoonPage(mountEl) {
           <div style="height:8px"></div>
           <div class="label">Dynamics ${tipIcon(TIP_LABEL["Dynamics"] || "")}</div>
           ${numWithSlider("initRot", "Initial Rotation Period", "hours", "", 2, 1000, 0.1, "Initial Rotation Period")}
+
+          <div style="height:8px"></div>
+          <div class="label">Bulk & Interior</div>
+          <div id="moonHydrosphereSection">
+            ${numWithSlider("wmf", "Water Mass Fraction", "%", "", 0, 60, 0.1, "Water Mass Fraction")}
+            ${numWithSlider("salinity", "Salinity", "%", "", 0, 35, 0.1, "Salinity")}
+            ${numWithSlider("ammonia", "Ammonia", "%", "", 0, 30, 0.1, "Ammonia")}
+            <div class="form-row">
+              <div>
+                <div class="label">Differentiated Interior ${tipIcon(TIP_LABEL["Differentiated Interior"] || "")}</div>
+                <div class="hint">Auto defers to the solver. Yes/No pins the interior assumption.</div>
+              </div>
+              <select id="differentiatedInterior">
+                <option value="">Auto</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Moon Radioisotopes ${tipIcon(TIP_LABEL["Moon Radioisotopes"] || "")}</div>
+                <div class="hint" id="isoModeHint"></div>
+              </div>
+              <div class="pill-toggle-wrap">
+                ${duoToggle("isoModePills", "isoMode", [
+                  { value: "simple", label: "Simple", checked: true },
+                  { value: "advanced", label: "Advanced", checked: false },
+                ])}
+              </div>
+            </div>
+            <div id="moonIsoSimpleRows">
+              ${numWithSlider("radioAbundance", "Radioisotope Abundance", "x Earth", "", 0.1, 3, 0.01, "Internal Heat")}
+            </div>
+            <div id="moonIsoAdvancedRows">
+              ${numWithSlider("u238", "U-238", "x Earth", "", 0, 5, 0.01, "U-238")}
+              ${numWithSlider("u235", "U-235", "x Earth", "", 0, 5, 0.01, "U-235")}
+              ${numWithSlider("th232", "Th-232", "x Earth", "", 0, 5, 0.01, "Th-232")}
+              ${numWithSlider("k40", "K-40", "x Earth", "", 0, 5, 0.01, "K-40")}
+            </div>
+          </div>
+
+          <div style="height:8px"></div>
+          <div class="label">Atmosphere</div>
+          <div id="moonAtmosphereSection">
+            ${numWithSlider("manualPressure", "Manual Surface Pressure", "atm", "", 0, 10, 0.01, "Manual Surface Pressure")}
+            ${simpleNumberRow("n2Pct", "Nitrogen (N2)", "%", "Derived to fill the remainder when left at 0 in manual mode.")}
+            ${simpleNumberRow("o2Pct", "Oxygen (O2)", "%", "")}
+            ${simpleNumberRow("co2Pct", "Carbon Dioxide (CO2)", "%", "")}
+            ${simpleNumberRow("arPct", "Argon (Ar)", "%", "")}
+            ${simpleNumberRow("h2oPct", "Water Vapor (H2O)", "%", "")}
+            ${simpleNumberRow("ch4Pct", "Methane (CH4)", "%", "")}
+            ${simpleNumberRow("coPct", "Carbon Monoxide (CO)", "%", "")}
+            ${simpleNumberRow("h2Pct", "Hydrogen (H2)", "%", "")}
+            ${simpleNumberRow("hePct", "Helium (He)", "%", "")}
+            ${simpleNumberRow("so2Pct", "Sulfur Dioxide (SO2)", "%", "")}
+            ${simpleNumberRow("nh3Pct", "Ammonia (NH3)", "%", "")}
+          </div>
+
+          <div style="height:8px"></div>
+          <div class="label">Resonance & Rotation</div>
+          <div id="moonOrbitalSection">
+            ${numWithSlider("forcedEcc", "Forced Eccentricity", "", "", 0, 0.2, 0.0001, "Forced Eccentricity")}
+            <div class="form-row">
+              <div>
+                <div class="label">Resonance Group ${tipIcon(TIP_LABEL["Resonance Group"] || "")}</div>
+                <div class="hint">Manual mode only. Leave blank for auto.</div>
+              </div>
+              <input id="resonanceGroup" type="text" />
+            </div>
+            ${simpleNumberRow("resonanceOrder", "Resonance Order", "", "Manual mode only. Smaller numbers are closer in.")}
+            ${simpleNumberRow("resonanceRatio", "Resonance Ratio", "", "Use 2 for a 2:1-style manual chain, 1.5 for 3:2, etc.")}
+          </div>
+
+          <div style="height:8px"></div>
+          <div class="label">Surface & Habitability</div>
+          <div class="hint">Core mode keeps the page compact. Full and Manual reveal the deeper moon-environment controls above.</div>
 
           <div class="button-row">
             <button id="btn-default">Reset to Defaults</button>
@@ -453,6 +662,47 @@ export function initMoonPage(mountEl) {
   const albedoEl = wrap.querySelector("#albedo");
   const compOverrideEl = wrap.querySelector("#compOverride");
   const initRotEl = wrap.querySelector("#initRot");
+  const hydModePillsEl = wrap.querySelector("#hydModePills");
+  const atmModePillsEl = wrap.querySelector("#atmModePills");
+  const orbModePillsEl = wrap.querySelector("#orbModePills");
+  const hydModeHintEl = wrap.querySelector("#hydModeHint");
+  const atmModeHintEl = wrap.querySelector("#atmModeHint");
+  const orbModeHintEl = wrap.querySelector("#orbModeHint");
+  const wmfEl = wrap.querySelector("#wmf");
+  const salinityEl = wrap.querySelector("#salinity");
+  const ammoniaEl = wrap.querySelector("#ammonia");
+  const differentiatedInteriorEl = wrap.querySelector("#differentiatedInterior");
+  const isoModePillsEl = wrap.querySelector("#isoModePills");
+  const isoModeHintEl = wrap.querySelector("#isoModeHint");
+  const radioAbundanceEl = wrap.querySelector("#radioAbundance");
+  const u238El = wrap.querySelector("#u238");
+  const u235El = wrap.querySelector("#u235");
+  const th232El = wrap.querySelector("#th232");
+  const k40El = wrap.querySelector("#k40");
+  const manualPressureEl = wrap.querySelector("#manualPressure");
+  const n2PctEl = wrap.querySelector("#n2Pct");
+  const o2PctEl = wrap.querySelector("#o2Pct");
+  const co2PctEl = wrap.querySelector("#co2Pct");
+  const arPctEl = wrap.querySelector("#arPct");
+  const h2oPctEl = wrap.querySelector("#h2oPct");
+  const ch4PctEl = wrap.querySelector("#ch4Pct");
+  const coPctEl = wrap.querySelector("#coPct");
+  const h2PctEl = wrap.querySelector("#h2Pct");
+  const hePctEl = wrap.querySelector("#hePct");
+  const so2PctEl = wrap.querySelector("#so2Pct");
+  const nh3PctEl = wrap.querySelector("#nh3Pct");
+  const forcedEccEl = wrap.querySelector("#forcedEcc");
+  const resonanceGroupEl = wrap.querySelector("#resonanceGroup");
+  const resonanceOrderEl = wrap.querySelector("#resonanceOrder");
+  const resonanceRatioEl = wrap.querySelector("#resonanceRatio");
+  const moonCreateQuickBtn = wrap.querySelector("#moonCreateQuickBtn");
+  const moonCreateGuidedBtn = wrap.querySelector("#moonCreateGuidedBtn");
+  const moonCreateRecipesBtn = wrap.querySelector("#moonCreateRecipesBtn");
+  const moonHydrosphereSectionEl = wrap.querySelector("#moonHydrosphereSection");
+  const moonAtmosphereSectionEl = wrap.querySelector("#moonAtmosphereSection");
+  const moonOrbitalSectionEl = wrap.querySelector("#moonOrbitalSection");
+  const moonIsoSimpleRowsEl = wrap.querySelector("#moonIsoSimpleRows");
+  const moonIsoAdvancedRowsEl = wrap.querySelector("#moonIsoAdvancedRows");
 
   const kpisEl = wrap.querySelector("#kpis");
   const detailsEl = wrap.querySelector("#details");
@@ -466,6 +716,16 @@ export function initMoonPage(mountEl) {
   bindPair("density", densityEl, 0.1, 20, 0.01, "auto");
   bindPair("albedo", albedoEl, 0, 0.95, 0.001, "auto");
   bindPair("initRot", initRotEl, 2, 1000, 0.1, "auto");
+  bindPair("wmf", wmfEl, 0, 60, 0.1, "auto");
+  bindPair("salinity", salinityEl, 0, 35, 0.1, "auto");
+  bindPair("ammonia", ammoniaEl, 0, 30, 0.1, "auto");
+  bindPair("radioAbundance", radioAbundanceEl, 0.1, 3, 0.01, "auto");
+  bindPair("u238", u238El, 0, 5, 0.01, "auto");
+  bindPair("u235", u235El, 0, 5, 0.01, "auto");
+  bindPair("th232", th232El, 0, 5, 0.01, "auto");
+  bindPair("k40", k40El, 0, 5, 0.01, "auto");
+  bindPair("manualPressure", manualPressureEl, 0, 10, 0.01, "auto");
+  bindPair("forcedEcc", forcedEccEl, 0, 0.2, 0.0001, "auto");
 
   function bindPair(id, numberEl, min, max, step, mode) {
     const sliderEl = wrap.querySelector(`#${id}_slider`);
@@ -486,7 +746,25 @@ export function initMoonPage(mountEl) {
   }
 
   function syncBoundPairs() {
-    for (const id of ["a", "e", "inc", "m", "density", "albedo", "initRot"]) {
+    for (const id of [
+      "a",
+      "e",
+      "inc",
+      "m",
+      "density",
+      "albedo",
+      "initRot",
+      "wmf",
+      "salinity",
+      "ammonia",
+      "radioAbundance",
+      "u238",
+      "u235",
+      "th232",
+      "k40",
+      "manualPressure",
+      "forcedEcc",
+    ]) {
       pairBindings[id]?.syncFromNumber({ commit: false, normalize: true });
     }
   }
@@ -530,6 +808,73 @@ export function initMoonPage(mountEl) {
     return { type: "planet", inputs: { ...world.planet } };
   }
 
+  function getModeValue(container, name, fallback = "core") {
+    return container?.querySelector(`input[name="${name}"]:checked`)?.value || fallback;
+  }
+
+  function setModeValue(container, name, value, fallback = "core") {
+    const targetValue = value || fallback;
+    container?.querySelectorAll(`input[name="${name}"]`).forEach((radio) => {
+      radio.checked = radio.value === targetValue;
+    });
+  }
+
+  function syncMoonModeUi() {
+    const hydMode = state.moon.hydrosphereMode || "core";
+    const atmMode = state.moon.atmosphereMode || "core";
+    const orbMode = state.moon.orbitalCouplingMode || "core";
+    const isoMode = state.moon.radioisotopeMode || "simple";
+
+    setModeValue(hydModePillsEl, "hydMode", hydMode);
+    setModeValue(atmModePillsEl, "atmMode", atmMode);
+    setModeValue(orbModePillsEl, "orbMode", orbMode);
+    setModeValue(isoModePillsEl, "isoMode", isoMode, "simple");
+
+    if (hydModeHintEl)
+      hydModeHintEl.textContent =
+        hydMode === "core"
+          ? "Compatibility heuristics."
+          : hydMode === "full"
+            ? "Inventory-driven moon water and ice solving."
+            : "Direct water/interior inputs with computed outputs.";
+    if (atmModeHintEl)
+      atmModeHintEl.textContent =
+        atmMode === "core"
+          ? "Retained-volatile atmosphere only."
+          : atmMode === "full"
+            ? "Computed atmosphere plus stability diagnostics."
+            : "Manual pressure and gas mix with stability checks.";
+    if (orbModeHintEl)
+      orbModeHintEl.textContent =
+        orbMode === "core"
+          ? "Single-moon treatment."
+          : orbMode === "full"
+            ? "Sibling resonance and tidal-HZ analysis."
+            : "Manual resonance-chain controls enabled.";
+    if (isoModeHintEl)
+      isoModeHintEl.textContent =
+        isoMode === "advanced"
+          ? "Advanced isotope-by-isotope moon heat inputs."
+          : "Single moon radiogenic-heat multiplier.";
+
+    if (moonHydrosphereSectionEl)
+      moonHydrosphereSectionEl.style.display = hydMode === "core" ? "none" : "";
+    if (moonAtmosphereSectionEl)
+      moonAtmosphereSectionEl.style.display = atmMode === "manual" ? "" : "none";
+    if (moonOrbitalSectionEl) moonOrbitalSectionEl.style.display = orbMode === "core" ? "none" : "";
+    if (moonIsoSimpleRowsEl) {
+      moonIsoSimpleRowsEl.style.display =
+        hydMode === "core" ? "none" : isoMode === "advanced" ? "none" : "";
+    }
+    if (moonIsoAdvancedRowsEl) {
+      moonIsoAdvancedRowsEl.style.display =
+        hydMode === "core" || isoMode !== "advanced" ? "none" : "";
+    }
+    if (resonanceGroupEl) resonanceGroupEl.disabled = orbMode !== "manual";
+    if (resonanceOrderEl) resonanceOrderEl.disabled = orbMode !== "manual";
+    if (resonanceRatioEl) resonanceRatioEl.disabled = orbMode !== "manual";
+  }
+
   function collectDraftMoonInputs() {
     return {
       name: nameEl.value || "New Moon",
@@ -541,6 +886,40 @@ export function initMoonPage(mountEl) {
       albedo: Number(albedoEl.value),
       compositionOverride: compOverrideEl.value || null,
       initialRotationPeriodHours: Number(initRotEl.value) || null,
+      hydrosphereMode: getModeValue(hydModePillsEl, "hydMode"),
+      atmosphereMode: getModeValue(atmModePillsEl, "atmMode"),
+      orbitalCouplingMode: getModeValue(orbModePillsEl, "orbMode"),
+      waterMassFractionPct: Number(wmfEl.value) || null,
+      salinityPct: Number(salinityEl.value) || null,
+      ammoniaPct: Number(ammoniaEl.value) || null,
+      differentiatedInterior:
+        differentiatedInteriorEl.value === "yes"
+          ? true
+          : differentiatedInteriorEl.value === "no"
+            ? false
+            : null,
+      radioisotopeMode: getModeValue(isoModePillsEl, "isoMode", "simple"),
+      radioisotopeAbundance: Number(radioAbundanceEl.value) || null,
+      u238Abundance: Number(u238El.value) || null,
+      u235Abundance: Number(u235El.value) || null,
+      th232Abundance: Number(th232El.value) || null,
+      k40Abundance: Number(k40El.value) || null,
+      manualSurfacePressureAtm: Number(manualPressureEl.value) || null,
+      n2Pct: Number(n2PctEl.value) || 0,
+      o2Pct: Number(o2PctEl.value) || 0,
+      co2Pct: Number(co2PctEl.value) || 0,
+      arPct: Number(arPctEl.value) || 0,
+      h2oPct: Number(h2oPctEl.value) || 0,
+      ch4Pct: Number(ch4PctEl.value) || 0,
+      coPct: Number(coPctEl.value) || 0,
+      h2Pct: Number(h2PctEl.value) || 0,
+      hePct: Number(hePctEl.value) || 0,
+      so2Pct: Number(so2PctEl.value) || 0,
+      nh3Pct: Number(nh3PctEl.value) || 0,
+      forcedEccentricity: Number(forcedEccEl.value) || null,
+      manualResonanceGroupId: resonanceGroupEl.value?.trim() || null,
+      manualResonanceOrder: Number(resonanceOrderEl.value) || null,
+      manualResonanceRatio: Number(resonanceRatioEl.value) || null,
     };
   }
 
@@ -557,6 +936,44 @@ export function initMoonPage(mountEl) {
     noticeTimer = setTimeout(() => {
       noteEl.classList.remove("is-visible");
     }, 3200);
+  }
+
+  function applyMoonPresetInputs(nextInputs, { noticeLabel = "Moon preset" } = {}) {
+    const w = loadWorld();
+    const selMoon = getSelectedMoon(w);
+    if (!selMoon) return null;
+
+    const moonId = selMoon.id;
+    const planetId = selMoon.planetId ?? state.moonPlanetId ?? null;
+    const guardModel = solveMoonModelForWorld(w, {
+      moonId,
+      moonInputs: nextInputs,
+      planetId,
+    }).model;
+    const guardCode = String(guardModel?.orbit?.semiMajorAxisGuard || "none");
+    const guardedSemiMajorAxisKm = Number(guardModel?.inputs?.semiMajorAxisKm);
+    const rawSemiMajorAxisKm = Number(nextInputs.semiMajorAxisKm);
+    const roundedGuardedSemiMajorAxisKm = Number.isFinite(guardedSemiMajorAxisKm)
+      ? Math.round(guardedSemiMajorAxisKm)
+      : rawSemiMajorAxisKm;
+    const useAdjustedAxis = guardCode !== "none" && Number.isFinite(roundedGuardedSemiMajorAxisKm);
+    const appliedInputs = {
+      ...nextInputs,
+      semiMajorAxisKm: useAdjustedAxis ? roundedGuardedSemiMajorAxisKm : rawSemiMajorAxisKm,
+    };
+
+    updateMoon(moonId, { inputs: appliedInputs });
+    updateWorld({ moon: appliedInputs });
+
+    if (useAdjustedAxis && Math.abs(appliedInputs.semiMajorAxisKm - rawSemiMajorAxisKm) > 1e-9) {
+      showMoonNotice(
+        `${noticeLabel} adjusted the semi-major axis to ${fmt(appliedInputs.semiMajorAxisKm, 0)} km to keep this moon inside the Moon Zone.`,
+      );
+    }
+
+    loadIntoInputs();
+    render();
+    return appliedInputs;
   }
 
   function populatePlanetOptions() {
@@ -580,77 +997,251 @@ export function initMoonPage(mountEl) {
     renderMoonSelector(moonSelectEl, moons, w.moons.selectedId);
   }
 
-  function buildParentOverride(gg) {
-    const starW = loadWorld().star;
-    const ggModel = calcGasGiant({
-      massMjup: gg.massMjup,
-      radiusRj: gg.radiusRj,
-      orbitAu: Number(gg.au) || 5,
-      rotationPeriodHours: gg.rotationPeriodHours,
-      metallicity: gg.metallicity,
-      starMassMsol: Number(starW.massMsol) || 1,
-      starLuminosityLsol: Number(starW.luminosityLsol) || 1,
-      starAgeGyr: Number(starW.ageGyr) || 4.6,
-      starRadiusRsol: Number(starW.radiusRsol) || 1,
-      stellarMetallicityFeH: Number(starW.metallicityFeH) || 0,
+  function applyPreviewSiblingPatch(siblingEntries, siblingPatch, requestedPlanetId) {
+    const operations = Array.isArray(siblingPatch?.operations) ? siblingPatch.operations : [];
+    if (!operations.length) return siblingEntries;
+
+    const nextEntries = (Array.isArray(siblingEntries) ? siblingEntries : []).map((entry) => ({
+      ...entry,
+      inputs: { ...(entry?.inputs || {}) },
+    }));
+
+    for (let index = 0; index < operations.length; index += 1) {
+      const operation = operations[index];
+      if (!operation || typeof operation !== "object") continue;
+
+      if (operation.type === "update" && operation.moonId) {
+        const siblingIndex = nextEntries.findIndex((entry) => entry?.id === operation.moonId);
+        if (siblingIndex >= 0) {
+          nextEntries[siblingIndex] = {
+            ...nextEntries[siblingIndex],
+            name: operation.name ?? nextEntries[siblingIndex].name,
+            planetId:
+              operation.planetId === undefined
+                ? nextEntries[siblingIndex].planetId
+                : (operation.planetId ?? null),
+            inputs: {
+              ...(nextEntries[siblingIndex].inputs || {}),
+              ...(operation.inputPatch || {}),
+            },
+          };
+        }
+      } else if (operation.type === "create" && operation.inputs) {
+        nextEntries.push({
+          id: operation.previewId || `preview-sibling-${index + 1}`,
+          name: operation.name || operation.inputs?.name || "Preview sibling",
+          planetId:
+            operation.planetId === undefined
+              ? (requestedPlanetId ?? null)
+              : (operation.planetId ?? null),
+          inputs: { ...(operation.inputs || {}) },
+        });
+      }
+    }
+
+    return nextEntries;
+  }
+
+  function solveMoonModelForWorld(
+    world,
+    { moonId, moonInputs, planetId, parentPatch = null, siblingPatch = null },
+  ) {
+    const requestedPlanetId =
+      parentPatch?.assignMoonToParentId != null ? parentPatch.assignMoonToParentId : planetId;
+    const resolvedBase = resolvePlanetInputs(world, requestedPlanetId);
+    const starModel = calcStar({
+      massMsol: state.starMassMsol,
+      ageGyr: state.starAgeGyr,
+      metallicityFeH: state.starMetallicityFeH,
+      radiusRsolOverride: state.starRadiusRsolOverride,
+      luminosityLsolOverride: state.starLuminosityLsolOverride,
+      tempKOverride: state.starTempKOverride,
+      evolutionMode: state.starEvolutionMode,
+    });
+    const siblingEntries = listMoons(world)
+      .filter((entry) => (entry.planetId ?? null) === (requestedPlanetId ?? null))
+      .map((entry) => ({
+        ...entry,
+        inputs: entry.id === moonId ? moonInputs : entry.inputs,
+      }));
+    const patchedSiblingEntries = applyPreviewSiblingPatch(
+      siblingEntries,
+      siblingPatch,
+      requestedPlanetId,
+    );
+
+    const resolved =
+      parentPatch?.parentKind === "gasGiant" &&
+      resolvedBase.type === "gasGiant" &&
+      resolvedBase.gasGiant
+        ? {
+            ...resolvedBase,
+            gasGiant: {
+              ...resolvedBase.gasGiant,
+              ...(parentPatch.inputPatch || {}),
+            },
+          }
+        : parentPatch?.parentKind === "planet" && resolvedBase.type === "planet"
+          ? {
+              ...resolvedBase,
+              inputs: {
+                ...(resolvedBase.inputs || {}),
+                ...(parentPatch.inputPatch || {}),
+              },
+            }
+          : resolvedBase;
+
+    if (resolved.type === "gasGiant" && resolved.gasGiant) {
+      const gasParentModel = calcGasGiant({
+        ...resolved.gasGiant,
+        orbitAu: Number(resolved.gasGiant.au) || 5,
+        starMassMsol: state.starMassMsol,
+        starLuminosityLsol: starModel.luminosityLsol,
+        starAgeGyr: state.starAgeGyr,
+        starRadiusRsol: starModel.radiusRsol,
+        stellarMetallicityFeH: state.starMetallicityFeH,
+        otherGiants: listSystemGasGiants(world).filter(
+          (giant) => giant.id !== resolved.gasGiant.id,
+        ),
+        moons: patchedSiblingEntries.map((entry) => entry.inputs || {}),
+      });
+      const parentOverride = buildGasGiantMoonParentOverride(gasParentModel);
+      const solved = solveMoonSystem({
+        starMassMsol: state.starMassMsol,
+        starAgeGyr: state.starAgeGyr,
+        starMetallicityFeH: state.starMetallicityFeH,
+        starRadiusRsolOverride: state.starRadiusRsolOverride,
+        starLuminosityLsolOverride: state.starLuminosityLsolOverride,
+        starTempKOverride: state.starTempKOverride,
+        starEvolutionMode: state.starEvolutionMode,
+        starHabitableZoneAu: starModel.habitableZoneAu,
+        parentKind: "gasGiant",
+        parentOverride,
+        moonEntries: patchedSiblingEntries.length
+          ? patchedSiblingEntries
+          : [{ id: moonId || "draft-moon", planetId: requestedPlanetId, inputs: moonInputs }],
+      });
+      return {
+        parentType: "gasGiant",
+        parentOverride,
+        parentInfo: {
+          parentId: resolved.gasGiant.id || requestedPlanetId || null,
+          parentKind: "gasGiant",
+          parentName: resolved.gasGiant.name || resolved.gasGiant.id || "Gas giant",
+          assigned: requestedPlanetId != null,
+          orbitAu:
+            Number(resolved.gasGiant.au) || Number(parentOverride.inputs.semiMajorAxisAu) || null,
+          eccentricity: Number(resolved.gasGiant.eccentricity) || 0,
+          massEarth: Number(parentOverride.inputs.massEarth) || null,
+          massMjup: Number(resolved.gasGiant.massMjup) || null,
+          rotationPeriodHours: Number(resolved.gasGiant.rotationPeriodHours) || null,
+          siblingCount: Math.max(patchedSiblingEntries.length - (moonId ? 1 : 0), 0),
+          starHabitableZoneAu: starModel.habitableZoneAu || null,
+        },
+        contextText:
+          `Star Mass: ${fmt(state.starMassMsol, 4)} Msol\n` +
+          `Parent: ${resolved.gasGiant.name || resolved.gasGiant.id} (gas giant)\n` +
+          `Parent orbit: ${fmt(parentOverride.inputs.semiMajorAxisAu, 3)} AU`,
+        model:
+          solved.find((entry) => entry.raw.id === moonId)?.model ||
+          solved.find((entry) => entry.raw.inputs === moonInputs)?.model ||
+          solved[0]?.model ||
+          calcMoon({
+            starMassMsol: state.starMassMsol,
+            starAgeGyr: state.starAgeGyr,
+            starMetallicityFeH: state.starMetallicityFeH,
+            starRadiusRsolOverride: state.starRadiusRsolOverride,
+            starLuminosityLsolOverride: state.starLuminosityLsolOverride,
+            starTempKOverride: state.starTempKOverride,
+            starEvolutionMode: state.starEvolutionMode,
+            moon: moonInputs,
+            parentOverride,
+          }),
+      };
+    }
+
+    const parentInputs = resolved.inputs || { ...world.planet };
+    const rockyParentModel = calcPlanetExact({
+      starMassMsol: state.starMassMsol,
+      starAgeGyr: state.starAgeGyr,
+      starMetallicityFeH: state.starMetallicityFeH,
+      starRadiusRsolOverride: state.starRadiusRsolOverride,
+      starLuminosityLsolOverride: state.starLuminosityLsolOverride,
+      starTempKOverride: state.starTempKOverride,
+      starEvolutionMode: state.starEvolutionMode,
+      planet: parentInputs,
+      moons: patchedSiblingEntries.map((entry) => entry.inputs || {}),
+      gasGiants: listSystemGasGiants(world),
+    });
+    const parentOverride = buildRockyMoonParentOverride(rockyParentModel);
+    const solved = solveMoonSystem({
+      starMassMsol: state.starMassMsol,
+      starAgeGyr: state.starAgeGyr,
+      starMetallicityFeH: state.starMetallicityFeH,
+      starRadiusRsolOverride: state.starRadiusRsolOverride,
+      starLuminosityLsolOverride: state.starLuminosityLsolOverride,
+      starTempKOverride: state.starTempKOverride,
+      starEvolutionMode: state.starEvolutionMode,
+      starHabitableZoneAu: starModel.habitableZoneAu,
+      parentKind: "planet",
+      parentOverride,
+      moonEntries: patchedSiblingEntries.length
+        ? patchedSiblingEntries
+        : [{ id: moonId || "draft-moon", planetId: requestedPlanetId, inputs: moonInputs }],
     });
     return {
-      inputs: {
-        massEarth: ggModel.physical.massEarth,
-        semiMajorAxisAu: ggModel.inputs.orbitAu,
-        eccentricity: 0,
-        rotationPeriodHours: ggModel.inputs.rotationPeriodHours,
-        cmfPct: 0,
+      parentType: "planet",
+      parentOverride,
+      parentInfo: {
+        parentId: requestedPlanetId ?? null,
+        parentKind: "planet",
+        parentName: requestedPlanetId
+          ? world.planets.byId?.[requestedPlanetId]?.name || "Planet"
+          : "Planet",
+        assigned: requestedPlanetId != null,
+        orbitAu:
+          Number(parentInputs.semiMajorAxisAu) ||
+          Number(parentOverride.inputs.semiMajorAxisAu) ||
+          null,
+        eccentricity: Number(parentInputs.eccentricity) || 0,
+        massEarth:
+          Number(parentInputs.massEarth) || Number(parentOverride.inputs.massEarth) || null,
+        massMjup: null,
+        rotationPeriodHours: Number(parentInputs.rotationPeriodHours) || null,
+        siblingCount: Math.max(patchedSiblingEntries.length - (moonId ? 1 : 0), 0),
+        starHabitableZoneAu: starModel.habitableZoneAu || null,
       },
-      derived: {
-        densityGcm3: ggModel.physical.densityGcm3,
-        radiusEarth: ggModel.physical.radiusEarth,
-        gravityG: ggModel.physical.gravityG,
-        surfaceFieldEarths: ggModel.magnetic.surfaceFieldEarths,
-        magnetopauseRp: ggModel.magnetic.magnetopauseRp,
-        radioisotopeAbundance: 1,
-      },
+      contextText:
+        `Star Mass: ${fmt(state.starMassMsol, 4)} Msol\n` +
+        `Planet Mass: ${fmt(parentInputs.massEarth, 3)} MEarth\n` +
+        `Planet orbit: ${fmt(parentInputs.semiMajorAxisAu, 3)} AU`,
+      model:
+        solved.find((entry) => entry.raw.id === moonId)?.model ||
+        solved.find((entry) => entry.raw.inputs === moonInputs)?.model ||
+        solved[0]?.model ||
+        calcMoon({
+          starMassMsol: state.starMassMsol,
+          starAgeGyr: state.starAgeGyr,
+          starMetallicityFeH: state.starMetallicityFeH,
+          starRadiusRsolOverride: state.starRadiusRsolOverride,
+          starLuminosityLsolOverride: state.starLuminosityLsolOverride,
+          starTempKOverride: state.starTempKOverride,
+          starEvolutionMode: state.starEvolutionMode,
+          planet: parentInputs,
+          moon: moonInputs,
+        }),
     };
   }
 
   function render() {
     syncFromWorld();
-
-    let model;
-    if (state.parentType === "gasGiant" && state.gasGiant) {
-      const po = buildParentOverride(state.gasGiant);
-      contextEl.textContent =
-        `Star Mass: ${fmt(state.starMassMsol, 4)} Msol\n` +
-        `Parent: ${state.gasGiant.name || state.gasGiant.id} (gas giant)\n` +
-        `Parent orbit: ${fmt(po.inputs.semiMajorAxisAu, 3)} AU`;
-      model = calcMoon({
-        starMassMsol: state.starMassMsol,
-        starAgeGyr: state.starAgeGyr,
-        starMetallicityFeH: state.starMetallicityFeH,
-        starRadiusRsolOverride: state.starRadiusRsolOverride,
-        starLuminosityLsolOverride: state.starLuminosityLsolOverride,
-        starTempKOverride: state.starTempKOverride,
-        starEvolutionMode: state.starEvolutionMode,
-        moon: state.moon,
-        parentOverride: po,
-      });
-    } else {
-      contextEl.textContent =
-        `Star Mass: ${fmt(state.starMassMsol, 4)} Msol\n` +
-        `Planet Mass: ${fmt(state.planet.massEarth, 3)} MEarth\n` +
-        `Planet orbit: ${fmt(state.planet.semiMajorAxisAu, 3)} AU`;
-      model = calcMoon({
-        starMassMsol: state.starMassMsol,
-        starAgeGyr: state.starAgeGyr,
-        starMetallicityFeH: state.starMetallicityFeH,
-        starRadiusRsolOverride: state.starRadiusRsolOverride,
-        starLuminosityLsolOverride: state.starLuminosityLsolOverride,
-        starTempKOverride: state.starTempKOverride,
-        starEvolutionMode: state.starEvolutionMode,
-        planet: state.planet,
-        moon: state.moon,
-      });
-    }
+    const solved = solveMoonModelForWorld(loadWorld(), {
+      moonId: state.moonId,
+      moonInputs: state.moon,
+      planetId: state.moonPlanetId,
+    });
+    contextEl.textContent = solved.contextText;
+    const model = solved.model;
 
     const moonProfile = computeMoonVisualProfile(model);
     const earthSimilarityBreakdown = model.habitability?.earthSimilarityBreakdown || {};
@@ -726,10 +1317,6 @@ export function initMoonPage(mountEl) {
             kind: "preview",
             label: "Appearance",
             tip: TIP_LABEL.Appearance || "",
-            actions: [
-              { className: "small moon-recipe-btn", text: "Recipes" },
-              { className: "small moon-pause-btn", text: "Pause" },
-            ],
             canvasClass: "moon-preview-canvas",
             metaChildren: [
               moonProfile.displayClass,
@@ -776,6 +1363,14 @@ export function initMoonPage(mountEl) {
           buildMoonKpi("Surface Pressure", model.display.surfacePressure),
           buildMoonKpi("Atmosphere Mix", compactAtmosphereMix, model.display.atmosphereComposition),
           buildMoonKpi("Greenhouse Warming", model.display.greenhouseWarming),
+          buildMoonKpi(
+            "Atmosphere Stability",
+            model.display.atmosphereStability,
+            model.display.atmosphereLoss,
+          ),
+          buildMoonKpi("Atmosphere Lifetime", model.display.atmosphereLifetime),
+          buildMoonKpi("Atmosphere Haze", model.display.atmosphereHaze),
+          buildMoonKpi("Atmosphere Clouds", model.display.atmosphereClouds),
           buildMoonKpi("Hydrosphere", model.display.hydrosphereState),
           buildMoonKpi("Surface Ices", model.display.surfaceIces),
           buildMoonKpi("Surface Water", model.display.surfaceWater),
@@ -783,9 +1378,14 @@ export function initMoonPage(mountEl) {
           buildMoonKpi("Ocean Depth", model.display.oceanDepth),
           buildMoonKpi("Ice Shell", model.display.iceShell),
           buildMoonKpi("High-Pressure Ice", model.display.highPressureIce),
+          buildMoonKpi("Interior Structure", model.display.interiorStructure),
+          buildMoonKpi("Ocean Chemistry", model.display.oceanChemistry),
           buildMoonKpi("Equilibrium Temp", model.display.equilibriumTemp),
           buildMoonKpi("Climate State", model.display.climateState),
+          buildMoonKpi("Collapse State", model.display.collapseState),
           buildMoonKpi("Surface Temp Range", model.display.surfaceTempRange),
+          buildMoonKpi("Day/Night Contrast", model.display.dayNightContrast),
+          buildMoonKpi("Nightside Min", model.display.nightsideMin),
           buildMoonKpi(
             "Climate Zones",
             model.display.climateZones,
@@ -805,6 +1405,11 @@ export function initMoonPage(mountEl) {
           buildMoonKpi("Initial Rotation Period", model.display.initialRot),
           buildMoonKpi("Planetshine", model.display.planetshine),
           buildMoonKpi("Eclipse Cooling", model.display.eclipseCooling),
+          buildMoonKpi("Nearest Resonance", model.display.nearestResonance),
+          buildMoonKpi("Laplace Status", model.display.laplaceStatus),
+          buildMoonKpi("Forced Eccentricity", model.display.forcedEccentricity),
+          buildMoonKpi("Tidal HZ", model.display.tidalHabitableZone),
+          buildMoonKpi("Formation", model.display.formation),
           buildMoonKpi("Orbital Recession", model.display.recession),
           buildMoonKpi(
             "Orbital Fate",
@@ -931,27 +1536,6 @@ export function initMoonPage(mountEl) {
       celestialPreviewController.detach();
     }
 
-    // Wire recipe picker button
-    kpisEl.querySelector(".moon-recipe-btn")?.addEventListener("click", () => {
-      openMoonRecipePicker((recipe) => {
-        const selMoon = getSelectedMoon();
-        if (selMoon) {
-          updateMoon(selMoon.id, { inputs: { ...recipe.apply, appearanceRecipeId: recipe.id } });
-        }
-        render();
-      });
-    });
-
-    // Pause / resume rotation
-    const moonPauseBtn = kpisEl.querySelector(".moon-pause-btn");
-    if (moonPauseBtn) {
-      moonPauseBtn.addEventListener("click", () => {
-        const paused = moonPauseBtn.textContent === "Pause";
-        celestialPreviewController.setPaused(paused);
-        moonPauseBtn.textContent = paused ? "Play" : "Pause";
-      });
-    }
-
     renderMoonDerivedDetails(
       detailsEl,
       [
@@ -991,13 +1575,26 @@ export function initMoonPage(mountEl) {
               meta: model.display.atmosphereComposition,
             },
             { label: "Greenhouse Warming", value: model.display.greenhouseWarming },
+            {
+              label: "Atmosphere Stability",
+              value: model.display.atmosphereStability,
+              meta: model.display.atmosphereLoss,
+            },
+            { label: "Atmosphere Lifetime", value: model.display.atmosphereLifetime },
+            { label: "Atmosphere Haze", value: model.display.atmosphereHaze },
+            { label: "Atmosphere Clouds", value: model.display.atmosphereClouds },
             { label: "Hydrosphere", value: model.display.hydrosphereState },
             { label: "Surface Water", value: model.display.surfaceWater },
             { label: "Subsurface Ocean", value: model.display.subsurfaceOcean },
             { label: "Ocean Depth", value: model.display.oceanDepth },
             { label: "Ice Shell", value: model.display.iceShell },
             { label: "High-Pressure Ice", value: model.display.highPressureIce },
+            { label: "Interior Structure", value: model.display.interiorStructure },
+            { label: "Ocean Chemistry", value: model.display.oceanChemistry },
             { label: "Climate State", value: model.display.climateState },
+            { label: "Collapse State", value: model.display.collapseState },
+            { label: "Day/Night Contrast", value: model.display.dayNightContrast },
+            { label: "Nightside Min", value: model.display.nightsideMin },
             {
               label: "Climate Zones",
               value: model.display.climateZones,
@@ -1021,6 +1618,11 @@ export function initMoonPage(mountEl) {
             { label: "Initial Rotation Period", value: model.display.initialRot },
             { label: "Planetshine", value: model.display.planetshine },
             { label: "Eclipse Cooling", value: model.display.eclipseCooling },
+            { label: "Nearest Resonance", value: model.display.nearestResonance },
+            { label: "Laplace Status", value: model.display.laplaceStatus },
+            { label: "Forced Eccentricity", value: model.display.forcedEccentricity },
+            { label: "Tidal HZ", value: model.display.tidalHabitableZone },
+            { label: "Formation", value: model.display.formation },
             { label: "Orbital Recession", value: model.display.recession },
             { label: "Orbital Fate", value: model.display.orbitalFate },
             { label: "Moon locked to Planet", value: model.display.moonLocked },
@@ -1140,7 +1742,38 @@ export function initMoonPage(mountEl) {
     albedoEl.value = state.moon.albedo;
     compOverrideEl.value = state.moon.compositionOverride || "";
     initRotEl.value = state.moon.initialRotationPeriodHours || 12;
+    wmfEl.value = state.moon.waterMassFractionPct ?? 0;
+    salinityEl.value = state.moon.salinityPct ?? 0;
+    ammoniaEl.value = state.moon.ammoniaPct ?? 0;
+    differentiatedInteriorEl.value =
+      state.moon.differentiatedInterior === true
+        ? "yes"
+        : state.moon.differentiatedInterior === false
+          ? "no"
+          : "";
+    radioAbundanceEl.value = state.moon.radioisotopeAbundance ?? 1;
+    u238El.value = state.moon.u238Abundance ?? 1;
+    u235El.value = state.moon.u235Abundance ?? 1;
+    th232El.value = state.moon.th232Abundance ?? 1;
+    k40El.value = state.moon.k40Abundance ?? 1;
+    manualPressureEl.value = state.moon.manualSurfacePressureAtm ?? 0;
+    n2PctEl.value = state.moon.n2Pct ?? 0;
+    o2PctEl.value = state.moon.o2Pct ?? 0;
+    co2PctEl.value = state.moon.co2Pct ?? 0;
+    arPctEl.value = state.moon.arPct ?? 0;
+    h2oPctEl.value = state.moon.h2oPct ?? 0;
+    ch4PctEl.value = state.moon.ch4Pct ?? 0;
+    coPctEl.value = state.moon.coPct ?? 0;
+    h2PctEl.value = state.moon.h2Pct ?? 0;
+    hePctEl.value = state.moon.hePct ?? 0;
+    so2PctEl.value = state.moon.so2Pct ?? 0;
+    nh3PctEl.value = state.moon.nh3Pct ?? 0;
+    forcedEccEl.value = state.moon.forcedEccentricity ?? 0;
+    resonanceGroupEl.value = state.moon.manualResonanceGroupId || "";
+    resonanceOrderEl.value = state.moon.manualResonanceOrder ?? "";
+    resonanceRatioEl.value = state.moon.manualResonanceRatio ?? "";
     syncBoundPairs();
+    syncMoonModeUi();
   }
 
   let hydrating = false;
@@ -1154,34 +1787,11 @@ export function initMoonPage(mountEl) {
     const planetId = moonPlanetSelectEl.value || null;
 
     const draftInputs = collectDraftMoonInputs();
-    const resolved = resolvePlanetInputs(w, planetId);
-    let guardModel;
-    if (resolved.type === "gasGiant") {
-      const po = buildParentOverride(resolved.gasGiant);
-      guardModel = calcMoon({
-        starMassMsol: state.starMassMsol,
-        starAgeGyr: state.starAgeGyr,
-        starMetallicityFeH: state.starMetallicityFeH,
-        starRadiusRsolOverride: state.starRadiusRsolOverride,
-        starLuminosityLsolOverride: state.starLuminosityLsolOverride,
-        starTempKOverride: state.starTempKOverride,
-        starEvolutionMode: state.starEvolutionMode,
-        moon: draftInputs,
-        parentOverride: po,
-      });
-    } else {
-      guardModel = calcMoon({
-        starMassMsol: state.starMassMsol,
-        starAgeGyr: state.starAgeGyr,
-        starMetallicityFeH: state.starMetallicityFeH,
-        starRadiusRsolOverride: state.starRadiusRsolOverride,
-        starLuminosityLsolOverride: state.starLuminosityLsolOverride,
-        starTempKOverride: state.starTempKOverride,
-        starEvolutionMode: state.starEvolutionMode,
-        planet: resolved.inputs,
-        moon: draftInputs,
-      });
-    }
+    const guardModel = solveMoonModelForWorld(w, {
+      moonId,
+      moonInputs: draftInputs,
+      planetId,
+    }).model;
     const guardCode = String(guardModel?.orbit?.semiMajorAxisGuard || "none");
     const guardedSemiMajorAxisKm = Number(guardModel?.inputs?.semiMajorAxisKm);
     const rawSemiMajorAxisKm = Number(draftInputs.semiMajorAxisKm);
@@ -1214,6 +1824,31 @@ export function initMoonPage(mountEl) {
   nameEl.addEventListener("change", applyFromInputs);
   compOverrideEl.addEventListener("change", applyFromInputs);
   moonPlanetSelectEl.addEventListener("change", applyFromInputs);
+  differentiatedInteriorEl.addEventListener("change", applyFromInputs);
+  resonanceGroupEl.addEventListener("change", applyFromInputs);
+  resonanceOrderEl.addEventListener("change", applyFromInputs);
+  resonanceRatioEl.addEventListener("change", applyFromInputs);
+  [hydModePillsEl, atmModePillsEl, orbModePillsEl, isoModePillsEl].forEach((container) => {
+    container?.addEventListener("change", () => {
+      applyFromInputs();
+      syncMoonModeUi();
+    });
+  });
+  [
+    n2PctEl,
+    o2PctEl,
+    co2PctEl,
+    arPctEl,
+    h2oPctEl,
+    ch4PctEl,
+    coPctEl,
+    h2PctEl,
+    hePctEl,
+    so2PctEl,
+    nh3PctEl,
+  ].forEach((input) => {
+    input?.addEventListener("change", applyFromInputs);
+  });
 
   moonSelectEl.addEventListener("change", () => {
     selectMoon(moonSelectEl.value);
@@ -1239,6 +1874,20 @@ export function initMoonPage(mountEl) {
     render();
   });
 
+  moonCreateQuickBtn?.addEventListener("click", () => {
+    openMoonGuidedQuickPicker();
+  });
+  moonCreateGuidedBtn?.addEventListener("click", () => {
+    openMoonGuidedFlow();
+  });
+  moonCreateRecipesBtn?.addEventListener("click", () => {
+    openMoonRecipePicker((recipe) => {
+      applyMoonPresetInputs(buildMoonRecipeApplyInputs(recipe.apply, recipe.id), {
+        noticeLabel: recipe.label || "Moon recipe",
+      });
+    });
+  });
+
   wrap.querySelector("#btn-default").addEventListener("click", () => {
     // Spreadsheet defaults
     state.moon = {
@@ -1261,6 +1910,450 @@ export function initMoonPage(mountEl) {
   });
 
   /* ── Moon recipe picker modal ──────────────────────────────────────── */
+
+  const moonGuidedSteps = Object.freeze([
+    { id: "type", label: "Type" },
+    { id: "parent-context", label: "Parent" },
+    { id: "goal-details", label: "Goals" },
+    { id: "recommendation", label: "Recommendation" },
+  ]);
+
+  function moonGuidedStepIndex(stepId) {
+    const index = moonGuidedSteps.findIndex((step) => step.id === String(stepId || ""));
+    return index >= 0 ? index : 0;
+  }
+
+  function buildMoonGuidedContext() {
+    const world = loadWorld();
+    const selectedMoon = getSelectedMoon(world);
+    const activeMoonId = selectedMoon?.id || state.moonId;
+    const activePlanetId = selectedMoon?.planetId ?? state.moonPlanetId ?? null;
+    const activeMoonInputs = selectedMoon?.inputs || state.moon;
+    const solvedContext = solveMoonModelForWorld(world, {
+      moonId: activeMoonId,
+      moonInputs: activeMoonInputs,
+      planetId: activePlanetId,
+    });
+    const currentContextLabel =
+      solvedContext.parentInfo?.assigned === false
+        ? "No assigned parent"
+        : solvedContext.parentType === "gasGiant"
+          ? "Current gas giant system"
+          : "Current planet system";
+    const currentContextText =
+      solvedContext.parentInfo?.assigned === false
+        ? `${solvedContext.contextText}\nMoon is currently unassigned. Assign it to a planet or gas giant before using strict guided fitting.`
+        : solvedContext.contextText;
+
+    return {
+      currentMoonId: activeMoonId,
+      currentMoonName: state.moonName || state.moon.name || "Moon",
+      siblingEntries: listMoons(world).filter(
+        (entry) =>
+          entry?.id !== activeMoonId && (entry?.planetId ?? null) === (activePlanetId ?? null),
+      ),
+      currentContextLabel,
+      currentContextText,
+      parentContext: solvedContext.parentInfo || null,
+      starHabitableZoneAu: solvedContext.parentInfo?.starHabitableZoneAu || null,
+      recipeCatalog: MOON_RECIPES,
+      solveMoonInputs: (moonInputs, options = {}) => {
+        const latestWorld = loadWorld();
+        const latestSelectedMoon = getSelectedMoon(latestWorld);
+        return solveMoonModelForWorld(latestWorld, {
+          moonId: latestSelectedMoon?.id || activeMoonId,
+          moonInputs,
+          planetId: latestSelectedMoon?.planetId ?? activePlanetId,
+          parentPatch: options.parentPatch || null,
+          siblingPatch: options.siblingPatch || null,
+        });
+      },
+    };
+  }
+
+  function createMoonGuidedPreviewMetric(label, value, meta = "") {
+    const displayValue =
+      value == null || value === ""
+        ? "n/a"
+        : typeof value === "number" && !Number.isFinite(value)
+          ? "n/a"
+          : String(value);
+    return createElement("div", { className: "moon-guided-preview__metric" }, [
+      createElement("div", {
+        className: "moon-guided-preview__metric-label",
+        text: label,
+      }),
+      createElement("div", {
+        className: "moon-guided-preview__metric-value",
+        text: displayValue,
+      }),
+      meta
+        ? createElement("div", {
+            className: "moon-guided-preview__metric-meta",
+            text: meta,
+          })
+        : null,
+    ]);
+  }
+
+  function createMoonGuidedPreviewContent(recommendation) {
+    const model = recommendation?.previewPayload?.moonCalc;
+    if (!model) return null;
+    const adjustmentSummary = (recommendation?.contextAdjustments || []).join(" ");
+    const hasParentPatch = !!recommendation?.applyPayload?.parentPatch;
+    const hasSiblingPatch = !!recommendation?.applyPayload?.siblingPatch;
+    return createElement("div", { className: "moon-guided-preview" }, [
+      createElement("div", {
+        className: "moon-guided-preview__title",
+        text:
+          hasParentPatch && hasSiblingPatch
+            ? "Solved preview after applying the recommended host and moon-system fixes"
+            : hasParentPatch
+              ? "Solved preview after applying the recommended host fixes"
+              : hasSiblingPatch
+                ? "Solved preview after applying the recommended moon-system fixes"
+                : "Solved preview in the current host context",
+      }),
+      createElement("div", { className: "moon-guided-preview__grid" }, [
+        createMoonGuidedPreviewMetric("Hydrosphere", model.display?.hydrosphereState),
+        createMoonGuidedPreviewMetric(
+          "Atmosphere",
+          model.display?.atmosphereClass,
+          model.display?.surfacePressure,
+        ),
+        createMoonGuidedPreviewMetric("Climate", model.display?.climateState),
+        createMoonGuidedPreviewMetric(
+          "Biosphere",
+          model.display?.surfaceBiosphere,
+          model.display?.vegetation,
+        ),
+      ]),
+      adjustmentSummary
+        ? createElement("div", {
+            className: "moon-guided-preview__summary",
+            text: adjustmentSummary,
+          })
+        : null,
+    ]);
+  }
+
+  function applyMoonParentPatch(parentPatch) {
+    if (!parentPatch || !parentPatch.parentId || !parentPatch.parentKind) return false;
+
+    if (parentPatch.parentKind === "planet") {
+      updatePlanet(parentPatch.parentId, {
+        inputs: {
+          ...(parentPatch.inputPatch || {}),
+        },
+      });
+      return true;
+    }
+
+    if (parentPatch.parentKind === "gasGiant") {
+      const nextGasGiants = listSystemGasGiants().map((gasGiant) =>
+        gasGiant.id === parentPatch.parentId
+          ? {
+              ...gasGiant,
+              ...(parentPatch.inputPatch || {}),
+            }
+          : gasGiant,
+      );
+      saveSystemGasGiants(nextGasGiants);
+      return true;
+    }
+
+    return false;
+  }
+
+  function applyMoonGuidedRecommendation(recommendation, { noticeLabel = "Guided moon" } = {}) {
+    const parentPatched = applyMoonParentPatch(recommendation?.applyPayload?.parentPatch || null);
+    const siblingPatchResult = applyMoonSiblingPatch(
+      recommendation?.applyPayload?.siblingPatch || null,
+      {
+        preserveSelectedMoonId: loadWorld().moons?.selectedId || null,
+      },
+    );
+    const appliedInputs = applyMoonPresetInputs(recommendation?.applyPayload?.objectInputs || {}, {
+      noticeLabel,
+    });
+    return {
+      appliedInputs,
+      parentPatched,
+      parentPatchSummary: recommendation?.applyPayload?.parentPatch?.summary || "",
+      siblingPatched: !!siblingPatchResult?.changed,
+      siblingPatchSummary: recommendation?.applyPayload?.siblingPatch?.summary || "",
+      siblingPatchCreatedCount: siblingPatchResult?.createdMoonIds?.length || 0,
+      siblingPatchUpdatedCount: siblingPatchResult?.updatedMoonIds?.length || 0,
+    };
+  }
+
+  function openMoonGuidedQuickPicker() {
+    const adapter = ensureMoonGuidedAdapterRegistered();
+    const context = buildMoonGuidedContext();
+    const { overlayEl, contentEl, closeButtonEl } = createMoonGuidedCreationOverlay();
+    let controller = null;
+
+    function close() {
+      overlayEl.remove();
+      document.removeEventListener("keydown", onKey);
+    }
+
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+
+    controller = createGuidedFlowController({
+      adapter,
+      context,
+      initialState: {
+        objectType: "moon",
+        uxMode: "quick",
+      },
+      onUpdate: ({ state: flowState, archetypes, questions, recommendation }) => {
+        const panel = createGuidedPanel({
+          title: "Moon Quick Types",
+          subtitle:
+            "Pick a defensible starting point. Each option maps to an engine-backed moon preset and is re-solved in the current parent context.",
+          archetypes: (archetypes || []).filter((entry) => entry?.quickEnabled !== false),
+          selectedArchetypeId: flowState.selectedArchetypeId || "",
+          questions,
+          answers: flowState.answers,
+          recommendation,
+          previewContent: createMoonGuidedPreviewContent(recommendation),
+          actions: [
+            {
+              id: "apply",
+              label: recommendation?.diagnostics?.some((entry) => entry?.severity === "warning")
+                ? "Apply Starting Point"
+                : "Apply Quick Type",
+              disabled: !recommendation,
+            },
+          ],
+          onArchetypeSelect: (archetypeId) => controller?.selectArchetype(archetypeId),
+          onQuestionChange: (questionId, value) => controller?.setAnswer(questionId, value),
+          onAction: (actionId) => {
+            if (actionId !== "apply" || !recommendation) return;
+            controller?.apply({
+              applyMoonInputs: (objectInputs) =>
+                applyMoonPresetInputs(objectInputs, {
+                  noticeLabel: recommendation.title || "Moon quick type",
+                }),
+            });
+            close();
+          },
+        });
+        contentEl.replaceChildren(panel);
+      },
+    });
+
+    closeButtonEl.addEventListener("click", close);
+    overlayEl.addEventListener("click", (e) => {
+      if (e.target === overlayEl) close();
+    });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlayEl);
+  }
+
+  function openMoonGuidedFlow() {
+    const adapter = ensureMoonGuidedAdapterRegistered();
+    const context = buildMoonGuidedContext();
+    const { overlayEl, contentEl, closeButtonEl } = createMoonGuidedCreationOverlay();
+    let controller = null;
+
+    function close() {
+      overlayEl.remove();
+      document.removeEventListener("keydown", onKey);
+    }
+
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+
+    function nextMoonGuidedStepId(flowState, questions = []) {
+      const currentId = String(flowState?.currentStepId || "type");
+      if (currentId === "type") return "parent-context";
+      if (currentId === "parent-context") {
+        return questions.some((question) => question?.stepId === "goal-details")
+          ? "goal-details"
+          : "recommendation";
+      }
+      return "recommendation";
+    }
+
+    function previousMoonGuidedStepId(flowState) {
+      const currentId = String(flowState?.currentStepId || "type");
+      if (currentId === "recommendation") {
+        return (flowState?.questions || []).some((question) => question?.stepId === "goal-details")
+          ? "goal-details"
+          : "parent-context";
+      }
+      if (currentId === "goal-details") return "parent-context";
+      if (currentId === "parent-context") return "type";
+      return "type";
+    }
+
+    controller = createGuidedFlowController({
+      adapter,
+      context,
+      initialState: {
+        objectType: "moon",
+        uxMode: "guided",
+        currentStepId: "type",
+      },
+      onUpdate: ({ state: flowState, archetypes, questions, recommendation }) => {
+        const currentStepId = String(flowState.currentStepId || "type");
+        const currentStepIndex = moonGuidedStepIndex(currentStepId);
+        const filteredQuestions = (questions || []).filter(
+          (question) => String(question?.stepId || "goal-details") === currentStepId,
+        );
+        const hasGoalStep = (questions || []).some(
+          (question) => question?.stepId === "goal-details",
+        );
+        const steps = moonGuidedSteps.map((step, index) => ({
+          ...step,
+          disabled:
+            (step.id !== "type" && !flowState.selectedArchetypeId) ||
+            (step.id === "goal-details" && !hasGoalStep) ||
+            (step.id === "recommendation" &&
+              (!flowState.selectedArchetypeId || index > currentStepIndex + 1)),
+        }));
+
+        const panel = createGuidedPanel({
+          title: "Moon Guided Creation",
+          subtitle:
+            "Choose a moon type, confirm how strictly the current host context should constrain it, then refine the target before applying the recommendation.",
+          steps,
+          currentStepId,
+          archetypes: (archetypes || []).filter((entry) => entry?.guidedEnabled !== false),
+          selectedArchetypeId: flowState.selectedArchetypeId || "",
+          questions: filteredQuestions,
+          answers: flowState.answers,
+          recommendation,
+          previewContent:
+            currentStepId === "recommendation"
+              ? createMoonGuidedPreviewContent(recommendation)
+              : null,
+          visibleSections: {
+            type: currentStepId === "type",
+            questions: currentStepId === "parent-context" || currentStepId === "goal-details",
+            recommendation: currentStepId === "recommendation",
+            diagnostics: currentStepId === "recommendation",
+          },
+          typeSectionTitle: "Moon Type",
+          questionSectionTitle:
+            currentStepId === "parent-context" ? "Parent Context" : "Goal Details",
+          recommendationSectionTitle: "Recommended Moon",
+          diagnosticSectionTitle: "Fit Diagnostics",
+          actions: [
+            ...(currentStepId !== "type" ? [{ id: "back", label: "Back" }] : []),
+            ...(currentStepId !== "recommendation"
+              ? [
+                  {
+                    id: "next",
+                    label: currentStepId === "goal-details" ? "See Recommendation" : "Next",
+                    disabled: currentStepId === "type" && !flowState.selectedArchetypeId,
+                  },
+                ]
+              : [
+                  {
+                    id: "apply",
+                    label:
+                      recommendation?.applyPayload?.parentPatch &&
+                      recommendation?.applyPayload?.siblingPatch
+                        ? "Apply with Host + Moon-System Fixes"
+                        : recommendation?.applyPayload?.parentPatch
+                          ? "Apply with Host Fixes"
+                          : recommendation?.applyPayload?.siblingPatch
+                            ? "Apply with Moon-System Fixes"
+                            : "Apply",
+                    disabled: !recommendation || recommendation.hasBlockingDiagnostics,
+                  },
+                  {
+                    id: "apply-advanced",
+                    label:
+                      recommendation?.applyPayload?.parentPatch &&
+                      recommendation?.applyPayload?.siblingPatch
+                        ? "Apply with Host + Moon-System Fixes and open Advanced"
+                        : recommendation?.applyPayload?.parentPatch
+                          ? "Apply with Host Fixes and open Advanced"
+                          : recommendation?.applyPayload?.siblingPatch
+                            ? "Apply with Moon-System Fixes and open Advanced"
+                            : "Apply and open Advanced",
+                    disabled: !recommendation || recommendation.hasBlockingDiagnostics,
+                  },
+                ]),
+            {
+              id: "reset",
+              label: "Reset",
+              className: "is-secondary",
+            },
+          ],
+          onArchetypeSelect: (archetypeId) =>
+            controller?.reset({
+              objectType: "moon",
+              uxMode: "guided",
+              currentStepId: "type",
+              selectedArchetypeId: archetypeId,
+            }),
+          onQuestionChange: (questionId, value) => controller?.setAnswer(questionId, value),
+          onStepSelect: (stepId, step) => {
+            if (step?.disabled) return;
+            controller?.setStep(stepId);
+          },
+          onAction: (actionId) => {
+            if (actionId === "reset") {
+              controller?.reset({
+                objectType: "moon",
+                uxMode: "guided",
+                currentStepId: "type",
+              });
+              return;
+            }
+            if (actionId === "back") {
+              controller?.setStep(previousMoonGuidedStepId(flowState));
+              return;
+            }
+            if (actionId === "next") {
+              controller?.setStep(nextMoonGuidedStepId(flowState, questions));
+              return;
+            }
+            if ((actionId === "apply" || actionId === "apply-advanced") && recommendation) {
+              const applyResult = controller?.apply({
+                applyMoonRecommendation: (nextRecommendation) =>
+                  applyMoonGuidedRecommendation(nextRecommendation, {
+                    noticeLabel: recommendation.title || "Guided moon",
+                  }),
+              });
+              close();
+              const fixFragments = [];
+              if (applyResult?.parentPatched && applyResult?.parentPatchSummary) {
+                fixFragments.push(`host fixes: ${applyResult.parentPatchSummary}`);
+              }
+              if (applyResult?.siblingPatched && applyResult?.siblingPatchSummary) {
+                fixFragments.push(`moon-system fixes: ${applyResult.siblingPatchSummary}`);
+              }
+              const fixPrefix = fixFragments.length
+                ? `${recommendation.title || "Guided moon"} applied with ${fixFragments.join("; ")}. `
+                : "";
+              if (actionId === "apply-advanced") {
+                showMoonNotice(`${fixPrefix}Continue refining with the Moon page controls.`);
+              } else if (fixPrefix) {
+                showMoonNotice(fixPrefix.trim());
+              }
+            }
+          },
+        });
+        contentEl.replaceChildren(panel);
+      },
+    });
+
+    closeButtonEl.addEventListener("click", close);
+    overlayEl.addEventListener("click", (e) => {
+      if (e.target === overlayEl) close();
+    });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlayEl);
+  }
 
   function openMoonRecipePicker(onSelect) {
     const overlay = createMoonRecipePickerOverlay(MOON_RECIPES);
@@ -1315,6 +2408,10 @@ export function initMoonPage(mountEl) {
   // Init
   loadIntoInputs();
   render();
+
+  const pendingGuidedLaunch = consumeGuidedCreationLaunch("moon");
+  if (pendingGuidedLaunch?.uxMode === "quick") openMoonGuidedQuickPicker();
+  else if (pendingGuidedLaunch) openMoonGuidedFlow();
 }
 
 function numWithSlider(id, label, unit, hint, min, max, step, tipLabelKey) {
@@ -1330,5 +2427,58 @@ function numWithSlider(id, label, unit, hint, min, max, step, tipLabelKey) {
       <input id="${id}_slider" type="range" aria-label="${label} slider" />
       <div class="range-meta"><span id="${id}_min"></span><span id="${id}_max"></span></div>
     </div>
+  </div>`;
+}
+
+function trioToggle(id, name, options = []) {
+  return `
+    <div id="${id}" class="physics-trio-toggle">
+      ${options
+        .map(
+          (option, index) => `
+            <input type="radio" name="${name}" id="${id}_${index}" value="${option.value}" ${option.checked ? "checked" : ""} />
+            <label for="${id}_${index}">${option.label}</label>`,
+        )
+        .join("")}
+      <span></span>
+    </div>`;
+}
+
+function duoToggle(id, name, options = []) {
+  return `
+    <div id="${id}" class="physics-duo-toggle">
+      ${options
+        .map(
+          (option, index) => `
+            <input type="radio" name="${name}" id="${id}_${index}" value="${option.value}" ${option.checked ? "checked" : ""} />
+            <label for="${id}_${index}">${option.label}</label>`,
+        )
+        .join("")}
+      <span></span>
+    </div>`;
+}
+
+function modeToggleRow(id, name, label, tipKey, options, hintId) {
+  return `
+  <div class="form-row">
+    <div>
+      <div class="label">${label} ${tipIcon(TIP_LABEL[tipKey] || "")}</div>
+      <div class="hint" id="${hintId}"></div>
+    </div>
+    <div class="pill-toggle-wrap">
+      ${trioToggle(id, name, options)}
+    </div>
+  </div>`;
+}
+
+function simpleNumberRow(id, label, unit = "", hint = "") {
+  const unitHtml = unit ? ` <span class="unit">${unit}</span>` : "";
+  return `
+  <div class="form-row">
+    <div>
+      <div class="label">${label}${unitHtml}</div>
+      <div class="hint">${hint}</div>
+    </div>
+    <input id="${id}" type="number" step="0.01" />
   </div>`;
 }

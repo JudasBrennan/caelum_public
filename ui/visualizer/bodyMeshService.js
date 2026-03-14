@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { clamp } from "../../engine/utils.js";
 import { normalizeAxialTiltDeg } from "./projectionMath.js";
 import {
@@ -19,6 +18,17 @@ import {
   supportsCelestialTextureWorker,
 } from "../celestialTextureWorkerClient.js";
 import { composeCelestialDescriptor } from "../celestialComposer.js";
+import { renderRingStripTextures } from "../ringTextureGenerator.js";
+import {
+  createRingLightingMaterial,
+  updateRingLightingMaterial,
+  updateRingLightingUniforms,
+} from "../ringLightingShader.js";
+import {
+  applyRingShadowBodyPatch,
+  clearRingShadowBodyPatch,
+  updateRingShadowBodyUniforms,
+} from "../ringShadowBodyPatch.js";
 
 export const BODY_MESH_MIN_PX = 4;
 
@@ -37,49 +47,145 @@ export function collectBodyMeshWarmItems(snapshot, options = {}) {
   for (const planet of snapshot.planetNodes || []) {
     if (!planet.visualProfile) continue;
     const key = vizBodyCacheKey("rocky", planet);
-    if (hasKey(key)) continue;
-    needed.push({
-      key,
-      model: {
-        bodyType: "rocky",
-        visualProfile: planet.visualProfile,
-        axialTiltDeg: normalizeAxialTiltDeg(planet.axialTiltDeg),
-      },
-    });
+    const model = {
+      bodyType: "rocky",
+      visualProfile: planet.visualProfile,
+      ringAppearance: planet.ringAppearance,
+      axialTiltDeg: normalizeAxialTiltDeg(planet.axialTiltDeg),
+    };
+    if (hasKey(key, model)) continue;
+    needed.push({ key, model });
   }
 
   for (const gasGiant of snapshot.gasGiants || []) {
     const key = vizBodyCacheKey("gas", gasGiant);
-    if (hasKey(key)) continue;
-    needed.push({
-      key,
-      model: {
-        bodyType: "gasGiant",
-        styleId: gasGiant.style || "jupiter",
-        showRings: !!gasGiant.rings,
-        gasCalc: gasGiant.gasCalc,
-        axialTiltDeg: normalizeAxialTiltDeg(gasGiant.axialTiltDeg ?? 0),
-      },
-    });
+    const model = {
+      bodyType: "gasGiant",
+      styleId: gasGiant.style || "jupiter",
+      showRings: !!gasGiant.rings,
+      ringMode: gasGiant.ringMode,
+      ringStyleId: gasGiant.ringAppearance?.ringStyleId,
+      ringAppearance: gasGiant.ringAppearance,
+      gasCalc: gasGiant.gasCalc,
+      axialTiltDeg: normalizeAxialTiltDeg(gasGiant.axialTiltDeg ?? 0),
+    };
+    if (hasKey(key, model)) continue;
+    needed.push({ key, model });
   }
 
   for (const parent of [...(snapshot.planetNodes || []), ...(snapshot.gasGiants || [])]) {
     for (const moon of parent.moons || []) {
       if (!moon.moonCalc) continue;
       const key = vizBodyCacheKey("moon", moon);
-      if (hasKey(key)) continue;
-      needed.push({
-        key,
-        model: {
-          bodyType: "moon",
-          moonCalc: moon.moonCalc,
-          axialTiltDeg: normalizeAxialTiltDeg(moon.axialTiltDeg),
-        },
-      });
+      const model = {
+        bodyType: "moon",
+        moonCalc: moon.moonCalc,
+        axialTiltDeg: normalizeAxialTiltDeg(moon.axialTiltDeg),
+      };
+      if (hasKey(key, model)) continue;
+      needed.push({ key, model });
     }
   }
 
   return needed;
+}
+
+function buildBodyModelSignature(model) {
+  return JSON.stringify({
+    bodyType: model?.bodyType || "",
+    styleId: model?.styleId || "",
+    showRings: model?.showRings === true,
+    ringMode: model?.ringMode || "",
+    ringStyleId: model?.ringStyleId || "",
+    ringAppearance: model?.ringAppearance || null,
+    gasCalc: model?.gasCalc || null,
+    visualProfile: model?.visualProfile || null,
+    moonCalc: model?.moonCalc || null,
+    axialTiltDeg: Number(model?.axialTiltDeg) || 0,
+  });
+}
+
+function remapRingGeometryUv(geometry, inner, outer) {
+  const uv = geometry?.attributes?.uv;
+  const position = geometry?.attributes?.position;
+  if (!uv || !position) return geometry;
+  const span = Math.max(0.0001, outer - inner);
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i);
+    const y = position.getY(i);
+    const radius = Math.sqrt(x * x + y * y);
+    const angle = (Math.atan2(y, x) + Math.PI) / (Math.PI * 2);
+    const radial = clamp((radius - inner) / span, 0, 1);
+    uv.setXY(i, radial, angle);
+  }
+  uv.needsUpdate = true;
+  return geometry;
+}
+
+function createRingGeometry(THREE, inner, outer, segments = 192) {
+  const geometry = new THREE.RingGeometry(inner, outer, segments);
+  return remapRingGeometryUv(geometry, inner, outer);
+}
+
+function createRingTextures(THREE, ringDescriptor) {
+  if (!ringDescriptor) return { colorTex: null, alphaTex: null };
+  const maps = renderRingStripTextures({
+    appearance: ringDescriptor,
+    width: 1024,
+    height: 32,
+  });
+  const colorTex = createCanvasTexture(THREE, maps.colourCanvas, { srgb: true });
+  const alphaTex = createCanvasTexture(THREE, maps.alphaCanvas);
+  colorTex.wrapS = THREE.ClampToEdgeWrapping;
+  colorTex.wrapT = THREE.RepeatWrapping;
+  alphaTex.wrapS = THREE.ClampToEdgeWrapping;
+  alphaTex.wrapT = THREE.RepeatWrapping;
+  return { colorTex, alphaTex };
+}
+
+function refreshRingLightingForEntry(entry, nativeThree, lightDirectionWorld = null) {
+  if (!entry?.ring || !entry?.ringMat || !entry?.body) return;
+  const THREE = nativeThree?.THREE;
+  if (typeof THREE?.Vector3 !== "function") return;
+  entry.group?.updateMatrixWorld?.(true);
+  const planetCenterWorld = new THREE.Vector3();
+  const planetScaleWorld = new THREE.Vector3(1, 1, 1);
+  entry.body.getWorldPosition?.(planetCenterWorld);
+  entry.body.getWorldScale?.(planetScaleWorld);
+  updateRingLightingUniforms({
+    material: entry.ringMat,
+    lightDirectionWorld: lightDirectionWorld || nativeThree?.keyLight || null,
+    planetCenterWorld,
+    planetRadius: Math.max(0.0001, planetScaleWorld.x, planetScaleWorld.y, planetScaleWorld.z),
+  });
+}
+
+function refreshBodyRingShadowForEntry(entry, nativeThree, lightDirectionWorld = null) {
+  if (!entry?.bodyMat || !entry?.body) return;
+  const THREE = nativeThree?.THREE;
+  if (typeof THREE?.Vector3 !== "function") {
+    clearRingShadowBodyPatch(entry.bodyMat);
+    return;
+  }
+  entry.group?.updateMatrixWorld?.(true);
+  const showRing = !!(entry.descriptor?.ring?.enabled && entry.ring && entry._ringTextures?.[1]);
+  if (!showRing || entry.descriptor?.bodyType === "moon") {
+    clearRingShadowBodyPatch(entry.bodyMat);
+    return;
+  }
+  const planetCenterWorld = new THREE.Vector3();
+  const planetScaleWorld = new THREE.Vector3(1, 1, 1);
+  entry.body.getWorldPosition?.(planetCenterWorld);
+  entry.body.getWorldScale?.(planetScaleWorld);
+  updateRingShadowBodyUniforms({
+    material: entry.bodyMat,
+    lightDirectionWorld: lightDirectionWorld || nativeThree?.keyLight || null,
+    ringDescriptor: entry.descriptor?.ring,
+    ringAlphaTexture: entry._ringTextures?.[1] || null,
+    planetCenterWorld,
+    planetRadiusWorld: Math.max(0.0001, planetScaleWorld.x, planetScaleWorld.y, planetScaleWorld.z),
+    ringMesh: entry.ring,
+  });
 }
 
 function createOrthoAtmosphereMaterial(THREE) {
@@ -135,7 +241,6 @@ function createOrthoAtmosphereMaterial(THREE) {
 
 export function createBodyMeshService(options = {}) {
   const {
-    documentRef = globalThis.document,
     getCameraState = () => ({ pitch: 0, yaw: 0 }),
     getNativeThree,
     hashUnit,
@@ -367,15 +472,49 @@ export function createBodyMeshService(options = {}) {
     applyMapsToEntry(THREE, entry, maps, descriptor);
   }
 
+  function disposeBodyMeshEntry(key, entry) {
+    if (!entry) return;
+    if (entry._textures) {
+      for (const texture of entry._textures) {
+        try {
+          texture?.dispose?.();
+        } catch {}
+      }
+    }
+    if (entry._ringTextures) {
+      for (const texture of entry._ringTextures) {
+        try {
+          texture?.dispose?.();
+        } catch {}
+      }
+    }
+    for (const mat of [entry.bodyMat, entry.cloudMat, entry.hazeMat, entry.ringMat]) {
+      try {
+        mat?.dispose?.();
+      } catch {}
+    }
+    if (entry.ring) {
+      try {
+        entry.ring.geometry?.dispose?.();
+      } catch {}
+    }
+    try {
+      entry.group?.parent?.remove?.(entry.group);
+    } catch {}
+    if (key) bodyMeshCache.delete(key);
+  }
+
   function createBodyMeshEntry(model, key) {
     const nativeThree = getRuntime();
     if (!nativeThree || !sharedGeo) return null;
     const THREE = nativeThree.THREE;
     const descriptor = composeCelestialDescriptor(model, { lod: "low" });
+    const modelSignature = buildBodyModelSignature(model);
     const group = new THREE.Group();
     group.visible = false;
 
     const bodyMat = previewPbrMaterial(THREE);
+    applyRingShadowBodyPatch(bodyMat, THREE);
     const baseGrad = (descriptor?.layers || []).find((layer) => layer?.id === "base-gradient");
     if (baseGrad?.params?.c1) bodyMat.color.set(baseGrad.params.c1);
     const body = new THREE.Mesh(sharedGeo.bodyLow, bodyMat);
@@ -425,47 +564,19 @@ export function createBodyMeshService(options = {}) {
 
     let ring = null;
     let ringMat = null;
+    let ringTextures = null;
     if (descriptor.ring?.enabled) {
       const inner = clamp(Number(descriptor.ring.inner) || 1.22, 1.1, 2.5);
       const outer = clamp(Number(descriptor.ring.outer) || 1.95, inner + 0.05, 3.2);
-      const ringGeom = new THREE.RingGeometry(inner, outer, 128);
-      const alphaCanvas = documentRef?.createElement?.("canvas");
-      if (alphaCanvas) {
-        alphaCanvas.width = 1;
-        alphaCanvas.height = 64;
-        const rCtx = alphaCanvas.getContext("2d");
-        const rImg = rCtx?.createImageData?.(1, 64);
-        if (rCtx && rImg) {
-          for (let index = 0; index < 64; index += 1) {
-            const t = index / 63;
-            const fadeIn = Math.min(1, t / 0.18);
-            const fadeOut = Math.min(1, (1 - t) / 0.18);
-            const value = Math.round(Math.min(fadeIn, fadeOut) * 255);
-            rImg.data[index * 4] = value;
-            rImg.data[index * 4 + 1] = value;
-            rImg.data[index * 4 + 2] = value;
-            rImg.data[index * 4 + 3] = 255;
-          }
-          rCtx.putImageData(rImg, 0, 0);
-        }
-      }
-      const ringAlpha = alphaCanvas ? new THREE.CanvasTexture(alphaCanvas) : null;
-      if (ringAlpha) {
-        ringAlpha.minFilter = THREE.LinearFilter;
-        ringAlpha.magFilter = THREE.LinearFilter;
-        ringAlpha.generateMipmaps = false;
-        ringAlpha.premultiplyAlpha = false;
-      }
+      const ringGeom = createRingGeometry(THREE, inner, outer, 192);
+      ringTextures = createRingTextures(THREE, descriptor.ring);
 
-      ringMat = new THREE.MeshBasicMaterial({
-        color: descriptor.ring.colour || "#d8c7a8",
-        transparent: true,
-        opacity: clamp(Number(descriptor.ring.opacity) || 0.35, 0.05, 0.8),
-        depthWrite: false,
-        depthTest: true,
-        side: THREE.DoubleSide,
-        alphaMap: ringAlpha,
-        toneMapped: false,
+      ringMat = createRingLightingMaterial(THREE);
+      updateRingLightingMaterial({
+        material: ringMat,
+        colourTexture: ringTextures.colorTex,
+        alphaTexture: ringTextures.alphaTex,
+        ringDescriptor: descriptor.ring,
       });
       ring = new THREE.Mesh(ringGeom, ringMat);
       ring.renderOrder = 1;
@@ -487,8 +598,10 @@ export function createBodyMeshService(options = {}) {
       hazeMat,
       descriptor,
       model,
+      modelSignature,
       texturesReady: false,
       lod: "low",
+      _ringTextures: ringTextures ? [ringTextures.colorTex, ringTextures.alphaTex] : null,
     };
     bodyMeshCache.set(key, entry);
     void generateBodyTextures(entry);
@@ -500,49 +613,49 @@ export function createBodyMeshService(options = {}) {
     ensureSharedGeo();
     const gen = ++bodyMeshWarmGen;
     const needed = collectBodyMeshWarmItems(snapshot, {
-      hasKey(key) {
-        return bodyMeshCache.has(key);
+      hasKey(key, model) {
+        const entry = bodyMeshCache.get(key);
+        return !!entry && entry.modelSignature === buildBodyModelSignature(model);
       },
     });
     for (const item of needed) {
       if (gen !== bodyMeshWarmGen || isDisposed()) return;
+      const existing = bodyMeshCache.get(item.key);
+      if (existing) disposeBodyMeshEntry(item.key, existing);
       createBodyMeshEntry(item.model, item.key);
     }
   }
 
   function disposeBodyMeshCache() {
     for (const [, entry] of bodyMeshCache) {
-      if (entry._textures) {
-        for (const texture of entry._textures) {
-          try {
-            texture?.dispose?.();
-          } catch {}
-        }
-      }
-      for (const mat of [entry.bodyMat, entry.cloudMat, entry.hazeMat, entry.ringMat]) {
-        try {
-          mat?.dispose?.();
-        } catch {}
-      }
-      if (entry.ring) {
-        try {
-          entry.ring.geometry?.dispose?.();
-        } catch {}
-      }
-      try {
-        entry.group?.parent?.remove?.(entry.group);
-      } catch {}
+      disposeBodyMeshEntry("", entry);
     }
     bodyMeshCache.clear();
   }
 
   function positionBodyMesh(options) {
-    const { axialTiltDeg, bodyId, bodyZ, key, model, pos, pr, spinAngle, touched } = options;
+    const {
+      axialTiltDeg,
+      bodyId,
+      bodyZ,
+      key,
+      lightDirectionWorld = null,
+      model,
+      pos,
+      pr,
+      spinAngle,
+      touched,
+    } = options;
     if (!sharedGeo || pr < BODY_MESH_MIN_PX) return null;
     const nativeThree = getRuntime();
     if (!nativeThree) return null;
 
     let entry = bodyMeshCache.get(key);
+    const modelSignature = buildBodyModelSignature(model);
+    if (entry && entry.modelSignature !== modelSignature) {
+      disposeBodyMeshEntry(key, entry);
+      entry = null;
+    }
     if (!entry) entry = createBodyMeshEntry(model, key);
     if (!entry) return null;
 
@@ -577,6 +690,8 @@ export function createBodyMeshService(options = {}) {
     entry.body.rotation.set(0, spinAngle, 0);
     if (entry.clouds.visible) entry.clouds.rotation.set(0, spinAngle * 1.25, 0);
     if (entry.haze.visible) entry.haze.rotation.set(0, spinAngle * 0.35, 0);
+    refreshRingLightingForEntry(entry, nativeThree, lightDirectionWorld);
+    refreshBodyRingShadowForEntry(entry, nativeThree, lightDirectionWorld);
 
     entry.group.visible = true;
     touched?.add?.(key);

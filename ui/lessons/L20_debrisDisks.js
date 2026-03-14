@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MPL-2.0
 /**
  * Lesson 20 — Debris & Small Bodies
  *
- * Covers debris disks, resonance sculpting, composition and condensation
- * sequences, and collisional cascades.  No interactive calculator.
+ * Covers debris disks, planetary rings, resonance sculpting, composition
+ * and condensation sequences, and collisional cascades.  No interactive
+ * calculator.
  */
 
 import { concept, analogy, keyIdea, eq, iq, vars, cite, dataTable } from "./helpers.js";
@@ -63,6 +63,29 @@ export function buildLesson20(mode) {
     ),
 
     /* 2 ── Resonance Sculpting ─────────────────────────────────────── */
+    concept(
+      "Planetary Rings",
+      /* basic */
+      `<p>Rings are a special kind of debris structure: material orbiting a planet so close that it cannot gather itself into a normal moon. Instead of accreting into a solid satellite, the material stays spread out as countless icy or rocky particles.</p>
+      <p>This usually happens inside the planet's <strong>Roche limit</strong>, where tidal forces overpower the self-gravity of a loosely bound moon or rubble pile. Saturn's rings are the most famous example, but the same physics applies to faint ring systems around Jupiter, Uranus, Neptune, and many small bodies.</p>
+      ${analogy("A moon outside the Roche limit is like flour that can clump into dough. Inside the Roche limit, the planet keeps stretching and stirring the flour so it stays as a thin dusty sheet instead of forming one ball.")}
+      ${keyIdea("Rings are what you get when orbiting material lives inside the Roche limit instead of assembling into a moon.")}`,
+
+      /* advanced */
+      `<p>The classical fluid Roche limit is:</p>
+      ${eq("d_{\\text{Roche}} = 2.44\\;R_p\\;\\left(\\frac{\\rho_p}{\\rho_s}\\right)^{1/3}")}
+      ${vars([
+        ["d_{\\text{Roche}}", "distance where tidal disruption occurs"],
+        ["R_p", "planet radius"],
+        ["\\rho_p", "planet mean density"],
+        ["\\rho_s", "satellite or debris aggregate density"],
+      ])}
+      <p>Inside this limit, disrupted material can survive as a ring because particle collisions damp relative motion faster than the material can re-assemble into a moon. Outside the Roche limit, reaccretion becomes much easier, so long-lived solid satellites are favoured.</p>
+      <p>WorldSmith uses the same Roche-limit framing when it explains planetary rings: ring-supporting cases come from debris staying inside the disruption zone, while surviving moons occupy stable orbits outside it.</p>
+      ${cite("Roche (1849); Murray & Dermott (1999), Solar System Dynamics, Ch. 4; Charnoz et al. (2010, Nature 465, 752)")}`,
+      mode,
+    ),
+
     concept(
       "Resonance Sculpting",
       /* basic */

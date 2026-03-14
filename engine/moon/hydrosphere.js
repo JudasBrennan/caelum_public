@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { clamp, round, toFinite } from "../utils.js";
 import { waterBoilingK } from "../planet/composition.js";
 import { normalizeHabitabilityInventory } from "../habitability/species.js";
@@ -75,6 +74,14 @@ function estimateWaterMassFraction({ waterPresent, compositionKey }) {
   return WATER_FRACTION_BY_CLASS[compositionKey] ?? 0.01;
 }
 
+function resolveWaterMassFraction({ waterPresent, compositionKey, mode, waterMassFractionPct }) {
+  if (!waterPresent) return 0;
+  if ((mode === "full" || mode === "manual") && Number.isFinite(Number(waterMassFractionPct))) {
+    return clamp(Number(waterMassFractionPct) / 100, 0, 0.6);
+  }
+  return estimateWaterMassFraction({ waterPresent, compositionKey });
+}
+
 function estimateEquivalentWaterDepthM({ massMoon, radiusMoon, waterMassFraction }) {
   const bodyMassKg = Math.max(toFinite(massMoon, 0), 0) * LUNAR_MASS_KG;
   const radiusMeters = Math.max(toFinite(radiusMoon, 0), 0) * LUNAR_RADIUS_M;
@@ -106,14 +113,24 @@ function pressureAccessibilityPenalty(pressureAtm) {
   return 1;
 }
 
+function freezingPointKFromComposition({ salinityPct, ammoniaPct }) {
+  const salinity = clamp(toFinite(salinityPct, 0), 0, 35);
+  const ammonia = clamp(toFinite(ammoniaPct, 0), 0, 30);
+  return 273.15 - Math.min(45, salinity * 0.55 + ammonia * 1.35);
+}
+
 function estimateSubsurfaceOceanScore({
   waterPresent,
   frozenSurface,
   temperatureK,
   tidalHeatingEarth,
+  internalHeatFluxWm2,
   equivalentWaterDepthKm,
   compositionKey,
   compositionOverride,
+  salinityPct,
+  ammoniaPct,
+  differentiatedInterior,
 } = {}) {
   if (!waterPresent || !frozenSurface) return 0;
 
@@ -131,13 +148,28 @@ function estimateSubsurfaceOceanScore({
     1,
   );
   const overrideSupport = String(compositionOverride || "") === "Subsurface ocean" ? 1 : 0;
+  const chemistrySupport = clamp(
+    (Math.max(toFinite(salinityPct, 0), 0) / 25 + Math.max(toFinite(ammoniaPct, 0), 0) / 12) / 2,
+    0,
+    1,
+  );
+  const internalHeatSupport = clamp(
+    Math.log10(1 + Math.max(toFinite(internalHeatFluxWm2, 0), 0) * 150) / 2.1,
+    0,
+    1,
+  );
+  const differentiationSupport =
+    differentiatedInterior === true ? 1 : differentiatedInterior === false ? 0 : 0.5;
 
   return clamp(
-    0.2 * compositionSupport +
-      0.15 * coldSurfaceScore +
-      0.25 * tidalSupport +
-      0.15 * inventorySupport +
-      0.25 * overrideSupport,
+    0.08 * compositionSupport +
+      0.06 * coldSurfaceScore +
+      0.22 * tidalSupport +
+      0.14 * internalHeatSupport +
+      0.08 * inventorySupport +
+      0.04 * chemistrySupport +
+      0.02 * differentiationSupport +
+      0.4 * overrideSupport,
     0,
     1,
   );
@@ -154,26 +186,39 @@ export function hydrosphereStateFromMoon({
   surfaceTempK,
   surfacePressurePa,
   tidalHeatingEarth,
+  internalHeatFluxWm2,
   gravityG,
   densityGcm3,
   massMoon,
   radiusMoon,
   compositionClass,
   compositionOverride,
+  mode = "core",
+  waterMassFractionPct = null,
+  salinityPct = 0,
+  ammoniaPct = 0,
+  differentiatedInterior = null,
 } = {}) {
   const notes = ["moon-hydrosphere-v1"];
   const water = moonWaterInventoryEntry(volatileInventory);
   const tempK = Math.max(toFinite(surfaceTempK, 0), 0);
   const pressureAtm = Math.max(toFinite(surfacePressurePa, 0), 0) / 101325;
   const tidalHeating = Math.max(toFinite(tidalHeatingEarth, 0), 0);
+  const internalHeat = Math.max(toFinite(internalHeatFluxWm2, 0), 0);
+  const resolvedSalinityPct = clamp(toFinite(salinityPct, 0), 0, 35);
+  const resolvedAmmoniaPct = clamp(toFinite(ammoniaPct, 0), 0, 30);
   const compositionKey = classifyMoonComposition({
     compositionOverride,
     compositionClass,
     densityGcm3,
   });
-  const waterMassFraction = estimateWaterMassFraction({
-    waterPresent: water?.present === true,
+  const explicitWaterInventoryPresent =
+    (mode === "full" || mode === "manual") && Math.max(toFinite(waterMassFractionPct, 0), 0) > 0;
+  const waterMassFraction = resolveWaterMassFraction({
+    waterPresent: water?.present === true || explicitWaterInventoryPresent,
     compositionKey,
+    mode,
+    waterMassFractionPct,
   });
   const equivalentWaterDepthM = estimateEquivalentWaterDepthM({
     massMoon,
@@ -181,32 +226,44 @@ export function hydrosphereStateFromMoon({
     waterMassFraction,
   });
   const equivalentWaterDepthKm = equivalentWaterDepthM / 1000;
-  const coverageFraction = water?.present ? surfaceCoverageFromDepthKm(equivalentWaterDepthKm) : 0;
+  const waterPresent = water?.present === true || explicitWaterInventoryPresent;
+  const coverageFraction = waterPresent ? surfaceCoverageFromDepthKm(equivalentWaterDepthKm) : 0;
+  const freezingPointK = freezingPointKFromComposition({
+    salinityPct: resolvedSalinityPct,
+    ammoniaPct: resolvedAmmoniaPct,
+  });
   const boilingPointK = waterBoilingK(Math.max(pressureAtm, MIN_LIQUID_PRESSURE_ATM));
   const nearMeltingWithStrongTides =
-    pressureAtm >= MIN_LIQUID_PRESSURE_ATM && tempK >= 260 && tempK < 273 && tidalHeating >= 1;
-  const supportsSurfaceLiquid =
-    water?.present &&
     pressureAtm >= MIN_LIQUID_PRESSURE_ATM &&
-    ((tempK >= 273 && tempK <= boilingPointK) || nearMeltingWithStrongTides);
+    tempK >= Math.max(230, freezingPointK - 12) &&
+    tempK < freezingPointK &&
+    (tidalHeating >= 1 || internalHeat >= 0.01);
+  const supportsSurfaceLiquid =
+    waterPresent &&
+    pressureAtm >= MIN_LIQUID_PRESSURE_ATM &&
+    ((tempK >= freezingPointK && tempK <= boilingPointK) || nearMeltingWithStrongTides);
   const supportsSteam =
-    water?.present &&
+    waterPresent &&
     !supportsSurfaceLiquid &&
     ((pressureAtm < MIN_LIQUID_PRESSURE_ATM && tempK >= 273) ||
       (tempK > 0 && tempK > boilingPointK));
-  const frozenSurface = water?.present && !supportsSurfaceLiquid && !supportsSteam;
+  const frozenSurface = waterPresent && !supportsSurfaceLiquid && !supportsSteam;
   const subsurfaceOceanScore = estimateSubsurfaceOceanScore({
-    waterPresent: water?.present === true,
+    waterPresent,
     frozenSurface,
     temperatureK: tempK,
     tidalHeatingEarth: tidalHeating,
+    internalHeatFluxWm2: internalHeat,
     equivalentWaterDepthKm,
     compositionKey,
     compositionOverride,
+    salinityPct: resolvedSalinityPct,
+    ammoniaPct: resolvedAmmoniaPct,
+    differentiatedInterior,
   });
   const subsurfaceOceanPresent = subsurfaceOceanScore >= 0.55;
 
-  if (!water?.present) {
+  if (!waterPresent) {
     notes.push("no-water-inventory");
     return {
       regime: "Dry",
@@ -227,6 +284,12 @@ export function hydrosphereStateFromMoon({
       highPressureIceThresholdKm: round(highPressureIceThresholdKm(gravityG), 1),
       iceShellThicknessKm: 0,
       subsurfaceOceanDepthKm: 0,
+      salinityPct: 0,
+      ammoniaPct: 0,
+      freezingPointK: round(freezingPointK, 1),
+      seafloorPressureMPa: 0,
+      differentiatedInterior,
+      convectionRegime: "None",
       estimatedSurfaceOceanDepthKm: 0,
       estimatedSubsurfaceOceanDepthKm: 0,
       estimatedIceShellThicknessKm: 0,
@@ -281,8 +344,9 @@ export function hydrosphereStateFromMoon({
     );
     const tideScore = clamp(Math.log10(1 + tidalHeating * 20) / 2.2, 0, 1);
     const inventoryScore = clamp(Math.log10(1 + equivalentWaterDepthKm) / 2.2, 0, 1);
+    const chemistryScore = clamp((resolvedSalinityPct / 35 + resolvedAmmoniaPct / 18) / 2, 0, 1);
     estimatedIceShellThicknessKm = clamp(
-      4 + 45 * (1 - tideScore) + 15 * (1 - inventoryScore),
+      4 + 40 * (1 - tideScore) + 14 * (1 - inventoryScore) - 8 * chemistryScore,
       2,
       120,
     );
@@ -295,7 +359,7 @@ export function hydrosphereStateFromMoon({
     estimatedIceShellThicknessKm = clamp(Math.max(equivalentWaterDepthKm * 0.8, 1), 1, 200);
     regime = coverageFraction >= 0.8 ? "Ice shell" : "Surface ice";
     hydrosphereState = regime;
-    notes.push(water.status === "Stable ice" ? "stable-surface-ice" : "frozen-water-inventory");
+    notes.push(water?.status === "Stable ice" ? "stable-surface-ice" : "frozen-water-inventory");
   }
 
   const normalized = normalizeFractions({
@@ -311,6 +375,17 @@ export function hydrosphereStateFromMoon({
   const highPressureThresholdKm = highPressureIceThresholdKm(gravityG);
   const highPressureIceBarrier =
     oceanDepthForBarrier > 0 && oceanDepthForBarrier >= highPressureThresholdKm;
+  const gravityMs2 = Math.max(toFinite(gravityG, 0), 0) * 9.80665;
+  const seafloorPressureMPa =
+    oceanDepthForBarrier > 0 ? (gravityMs2 * oceanDepthForBarrier * 1000) / 1e6 : 0;
+  const convectionRegime =
+    estimatedIceShellThicknessKm <= 0
+      ? "None"
+      : tidalHeating + internalHeat >= 0.03
+        ? "Warm convecting shell"
+        : estimatedIceShellThicknessKm <= 25
+          ? "Thin conductive shell"
+          : "Cold conductive shell";
   if (highPressureIceBarrier) notes.push("high-pressure-ice-barrier");
 
   return {
@@ -330,6 +405,12 @@ export function hydrosphereStateFromMoon({
     subsurfaceOceanScore: round(subsurfaceOceanScore, 3),
     highPressureIceBarrier,
     highPressureIceThresholdKm: round(highPressureThresholdKm, 1),
+    salinityPct: round(resolvedSalinityPct, 2),
+    ammoniaPct: round(resolvedAmmoniaPct, 2),
+    freezingPointK: round(freezingPointK, 1),
+    seafloorPressureMPa: round(seafloorPressureMPa, 1),
+    differentiatedInterior,
+    convectionRegime,
     iceShellThicknessKm: round(estimatedIceShellThicknessKm, 1),
     subsurfaceOceanDepthKm: round(estimatedSubsurfaceOceanDepthKm, 1),
     estimatedSurfaceOceanDepthKm: round(estimatedSurfaceOceanDepthKm, 1),

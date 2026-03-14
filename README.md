@@ -1,4 +1,4 @@
-# WorldSmith Web 1.23.0 BETA
+# WorldSmith Web 1.25.0 BETA
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, planetary systems, planets, moons, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -11,10 +11,12 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Rocky planets with composition, atmosphere, magnetic field, tectonics, sky/vegetation colours, periapsis/apoapsis temperatures, volatile sublimation flags, and gas giant resonance.
 - Gas giants with eccentricity/inclination/tilt inputs, Christensen energy-flux dynamo, Chapman-Ferraro magnetopause with moon plasma inflation, per-species Jeans escape, and spin-orbit resonance.
 - Moons with atmospheres, hydrosphere states, climate, geology, biosphere outputs, moon-specific habitability, and model-driven visual recipes.
+- Guided creation flows for moons and rocky worlds with Quick archetypes, staged recommendations, and Recipes handoff into Advanced editing.
 - Unified planet and moon habitability metrics with explicit surface-water, subsurface-water, chemistry, radiation, and persistence handling.
+- Science-aligned ring overrides for gas giants and rocky worlds, plus deterministic ring families with banding, gaps, lighting, and soft ring shadows.
 - Unified body rendering pipeline across Planet, System Poster, Visualiser, and Apparent views.
 - Resonance-driven debris disk suggestions and derived disk physics.
-- Tectonics with mountain ranges, shield volcanoes, rift valleys, seafloor spreading, and a new plate-simulator beta with paintable cell ownership, rigid-plate playback, and terrain/topography exports.
+- Tectonics with mountain ranges, shield volcanoes, rift valleys, and seafloor spreading outputs.
 - Climate zones with latitude-based Koppen classification, aridity profiles, and tidally-locked zone modelling.
 - Population modelling with carrying capacity, logistic growth, land-use cascades, and Zipf rank-size distribution.
 - Apparent size and brightness modelling for stars, planets, and moons.

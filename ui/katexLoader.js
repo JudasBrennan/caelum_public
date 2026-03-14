@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { getKatexCssHref, importKatexModule } from "./runtimeDeps.js";
 
 let katexPromise = null;

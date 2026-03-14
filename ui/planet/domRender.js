@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { fmt } from "../../engine/utils.js";
 import { createElement, replaceChildren, replaceSelectOptions } from "../domHelpers.js";
 import { buildBodySelectorOptions } from "./bodySelector.js";
@@ -194,6 +193,12 @@ export function renderMoonSection(
         attrs: { id: "addMoonToBody", type: "button" },
         dataset: { bodyType, bodyId },
         text: `Add moon to this ${bodyLabel}`,
+      }),
+      createElement("button", {
+        className: "small",
+        attrs: { id: "launchGuidedMoonToBody", type: "button" },
+        dataset: { action: "guided-moon", bodyType, bodyId },
+        text: `Guided moon`,
       }),
     ]),
   ]);

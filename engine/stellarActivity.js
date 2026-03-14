@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Stellar activity engine — flare & CME simulation
 //
 // Models stellar flare frequency and energy using a power-law

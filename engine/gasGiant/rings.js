@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { round } from "../utils.js";
 
 const SATURN_MASS_MJUP = 0.2994;

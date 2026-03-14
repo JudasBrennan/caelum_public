@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 /**
  * Curriculum manifest — defines the ordered lesson list and unit groupings.
  *

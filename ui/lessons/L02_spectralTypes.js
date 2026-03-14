@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 /**
  * Lesson 02 — Classifying Stars
  *

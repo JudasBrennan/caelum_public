@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import {
   SCIENCE_GRAPH_EDGES,
   SCIENCE_GRAPH_NODES,
@@ -760,7 +759,7 @@ export function initScienceVisualiserPage(mountEl) {
           <div class="science-viz__status">
             <div>
               <p class="science-viz__lede">
-                Trace how WorldSmith concepts feed into each other, from stellar metallicity and orbital layout through interiors, atmosphere, climate, tectonics, and population.
+                Trace how WorldSmith concepts feed into each other, from stellar metallicity and orbital layout through interiors, atmospheres, moon systems, climates, gas giants, debris belts, rings, and population.
               </p>
               <p id="scienceVizSummary" class="hint science-viz__summary-line"></p>
             </div>

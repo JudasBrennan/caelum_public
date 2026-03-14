@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MPL-2.0
 import { LOCAL_CLUSTER_DEFAULTS, normalizeLocalClusterInputs } from "../engine/localCluster.js";
 import { deepMerge } from "./store/deepMerge.js";
 import {
   assignMoonToPlanetInWorld,
   assignPlanetToSlotInWorld,
+  applyMoonSiblingPatchInWorld,
   createMoonInWorld,
   createPlanetInWorld,
   deleteMoonInWorld,
@@ -298,6 +298,13 @@ export function assignMoonToPlanet(moonId, planetIdOrNull, { force = false } = {
   assignMoonToPlanetInWorld(world, moonId, planetIdOrNull, { force });
   saveWorld(world);
   return world;
+}
+
+export function applyMoonSiblingPatch(siblingPatch, options = {}) {
+  const world = loadWorld();
+  const result = applyMoonSiblingPatchInWorld(world, siblingPatch, options);
+  saveWorld(world);
+  return result;
 }
 
 export function togglePlanetLock(planetId) {

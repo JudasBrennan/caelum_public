@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: MPL-2.0
 import { createElement, replaceChildren } from "../domHelpers.js";
 import { createKpiGrid, enableKpiInteractions } from "../planet/outputRender.js";
 import { renderKpiSections } from "../kpiSections.js";
 import { renderDerivedDetails } from "../derivedDetails.js";
+import { createGuidedCreationOverlay } from "../guidedCreation/components/overlay.js";
 
 function createOptionNode(value, label) {
   return createElement("option", {
@@ -171,4 +171,14 @@ export function createMoonRecipePickerOverlay(recipes = []) {
       ),
     ]),
   ]);
+}
+
+export function createMoonGuidedCreationOverlay() {
+  return createGuidedCreationOverlay({
+    overlayClassName: "rp-picker-overlay--moon moon-guided-overlay",
+    dialogClassName: "rp-picker-dialog--moon moon-guided-dialog",
+    closeButtonClassName: "moon-guided-overlay__close",
+    contentClassName: "moon-guided-overlay__content",
+    closeLabel: "Close moon guided creation",
+  });
 }

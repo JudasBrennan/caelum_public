@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Local Cluster neighbourhood generator
 //
 // Populates a stellar neighbourhood around the player's home system by

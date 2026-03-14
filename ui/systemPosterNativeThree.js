@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { loadThreeCore } from "./threeBridge2d.js";
 import {
   renderCelestialRecipeSnapshot,
@@ -363,6 +362,17 @@ function bodyPxR(radiusKm) {
   return Math.max(4, Math.min(26, 8 * Math.pow(radiusKm / 6371, 0.42)));
 }
 
+function ringAppearanceKey(ringAppearance) {
+  if (!ringAppearance) return "";
+  return JSON.stringify({
+    enabled: ringAppearance.enabled === true,
+    ringStyleId: ringAppearance.ringStyleId || "",
+    effectiveStyleId: ringAppearance.effectiveStyleId || "",
+    styleSource: ringAppearance.styleSource || "",
+    appearance: ringAppearance.appearance || null,
+  });
+}
+
 function arcLabelPos(cx, cy, radius, targetY) {
   const dy = targetY - cy;
   const cdy = Math.max(-radius * 0.99, Math.min(radius * 0.99, dy));
@@ -379,9 +389,9 @@ function arcLabelPos(cx, cy, radius, targetY) {
 
 function bodyKey(body) {
   if (body.type === "gas") {
-    return `gas:${body.id || ""}:${body.style || "jupiter"}:${body.rings ? 1 : 0}`;
+    return `gas:${body.id || ""}:${body.style || "jupiter"}:${body.rings ? 1 : 0}:${ringAppearanceKey(body.ringAppearance)}`;
   }
-  return `rocky:${JSON.stringify(body.visualProfile || {})}`;
+  return `rocky:${JSON.stringify(body.visualProfile || {})}:${ringAppearanceKey(body.ringAppearance)}`;
 }
 
 function moonKey(m) {
@@ -408,9 +418,16 @@ async function ensureBodyCanvas(body, shouldContinue = null) {
           bodyType: "gasGiant",
           styleId: body.style || "jupiter",
           showRings: !!body.rings,
+          ringMode: body.ringMode,
+          ringStyleId: body.ringAppearance?.ringStyleId,
+          ringAppearance: body.ringAppearance,
           gasCalc: body.gasCalc,
         }
-      : { bodyType: "rocky", visualProfile: body.visualProfile };
+      : {
+          bodyType: "rocky",
+          visualProfile: body.visualProfile,
+          ringAppearance: body.ringAppearance,
+        };
   const ok = await renderCelestialRecipeSnapshot(canvas, model, { shouldContinue });
   if (!ok || (typeof shouldContinue === "function" && !shouldContinue())) return null;
   POSTER_CACHE.set(key, canvas);
@@ -552,9 +569,16 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
             bodyType: "gasGiant",
             styleId: body.style || "jupiter",
             showRings: !!body.rings,
+            ringMode: body.ringMode,
+            ringStyleId: body.ringAppearance?.ringStyleId,
+            ringAppearance: body.ringAppearance,
             gasCalc: body.gasCalc,
           }
-        : { bodyType: "rocky", visualProfile: body.visualProfile },
+        : {
+            bodyType: "rocky",
+            visualProfile: body.visualProfile,
+            ringAppearance: body.ringAppearance,
+          },
     );
   }
   for (const m of moons || []) {

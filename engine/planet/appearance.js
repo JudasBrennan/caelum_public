@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 const SKY_ANCHORS = [
   { key: "A0", t: 9500 },
   { key: "F0", t: 7300 },

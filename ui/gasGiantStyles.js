@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 /**
  * Gas Giant Visual Styles — shared module
  *

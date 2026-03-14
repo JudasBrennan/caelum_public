@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Canonical species normalization for the habitability layer.
 
 const SUBSCRIPT_MAP = {

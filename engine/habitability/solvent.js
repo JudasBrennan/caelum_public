@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Unified solvent model for rocky planets and moons.
 
 import { clamp, toFinite } from "../utils.js";

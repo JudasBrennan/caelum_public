@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 export function initAboutPage(mountEl) {
   const el = document.createElement("div");
   el.className = "page";
@@ -10,7 +9,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 1.23.0 BETA</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 1.25.0 BETA</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, planetary systems, rocky worlds, gas giants, moons, and debris disks with
           real astrophysics. Model tectonics, climate zones, atmospheres, populations, and calendars.
           Explore your creations in an interactive 3D visualiser with procedural textures, or study
@@ -264,6 +263,22 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Proposed continental drift and helped lay the conceptual foundations for plate tectonics, making moving continents a scientifically coherent picture of planetary surfaces.",
   },
+  "1.24.0": {
+    name: "Vera Rubin",
+    born: 1928,
+    died: 2016,
+    country: "United States",
+    summary:
+      "Provided compelling observational evidence for dark matter by measuring the unexpectedly flat rotation curves of galaxies, revealing hidden structure through careful astronomical observation.",
+  },
+  "1.25.0 BETA": {
+    name: "Annie Jump Cannon",
+    born: 1863,
+    died: 1941,
+    country: "United States",
+    summary:
+      "Built the modern stellar spectral classification system and cataloged hundreds of thousands of stars, turning overwhelming celestial complexity into a usable reference framework.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -292,6 +307,35 @@ function release(version, note, items, { open = false } = {}) {
 function changelogHTML() {
   return [
     release(
+      "1.25.0 BETA",
+      "(beta, from 1.24.0)",
+      [
+        "<b>Guided Creation</b> &mdash; Moons and rocky planets now have dedicated `Quick`, `Guided`, and `Recipes` entry flows at the top of their editors. You can jump straight to a ready-made archetype, answer a few guided questions, or use Recipes as an Advanced-mode starting point without hunting through output cards.",
+        "<b>Moon Science Modes</b> &mdash; The Moon page now exposes separate Hydrosphere, Atmosphere, and Orbital Coupling modes, with richer moon-world outputs behind the Full and Manual paths. Moon results now surface stronger atmosphere, ocean, climate, resonance, and formation context instead of behaving like a thinner special case.",
+        "<b>Guided Moon Systems</b> &mdash; Guided moon creation can now launch from Moon, Planet, and System contexts, preview host fixes, and apply reviewed sibling-moon adjustments when resonance-backed setups need them. This makes oceanic, resonant, and biologically active moon builds much easier to reach deliberately.",
+        "<b>Science Reference Refresh</b> &mdash; The Science page, Lessons, and Science Visualiser are now aligned with the current moon and ring models. Lesson links, moon-system descriptions, ring coverage, and graph nodes now match the live simulation instead of lagging behind it.",
+      ],
+      { open: true },
+    ),
+    release(
+      "1.24.0",
+      "(from 1.23.1 BETA)",
+      [
+        "<b>Ring Controls</b> &mdash; Gas giants and rocky planets now share explicit ring visibility controls. You can keep the science-driven auto mode, force rings on, or force them off, and the Planet page now warns clearly when an override goes against the science.",
+        "<b>Ring Styles</b> &mdash; Visible rings now resolve into authored families such as Saturnian bright, icy banded, dusty veil, narrow dark, arc dusty, and rocky debris. Auto mode picks a stable recommendation from the body state, while manual ring mode lets you choose the style directly.",
+        "<b>Ring Lighting &amp; Shadows</b> &mdash; Rings no longer render as flat tinted discs. Preview, Visualiser, and poster output now share lit ring materials with banded textures, view-angle response, soft planet shadows across the rings, and softened ring shadows projected back onto ringed planets.",
+      ],
+      { open: false },
+    ),
+    release(
+      "1.23.1 BETA",
+      "(beta, from 1.23.0 BETA)",
+      [
+        "<b>Gas Giant Input Fix</b> &mdash; Gas-giant numeric inputs on the Planet page now update correctly again after the shared slider-id migration. This patch mainly targets the broken manual-entry path that was most noticeable on mobile devices.",
+      ],
+      { open: false },
+    ),
+    release(
       "1.23.0 BETA",
       "(beta, from 1.22.1)",
       [
@@ -299,7 +343,7 @@ function changelogHTML() {
         "<b>Terrain and Topography Output</b> &mdash; The simulator now derives terrain, bathymetry, shaded relief, and a dedicated topography map mode from the tectonic model. Terrain previews are smoother and more terrain-like, and the export buttons now expose the matching raster outputs directly.",
         "<b>Plate Editing Workflow</b> &mdash; Plate authoring now supports select, brush, fill, and erase tools, separate ownership versus crust painting, richer selected-cell readouts, and JSON plate-map / crust-map imports. This gives the simulator a usable pre-climate authoring workflow instead of a seed-only preview.",
       ],
-      { open: true },
+      { open: false },
     ),
     release("1.22.1", "(from 1.22.0)", [
       "<b>Unified Celestial Outputs</b> &mdash; Star, Planet, and Moon pages now share the same sectioned KPI layout, so dense output pages read as structured reports instead of one long wall of cards. Secondary values also open reliably on touch devices with explicit tap-to-expand detail.",

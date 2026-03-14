@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import {
@@ -917,15 +916,17 @@ function buildOrbitalMechanics() {
     formula(
       "Moon Worlds in WorldSmith",
       `<p>WorldSmith&rsquo;s moon-world outputs are built as a layered model rather than a single published formula. The Moon page combines atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs into one reference state for each moon.</p>
+      <p><b>Science modes:</b> the Moon page now exposes separate <b>Hydrosphere</b>, <b>Atmosphere</b>, and <b>Orbital Coupling</b> modes. <b>Core</b> preserves the lighter heuristic path, <b>Full</b> enables the richer moon-world and coupled-system science, and <b>Manual</b> accepts extra physical inputs while still solving the outputs rather than hard-overriding them.</p>
       <p><b>ESI vs. Habitability Index:</b> ESI is the standard four-term Earth Similarity Index (radius, density, escape velocity, temperature). WorldSmith&rsquo;s <i>Habitability Index</i> is a custom comparative metric: PHI-inspired, but not a direct implementation of the published literature PHI. It chooses a solvent pathway first (surface water, subsurface water, or alternative solvent when enabled), then scores substrate, solvent, energy, chemistry, stability, radiation, and persistence under that pathway.</p>
       <ul style="font-size:13px;color:var(--muted);margin:4px 0 4px 18px">
         <li><b>Atmosphere</b> combines volatile availability, escape, source type, and greenhouse or anti-greenhouse behaviour.</li>
         <li><b>Hydrosphere</b> separates dry, surface-ocean, frozen-surface, subsurface-ocean, and steam states, including high-pressure-ice barriers where applicable.</li>
-        <li><b>Climate</b> adds parent reflected light, parent thermal flux, eclipse duty cycle, tidal and radiogenic heating, and synchronous contrast to the star-driven equilibrium temperature.</li>
+        <li><b>Climate</b> adds parent reflected light, parent thermal flux, eclipse duty cycle, tidal and radiogenic heating, synchronous contrast, and collapse-risk diagnostics to the star-driven equilibrium temperature.</li>
         <li><b>Geology</b> tracks volcanic or cryovolcanic resurfacing, volatile replenishment, and whether an internal ocean is likely to persist.</li>
         <li><b>Biosphere</b> is surface-only: exposed biology and plant-life outputs require accessible surface liquid, adequate atmosphere, tolerable radiation, and livable surface climate.</li>
         <li><b>Habitability</b> can score both exposed surface solvent and buried subsurface solvent, so a moon can rate as chemically or physically promising without supporting an exposed biosphere.</li>
       </ul>
+      <p><b>Coupled moon systems:</b> in Full and Manual orbital-coupling modes, the moon solver can incorporate sibling-moon resonances, Laplace-chain tagging, forced eccentricity floors, tidal-habitable-zone flags, and formation classification before the final moon-world outputs are derived.</p>
       <p><b>Surface vs. subsurface:</b> a buried ocean below an ice shell can raise the moon&rsquo;s internal or comparative habitability score, but it does <em>not</em> by itself imply surface life, plant life, or an Earth-like surface environment. Surface biosphere outputs remain tied to exposed surface conditions.</p>
       <p><b>Reference inputs:</b> this moon-world layer sits on top of the tidal heating, moon temperature, magnetospheric radiation, and volatile-retention blocks documented above, then adds WorldSmith&rsquo;s own hydrosphere, geology, biosphere, and integrated habitability policy layers.</p>`,
     ),
@@ -2631,7 +2632,8 @@ function buildSystemArchitecture() {
     formula(
       "System Inner Limit (Roche)",
       `<div class="sci-formula__eq">${eq("d_{\\text{inner}} = \\frac{2.455 \\cdot R_\\star \\cdot (\\rho_\\star / 5400)^{1/3}}{1 \\text{ AU}}")}</div>
-      <p>Fluid Roche limit for the closest orbit a body can occupy without tidal disruption. Reference density 5,400 kg/m&sup3;.</p>`,
+      <p>Fluid Roche limit for the closest orbit a body can occupy without tidal disruption. Reference density 5,400 kg/m&sup3;.</p>
+      <p>WorldSmith also reuses Roche-limit logic inside the ring-science pipeline. In rocky-world auto mode, rings only appear when an assigned moon&rsquo;s current periapsis crosses the rocky Roche limit, turning the disrupted-moon case into a visible ring source rather than a stable moon orbit.</p>`,
     ),
   ].join("");
 }

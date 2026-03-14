@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 function positiveNumberOrNull(value) {
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? num : null;

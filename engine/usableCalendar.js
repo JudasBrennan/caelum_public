@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Usable calendar engine
 //
 // Builds fully-rendered calendar months from a configurable calendar

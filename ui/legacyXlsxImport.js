@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { importXlsxModule } from "./runtimeDeps.js";
 import { assertImportFileWithinLimit, nextImportTurn } from "./importSafety.js";
 

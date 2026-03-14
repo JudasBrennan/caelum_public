@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 export function utcStampCompact() {
   const d = new Date();
   const yyyy = String(d.getUTCFullYear());

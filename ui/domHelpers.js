@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 export function appendChildren(node, children) {
   for (const child of Array.isArray(children) ? children : [children]) {
     if (child == null || child === false) continue;

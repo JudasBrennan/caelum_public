@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { clamp } from "../../engine/utils.js";
 import { placeLabel8 } from "./labelLayout.js";
 

@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
-import { loadWorld } from "./store.js";
+﻿import { loadWorld } from "./store.js";
 import { calcLagrangePoints } from "../engine/lagrange.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { makeTimestampToken } from "./canvasExport.js";
@@ -484,7 +483,7 @@ export function initVisualiserPage(root, options = {}) {
   let disposed = false;
   const disposers = [];
 
-  /* -- 3D body mesh system ------------------------------------- */
+  /* ── 3D body mesh system ───────────────────────────────────── */
   const bodyMeshService = createBodyMeshService({
     getNativeThree: () => nativeThree,
     getCameraState: () => ({ pitch: state.pitch, yaw: state.yaw }),
@@ -504,12 +503,24 @@ export function initVisualiserPage(root, options = {}) {
     return bodyMeshService.disposeSharedGeo();
   }
 
-  function positionBodyMesh(key, model, pos, bodyZ, pr, bodyId, axialTiltDeg, spinAngle, touched) {
+  function positionBodyMesh(
+    key,
+    model,
+    pos,
+    bodyZ,
+    pr,
+    bodyId,
+    axialTiltDeg,
+    spinAngle,
+    touched,
+    lightDirectionWorld = null,
+  ) {
     return bodyMeshService.positionBodyMesh({
       axialTiltDeg,
       bodyId,
       bodyZ,
       key,
+      lightDirectionWorld,
       model,
       pos,
       pr,
@@ -570,7 +581,7 @@ export function initVisualiserPage(root, options = {}) {
 
   const vizWrap = root.querySelector(".viz-wrap") || canvas?.parentElement;
 
-  /* -- Cluster helpers ----------------------------------------- */
+  /* ── Cluster helpers ───────────────────────────────────────── */
 
   function refreshClusterSnapshot() {
     state.clusterSnapshot = buildClusterSnapshot();
@@ -584,7 +595,7 @@ export function initVisualiserPage(root, options = {}) {
   updateClusterSpeedUI();
   let inputBindings = null;
 
-  /* -- Mode switching ------------------------------------------ */
+  /* ── Mode switching ────────────────────────────────────────── */
 
   function switchMode(newMode) {
     if (newMode === state.mode) return;
@@ -622,7 +633,7 @@ export function initVisualiserPage(root, options = {}) {
     if (vizTitle) vizTitle.textContent = "Local Cluster Visualiser";
   }
 
-  /* -- Toast (first-load hint) --------------------------------- */
+  /* ── Toast (first-load hint) ───────────────────────────────── */
 
   let toastTimeout = null;
   function showToast() {
@@ -698,7 +709,7 @@ export function initVisualiserPage(root, options = {}) {
 
   function resizeCanvas(force = false) {
     if (!vizWrap) return;
-    /* Clear inline size so CSS width:100%/height:100% governs display �
+    /* Clear inline size so CSS width:100%/height:100% governs display —
        prevents the canvas from blocking layout shrink after fullscreen. */
     canvas.style.width = "";
     canvas.style.height = "";
@@ -714,7 +725,7 @@ export function initVisualiserPage(root, options = {}) {
 
   function disposeNativeThree() {
     if (!nativeThree) return;
-    /* Dispose body mesh cache first � owns textures, materials, and ring
+    /* Dispose body mesh cache first — owns textures, materials, and ring
        geometry.  Skip bodyGroup in the generic traverse to avoid double-
        disposing shared geometries that disposeSharedGeo() handles. */
     disposeBodyMeshCache();
@@ -918,7 +929,7 @@ export function initVisualiserPage(root, options = {}) {
     if (maxR < 1 || W < 1 || H < 1) return false;
     // Snap pan so the focused body is exactly at screen centre.
     // This runs before cx/cy are derived so all subsequent drawing
-    // uses the corrected pan � the body is centred BY CONSTRUCTION.
+    // uses the corrected pan — the body is centred BY CONSTRUCTION.
     syncFocusPan(snapshot, metrics);
     const usePhysicalSize = isPhysicalScale();
     const moonLabelOpacity = chkLabels?.checked
@@ -950,6 +961,14 @@ export function initVisualiserPage(root, options = {}) {
     const center = toThreeXY(metrics, cx, cy);
     const starR = metrics.starR;
     const THREE = nativeThree.THREE;
+    const ringLightVectorForOrbit = (ox, oz, oy = 0) => {
+      const projected = projectOrbitOffset(ox, oz, oy);
+      return {
+        x: -Number(projected?.x || 0),
+        y: -Number(projected?.y || 0),
+        z: -Number(projected?.depth || 0),
+      };
+    };
     const screenToThree = (sx, sy, z = 0) => {
       const tp = toThreeXY(metrics, sx, sy);
       return new THREE.Vector3(tp.x, tp.y, z);
@@ -2109,6 +2128,7 @@ export function initVisualiserPage(root, options = {}) {
         const meshModel = {
           bodyType: "rocky",
           visualProfile: p.visualProfile,
+          ringAppearance: p.ringAppearance,
           axialTiltDeg: planetAxialTiltDeg,
         };
         positionBodyMesh(
@@ -2121,6 +2141,7 @@ export function initVisualiserPage(root, options = {}) {
           planetAxialTiltDeg,
           planetSpinAngle,
           bodyMeshTouched,
+          ringLightVectorForOrbit(placement.ox, placement.oy, placement.oyVert || 0),
         );
         if (chkRotation?.checked) {
           addRotationOverlayNative(
@@ -2295,6 +2316,11 @@ export function initVisualiserPage(root, options = {}) {
               moonAxialTiltDeg,
               moonSpinAngle,
               bodyMeshTouched,
+              ringLightVectorForOrbit(
+                Number(placement.ox || 0) + Number(mox || 0),
+                Number(placement.oy || 0) + Number(moyFlat || 0),
+                Number(placement.oyVert || 0) + Number(moyVert || 0),
+              ),
             );
             if (chkRotation?.checked) {
               addRotationOverlayNative(
@@ -2363,6 +2389,9 @@ export function initVisualiserPage(root, options = {}) {
           bodyType: "gasGiant",
           styleId: g.style || "jupiter",
           showRings: !!g.rings,
+          ringMode: g.ringMode,
+          ringStyleId: g.ringAppearance?.ringStyleId,
+          ringAppearance: g.ringAppearance,
           gasCalc: g.gasCalc,
           axialTiltDeg: gasAxialTiltDeg,
         };
@@ -2376,6 +2405,7 @@ export function initVisualiserPage(root, options = {}) {
           gasAxialTiltDeg,
           gasSpinAngle,
           bodyMeshTouched,
+          ringLightVectorForOrbit(placement.ox, placement.oy, placement.oyVert || 0),
         );
         if (chkRotation?.checked) {
           addRotationOverlayNative(
@@ -2547,6 +2577,11 @@ export function initVisualiserPage(root, options = {}) {
               moonAxialTiltDeg,
               moonSpinAngle,
               bodyMeshTouched,
+              ringLightVectorForOrbit(
+                Number(placement.ox || 0) + Number(mox || 0),
+                Number(placement.oy || 0) + Number(moyFlat || 0),
+                Number(placement.oyVert || 0) + Number(moyVert || 0),
+              ),
             );
             if (chkRotation?.checked) {
               addRotationOverlayNative(
@@ -2829,7 +2864,7 @@ export function initVisualiserPage(root, options = {}) {
       plotted.push({ sys, p3, screen, pointRadius, perspective, isHome, visual });
     }
 
-    /* -- All drawing on single 2D overlay canvas ------------- */
+    /* ── All drawing on single 2D overlay canvas ───────────── */
     syncOverlaySize();
     const ctx = overlayCtx;
     if (!ctx) return true;
@@ -2942,7 +2977,7 @@ export function initVisualiserPage(root, options = {}) {
       }
     }
 
-    /* Neighbourhood boundary � screen-facing circle */
+    /* Neighbourhood boundary — screen-facing circle */
     const cxB = W * 0.5;
     const cyB = H * 0.5;
     let maxBoundaryR = 0;
@@ -3139,7 +3174,7 @@ export function initVisualiserPage(root, options = {}) {
   }
 
   /* ResizeObserver fires whenever .viz-wrap changes size (window resize,
-     fullscreen enter/exit, layout reflow) � much more reliable than
+     fullscreen enter/exit, layout reflow) — much more reliable than
      setTimeout-based approaches. */
   const wrapResizeObserver = new ResizeObserver(() => {
     resizeCanvas(true);
@@ -3328,7 +3363,7 @@ export function initVisualiserPage(root, options = {}) {
 
   // Centre the focused body on screen.  Called at the top of every
   // drawNativeSystemMode so that pan is ALWAYS derived from the body's
-  // projected position � the body stays centred BY CONSTRUCTION, not
+  // projected position — the body stays centred BY CONSTRUCTION, not
   // by correction after the fact.
   function syncFocusPan(snapshot, metrics) {
     return syncFocusedPan({
@@ -3342,7 +3377,7 @@ export function initVisualiserPage(root, options = {}) {
     });
   }
 
-  // Smooth zoom toward the focus target.  Only touches state.zoom �
+  // Smooth zoom toward the focus target.  Only touches state.zoom —
   // pan is handled by syncFocusPan at draw time.
   function easeFocusZoom(dt) {
     return applyCameraFocusZoom({
@@ -3431,7 +3466,7 @@ export function initVisualiserPage(root, options = {}) {
       lastCameraTs = ts;
       let needsFrame = false;
       if (state.focusTargetId) {
-        // Pan is handled by syncFocusPan inside draw � kill pan velocity
+        // Pan is handled by syncFocusPan inside draw — kill pan velocity
         // but allow rotation inertia so the camera decelerates smoothly.
         state.panVelX = 0;
         state.panVelY = 0;
@@ -3509,7 +3544,7 @@ export function initVisualiserPage(root, options = {}) {
     replaceChildren(focusSummaryEl, children);
   }
 
-  /* -- Draw dispatcher ------------------------------------------ */
+  /* ── Draw dispatcher ────────────────────────────────────────── */
 
   function draw(snapshotArg) {
     if (disposed || !root.isConnected || !canvas || !canvas.isConnected) return;
@@ -3522,7 +3557,7 @@ export function initVisualiserPage(root, options = {}) {
     }
   }
 
-  /* -- Transition animations (mode switch, no page navigation) - */
+  /* ── Transition animations (mode switch, no page navigation) ─ */
 
   function triggerClusterTransition() {
     if (state.transitioning) return;
@@ -3760,7 +3795,7 @@ export function initVisualiserPage(root, options = {}) {
     },
   });
 
-  /* -- Tick / animation loop (both modes) ---------------------- */
+  /* ── Tick / animation loop (both modes) ────────────────────── */
 
   function tick(ts) {
     if (disposed || !root.isConnected) {
@@ -3858,6 +3893,9 @@ export function initVisualiserPage(root, options = {}) {
         bodyGroup,
         cameraSystem,
         cameraCluster,
+        fillLight,
+        keyLight,
+        rimLight,
       };
       resizeCanvas(true);
       draw();

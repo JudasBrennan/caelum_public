@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Lagrange point calculator
 //
 // Computes the five Lagrange points (L1–L5) for a two-body

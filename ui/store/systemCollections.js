@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 export function makeCollection(list, idPrefix) {
   const order = [];
   const byId = Object.create(null);

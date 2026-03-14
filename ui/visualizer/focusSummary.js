@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 function fmtNumber(value, digits = 2) {
   const num = Number(value);
   if (!Number.isFinite(num)) return "-";

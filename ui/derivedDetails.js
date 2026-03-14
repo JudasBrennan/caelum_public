@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { createElement, replaceChildren } from "./domHelpers.js";
 import { createTipIconNode } from "./planet/outputRender.js";
 import { createStatRows } from "./statRows.js";

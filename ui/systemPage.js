@@ -1,11 +1,9 @@
-// SPDX-License-Identifier: MPL-2.0
 import { calcStar } from "../engine/star.js";
 import { calcSystem } from "../engine/system.js";
 import { fmt } from "../engine/utils.js";
 import { buildSystemPosterSnapshotInputs } from "../engine/worldAdapters.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { downloadCanvasPng, makeTimestampToken } from "./canvasExport.js";
-import { computeRockyVisualProfile } from "./rockyPlanetStyles.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import {
   renderManualBodyList,
@@ -32,6 +30,7 @@ import {
   setOrbitMode,
 } from "./store.js";
 import { createTutorial } from "./tutorial.js";
+import { launchGuidedMoonForParent } from "./moonGuidedLaunch.js";
 
 const TIP_LABEL = {
   "Orbit Placement Mode":
@@ -692,7 +691,8 @@ export function initSystemPage(mountEl) {
         radiusKm: planet.radiusKm,
         dayHex: planet.dayHex,
         horizonHex: planet.horizonHex,
-        visualProfile: computeRockyVisualProfile(planet.model?.derived, planet.source?.inputs),
+        visualProfile: planet.visualProfile,
+        ringAppearance: planet.ringAppearance,
       }));
 
       cachedPosterData = {
@@ -951,6 +951,15 @@ export function initSystemPage(mountEl) {
 
     // Edit button: jump to Planet tab and select planet
     wrap.addEventListener("click", (e) => {
+      const guidedMoonBtn = e.target.closest?.("button[data-action='guided-moon']");
+      if (guidedMoonBtn) {
+        const parentId = guidedMoonBtn.getAttribute("data-parent-id");
+        const parentType = guidedMoonBtn.getAttribute("data-parent-type") || "planet";
+        if (!parentId) return;
+        launchGuidedMoonForParent(parentType, parentId, { sourcePage: "system" });
+        return;
+      }
+
       const lockBtn = e.target.closest?.("button[data-action='lock']");
       if (lockBtn) {
         const pid2 = lockBtn.getAttribute("data-planet-id");

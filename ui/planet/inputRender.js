@@ -1,5 +1,9 @@
-// SPDX-License-Identifier: MPL-2.0
 import { createElement, replaceChildren, replaceSelectOptions } from "../domHelpers.js";
+import {
+  listRingStyleOptions,
+  normalizeRingStyleId,
+  RING_STYLE_AUTO,
+} from "../ringAppearanceProfiles.js";
 import { createTipIconNode } from "./outputRender.js";
 
 function createSpacer(heightPx) {
@@ -30,12 +34,16 @@ function createLabelBlock({ label, unit = "", tip = "", hint = "", extras = [] }
   ]);
 }
 
-function createFormRow(leftChildren, rightChildren, { className = "", style = "" } = {}) {
+function createFormRow(
+  leftChildren,
+  rightChildren,
+  { className = "", style = "", attrs = {} } = {},
+) {
   return createElement(
     "div",
     {
       className: ["form-row", className].filter(Boolean).join(" "),
-      attrs: style ? { style } : {},
+      attrs: { ...attrs, ...(style ? { style } : {}) },
     },
     [createElement("div", {}, leftChildren), rightChildren],
   );
@@ -115,13 +123,14 @@ function createTextRow({ id, label, tip = "", hint = "", value = "", style = "" 
   );
 }
 
-function createSelectNode(id, options = []) {
-  const select = createElement("select", { attrs: { id } });
+function createSelectNode(id, options = [], attrs = {}) {
+  const select = createElement("select", { attrs: { id, ...attrs } });
   replaceSelectOptions(select, options);
   return select;
 }
 
 function createSelectRow({
+  fieldId = "",
   id,
   label,
   unit = "",
@@ -129,11 +138,13 @@ function createSelectRow({
   hint = "",
   options = [],
   style = "",
+  selectAttrs = {},
+  className = "",
 } = {}) {
   return createFormRow(
     createLabelBlock({ label, unit, tip, hint }),
-    createSelectNode(id, options),
-    { style },
+    createSelectNode(id, options, selectAttrs),
+    { style, className, attrs: fieldId ? { id: fieldId } : {} },
   );
 }
 
@@ -214,6 +225,13 @@ export function renderRockyInputForm(container, { planet, tipLabels } = {}) {
   const greenhouseMode = p.greenhouseMode || "manual";
   const radioisotopeMode = p.radioisotopeMode || "simple";
   const mantleOxidation = p.mantleOxidation || "earth";
+  const ringModeValue =
+    p.ringMode === "force-on" || p.ringMode === "force-off" ? p.ringMode : "auto";
+  const ringStyleValue = normalizeRingStyleId(p.ringStyleId);
+  const ringStyleOptions = listRingStyleOptions({ bodyType: "rocky" }).map((option) => ({
+    ...option,
+    selected: option.value === (ringModeValue === "force-on" ? ringStyleValue : RING_STYLE_AUTO),
+  }));
 
   const primaryPhysicalField = {
     id: "mass",
@@ -382,6 +400,40 @@ export function renderRockyInputForm(container, { planet, tipLabels } = {}) {
       hint: "Used in exports and print view.",
       value: planet?.name || "New Planet",
     }),
+    createSpacer(8),
+    createSectionLabel("Rings", tipLabels.Rings || ""),
+    createToggle({
+      className: "physics-trio-toggle",
+      id: "ringModePills",
+      name: "ringMode",
+      style: "margin:4px 0 6px",
+      options: [
+        { id: "ringModeAuto", value: "auto", label: "Auto", checked: ringModeValue === "auto" },
+        {
+          id: "ringModeForceOn",
+          value: "force-on",
+          label: "Force on",
+          checked: ringModeValue === "force-on",
+        },
+        {
+          id: "ringModeForceOff",
+          value: "force-off",
+          label: "Force off",
+          checked: ringModeValue === "force-off",
+        },
+      ],
+    }),
+    createHintNode("ringModeHint", "", "margin-top:5px"),
+    createSelectRow({
+      fieldId: "ringStyleField",
+      id: "ringStyleSelect",
+      label: "Ring style",
+      hint: "Available when rings are forced on.",
+      options: ringStyleOptions,
+      selectAttrs: ringModeValue === "force-on" ? {} : { disabled: "disabled" },
+      style: "margin-top:6px",
+    }),
+    createHintNode("ringStyleHint", "", "margin-top:5px"),
     createSpacer(8),
     createSectionLabel("Physical", tipLabels.Physical || ""),
     ...createRockyFieldRows([primaryPhysicalField], tipLabels),
@@ -617,6 +669,13 @@ export function renderGasGiantInputForm(
   container,
   { giant, slotHint = "", slotOptions = [], tipLabels, ranges } = {},
 ) {
+  const ringModeValue =
+    giant?.ringMode === "force-on" || giant?.ringMode === "force-off" ? giant.ringMode : "auto";
+  const ringStyleValue = normalizeRingStyleId(giant?.ringStyleId);
+  const ringStyleOptions = listRingStyleOptions({ bodyType: "gasGiant" }).map((option) => ({
+    ...option,
+    selected: option.value === (ringModeValue === "force-on" ? ringStyleValue : RING_STYLE_AUTO),
+  }));
   replaceChildren(container, [
     createSelectRow({
       id: "ggSlot",
@@ -697,6 +756,45 @@ export function renderGasGiantInputForm(
       placeholder: "auto",
       style: "margin-top:8px",
     }),
+    createSpacer(10),
+    createSectionLabel("Rings", tipLabels["GG Rings"] || ""),
+    createToggle({
+      className: "physics-trio-toggle",
+      id: "ggRingModePills",
+      name: "ggRingMode",
+      style: "margin:4px 0 6px",
+      options: [
+        {
+          id: "ggRingModeAuto",
+          value: "auto",
+          label: "Auto",
+          checked: ringModeValue === "auto",
+        },
+        {
+          id: "ggRingModeForceOn",
+          value: "force-on",
+          label: "Force on",
+          checked: ringModeValue === "force-on",
+        },
+        {
+          id: "ggRingModeForceOff",
+          value: "force-off",
+          label: "Force off",
+          checked: ringModeValue === "force-off",
+        },
+      ],
+    }),
+    createHintNode("ggRingModeHint", "", "margin-top:5px"),
+    createSelectRow({
+      fieldId: "ggRingStyleField",
+      id: "ggRingStyleSelect",
+      label: "Ring style",
+      hint: "Available when rings are forced on.",
+      options: ringStyleOptions,
+      selectAttrs: ringModeValue === "force-on" ? {} : { disabled: "disabled" },
+      style: "margin-top:6px",
+    }),
+    createHintNode("ggRingStyleHint", "", "margin-top:5px"),
     createSpacer(10),
     createSectionLabel("Orbit & Orientation"),
     createSliderRow({

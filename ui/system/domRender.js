@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { fmt } from "../../engine/utils.js";
 import { createElement, replaceChildren } from "../domHelpers.js";
 import { styleLabel } from "../gasGiantStyles.js";
@@ -138,6 +137,16 @@ export function createPlanetCard(
           className: "small",
           attrs: {
             type: "button",
+            "data-action": "guided-moon",
+            "data-parent-id": planet.id,
+            "data-parent-type": "planet",
+          },
+          text: "Guided moon",
+        }),
+        createElement("button", {
+          className: "small",
+          attrs: {
+            type: "button",
             "data-action": "edit",
             "data-planet-id": planet.id,
           },
@@ -247,7 +256,21 @@ export function renderOrbitSlots(
       rows.push(
         createSlotRow(
           `${giant.name || "Gas giant"} (Slot ${String(item.slot).padStart(2, "0")} - ${fmt(Number(giant.au) || item.au, 3)} AU)`,
-          createHint(`Gas giant marker (${styleLabel(giant.style || "jupiter")}).`),
+          createElement("div", {}, [
+            createHint(`Gas giant marker (${styleLabel(giant.style || "jupiter")}).`),
+            createElement("div", { className: "button-row", attrs: { style: "margin-top:8px" } }, [
+              createElement("button", {
+                className: "small",
+                attrs: {
+                  type: "button",
+                  "data-action": "guided-moon",
+                  "data-parent-id": giant.id,
+                  "data-parent-type": "gasGiant",
+                },
+                text: "Guided moon",
+              }),
+            ]),
+          ]),
           { dropzoneStyle: "cursor:default" },
         ),
       );

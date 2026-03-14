@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
-import { calcStar } from "../engine/star.js";
+Ôªøimport { calcStar } from "../engine/star.js";
 import { computeStellarActivityModel } from "../engine/stellarActivity.js";
 import { clamp, fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
@@ -211,7 +210,7 @@ export function initStarPage(mountEl) {
           <div class="form-row">
             <div>
               <div class="label">Metallicity [Fe/H] <span class="unit">dex</span> ${tipIcon(TIP_LABEL["Metallicity [Fe/H]"] || "")}</div>
-              <div class="hint">Sun = 0.0 ∑ Metal-poor halo ò -2 ∑ Metal-rich disk ò +0.3</div>
+              <div class="hint">Sun = 0.0 ¬∑ Metal-poor halo ‚âà ‚àí2 ¬∑ Metal-rich disk ‚âà +0.3</div>
             </div>
             <div class="input-pair">
             <input id="metallicity" type="number" step="0.01" min="-3" max="1" aria-label="Metallicity [Fe/H]" />
@@ -235,14 +234,14 @@ export function initStarPage(mountEl) {
             <div class="label" style="margin-bottom:6px">Derivation Mode</div>
             <div class="physics-trio-toggle">
               <input type="radio" name="physicsDerivMode" id="derivModeRl" value="rl" />
-              <label for="derivModeRl">R + L ? T</label>
+              <label for="derivModeRl">R + L ‚Üí T</label>
               <input type="radio" name="physicsDerivMode" id="derivModeRt" value="rt" />
-              <label for="derivModeRt">R + T ? L</label>
+              <label for="derivModeRt">R + T ‚Üí L</label>
               <input type="radio" name="physicsDerivMode" id="derivModeLt" value="lt" />
-              <label for="derivModeLt">L + T ? R</label>
+              <label for="derivModeLt">L + T ‚Üí R</label>
               <span></span>
             </div>
-            <div class="hint" style="margin-top:5px">R = Radius (Rsol) ∑ L = Luminosity (Lsol) ∑ T = Temperature (K) ∑ Arrow = computed value</div>
+            <div class="hint" style="margin-top:5px">R = Radius (Rsol) ¬∑ L = Luminosity (Lsol) ¬∑ T = Temperature (K) ¬∑ Arrow = computed value</div>
           </div>
 
           <div class="form-row" id="radiusOverrideRow">
@@ -468,7 +467,7 @@ export function initStarPage(mountEl) {
       if (m === "lt") return { r: null, l, t };
       return { r, l, t: null }; // "rl" (default)
     }
-    // Simple mode: all values from mass ó no overrides reach the engine
+    // Simple mode: all values from mass ‚Äî no overrides reach the engine
     return { r: null, l: null, t: null };
   }
 
@@ -588,7 +587,7 @@ export function initStarPage(mountEl) {
             fmt(model.luminosityLsol, 3),
             `Lsol | ${fmt(model.metric.luminosityW, 0)} W${model.luminosityOverridden ? " (Override)" : ""}`,
           ),
-          starKpi("Density", fmt(model.densityGcm3, 3), "g/cm≥"),
+          starKpi("Density", fmt(model.densityGcm3, 3), "g/cm¬≥"),
           starKpi("Temperature", fmt(model.tempK, 0), "K"),
         ],
       },
@@ -680,7 +679,7 @@ export function initStarPage(mountEl) {
               value: `${fmt(model.luminosityLsol, 3)} Lsol`,
               meta: `${fmt(model.metric.luminosityW, 0)} W`,
             },
-            { label: "Density", value: `${fmt(model.densityGcm3, 3)} g/cm≥` },
+            { label: "Density", value: `${fmt(model.densityGcm3, 3)} g/cm¬≥` },
             { label: "Temperature", value: `${fmt(model.tempK, 0)} K` },
           ],
         },
@@ -781,7 +780,7 @@ export function initStarPage(mountEl) {
     const isAdvanced = state.physicsMode === "advanced";
     advancedDerivRowEl.style.display = isAdvanced ? "" : "none";
     physicsModeHintEl.textContent = isAdvanced
-      ? "Specify any two of Radius, Luminosity, and Temperature; the third is computed via Stefan-Boltzmann (L = R≤ ◊ (T/5776)4)."
+      ? "Specify any two of Radius, Luminosity, and Temperature; the third is computed via Stefan-Boltzmann (L = R¬≤ √ó (T/5776)‚Å¥)."
       : "All physical properties are derived from mass and age using stellar scaling laws. Toggle Advanced to override specific values.";
 
     if (isAdvanced) {

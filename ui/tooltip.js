@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Lightweight hover tooltips (event-delegated).
 // Works for dynamically rendered content (e.g., KPI grids updated via innerHTML).
 //

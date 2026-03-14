@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Shared habitability metrics for rocky planets and moons.
 
 import { clamp, toFinite } from "../utils.js";

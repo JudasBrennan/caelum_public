@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Shared hydrosphere interpretation for rocky-body habitability metrics.
 //
 // Stage 2 establishes one authoritative engine-side source of truth for

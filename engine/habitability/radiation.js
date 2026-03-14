@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Habitability-facing radiation helpers.
 
 import { clamp, toFinite } from "../utils.js";

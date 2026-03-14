@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { calcEquilibriumTemperatureFromFluxK, calcStellarFluxWm2 } from "../physics/radiative.js";
 import { clamp, round, toFinite } from "../utils.js";
 

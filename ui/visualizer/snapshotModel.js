@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MPL-2.0
 import { calcSystem } from "../../engine/system.js";
 import { calcStar, starColourHexFromTempK } from "../../engine/star.js";
 import { calcPlanetExact } from "../../engine/planet.js";
 import { calcMoonExact } from "../../engine/moon.js";
 import { calcGasGiant } from "../../engine/gasGiant.js";
+import { resolveGasGiantRingState } from "../../engine/planetaryRings.js";
 import { computeStellarActivityModel } from "../../engine/stellarActivity.js";
 import { clamp } from "../../engine/utils.js";
 import {
@@ -16,6 +16,7 @@ import {
   listSystemGasGiants,
 } from "../store.js";
 import { computeRockyVisualProfile } from "../rockyPlanetStyles.js";
+import { resolveRingAppearance } from "../ringAppearanceProfiles.js";
 import {
   MOON_RADIUS_KM,
   SOL_RADIUS_KM,
@@ -151,7 +152,14 @@ export function buildVisualizerSnapshot(world, options = {}) {
       let skyHighHex = null;
       let skyHorizonHex = null;
       let visualProfile = null;
+      let ringAppearance = null;
       const planetInputs = { ...planet.inputs, semiMajorAxisAu: au };
+      const planetMoonInputs = moons
+        .filter((moon) => moon.planetId === planet.id)
+        .map((moon) => ({
+          id: moon.id,
+          ...(moon.inputs || {}),
+        }));
       try {
         const planetCalc = calcPlanetExact({
           starMassMsol,
@@ -162,6 +170,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
           starTempKOverride: starOverrides.t,
           starEvolutionMode: starOverrides.ev,
           planet: planetInputs,
+          moons: planetMoonInputs,
         });
         periodDays = Number(planetCalc?.derived?.orbitalPeriodEarthDays);
         if (!Number.isFinite(periodDays) || periodDays <= 0) periodDays = null;
@@ -175,6 +184,16 @@ export function buildVisualizerSnapshot(world, options = {}) {
         if (skyHorizonHex && !skyHorizonHex.startsWith("#")) skyHorizonHex = `#${skyHorizonHex}`;
         if (planetCalc?.derived) {
           visualProfile = computeRockyVisualProfile(planetCalc.derived, planet.inputs);
+          ringAppearance = resolveRingAppearance({
+            bodyType: "rocky",
+            ringState: {
+              ringMode: visualProfile?.ring?.ringMode || planet.inputs?.ringMode || "auto",
+              effectiveEnabled: !!visualProfile?.ring?.enabled,
+            },
+            ringStyleId: planet.inputs?.ringStyleId,
+            derived: planetCalc.derived,
+            seed: planet.id || planet.name,
+          });
         }
       } catch {
         periodDays = null;
@@ -182,6 +201,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
         skyHighHex = null;
         skyHorizonHex = null;
         visualProfile = null;
+        ringAppearance = null;
       }
 
       return {
@@ -197,6 +217,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
         skyHighHex,
         skyHorizonHex,
         visualProfile,
+        ringAppearance,
         eccentricity: clamp(Number(planet.inputs?.eccentricity ?? 0), 0, 0.99),
         longitudeOfPeriapsisDeg: Number(planet.inputs?.longitudeOfPeriapsisDeg ?? 0),
         inclinationDeg: clamp(Number(planet.inputs?.inclinationDeg ?? 0), 0, 180),
@@ -215,13 +236,17 @@ export function buildVisualizerSnapshot(world, options = {}) {
     })
     .sort((left, right) => left.au - right.au);
 
-  const gasGiants = listSystemGasGiants(world)
+  const systemGasGiants = listSystemGasGiants(world);
+  const gasGiants = systemGasGiants
     .map((gasGiant, idx) =>
       buildGasGiantNode(gasGiant, idx, {
+        gasGiants: systemGasGiants,
         moons,
         starAgeGyr,
         starMassMsol,
         starMetallicityFeH,
+        starLuminosityLsun,
+        starRadiusRsol,
         starOverrides,
         hashUnit,
         world,
@@ -363,8 +388,18 @@ function buildMoonNode(moon, context) {
 }
 
 function buildGasGiantNode(gasGiant, idx, context) {
-  const { hashUnit, moons, starAgeGyr, starMassMsol, starMetallicityFeH, starOverrides, world } =
-    context;
+  const {
+    gasGiants,
+    hashUnit,
+    moons,
+    starAgeGyr,
+    starMassMsol,
+    starMetallicityFeH,
+    starLuminosityLsun,
+    starOverrides,
+    starRadiusRsol,
+    world,
+  } = context;
   const node = {
     id: gasGiant.id || `gg${idx + 1}`,
     name: gasGiant.name || `Gas giant ${idx + 1}`,
@@ -373,10 +408,12 @@ function buildGasGiantNode(gasGiant, idx, context) {
       ? clamp(Number(gasGiant.radiusRj), GAS_GIANT_RADIUS_MIN_RJ, GAS_GIANT_RADIUS_MAX_RJ)
       : 1,
     style: gasGiant.style || "jupiter",
+    ringMode: gasGiant.ringMode,
     rings: !!gasGiant.rings,
     massMjup: gasGiant.massMjup,
     rotationPeriodHours: gasGiant.rotationPeriodHours,
     metallicity: gasGiant.metallicity,
+    ringAppearance: null,
   };
   let parentOverride = null;
   try {
@@ -387,12 +424,32 @@ function buildGasGiantNode(gasGiant, idx, context) {
       rotationPeriodHours: gasGiant.rotationPeriodHours,
       metallicity: gasGiant.metallicity,
       starMassMsol,
-      starLuminosityLsol: Number(world.star?.luminosityLsol) || 1,
+      starLuminosityLsol: Number(starLuminosityLsun) || Number(world.star?.luminosityLsol) || 1,
       starAgeGyr,
-      starRadiusRsol: Number(world.star?.radiusRsol) || 1,
+      starRadiusRsol: Number(starRadiusRsol) || Number(world.star?.radiusRsol) || 1,
       stellarMetallicityFeH: Number(world.star?.metallicityFeH) || starMetallicityFeH,
+      otherGiants: Array.isArray(gasGiants)
+        ? gasGiants.filter((other) => other?.id !== gasGiant.id)
+        : [],
+      moons: moons.filter((moon) => moon.planetId === node.id).map((moon) => moon.inputs || {}),
     });
     node.gasCalc = gasCalc;
+    const ringState = resolveGasGiantRingState({
+      ringMode: gasGiant.ringMode,
+      gasCalc,
+      legacyRings: gasGiant.rings,
+    });
+    node.ringMode = ringState.ringMode;
+    node.rings = ringState.effectiveEnabled;
+    node.ringState = ringState;
+    node.ringAppearance = resolveRingAppearance({
+      bodyType: "gasGiant",
+      ringState,
+      ringStyleId: gasGiant.ringStyleId,
+      gasCalc,
+      bodyStyleId: gasGiant.style,
+      seed: node.id || node.name,
+    });
     parentOverride = {
       inputs: {
         massEarth: gasCalc.physical.massEarth,
@@ -408,6 +465,21 @@ function buildGasGiantNode(gasGiant, idx, context) {
       },
     };
   } catch {
+    const ringState = resolveGasGiantRingState({
+      ringMode: gasGiant.ringMode,
+      legacyRings: gasGiant.rings,
+    });
+    node.ringMode = ringState.ringMode;
+    node.rings = ringState.effectiveEnabled;
+    node.ringState = ringState;
+    node.ringAppearance = resolveRingAppearance({
+      bodyType: "gasGiant",
+      ringState,
+      ringStyleId: gasGiant.ringStyleId,
+      gasCalc: null,
+      bodyStyleId: gasGiant.style,
+      seed: node.id || node.name,
+    });
     parentOverride = null;
   }
   node.moons = moons

@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: MPL-2.0
+import { normalizeMoonInputs } from "../../engine/moon/config.js";
+
 function makeEntityId(prefix) {
   return prefix + Math.random().toString(36).slice(2, 9);
 }
@@ -26,12 +27,15 @@ export function selectPlanetInWorld(world, planetId) {
 
 export function createPlanetInWorld(world, inputs, { name = "New Planet" } = {}) {
   const id = makeEntityId("p");
+  const normalizedInputs = { ...(inputs || {}) };
+  if (normalizedInputs.ringMode == null) normalizedInputs.ringMode = "auto";
+  if (normalizedInputs.ringStyleId == null) normalizedInputs.ringStyleId = "auto";
   const planet = {
     id,
     name: name || inputs?.name || "New Planet",
     slotIndex: null,
     locked: false,
-    inputs: { ...(inputs || {}) },
+    inputs: normalizedInputs,
   };
   world.planets.byId[id] = planet;
   world.planets.order.push(id);
@@ -96,7 +100,7 @@ export function createMoonInWorld(world, inputs, { name = "New Moon", planetId }
     name: name || inputs?.name || "New Moon",
     planetId: parentId,
     locked: false,
-    inputs: { ...(inputs || {}) },
+    inputs: normalizeMoonInputs(inputs || {}),
   };
   world.moons.byId[id] = moon;
   world.moons.order.push(id);
@@ -136,7 +140,7 @@ export function updateMoonInWorld(world, moonId, patch) {
       if (nextPlanetId == null) moon.locked = false;
     }
   }
-  if (patch.inputs) moon.inputs = { ...moon.inputs, ...patch.inputs };
+  if (patch.inputs) moon.inputs = normalizeMoonInputs({ ...moon.inputs, ...patch.inputs });
 
   if (world.moons.selectedId === moonId) syncSelectedMoonSnapshot(world);
   return world;
@@ -168,6 +172,72 @@ export function assignMoonToPlanetInWorld(world, moonId, planetIdOrNull, { force
   if (nextPlanetId == null) moon.locked = false;
   if (world.moons.selectedId === moonId) syncSelectedMoonSnapshot(world);
   return world;
+}
+
+export function applyMoonSiblingPatchInWorld(
+  world,
+  siblingPatch,
+  { preserveSelectedMoonId = null } = {},
+) {
+  const operations = Array.isArray(siblingPatch?.operations) ? siblingPatch.operations : [];
+  if (!operations.length) {
+    return {
+      changed: false,
+      createdMoonIds: [],
+      updatedMoonIds: [],
+    };
+  }
+
+  const createdMoonIds = [];
+  const updatedMoonIds = [];
+  const selectedMoonId = preserveSelectedMoonId || world.moons.selectedId || null;
+
+  for (const operation of operations) {
+    if (!operation || typeof operation !== "object") continue;
+
+    if (operation.type === "create" && operation.inputs) {
+      createMoonInWorld(world, operation.inputs, {
+        name: operation.name || operation.inputs?.name || "New Moon",
+        planetId: operation.planetId,
+      });
+      const createdMoonId = world.moons.selectedId;
+      if (createdMoonId && world.moons.byId[createdMoonId]) {
+        if (Object.prototype.hasOwnProperty.call(operation, "locked")) {
+          world.moons.byId[createdMoonId].locked =
+            world.moons.byId[createdMoonId].planetId == null ? false : !!operation.locked;
+        }
+        createdMoonIds.push(createdMoonId);
+      }
+      continue;
+    }
+
+    if (operation.type === "update" && operation.moonId && world.moons.byId[operation.moonId]) {
+      if (Object.prototype.hasOwnProperty.call(operation, "planetId")) {
+        assignMoonToPlanetInWorld(world, operation.moonId, operation.planetId, {
+          force: true,
+        });
+      }
+      const moonPatch = {
+        inputs: operation.inputPatch || {},
+      };
+      if (Object.prototype.hasOwnProperty.call(operation, "name")) moonPatch.name = operation.name;
+      if (Object.prototype.hasOwnProperty.call(operation, "locked"))
+        moonPatch.locked = operation.locked;
+      updateMoonInWorld(world, operation.moonId, moonPatch);
+      updatedMoonIds.push(operation.moonId);
+    }
+  }
+
+  if (selectedMoonId && world.moons.byId[selectedMoonId]) {
+    world.moons.selectedId = selectedMoonId;
+  }
+  syncSelectedMoonSnapshot(world);
+
+  return {
+    changed: createdMoonIds.length > 0 || updatedMoonIds.length > 0,
+    createdMoonIds,
+    updatedMoonIds,
+  };
 }
 
 export function togglePlanetLockInWorld(world, planetId) {

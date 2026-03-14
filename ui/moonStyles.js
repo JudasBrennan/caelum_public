@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // ─── Moon visual rendering ──────────────────────────────────────────
 //
 // Physics-driven visual system for moons. Engine-computed properties
@@ -10,6 +9,7 @@
 //   drawMoonPreview()           → 180×180 px detailed preview (Three.js)
 
 import { clamp } from "../engine/utils.js";
+import { calcMoonExact } from "../engine/moon.js";
 import { tintPalette } from "./renderUtils.js";
 import { renderMoonPreviewNative } from "./threeNativePreview.js";
 import { buildMoonDisplayModel } from "./moon/displayModel.js";
@@ -355,6 +355,63 @@ function makeMoonRecipePreviewCalc({
   };
 }
 
+function makeEngineMoonRecipePreviewCalc({
+  parentOrbitAu = 1,
+  parentMassEarth = 180,
+  parentRadiusEarth = 10.3,
+  parentDensityGcm3 = 1.1,
+  parentGravityG = 1.7,
+  surfaceFieldEarths = 4.5,
+  magnetopauseRp = 28,
+  moon = {},
+}) {
+  const tidalHabitableZone = {
+    starHzEligible: true,
+    innerKm: Math.max(parentRadiusEarth * 6371 * 6, 260000),
+    outerKm: parentRadiusEarth * 6371 * 45,
+  };
+  const moonSemiMajorAxisKm = Number(moon.semiMajorAxisKm) || 650000;
+  return calcMoonExact({
+    starMassMsol: 1,
+    starAgeGyr: 5.2,
+    starMetallicityFeH: 0,
+    moon,
+    parentOverride: {
+      inputs: {
+        massEarth: parentMassEarth,
+        semiMajorAxisAu: parentOrbitAu,
+        eccentricity: 0.02,
+        rotationPeriodHours: 10.5,
+        cmfPct: 0,
+      },
+      derived: {
+        densityGcm3: parentDensityGcm3,
+        radiusEarth: parentRadiusEarth,
+        gravityG: parentGravityG,
+        surfaceFieldEarths,
+        magnetopauseRp,
+        radioisotopeAbundance: 1,
+      },
+    },
+    moonSystemContext: {
+      forcedEccentricity: Number(moon.forcedEccentricity) || 0,
+      forcedEccentricitySource: Number(moon.forcedEccentricity) > 0 ? "manual" : "none",
+      tidalHabitableZone: {
+        ...tidalHabitableZone,
+        withinZone:
+          moonSemiMajorAxisKm >= tidalHabitableZone.innerKm &&
+          moonSemiMajorAxisKm <= tidalHabitableZone.outerKm,
+      },
+      formation: {
+        scenarioLabel: "Co-accreted regular moon",
+        confidence: 0.71,
+        rationale:
+          "This preview uses a habitable-zone giant-planet parent with a regular prograde major moon.",
+      },
+    },
+  });
+}
+
 export const MOON_RECIPES = [
   // ── Major Rocky ───────────────────────────────────────────────────
   {
@@ -640,30 +697,54 @@ export const MOON_RECIPES = [
       inputs: { densityGcm3: 2.65, albedo: 0.28, name: "Oceanic" },
       physical: { radiusMoon: 1.08 },
     },
-    previewCalc: makeMoonRecipePreviewCalc({
-      name: "Oceanic",
-      radiusMoon: 1.08,
-      densityGcm3: 2.65,
-      albedo: 0.28,
-      compositionClass: "Mixed rock/ice",
-      tidalHeatingEarth: 0.18,
-      atmosphereClass: "Substantial volatile atmosphere",
-      dominantSpecies: "N\u2082",
-      surfacePressureAtm: 0.92,
-      surfaceAccessibleLiquidFraction: 0.54,
-      liquidOceanFraction: 0.62,
-      permanentIceFraction: 0.02,
-      landFraction: 0.38,
-      climateState: "Stable",
+    previewCalc: makeEngineMoonRecipePreviewCalc({
+      parentOrbitAu: 1,
+      moon: {
+        name: "Oceanic",
+        massMoon: 1.08,
+        densityGcm3: 2.7,
+        albedo: 0.18,
+        semiMajorAxisKm: 720000,
+        eccentricity: 0.014,
+        inclinationDeg: 0.3,
+        hydrosphereMode: "full",
+        atmosphereMode: "manual",
+        orbitalCouplingMode: "full",
+        waterMassFractionPct: 9,
+        salinityPct: 2.2,
+        ammoniaPct: 0.2,
+        manualSurfacePressureAtm: 1.2,
+        n2Pct: 74,
+        o2Pct: 20,
+        co2Pct: 1.2,
+        arPct: 1,
+        h2oPct: 3.2,
+        ch4Pct: 0.5,
+        forcedEccentricity: 0.0045,
+      },
     }),
     apply: {
-      massMoon: 1.05,
-      densityGcm3: 2.65,
-      albedo: 0.28,
-      semiMajorAxisKm: 640000,
-      eccentricity: 0.012,
-      inclinationDeg: 0.4,
+      massMoon: 1.08,
+      densityGcm3: 2.7,
+      albedo: 0.18,
+      semiMajorAxisKm: 720000,
+      eccentricity: 0.014,
+      inclinationDeg: 0.3,
       compositionOverride: null,
+      hydrosphereMode: "full",
+      atmosphereMode: "manual",
+      orbitalCouplingMode: "full",
+      waterMassFractionPct: 9,
+      salinityPct: 2.2,
+      ammoniaPct: 0.2,
+      manualSurfacePressureAtm: 1.2,
+      n2Pct: 74,
+      o2Pct: 20,
+      co2Pct: 1.2,
+      arPct: 1,
+      h2oPct: 3.2,
+      ch4Pct: 0.5,
+      forcedEccentricity: 0.0045,
     },
   },
   {
@@ -680,33 +761,54 @@ export const MOON_RECIPES = [
       inputs: { densityGcm3: 3.08, albedo: 0.31, name: "Verdant" },
       physical: { radiusMoon: 1.02 },
     },
-    previewCalc: makeMoonRecipePreviewCalc({
-      name: "Verdant",
-      radiusMoon: 1.02,
-      densityGcm3: 3.08,
-      albedo: 0.31,
-      compositionClass: "Rocky",
-      tidalHeatingEarth: 0.12,
-      atmosphereClass: "Substantial volatile atmosphere",
-      dominantSpecies: "N\u2082",
-      surfacePressureAtm: 0.98,
-      surfaceAccessibleLiquidFraction: 0.44,
-      liquidOceanFraction: 0.56,
-      permanentIceFraction: 0.03,
-      landFraction: 0.41,
-      vegetationEligible: true,
-      plantLifeScore: 0.84,
-      vegetationDeepHex: "#2f6a3b",
-      climateState: "Stable",
+    previewCalc: makeEngineMoonRecipePreviewCalc({
+      parentOrbitAu: 0.84,
+      moon: {
+        name: "Verdant",
+        massMoon: 1.08,
+        densityGcm3: 2.7,
+        albedo: 0.18,
+        semiMajorAxisKm: 720000,
+        eccentricity: 0.014,
+        inclinationDeg: 0.3,
+        hydrosphereMode: "full",
+        atmosphereMode: "manual",
+        orbitalCouplingMode: "full",
+        waterMassFractionPct: 3.5,
+        salinityPct: 2.2,
+        ammoniaPct: 0.2,
+        manualSurfacePressureAtm: 1.2,
+        n2Pct: 74,
+        o2Pct: 20,
+        co2Pct: 1.2,
+        arPct: 1,
+        h2oPct: 3.2,
+        ch4Pct: 0.5,
+        forcedEccentricity: 0.0045,
+      },
     }),
     apply: {
-      massMoon: 1.12,
-      densityGcm3: 3.08,
-      albedo: 0.31,
-      semiMajorAxisKm: 420000,
-      eccentricity: 0.01,
+      massMoon: 1.08,
+      densityGcm3: 2.7,
+      albedo: 0.18,
+      semiMajorAxisKm: 720000,
+      eccentricity: 0.014,
       inclinationDeg: 0.3,
       compositionOverride: null,
+      hydrosphereMode: "full",
+      atmosphereMode: "manual",
+      orbitalCouplingMode: "full",
+      waterMassFractionPct: 3.5,
+      salinityPct: 2.2,
+      ammoniaPct: 0.2,
+      manualSurfacePressureAtm: 1.2,
+      n2Pct: 74,
+      o2Pct: 20,
+      co2Pct: 1.2,
+      arPct: 1,
+      h2oPct: 3.2,
+      ch4Pct: 0.5,
+      forcedEccentricity: 0.0045,
     },
   },
   {

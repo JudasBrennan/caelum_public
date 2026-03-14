@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Curated science graph for the Science Visualiser page.
 //
 // The graph is intentionally metadata-first. Nodes represent major concepts,
@@ -48,7 +47,7 @@ export const SCIENCE_GRAPH_SECTIONS = Object.freeze([
     label: "Moons & Tides",
     lane: 4,
     y: 700,
-    description: "Moon-driven heating and long-term orbital evolution.",
+    description: "Moon hydrospheres, atmospheres, resonances, and tidal evolution.",
   },
   {
     id: "climate",
@@ -90,7 +89,7 @@ export const SCIENCE_GRAPH_SECTIONS = Object.freeze([
     label: "Debris Disks",
     lane: 1,
     y: 640,
-    description: "Debris disk architecture and condensation-sequence composition.",
+    description: "Debris belts, planetary rings, and condensation-sequence composition.",
   },
 ]);
 
@@ -318,7 +317,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js", "engine/gasGiant.js", "engine/tectonics.js"],
     docs: [
       { label: "Science - Planetary Physics", href: "#/science" },
-      { label: "Lesson 07 - Rocky Planets", href: "#/lessons" },
+      { label: "Lesson 08 - Rocky Planets", href: "#/lessons" },
     ],
     tags: ["planet", "mass", "bulk"],
   },
@@ -334,7 +333,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js"],
     docs: [
       { label: "Science - Planetary Interiors", href: "#/science" },
-      { label: "Lesson 08 - Interiors and Density", href: "#/lessons" },
+      { label: "Lesson 08 - Rocky Planets", href: "#/lessons" },
     ],
     tags: ["cmf", "metallicity", "interior"],
   },
@@ -350,7 +349,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js", "engine/tectonics.js"],
     docs: [
       { label: "Science - Planetary Interiors", href: "#/science" },
-      { label: "Lesson 08 - Interiors and Density", href: "#/lessons" },
+      { label: "Lesson 08 - Rocky Planets", href: "#/lessons" },
     ],
     tags: ["cmf", "core", "interior"],
   },
@@ -366,7 +365,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js", "engine/climate.js", "engine/tectonics.js"],
     docs: [
       { label: "Science - Planetary Interiors", href: "#/science" },
-      { label: "Lesson 08 - Interiors and Density", href: "#/lessons" },
+      { label: "Lesson 08 - Rocky Planets", href: "#/lessons" },
     ],
     tags: ["wmf", "water", "interior"],
   },
@@ -382,7 +381,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js"],
     docs: [
       { label: "Science - Density and Radius", href: "#/science" },
-      { label: "Lesson 08 - Interiors and Density", href: "#/lessons" },
+      { label: "Lesson 08 - Rocky Planets", href: "#/lessons" },
     ],
     tags: ["radius", "density", "structure"],
   },
@@ -398,7 +397,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js", "engine/tectonics.js"],
     docs: [
       { label: "Science - Planetary Physics", href: "#/science" },
-      { label: "Lesson 07 - Rocky Planets", href: "#/lessons" },
+      { label: "Lesson 08 - Rocky Planets", href: "#/lessons" },
     ],
     tags: ["gravity", "escape", "structure"],
   },
@@ -414,7 +413,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js"],
     docs: [
       { label: "Science - Magnetospheres", href: "#/science" },
-      { label: "Lesson 13 - Magnetic Fields", href: "#/lessons" },
+      { label: "Lesson 13 - Interiors & Tectonics", href: "#/lessons" },
     ],
     tags: ["magnetic", "dynamo", "core"],
   },
@@ -429,7 +428,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js", "engine/tectonics.js"],
     docs: [
       { label: "Science - Planetary Interiors", href: "#/science" },
-      { label: "Lesson 16 - Plate Tectonics", href: "#/lessons" },
+      { label: "Lesson 13 - Interiors & Tectonics", href: "#/lessons" },
     ],
     tags: ["radiogenic", "heat", "interior"],
   },
@@ -493,7 +492,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js", "engine/climate.js"],
     docs: [
       { label: "Science - Tides", href: "#/science" },
-      { label: "Lesson 12 - Moons and Tides", href: "#/lessons" },
+      { label: "Lesson 12 - Moons & Tides", href: "#/lessons" },
     ],
     tags: ["tides", "rotation", "climate"],
   },
@@ -509,7 +508,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/moon.js", "engine/planet.js"],
     docs: [
       { label: "Science - Tides", href: "#/science" },
-      { label: "Lesson 12 - Moons and Tides", href: "#/lessons" },
+      { label: "Lesson 12 - Moons & Tides", href: "#/lessons" },
     ],
     tags: ["moons", "tides", "heating"],
   },
@@ -525,7 +524,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js", "engine/tectonics.js"],
     docs: [
       { label: "Science - Tides", href: "#/science" },
-      { label: "Lesson 12 - Moons and Tides", href: "#/lessons" },
+      { label: "Lesson 12 - Moons & Tides", href: "#/lessons" },
     ],
     tags: ["tides", "heating", "planet"],
   },
@@ -541,7 +540,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/moon.js"],
     docs: [
       { label: "Science - Tides", href: "#/science" },
-      { label: "Lesson 12 - Moons and Tides", href: "#/lessons" },
+      { label: "Lesson 12 - Moons & Tides", href: "#/lessons" },
     ],
     tags: ["moons", "orbital", "tides"],
   },
@@ -558,7 +557,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js", "engine/climate.js"],
     docs: [
       { label: "Science - Water and Climate", href: "#/science" },
-      { label: "Lesson 11 - Water Worlds", href: "#/lessons" },
+      { label: "Lesson 14 - Climate Zones", href: "#/lessons" },
     ],
     tags: ["water", "habitability", "surface"],
   },
@@ -606,7 +605,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js", "engine/tectonics.js", "ui/tectonicsPage.js"],
     docs: [
       { label: "Science - Plate Tectonics", href: "#/science" },
-      { label: "Lesson 16 - Plate Tectonics", href: "#/lessons" },
+      { label: "Lesson 13 - Interiors & Tectonics", href: "#/lessons" },
     ],
     tags: ["tectonics", "regime", "surface"],
   },
@@ -622,7 +621,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/population.js", "ui/populationPage.js"],
     docs: [
       { label: "Science - Population", href: "#/science" },
-      { label: "Lesson 18 - Population", href: "#/lessons" },
+      { label: "Lesson 18 - Population & Civilisation", href: "#/lessons" },
     ],
     tags: ["population", "capacity", "habitability"],
   },
@@ -638,7 +637,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/population.js", "ui/populationPage.js"],
     docs: [
       { label: "Science - Population", href: "#/science" },
-      { label: "Lesson 18 - Population", href: "#/lessons" },
+      { label: "Lesson 18 - Population & Civilisation", href: "#/lessons" },
     ],
     tags: ["population", "logistic", "civilization"],
   },
@@ -654,7 +653,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/apparent.js"],
     docs: [
       { label: "Science - Apparent Sky", href: "#/science" },
-      { label: "Lesson 17 - The Sky", href: "#/lessons" },
+      { label: "Lesson 16 - Observing the Sky", href: "#/lessons" },
     ],
     tags: ["observing", "brightness", "apparent"],
   },
@@ -670,7 +669,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/apparent.js"],
     docs: [
       { label: "Science - Apparent Sky", href: "#/science" },
-      { label: "Lesson 17 - The Sky", href: "#/lessons" },
+      { label: "Lesson 16 - Observing the Sky", href: "#/lessons" },
     ],
     tags: ["observing", "angular", "size"],
   },
@@ -702,7 +701,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/system.js", "engine/debrisDisk.js"],
     docs: [
       { label: "Science - System Architecture", href: "#/science" },
-      { label: "Lesson 06 - Orbital Mechanics", href: "#/lessons" },
+      { label: "Lesson 07 - Planetary Systems", href: "#/lessons" },
     ],
     tags: ["system", "frost", "ice"],
   },
@@ -809,12 +808,12 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     sectionId: "moons",
     row: 3,
     summary:
-      "Combined surface temperature from stellar equilibrium heating, tidal dissipation, and radiogenic heat sources.",
+      "Combined surface temperature from stellar equilibrium heating, tidal dissipation, radiogenic heat, eclipse losses, and parent-coupled climate forcing.",
     formula: "T_surf^4 = T_eq^4 + T_tidal^4 + T_rad^4.",
     engineRefs: ["engine/moon.js"],
     docs: [
       { label: "Science - Moons", href: "#/science" },
-      { label: "Lesson 12 - Moons and Tides", href: "#/lessons" },
+      { label: "Lesson 12 - Moons & Tides", href: "#/lessons" },
     ],
     tags: ["moon", "temperature", "surface"],
   },
@@ -825,14 +824,30 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     sectionId: "moons",
     row: 4,
     summary:
-      "Per-species volatile inventory (N2, CO, CH4, H2O, CO2, NH3, SO2) from sublimation state, Jeans retention, and volcanic resupply.",
+      "Per-species volatile inventory (N2, CO, CH4, H2O, CO2, NH3, SO2) from sublimation state, Jeans retention, volcanic resupply, and atmosphere-stability checks.",
     formula: "Species present if density allows; retained if Jeans lambda > 6 and tau_esc > age.",
     engineRefs: ["engine/moon.js"],
     docs: [
       { label: "Science - Moons", href: "#/science" },
-      { label: "Lesson 12 - Moons and Tides", href: "#/lessons" },
+      { label: "Lesson 12 - Moons & Tides", href: "#/lessons" },
     ],
     tags: ["moon", "volatiles", "atmosphere"],
+  },
+  {
+    id: "moon_world_state",
+    label: "Moon World State",
+    kind: "classifier",
+    sectionId: "moons",
+    row: 5,
+    summary:
+      "Combined moon-world outcome from atmosphere, hydrosphere, climate, geology, biosphere, and habitability, including resonance and stability diagnostics.",
+    formula: "state = f(atmosphere, hydrosphere, climate, geology, biosphere, resonance)",
+    engineRefs: ["engine/moon.js", "engine/moon/system.js", "ui/moonPage.js"],
+    docs: [
+      { label: "Science - Moons", href: "#/science" },
+      { label: "Lesson 12 - Moons & Tides", href: "#/lessons" },
+    ],
+    tags: ["moon", "habitability", "ocean", "biosphere"],
   },
   {
     id: "water_regime",
@@ -846,7 +861,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/planet.js", "engine/climate.js"],
     docs: [
       { label: "Science - Water and Climate", href: "#/science" },
-      { label: "Lesson 11 - Water Worlds", href: "#/lessons" },
+      { label: "Lesson 14 - Climate Zones", href: "#/lessons" },
     ],
     tags: ["water", "ocean", "regime"],
   },
@@ -862,7 +877,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     formula:
       "absorbed = S \u00d7 1361 \u00d7 (1 \u2212 A) / 4; thresholds: 282 W/m\u00b2, 340 K, 240 K",
     engineRefs: ["engine/planet.js"],
-    docs: [{ label: "Lesson 10 \u2014 Surface Temperature", href: "#/lessons" }],
+    docs: [{ label: "Lesson 10 - Surface Temperature", href: "#/lessons" }],
     tags: ["climate", "greenhouse", "snowball", "habitability"],
   },
   {
@@ -877,7 +892,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/tectonics.js"],
     docs: [
       { label: "Science - Plate Tectonics", href: "#/science" },
-      { label: "Lesson 16 - Plate Tectonics", href: "#/lessons" },
+      { label: "Lesson 13 - Interiors & Tectonics", href: "#/lessons" },
     ],
     tags: ["volcanic", "activity", "heat"],
   },
@@ -893,7 +908,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/tectonics.js"],
     docs: [
       { label: "Science - Plate Tectonics", href: "#/science" },
-      { label: "Lesson 16 - Plate Tectonics", href: "#/lessons" },
+      { label: "Lesson 13 - Interiors & Tectonics", href: "#/lessons" },
     ],
     tags: ["mountain", "gravity", "topography"],
   },
@@ -909,7 +924,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/tectonics.js"],
     docs: [
       { label: "Science - Plate Tectonics", href: "#/science" },
-      { label: "Lesson 16 - Plate Tectonics", href: "#/lessons" },
+      { label: "Lesson 13 - Interiors & Tectonics", href: "#/lessons" },
     ],
     tags: ["ocean", "depth", "plate"],
   },
@@ -925,7 +940,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/tectonics.js"],
     docs: [
       { label: "Science - Plate Tectonics", href: "#/science" },
-      { label: "Lesson 16 - Plate Tectonics", href: "#/lessons" },
+      { label: "Lesson 13 - Interiors & Tectonics", href: "#/lessons" },
     ],
     tags: ["erosion", "weathering", "climate"],
   },
@@ -941,7 +956,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/population.js"],
     docs: [
       { label: "Science - Population", href: "#/science" },
-      { label: "Lesson 18 - Population", href: "#/lessons" },
+      { label: "Lesson 18 - Population & Civilisation", href: "#/lessons" },
     ],
     tags: ["land", "area", "habitable"],
   },
@@ -957,7 +972,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/gasGiant.js"],
     docs: [
       { label: "Science - Gas Giants", href: "#/science" },
-      { label: "Lesson 07 - Rocky Planets", href: "#/lessons" },
+      { label: "Lesson 08 - Rocky Planets", href: "#/lessons" },
     ],
     tags: ["giant", "mass", "radius"],
   },
@@ -973,7 +988,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/gasGiant.js"],
     docs: [
       { label: "Science - Gas Giants", href: "#/science" },
-      { label: "Lesson 07 - Rocky Planets", href: "#/lessons" },
+      { label: "Lesson 08 - Rocky Planets", href: "#/lessons" },
     ],
     tags: ["giant", "sudarsky", "clouds"],
   },
@@ -989,7 +1004,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/gasGiant.js"],
     docs: [
       { label: "Science - Gas Giants", href: "#/science" },
-      { label: "Lesson 13 - Magnetic Fields", href: "#/lessons" },
+      { label: "Lesson 11 - Gas Giants", href: "#/lessons" },
     ],
     tags: ["giant", "magnetic", "dynamo"],
   },
@@ -1005,7 +1020,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/debrisDisk.js"],
     docs: [
       { label: "Science - Debris Disks", href: "#/science" },
-      { label: "Lesson 06 - Orbital Mechanics", href: "#/lessons" },
+      { label: "Lesson 20 - Debris & Small Bodies", href: "#/lessons" },
     ],
     tags: ["debris", "resonance", "belts"],
   },
@@ -1021,9 +1036,27 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     engineRefs: ["engine/debrisDisk.js"],
     docs: [
       { label: "Science - Debris Disks", href: "#/science" },
-      { label: "Lesson 06 - Orbital Mechanics", href: "#/lessons" },
+      { label: "Lesson 20 - Debris & Small Bodies", href: "#/lessons" },
     ],
     tags: ["debris", "composition", "condensation"],
+  },
+  {
+    id: "planetary_rings",
+    label: "Planetary Rings",
+    kind: "classifier",
+    sectionId: "debris",
+    row: 2,
+    summary:
+      "Circumplanetary ring state from Roche-limit confinement, disrupted moons, and debris that cannot reaccrete into stable satellites.",
+    formula:
+      "Rings persist when debris remains inside the Roche limit instead of accreting into a moon.",
+    engineRefs: ["engine/planet.js", "engine/system.js"],
+    docs: [
+      { label: "Science - System Architecture", href: "#/science" },
+      { label: "Science - Debris Disks", href: "#/science" },
+      { label: "Lesson 20 - Debris & Small Bodies", href: "#/lessons" },
+    ],
+    tags: ["rings", "roche", "debris"],
   },
 ]);
 
@@ -1083,6 +1116,32 @@ export const SCIENCE_GRAPH_EDGES = Object.freeze([
     relationship: "drives",
     summary: "Temperature follows from the luminosity-radius solution selected by mass.",
     engineRefs: ["engine/star.js"],
+  },
+  {
+    sourceId: "radius_density",
+    targetId: "planetary_rings",
+    evidence: "runtime",
+    relationship: "drives",
+    summary:
+      "Planet radius and density set the Roche-limit geometry used by rocky-world ring science.",
+    engineRefs: ["engine/planet.js"],
+  },
+  {
+    sourceId: "orbital_recession",
+    targetId: "planetary_rings",
+    evidence: "documented",
+    relationship: "feeds",
+    summary: "Moons that spiral inward can cross the Roche limit and seed long-lived ring systems.",
+    engineRefs: ["engine/moon.js", "engine/planet.js"],
+  },
+  {
+    sourceId: "disk_architecture",
+    targetId: "planetary_rings",
+    evidence: "curated",
+    relationship: "contextualises",
+    summary:
+      "Rings sit within the wider debris architecture shaped by resonance zones and surviving source material.",
+    engineRefs: ["engine/debrisDisk.js", "engine/planet.js"],
   },
   {
     sourceId: "stellar_age",
@@ -1179,6 +1238,33 @@ export const SCIENCE_GRAPH_EDGES = Object.freeze([
     relationship: "drives",
     summary: "Higher CMF makes a rocky planet denser and usually smaller at fixed mass.",
     engineRefs: ["engine/planet.js"],
+  },
+  {
+    sourceId: "moon_surface_temp",
+    targetId: "moon_world_state",
+    evidence: "runtime",
+    relationship: "drives",
+    summary:
+      "Surface temperature feeds the hydrosphere and climate branches of the moon-world classification.",
+    engineRefs: ["engine/moon.js"],
+  },
+  {
+    sourceId: "moon_volatiles",
+    targetId: "moon_world_state",
+    evidence: "runtime",
+    relationship: "drives",
+    summary:
+      "Retained volatiles and atmosphere stability determine whether moons stay airless, hazy, frozen, ocean-bearing, or biologically active.",
+    engineRefs: ["engine/moon.js"],
+  },
+  {
+    sourceId: "moon_tides",
+    targetId: "moon_world_state",
+    evidence: "runtime",
+    relationship: "modulates",
+    summary:
+      "Tidal heating and resonance support can sustain cryovolcanism, subsurface oceans, or volcanically active moon states.",
+    engineRefs: ["engine/moon.js", "engine/moon/system.js"],
   },
   {
     sourceId: "planet_wmf",

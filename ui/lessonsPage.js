@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 /**
  * Lessons page — progressive curriculum teaching the scientific concepts
  * behind every WorldSmith calculator.

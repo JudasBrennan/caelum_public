@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { giantPlanetProbability } from "../../engine/star.js";
 import { fmt } from "../../engine/utils.js";
 import { getClusterObjectVisual, normalizeClusterObjectKey } from "../clusterObjectVisuals.js";

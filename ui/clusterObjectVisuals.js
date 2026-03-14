@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 const ICON_BASE = "./assets/icons";
 
 export const CLUSTER_OBJECT_VISUALS = Object.freeze({

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { initStarPage } from "./ui/starPage.js";
 import { initSystemPage } from "./ui/systemPage.js";
 import { initOuterObjectsPage } from "./ui/outerObjectsPage.js";
@@ -591,7 +590,12 @@ function renderRouteLoading(label) {
 async function route() {
   const hash = location.hash || "#/star";
   const [_, path] = hash.split("#/");
-  const key = (path || "star").split("?")[0];
+  const requestedKey = (path || "star").split("?")[0];
+  if (requestedKey === "tectonics-simulator") {
+    location.hash = "#/tectonics";
+    return;
+  }
+  const key = requestedKey;
   const routeToken = ++activeRouteToken;
 
   const navKey = key === "cluster-viz" ? "viz" : key;

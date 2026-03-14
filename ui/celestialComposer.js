@@ -1,9 +1,11 @@
-// SPDX-License-Identifier: MPL-2.0
 import { createSeededRng } from "../engine/stellarActivity.js";
+import { gasGiantRingScienceFromCalc } from "../engine/planetaryRings.js";
 import { clamp } from "../engine/utils.js";
 import { getStyleById, computeGasGiantVisualProfile } from "./gasGiantStyles.js";
 import { computeRockyVisualProfile } from "./rockyPlanetStyles.js";
 import { computeMoonVisualProfile } from "./moonStyles.js";
+import { resolveRingAppearance } from "./ringAppearanceProfiles.js";
+import { normalizeRingShading } from "./ringLightingShader.js";
 import {
   buildGasArtProfile,
   buildMoonArtProfile,
@@ -432,40 +434,10 @@ function firstBooleanValue(...values) {
   return null;
 }
 
-function deriveRingPresenceFromGasCalc(gasCalc) {
-  const ringProps = gasCalc?.ringProperties;
-  if (!ringProps || typeof ringProps !== "object") return null;
-  const depthClass = String(ringProps?.opticalDepthClass || "")
-    .trim()
-    .toLowerCase();
-  if (
-    depthClass &&
-    (depthClass === "none" ||
-      depthClass === "no" ||
-      depthClass === "absent" ||
-      depthClass === "tenuous" ||
-      depthClass === "n/a" ||
-      depthClass === "na")
-  ) {
-    return false;
-  }
-
-  const tau = Number(ringProps?.opticalDepth);
-  if (Number.isFinite(tau) && tau > 0.02) return true;
-
-  const ringMass = Number(ringProps?.estimatedMassKg);
-  if (Number.isFinite(ringMass) && ringMass > 1e14) return true;
-
-  if (depthClass) return true;
-  return null;
-}
-
 function resolveGasRingVisibility(model, gasCalc) {
-  const fromCalc = deriveRingPresenceFromGasCalc(gasCalc);
-  if (typeof fromCalc === "boolean") return fromCalc;
   const explicit = firstBooleanValue(model?.showRings, model?.rings, model?.hasRings);
   if (typeof explicit === "boolean") return explicit;
-  return false;
+  return gasGiantRingScienceFromCalc(gasCalc).scienceEnabled;
 }
 
 function normalizeGasFamily(value, fallback = "banded") {
@@ -526,6 +498,19 @@ function normalizeRockyModel(model) {
     Number(model?.rotationPeriodHours ?? model?.inputs?.rotationPeriodHours ?? 24) || 24,
   );
   const tiltDeg = Number(model?.axialTiltDeg ?? model?.inputs?.axialTiltDeg ?? 0) || 0;
+  const ringAppearance =
+    model?.ringAppearance ||
+    visualProfile?.ring?.ringAppearance ||
+    resolveRingAppearance({
+      bodyType: "rocky",
+      ringState: {
+        ringMode: visualProfile?.ring?.ringMode || model?.inputs?.ringMode || "auto",
+        effectiveEnabled: !!visualProfile?.ring?.enabled,
+      },
+      ringStyleId: visualProfile?.ring?.ringStyleId || model?.inputs?.ringStyleId,
+      derived: model?.derived,
+      seed: model?.id || name,
+    });
   return {
     bodyType: "rocky",
     name,
@@ -533,6 +518,9 @@ function normalizeRockyModel(model) {
     rotationPeriodDays: rotationHours / 24,
     axialTiltDeg: tiltDeg,
     visualProfile,
+    ringAppearance,
+    hasRings: !!visualProfile?.ring?.enabled,
+    showRings: !!visualProfile?.ring?.enabled,
   };
 }
 
@@ -543,7 +531,7 @@ function normalizeGasModel(model) {
       bodyType: "gasGiant",
       styleId: String(model?.styleId || "jupiter"),
     };
-  const styleId = String(gasProfile.styleId || model?.styleId || "jupiter");
+  const styleId = String(model?.styleId || gasProfile.styleId || "jupiter");
   const styleDef = getStyleById(styleId);
   const name = String(model?.name || model?.seed || model?.inputs?.name || "Gas giant");
   const rotationHours = Math.max(
@@ -552,6 +540,19 @@ function normalizeGasModel(model) {
   );
   const gasCalc = model?.gasCalc || null;
   const showRings = resolveGasRingVisibility(model, gasCalc);
+  const ringAppearance =
+    model?.ringAppearance ||
+    resolveRingAppearance({
+      bodyType: "gasGiant",
+      ringState: {
+        ringMode: model?.ringMode || model?.inputs?.ringMode || "auto",
+        effectiveEnabled: !!showRings,
+      },
+      ringStyleId: model?.ringStyleId,
+      gasCalc,
+      bodyStyleId: styleId,
+      seed: model?.id || name,
+    });
   const gasVisualFamily = inferGasVisualFamily(
     styleDef,
     styleId,
@@ -566,6 +567,7 @@ function normalizeGasModel(model) {
     axialTiltDeg: Number(model?.axialTiltDeg || 0) || 0,
     styleId,
     styleDef,
+    ringAppearance,
     hasRings: !!showRings,
     showRings: !!showRings,
     gasVisualFamily,
@@ -662,6 +664,114 @@ function applyArtProfile(base, artProfile) {
   };
 }
 
+function normalizeRingColourStops(stops, fallback = "#d8c7a8") {
+  const list = Array.isArray(stops) ? stops : [];
+  if (!list.length) {
+    const safe = normalizeHex(fallback, "#d8c7a8");
+    return [
+      { at: 0, color: safe },
+      { at: 1, color: safe },
+    ];
+  }
+  return list
+    .map((stop) => ({
+      at: clamp(Number(stop?.at), 0, 1),
+      color: normalizeHex(stop?.color || stop?.colour || fallback, fallback),
+    }))
+    .sort((a, b) => a.at - b.at);
+}
+
+function normalizeRingOpacityStops(stops, fallbackOpacity = 0.35) {
+  const list = Array.isArray(stops) ? stops : [];
+  if (!list.length) {
+    const mid = clamp(Number(fallbackOpacity) || 0.35, 0.05, 0.8);
+    return [
+      { at: 0, value: 0 },
+      { at: 0.15, value: mid },
+      { at: 0.85, value: mid },
+      { at: 1, value: 0 },
+    ];
+  }
+  return list
+    .map((stop) => ({
+      at: clamp(Number(stop?.at), 0, 1),
+      value: clamp(Number(stop?.value), 0, 1),
+    }))
+    .sort((a, b) => a.at - b.at);
+}
+
+function normalizeRingGaps(gaps) {
+  return (Array.isArray(gaps) ? gaps : [])
+    .map((gap) => ({
+      center: clamp(Number(gap?.center), 0, 1),
+      width: clamp(Number(gap?.width), 0.002, 1),
+      depth: clamp(Number(gap?.depth), 0, 1),
+    }))
+    .sort((a, b) => a.center - b.center);
+}
+
+function midpointRingColour(colourStops, fallback = "#d8c7a8") {
+  const stops = normalizeRingColourStops(colourStops, fallback);
+  return normalizeHex(stops[Math.floor(stops.length / 2)]?.color || fallback, fallback);
+}
+
+function buildResolvedRingDescriptor({ enabled, ringAppearance, fallback = {} } = {}) {
+  const appearance = ringAppearance?.appearance || ringAppearance || {};
+  const inner = clamp(
+    Number.isFinite(Number(appearance?.inner))
+      ? Number(appearance.inner)
+      : Number(fallback.inner) || 1.22,
+    1.08,
+    2.5,
+  );
+  const outer = clamp(
+    Number.isFinite(Number(appearance?.outer))
+      ? Number(appearance.outer)
+      : Number(fallback.outer) || 1.95,
+    inner + 0.05,
+    3.2,
+  );
+  const opacity = clamp(
+    Number.isFinite(Number(appearance?.opacity))
+      ? Number(appearance.opacity)
+      : Number(fallback.opacity) || 0.35,
+    0.05,
+    0.8,
+  );
+  const colourStops = normalizeRingColourStops(appearance?.colourStops, fallback.colour);
+  return {
+    enabled: enabled === true,
+    colour: midpointRingColour(colourStops, fallback.colour),
+    opacity,
+    inner,
+    outer,
+    tiltDeg: Number.isFinite(Number(appearance?.tiltDeg))
+      ? Number(appearance.tiltDeg)
+      : Number(fallback.tiltDeg) || 100,
+    yawDeg: Number.isFinite(Number(appearance?.yawDeg))
+      ? Number(appearance.yawDeg)
+      : Number(fallback.yawDeg) || 18,
+    styleId: String(
+      ringAppearance?.effectiveStyleId || ringAppearance?.styleId || fallback.styleId || "",
+    ),
+    label: String(ringAppearance?.label || fallback.label || ""),
+    styleSource: String(ringAppearance?.styleSource || fallback.styleSource || "auto"),
+    family: String(appearance?.family || ringAppearance?.family || fallback.family || "dusty"),
+    colourStops,
+    opacityStops: normalizeRingOpacityStops(appearance?.opacityStops, opacity),
+    gaps: normalizeRingGaps(appearance?.gaps),
+    macroBandCount: Math.max(1, Math.round(Number(appearance?.macroBandCount) || 6)),
+    macroBandContrast: clamp(Number(appearance?.macroBandContrast) || 0.22, 0, 1),
+    microBandStrength: clamp(Number(appearance?.microBandStrength) || 0.14, 0, 1),
+    dustStrength: clamp(Number(appearance?.dustStrength) || 0.08, 0, 1),
+    edgeFeatherInner: clamp(Number(appearance?.edgeFeatherInner) || 0.16, 0.01, 0.5),
+    edgeFeatherOuter: clamp(Number(appearance?.edgeFeatherOuter) || 0.2, 0.01, 0.5),
+    asymmetry: clamp(Number(appearance?.asymmetry) || 0, 0, 1),
+    shading: normalizeRingShading(appearance?.shading),
+    seed: String(appearance?.seed || fallback.seed || "ring"),
+  };
+}
+
 function rockyLayers(model, detail) {
   const p = model.visualProfile || {};
   const oceanCoverage = clamp(Number(p?.ocean?.coverage) || 0, 0, 1);
@@ -674,6 +784,8 @@ function rockyLayers(model, detail) {
   const cloudsAlpha = clamp(0.12 + cloudCoverage * 0.55, 0.08, 0.8);
   const plateAlpha = clamp((1 - oceanCoverage) * 0.75, 0.08, 0.86);
   const landFraction = clamp(1 - oceanCoverage, 0.05, 0.95);
+  const ringInner = clamp(Number(p?.ring?.inner) || 1.3, 1.08, 2.5);
+  const ringOuter = clamp(Number(p?.ring?.outer) || 2.12, ringInner + 0.08, 3.2);
   const continentsMacroScale = clamp(0.72 + (1 - oceanCoverage) * 0.58 + detail * 0.18, 0.45, 1.8);
   const continentsWarp = clamp(0.16 + oceanCoverage * 0.22 + detail * 0.06, 0.08, 0.52);
   const coastErode = clamp(0.16 + oceanCoverage * 0.36, 0.08, 0.6);
@@ -804,7 +916,19 @@ function rockyLayers(model, detail) {
       driftFactor: 1.25,
       params: cloudParams,
     },
-    ring: { enabled: false },
+    ring: buildResolvedRingDescriptor({
+      enabled: !!p?.ring?.enabled,
+      ringAppearance: model?.ringAppearance,
+      fallback: {
+        colour: normalizeHex(p?.ring?.colour || "#c8b39b"),
+        opacity: clamp(Number(p?.ring?.opacity) || 0.28, 0.08, 0.55),
+        inner: ringInner,
+        outer: ringOuter,
+        tiltDeg: Number(p?.ring?.tiltDeg) || 100,
+        yawDeg: Number(p?.ring?.yawDeg) || 18,
+        seed: `${model.name}:rocky-ring`,
+      },
+    }),
   };
 
   return applyArtProfile(base, buildRockyArtProfile(model, detail));
@@ -1161,15 +1285,19 @@ function gasLayers(model, detail) {
       scale: 1.022,
       driftFactor: 1.45,
     },
-    ring: {
+    ring: buildResolvedRingDescriptor({
       enabled: !!model.hasRings,
-      colour: normalizeHex(style?.ringStyle?.colour || style?.palette?.ring || "#d8c7a8"),
-      opacity: clamp(ringOpacity, 0.12, 0.65),
-      inner: ringInner,
-      outer: ringOuter,
-      yawDeg: 22,
-      tiltDeg: 100,
-    },
+      ringAppearance: model?.ringAppearance,
+      fallback: {
+        colour: normalizeHex(style?.ringStyle?.colour || style?.palette?.ring || "#d8c7a8"),
+        opacity: clamp(ringOpacity, 0.12, 0.65),
+        inner: ringInner,
+        outer: ringOuter,
+        yawDeg: 22,
+        tiltDeg: 100,
+        seed: `${model.name}:${styleId}:gas-ring`,
+      },
+    }),
     aurora: {
       enabled: hasAurora,
       colour: "#7dffd2",

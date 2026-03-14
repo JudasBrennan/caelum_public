@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 export function importThreeModule() {
   return import("./vendor/three.module.js");
 }

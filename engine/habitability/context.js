@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Shared habitability-context adapters.
 //
 // Stage 5 moves the metric layer onto a normalized nested schema so planets

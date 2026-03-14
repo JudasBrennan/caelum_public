@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Population model — land-use cascade, logistic growth, and rank-size distribution.
 //
 // Models the relationship between a planet's physical characteristics

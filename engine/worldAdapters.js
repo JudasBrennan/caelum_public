@@ -1,6 +1,8 @@
-// SPDX-License-Identifier: MPL-2.0
 import { buildWorldSnapshot, buildWorldStarSystemContext } from "./worldSnapshot.js";
 import { bondToGeometricAlbedo, classifyBodyType } from "./apparent.js";
+import { resolveGasGiantRingState } from "./planetaryRings.js";
+import { computeRockyVisualProfile } from "../ui/rockyPlanetStyles.js";
+import { resolveRingAppearance } from "../ui/ringAppearanceProfiles.js";
 
 const MOON_PHASE_INTEGRAL = 0.9;
 export const SNAPSHOT_MODE_BUDGETS = Object.freeze({
@@ -232,29 +234,61 @@ export function buildSystemPosterSnapshotInputs(world, { orbitMode = "guided" } 
 
   const planets = Object.values(snapshot.planetsById || {})
     .filter((entry) => includedPlanetIds.has(entry.id))
-    .map((entry) => ({
-      id: entry.id,
-      name: entry.name,
-      au: Number(entry.model?.inputs?.semiMajorAxisAu),
-      radiusKm: Number(entry.model?.derived?.radiusKm),
-      dayHex: entry.model?.derived?.skyColourDayHex || "#9bbbe0",
-      horizonHex: entry.model?.derived?.skyColourHorizonHex || "#6a6a6a",
-      source: entry.source,
-      model: entry.model,
-    }))
+    .map((entry) => {
+      const visualProfile = computeRockyVisualProfile(entry.model?.derived, entry.source?.inputs);
+      const ringAppearance = resolveRingAppearance({
+        bodyType: "rocky",
+        ringState: {
+          ringMode: visualProfile?.ring?.ringMode || entry.source?.inputs?.ringMode || "auto",
+          effectiveEnabled: !!visualProfile?.ring?.enabled,
+        },
+        ringStyleId: entry.source?.inputs?.ringStyleId,
+        derived: entry.model?.derived,
+        seed: entry.id || entry.name,
+      });
+      return {
+        id: entry.id,
+        name: entry.name,
+        au: Number(entry.model?.inputs?.semiMajorAxisAu),
+        radiusKm: Number(entry.model?.derived?.radiusKm),
+        dayHex: entry.model?.derived?.skyColourDayHex || "#9bbbe0",
+        horizonHex: entry.model?.derived?.skyColourHorizonHex || "#6a6a6a",
+        visualProfile,
+        ringAppearance,
+        source: entry.source,
+        model: entry.model,
+      };
+    })
     .filter((entry) => Number.isFinite(entry.au) && entry.au > 0);
 
   const gasGiants = Object.values(snapshot.gasGiantsById || {})
-    .map((entry) => ({
-      id: entry.id,
-      name: entry.name,
-      au: Number(entry.model?.inputs?.orbitAu),
-      radiusKm: Number(entry.model?.physical?.radiusKm),
-      style: entry.source?.style,
-      rings: !!entry.source?.rings,
-      gasCalc: entry.model,
-      source: entry.source,
-    }))
+    .map((entry) => {
+      const ringState = resolveGasGiantRingState({
+        ringMode: entry.source?.ringMode,
+        gasCalc: entry.model,
+        legacyRings: entry.source?.rings,
+      });
+      const ringAppearance = resolveRingAppearance({
+        bodyType: "gasGiant",
+        ringState,
+        ringStyleId: entry.source?.ringStyleId,
+        gasCalc: entry.model,
+        bodyStyleId: entry.source?.style,
+        seed: entry.id || entry.name,
+      });
+      return {
+        id: entry.id,
+        name: entry.name,
+        au: Number(entry.model?.inputs?.orbitAu),
+        radiusKm: Number(entry.model?.physical?.radiusKm),
+        style: entry.source?.style,
+        ringMode: ringState.ringMode,
+        rings: ringState.effectiveEnabled,
+        ringAppearance,
+        gasCalc: entry.model,
+        source: entry.source,
+      };
+    })
     .filter((entry) => Number.isFinite(entry.au) && entry.au > 0);
 
   const moons = Object.values(snapshot.moonsById || {})

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { clamp } from "../utils.js";
 
 export const SILICATE_RIGIDITY_PA = 30e9;

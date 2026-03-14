@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { vegetationColours } from "../planet/appearance.js";
 import { clamp, toFinite } from "../utils.js";
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Shared climate-zone livability helpers for habitability and population.
 
 import { clamp, round } from "../utils.js";

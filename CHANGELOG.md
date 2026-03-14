@@ -4,74 +4,214 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
-## 1.23.0 BETA - 2026-03-10
+## 1.25.0 BETA - 2026-03-15
 
-### Tectonics Simulator Beta
+### Moon Science Parity And Coupled Moon Systems
 
-**Added the first tectonics-simulator slices: seeded rigid-plate preview first, then a persistent mostly-hex cell-grid foundation**
-(engine/tectonics-sim/grid.js, engine/tectonics-sim/model.js, ui/tectonicsSimulator.js,
-ui/tectonicsPage.js, ui/store/worldSchema.js,
-styles.css, tests/tectonicsSimulator.test.js,
-tests/inputDraftStability.ui.test.js, tests/worldMigration.test.js)
+**Extended the moon engine into a mode-gated moon-world solver with richer atmosphere, hydrosphere, climate, and system-coupling outputs**
+(engine/moon.js, engine/moon/atmosphere.js,
+engine/moon/climate.js, engine/moon/hydrosphere.js,
+engine/worldAdapters.js, engine/worldSnapshot.js, ui/moonPage.js,
+ui/moonStyles.js, ui/store/bodyMutations.js,
+ui/store/worldMigration.js, ui/store/worldSchema.js,
+tests/moonHydrosphere.test.js, tests/worldAdapters.test.js,
+tests/importExport.test.js, tests/inputDraftStability.ui.test.js)
 
-Added an initial plate-simulator preview to the Tectonics page. This
-first slice focuses on seeded rigid-plate authoring rather than full
-cell-painted simulation: users can inspect a flat-map and globe view,
-select and edit seeded plates, change crust type and Euler motion, and
-persist the simulator state inside the normal world save.
+Moons now expose separate `Hydrosphere`, `Atmosphere`, and
+`Orbital Coupling` modes, with compatibility-preserving `Core` paths
+and richer `Full` / `Manual` science controls. The moon solver now
+surfaces atmosphere-stability diagnostics, climate collapse-risk data,
+interior and ocean-state outputs, resonance and tidal-habitable-zone
+metadata, and formation-classification context instead of treating moons
+as a much thinner special case.
 
-The next pass replaced the pure seed-owned preview with a persistent
-logical grid made of mostly hex-like spherical cells, stored per-cell
-ownership in the world schema, and added shared select/paint modes so
-cell reassignment already survives save/load. That means later brush,
-fill, and playback work can now build on a real cell substrate instead
-of replacing the initial preview model.
+This pass also converted the newer oceanic and biologically active moon
+archetypes into engine-backed solved outcomes, carried the richer
+moon-world data through adapters and snapshots, and updated Moon-page
+state persistence so the expanded moon input schema survives save/load,
+import/export, and cross-page consumers.
 
-The latest pass completes the plate-editor MVP on top of that substrate:
-the simulator now has `select`, `brush`, `fill`, and `erase` tools,
-separate `plate ownership` vs `cell crust` paint targets, per-cell
-crust overrides, and JSON plate-map / crust-map imports. Users can now
-sketch a plate layout directly on the persistent mostly-hex grid instead
-of relying only on seeded preview ownership.
+**Tests** (tests/moonHydrosphere.test.js,
+tests/worldAdapters.test.js, tests/importExport.test.js,
+tests/inputDraftStability.ui.test.js)
 
-The grid-resolution controls now also expose a `Very Fine` `512`-cell
-tier, which is the current practical upper bound for the editor before
-the later worker and playback stages land.
+- Added regression coverage for the richer moon inputs, evolved
+  hydrosphere outputs, and snapshot/adapter propagation paths.
 
-The simulator still derives first-pass tectonic layers from the existing
-plate and tectonics engine seams, including boundary classification,
-crust-age heuristics, elevation, volcanism, and seismicity, so the tool
-already behaves as a useful geology authoring scaffold while the later
-simulation stages are still pending.
+### Guided Creation Framework For Moons And Rocky Worlds
 
-The next passes completed the rest of the pre-climate tectonics
-simulator work. The model now derives local plate-motion vectors,
-boundary kinematics, convergent-margin asymmetry (`subducting` vs
-`overriding`), trench/arc/collision roles, deterministic rigid-plate
-playback from the painted baseline, and continuous geology fields for
-ridge, trench, arc, collision, coast, shelf, slope, hotspot, and swell
-influence.
+**Added a shared guided-creation framework plus top-level `Quick`, `Guided`, and `Recipes` entry flows for moons and rocky planets**
+(ui/guidedCreation/types.js, ui/guidedCreation/state.js,
+ui/guidedCreation/registry.js, ui/guidedCreation/launchState.js,
+ui/guidedCreation/flowController.js,
+ui/guidedCreation/diagnostics.js,
+ui/guidedCreation/adapters/moon.js,
+ui/guidedCreation/adapters/rockyPlanet.js,
+ui/guidedCreation/components/archetypeGrid.js,
+ui/guidedCreation/components/confidenceBadge.js,
+ui/guidedCreation/components/diagnosticList.js,
+ui/guidedCreation/components/guidedPanel.js,
+ui/guidedCreation/components/overlay.js,
+ui/guidedCreation/components/questionStep.js,
+ui/guidedCreation/components/recommendationCard.js,
+ui/moonGuidedLaunch.js, ui/moonPage.js, ui/planetPage.js,
+ui/moon/domRender.js, ui/planet/domRender.js,
+ui/system/domRender.js, ui/systemPage.js, ui/moonStyles.js,
+ui/rockyPlanetStyles.js, ui/store/bodyMutations.js,
+tests/guidedCreationRegistry.test.js,
+tests/guidedCreationState.test.js,
+tests/guidedCreationDiagnostics.test.js,
+tests/guidedCreationFlowController.test.js,
+tests/guidedCreationComponents.ui.test.js,
+tests/guidedMoonAdapter.test.js, tests/guidedRockyAdapter.test.js,
+tests/guidedMoonEntry.ui.test.js,
+tests/moonGuidedCreation.ui.test.js,
+tests/rockyGuidedCreation.ui.test.js, tests/bodyMutations.test.js,
+tests/planetDomRender.test.js, tests/systemDomRender.test.js,
+tests/inputDraftStability.ui.test.js)
 
-The Tectonics page now exposes the matching simulator controls and
-outputs: play/pause/step/reset playback, a scrubber, per-plate motion
-readouts, per-cell boundary role and motion diagnostics, a shaded
-terrain preview, and export actions for current geology layers,
-heightmaps, bathymetry, terrain colour, and shaded relief.
+WorldSmith now has a reusable guided-creation shell rather than a
+moon-only wizard. Moons and rocky planets both support quick archetype
+application, staged guided recommendations, confidence-badged
+diagnostics, and `Apply and open Advanced` handoff into the existing
+editors. Guided moon creation can now launch from Moon, Planet, and
+System contexts, preview host-context adjustments, and apply reviewed
+moon-system sibling fixes when resonance-backed moon setups need them.
 
-The terrain previewer itself was then upgraded from nearest-cell
-sampling to blended geology-field sampling, with a higher internal
-preview resolution, smoother shelf/slope transitions, tectonic-context
-terrain noise, and improved hillshading so the output reads more like a
-terrain raster and less like an enlarged cell map.
+The primary create actions were also moved to dedicated top-of-inputs
+`Create This Moon` and `Create This Rocky World` strips so guided
+workflows no longer depend on small action buttons inside output KPI
+cards. `Recipes` is now framed explicitly as an Advanced-mode preset
+starting point that will override current inputs.
 
-That terrain tooling now also includes a dedicated `Topography Map`
-mode with a stronger hypsometric palette and contour-style relief
-accenting, so mountains, shelves, abyssal plains, and trenches read
-much more clearly in the simulator preview and exported maps.
+**Tests** (tests/guidedMoonAdapter.test.js,
+tests/guidedRockyAdapter.test.js,
+tests/moonGuidedCreation.ui.test.js,
+tests/rockyGuidedCreation.ui.test.js,
+tests/guidedMoonEntry.ui.test.js, tests/bodyMutations.test.js)
 
-This means Stages 3-6 of the tectonics simulator plan are now complete:
-the simulator reaches the point where it can act as a standalone
-tectonic and terrain authoring tool before climate logic begins.
+- Added framework-level, adapter-level, and end-to-end UI coverage for
+  guided flows, launch entry points, and reviewed sibling-patch
+  application.
+
+### Science, Lessons, And Visualiser Alignment
+
+**Refreshed the science reference, lesson content, and science visualiser metadata so they match the current moon, ring, and curriculum models**
+(ui/sciencePage.js, ui/scienceVisualiserPage.js,
+ui/scienceGraphData.js, ui/lessons/L12_moonsTides.js,
+ui/lessons/L20_debrisDisks.js, tests/scienceGraphData.test.js,
+tests/scienceVisualiser.ui.test.js, tests/lessonsContent.test.js,
+tests/sciencePageReference.ui.test.js)
+
+The Science page and Lesson 12 now document the current moon-world
+stack, including moon science modes, coupled moon-system solving,
+Laplace-chain and resonance context, and the newer surface-versus-
+subsurface habitability framing. Lesson 20 now explicitly teaches
+planetary rings instead of implying them only through the subtitle.
+
+The Science Visualiser now uses current curriculum titles, updated lede
+copy, richer moon/ring section descriptions, and additional graph nodes
+for `Moon World State` and `Planetary Rings`, so the visual dependency
+map no longer lags behind the current simulation and lesson structure.
+
+**Tests** (tests/scienceGraphData.test.js,
+tests/scienceVisualiser.ui.test.js,
+tests/lessonsContent.test.js, tests/sciencePageReference.ui.test.js)
+
+- Added regression checks for lesson-link validity against the live
+  curriculum, the updated visualiser lede, and the new moon/ring
+  reference content.
+
+## 1.24.0 - 2026-03-13
+
+### Planetary Ring Override Controls
+
+**Added explicit ring visibility overrides for gas giants and rocky worlds while preserving science-driven auto mode**
+(engine/planetaryRings.js, engine/worldAdapters.js, ui/planetPage.js,
+ui/planet/inputRender.js, ui/store/gasGiantModel.js,
+ui/store/bodyMutations.js, ui/store/worldMigration.js,
+ui/store/worldSchema.js, tests/planetaryRings.test.js,
+tests/worldAdapters.test.js, tests/visualizerSnapshotModel.test.js,
+tests/importExport.test.js)
+
+Gas giants and rocky planets now share one `ringMode` model:
+`Auto (science)`, `Force on`, and `Force off`. In `Auto`, ring
+visibility still follows the science. In manual modes, users can
+override that result explicitly, and the Planet page now makes it clear
+when a visibility override goes against the science. Manual ring intent
+also now survives save/load, import/export, recipes, presets, preview,
+visualizer, and poster rendering instead of being silently replaced by
+legacy compatibility booleans.
+
+**Tests** (tests/planetaryRings.test.js, tests/worldAdapters.test.js,
+tests/visualizerSnapshotModel.test.js, tests/importExport.test.js)
+
+- Added end-to-end coverage for gas giant and rocky `ringMode`
+  resolution, adapter propagation, and persistence through
+  import/export.
+
+### Planetary Ring Appearance And Style
+
+**Added deterministic ring-style selection plus procedural banded ring rendering across preview, visualizer, and poster**
+(ui/ringAppearanceProfiles.js, ui/ringTextureGenerator.js,
+ui/celestialComposer.js, ui/celestialVisualPreview.js,
+ui/visualizer/bodyMeshService.js, ui/visualizer/snapshotModel.js,
+ui/systemPosterNativeThree.js, ui/systemPage.js,
+tests/ringAppearanceProfiles.test.js, tests/ringTextureGenerator.test.js,
+tests/celestialComposer.test.js, tests/visualizerBodyMeshService.test.js)
+
+Visible rings now resolve through a separate `ringStyleId` model.
+`Auto (recommended)` picks a deterministic style from the current body
+state, while `Force on` lets users choose an explicit ring family.
+Saturn-like, icy, dusty, dark, arc-like, and rocky-debris ring families
+now carry authored banding, opacity, and gap profiles instead of a flat
+uniform tint. Preview, visualizer, and poster now all render rings from
+the same resolved appearance data and generated strip textures, so ring
+style changes invalidate caches correctly and stay visually aligned
+across renderers.
+
+**Tests** (tests/ringAppearanceProfiles.test.js,
+tests/ringTextureGenerator.test.js, tests/celestialComposer.test.js,
+tests/visualizerBodyMeshService.test.js)
+
+- Added style-resolution, texture-generation, and renderer-parity
+  coverage for the shared ring appearance pipeline.
+
+### Ring Lighting And Planet Shadows
+
+**Added stylized-realistic ring lighting plus softened ring shadows on ringed planets**
+(ui/ringLightingShader.js, ui/ringShadowBodyPatch.js,
+ui/celestialVisualPreview.js, ui/visualizer/bodyMeshService.js,
+ui/visualizerPage.js, tests/visualizerBodyMeshService.test.js,
+tests/celestialComposer.test.js, tests/ringAppearanceProfiles.test.js)
+
+Ring rendering now reacts to star-light angle and view angle instead of
+behaving like a flat tinted cutout. The shared renderer adds soft
+planet-cast shadows across the ring plane, and rocky planets and gas
+giants now receive ring shadows that preserve visible ring gaps while
+staying softer and wider than a hard stencil. The visualizer also now
+keeps those shadows oriented to the host star instead of changing with
+camera motion.
+
+**Tests** (tests/visualizerBodyMeshService.test.js,
+tests/celestialComposer.test.js, tests/ringAppearanceProfiles.test.js)
+
+- Added shader-helper and body-shadow patch coverage for ring lighting
+  uniforms, body-shadow patch attachment, and ring-shadow propagation.
+
+## 1.23.1 BETA - 2026-03-10
+
+### Gas Giant Input Fix
+
+**Restored gas-giant numeric input updates after the gas-giant form renderer rename**
+(ui/planetPage.js, tests/inputDraftStability.ui.test.js)
+
+Fixed the Planet-page gas-giant number/slider bindings after the form
+renderer moved those sliders to the shared `*_slider` id pattern. The
+old page selectors were still querying the removed camel-case slider
+ids, which meant gas-giant numeric edits silently failed to commit.
+This was especially visible on mobile, where manual number entry is the
+primary interaction path.
 
 ## 1.22.1 - 2026-03-09
 

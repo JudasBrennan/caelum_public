@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { evaluateJeansEscapeSpecies, xuvFluxRatioEarth } from "../physics/escape.js";
 
 const ATM_TO_KPA = 101.3;

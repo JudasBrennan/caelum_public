@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import {
   FLARE_E0_ERG,
   createSeededRng,
@@ -9,6 +8,17 @@ import {
 import { clamp } from "../engine/utils.js";
 import { loadThreeCore } from "./threeBridge2d.js";
 import { composeCelestialDescriptor, paintCelestialTexture } from "./celestialComposer.js";
+import { renderRingStripTextures } from "./ringTextureGenerator.js";
+import {
+  createRingLightingMaterial,
+  updateRingLightingMaterial,
+  updateRingLightingUniforms,
+} from "./ringLightingShader.js";
+import {
+  applyRingShadowBodyPatch,
+  clearRingShadowBodyPatch,
+  updateRingShadowBodyUniforms,
+} from "./ringShadowBodyPatch.js";
 import {
   canvasFromMapPayload,
   requestCelestialTextureBundle,
@@ -33,6 +43,8 @@ const CELESTIAL_DPR_MIN = 1;
 const CELESTIAL_DPR_MAX = 2;
 const CELESTIAL_TEXTURE_CACHE = new Map();
 const CELESTIAL_TEXTURE_CACHE_MAX = 64;
+const RING_TEXTURE_CACHE = new Map();
+const RING_TEXTURE_CACHE_MAX = 32;
 const CELESTIAL_TEXTURE_PIPELINE_VERSION = 9;
 
 /* Purge IDB entries from older pipeline versions (fire-and-forget) */
@@ -2406,6 +2418,7 @@ async function initBodyRuntime(canvas, { preserveDrawingBuffer = false } = {}) {
 
   const bodyGeom = new THREE.SphereGeometry(1, 112, 84);
   const bodyMat = previewPbrMaterial(THREE);
+  applyRingShadowBodyPatch(bodyMat, THREE);
   const body = new THREE.Mesh(bodyGeom, bodyMat);
   body.renderOrder = 0;
   root.add(body);
@@ -2613,10 +2626,19 @@ function disposeRingMesh(runtime) {
   if (!runtime?.ring) {
     runtime.ring = null;
     runtime.ringMat = null;
+    runtime.ringColorTexture = null;
+    runtime.ringAlphaTexture = null;
+    runtime.ringTextureSignature = "";
     return;
   }
   try {
     runtime.root?.remove?.(runtime.ring);
+  } catch {}
+  try {
+    runtime.ringColorTexture?.dispose?.();
+  } catch {}
+  try {
+    runtime.ringAlphaTexture?.dispose?.();
   } catch {}
   try {
     runtime.ring.geometry?.dispose?.();
@@ -2630,51 +2652,129 @@ function disposeRingMesh(runtime) {
   } catch {}
   runtime.ring = null;
   runtime.ringMat = null;
+  runtime.ringColorTexture = null;
+  runtime.ringAlphaTexture = null;
+  runtime.ringTextureSignature = "";
 }
 
-let _ringAlphaMap = null;
-
-function ringAlphaMap(THREE) {
-  if (_ringAlphaMap) return _ringAlphaMap;
-  const size = 64;
-  const canvas = document.createElement("canvas");
-  canvas.width = 1;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(1, size);
-  for (let i = 0; i < size; i++) {
-    const t = i / (size - 1);
-    const fadeIn = Math.min(1, t / 0.18);
-    const fadeOut = Math.min(1, (1 - t) / 0.18);
-    const v = Math.round(Math.min(fadeIn, fadeOut) * 255);
-    img.data[i * 4] = v;
-    img.data[i * 4 + 1] = v;
-    img.data[i * 4 + 2] = v;
-    img.data[i * 4 + 3] = 255;
+function remapRingGeometryUv(geometry, inner, outer) {
+  const uv = geometry?.attributes?.uv;
+  const position = geometry?.attributes?.position;
+  if (!uv || !position) return geometry;
+  const span = Math.max(0.0001, outer - inner);
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i);
+    const y = position.getY(i);
+    const radius = Math.sqrt(x * x + y * y);
+    const angle = (Math.atan2(y, x) + Math.PI) / (Math.PI * 2);
+    const radial = clamp((radius - inner) / span, 0, 1);
+    uv.setXY(i, radial, angle);
   }
-  ctx.putImageData(img, 0, 0);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.minFilter = THREE.LinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = false;
-  _ringAlphaMap = tex;
-  return tex;
+  uv.needsUpdate = true;
+  return geometry;
+}
+
+function createRingGeometry(THREE, inner, outer, segments = 192) {
+  const geometry = new THREE.RingGeometry(inner, outer, segments);
+  return remapRingGeometryUv(geometry, inner, outer);
+}
+
+function buildRingTextureSignature(ring) {
+  if (!ring) return "";
+  return JSON.stringify({
+    styleId: ring.styleId || "",
+    family: ring.family || "",
+    colourStops: ring.colourStops || [],
+    opacityStops: ring.opacityStops || [],
+    gaps: ring.gaps || [],
+    inner: ring.inner,
+    outer: ring.outer,
+    opacity: ring.opacity,
+    macroBandCount: ring.macroBandCount,
+    macroBandContrast: ring.macroBandContrast,
+    microBandStrength: ring.microBandStrength,
+    dustStrength: ring.dustStrength,
+    edgeFeatherInner: ring.edgeFeatherInner,
+    edgeFeatherOuter: ring.edgeFeatherOuter,
+    asymmetry: ring.asymmetry,
+    seed: ring.seed || "",
+  });
+}
+
+function cacheRingTextures(signature, entry) {
+  if (!signature || !entry?.colourCanvas || !entry?.alphaCanvas) return;
+  if (RING_TEXTURE_CACHE.has(signature)) {
+    const prev = RING_TEXTURE_CACHE.get(signature);
+    RING_TEXTURE_CACHE.delete(signature);
+    RING_TEXTURE_CACHE.set(signature, prev);
+    return;
+  }
+  RING_TEXTURE_CACHE.set(signature, {
+    colourCanvas: cloneCanvas(entry.colourCanvas),
+    alphaCanvas: cloneCanvas(entry.alphaCanvas),
+  });
+  if (RING_TEXTURE_CACHE.size <= RING_TEXTURE_CACHE_MAX) return;
+  const oldestKey = RING_TEXTURE_CACHE.keys().next().value;
+  if (oldestKey) RING_TEXTURE_CACHE.delete(oldestKey);
+}
+
+function getCachedRingTextures(signature) {
+  if (!signature || !RING_TEXTURE_CACHE.has(signature)) return null;
+  const entry = RING_TEXTURE_CACHE.get(signature);
+  RING_TEXTURE_CACHE.delete(signature);
+  RING_TEXTURE_CACHE.set(signature, entry);
+  return {
+    colourCanvas: cloneCanvas(entry.colourCanvas),
+    alphaCanvas: cloneCanvas(entry.alphaCanvas),
+  };
+}
+
+function applyRingTextures(runtime, ringDescriptor) {
+  if (!runtime?.ringMat || !runtime?.THREE || !ringDescriptor) return;
+  const signature = buildRingTextureSignature(ringDescriptor);
+  if (signature && signature === runtime.ringTextureSignature) {
+    updateRingLightingMaterial({
+      material: runtime.ringMat,
+      colourTexture: runtime.ringColorTexture,
+      alphaTexture: runtime.ringAlphaTexture,
+      ringDescriptor,
+    });
+    return;
+  }
+  const cached = getCachedRingTextures(signature);
+  const maps =
+    cached || renderRingStripTextures({ appearance: ringDescriptor, width: 1024, height: 32 });
+  if (!cached) cacheRingTextures(signature, maps);
+
+  try {
+    runtime.ringColorTexture?.dispose?.();
+  } catch {}
+  try {
+    runtime.ringAlphaTexture?.dispose?.();
+  } catch {}
+
+  const colorTex = createCanvasTexture(runtime.THREE, maps.colourCanvas, { srgb: true });
+  const alphaTex = createCanvasTexture(runtime.THREE, maps.alphaCanvas);
+  colorTex.wrapS = runtime.THREE.ClampToEdgeWrapping;
+  colorTex.wrapT = runtime.THREE.RepeatWrapping;
+  alphaTex.wrapS = runtime.THREE.ClampToEdgeWrapping;
+  alphaTex.wrapT = runtime.THREE.RepeatWrapping;
+  runtime.ringColorTexture = colorTex;
+  runtime.ringAlphaTexture = alphaTex;
+  runtime.ringTextureSignature = signature;
+  updateRingLightingMaterial({
+    material: runtime.ringMat,
+    colourTexture: colorTex,
+    alphaTexture: alphaTex,
+    ringDescriptor,
+  });
 }
 
 function ensureRingMesh(runtime) {
   if (!runtime || runtime.ring) return runtime?.ring || null;
   const THREE = runtime.THREE;
-  const ringGeom = new THREE.RingGeometry(1.22, 1.95, 128);
-  const ringMat = new THREE.MeshBasicMaterial({
-    color: 0xd8c7a8,
-    transparent: true,
-    opacity: 0.35,
-    depthWrite: false,
-    depthTest: true,
-    side: THREE.DoubleSide,
-    alphaMap: ringAlphaMap(THREE),
-    toneMapped: false,
-  });
+  const ringGeom = createRingGeometry(THREE, 1.22, 1.95, 192);
+  const ringMat = createRingLightingMaterial(THREE);
   const ring = new THREE.Mesh(ringGeom, ringMat);
   // Render after body (0) so depth test hides ring behind the planet while
   // the front arc composites on top.  Before clouds (2) and haze (3).
@@ -2684,7 +2784,61 @@ function ensureRingMesh(runtime) {
   runtime.root?.add?.(ring);
   runtime.ring = ring;
   runtime.ringMat = ringMat;
+  runtime.ringColorTexture = null;
+  runtime.ringAlphaTexture = null;
+  runtime.ringTextureSignature = "";
   return ring;
+}
+
+function refreshRingLighting(runtime) {
+  if (!runtime?.ring || !runtime?.ringMat || !runtime?.body) return;
+  const THREE = runtime.THREE;
+  if (typeof THREE?.Vector3 !== "function") return;
+  runtime.root?.updateMatrixWorld?.(true);
+  const planetCenterWorld = new THREE.Vector3();
+  const planetScaleWorld = new THREE.Vector3(1, 1, 1);
+  runtime.body.getWorldPosition?.(planetCenterWorld);
+  runtime.body.getWorldScale?.(planetScaleWorld);
+  updateRingLightingUniforms({
+    material: runtime.ringMat,
+    lightDirectionWorld: runtime.keyLight,
+    planetCenterWorld,
+    planetRadius: Math.max(0.0001, planetScaleWorld.x, planetScaleWorld.y, planetScaleWorld.z),
+  });
+}
+
+function refreshBodyRingShadow(runtime) {
+  if (!runtime?.body?.material || !runtime?.body) return;
+  runtime.root?.updateMatrixWorld?.(true);
+  const THREE = runtime.THREE;
+  if (typeof THREE?.Vector3 !== "function") {
+    clearRingShadowBodyPatch(runtime.body.material);
+    return;
+  }
+  const descriptor = runtime.descriptor;
+  const ringDescriptor = descriptor?.ring || null;
+  const showRing =
+    descriptor?.bodyType !== "moon" &&
+    ringDescriptor?.enabled === true &&
+    !!runtime.ring &&
+    !!runtime.ringAlphaTexture;
+  if (!showRing) {
+    clearRingShadowBodyPatch(runtime.body.material);
+    return;
+  }
+  const planetCenterWorld = new THREE.Vector3();
+  const planetScaleWorld = new THREE.Vector3(1, 1, 1);
+  runtime.body.getWorldPosition?.(planetCenterWorld);
+  runtime.body.getWorldScale?.(planetScaleWorld);
+  updateRingShadowBodyUniforms({
+    material: runtime.body.material,
+    lightDirectionWorld: runtime.keyLight,
+    ringDescriptor,
+    ringAlphaTexture: runtime.ringAlphaTexture,
+    planetCenterWorld,
+    planetRadiusWorld: Math.max(0.0001, planetScaleWorld.x, planetScaleWorld.y, planetScaleWorld.z),
+    ringMesh: runtime.ring,
+  });
 }
 
 function disposeBodyRuntime(runtime) {
@@ -3052,21 +3206,23 @@ function applyDescriptorMapsToRuntime(runtime, descriptor, signature, entry) {
   if (showRing) ensureRingMesh(runtime);
   if (!showRing) {
     disposeRingMesh(runtime);
+    clearRingShadowBodyPatch(runtime.body.material);
   } else if (runtime.ring && runtime.ringMat) {
     runtime.ring.visible = true;
     const inner = clamp(Number(descriptor.ring.inner) || 1.22, 1.1, 2.5);
     const outer = clamp(Number(descriptor.ring.outer) || 1.95, inner + 0.05, 3.2);
     runtime.ring.geometry.dispose();
-    runtime.ring.geometry = new runtime.THREE.RingGeometry(inner, outer, 192);
+    runtime.ring.geometry = createRingGeometry(runtime.THREE, inner, outer, 192);
     runtime.ring.rotation.x = runtime.THREE.MathUtils.degToRad(
       Number(descriptor.ring.tiltDeg) || 100,
     );
     runtime.ring.rotation.z = runtime.THREE.MathUtils.degToRad(
       Number(descriptor.ring.yawDeg) || 20,
     );
-    runtime.ringMat.color.set(descriptor.ring.colour || "#d8c7a8");
-    runtime.ringMat.opacity = clamp(Number(descriptor.ring.opacity) || 0.35, 0.05, 0.8);
+    applyRingTextures(runtime, descriptor.ring);
+    refreshRingLighting(runtime);
   }
+  refreshBodyRingShadow(runtime);
 
   // Pull the camera back when rings are visible so the full ring system
   // fits within the frustum.  FOV = 34° → half-FOV ≈ 17° → tan ≈ 0.3057.
@@ -3213,6 +3369,8 @@ function renderBodyFrame(state, dtSec) {
 
   if (rt.haze.visible) rt.haze.rotation.y = bodyRot * 0.35;
 
+  refreshRingLighting(rt);
+  refreshBodyRingShadow(rt);
   rt.renderer.render(rt.scene, rt.camera);
   void dtSec;
 }
@@ -3494,6 +3652,8 @@ async function doRecipeSnapshot(targetCanvas, model, { shouldContinue = null } =
   }
 
   if (!shouldContinueWork(shouldContinue)) return false;
+  refreshRingLighting(runtime);
+  refreshBodyRingShadow(runtime);
   runtime.renderer.render(runtime.scene, runtime.camera);
 
   // Store the camera-to-base-z ratio so callers can scale the sprite to

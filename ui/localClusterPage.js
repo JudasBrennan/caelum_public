@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import {
   calcLocalCluster,
   LOCAL_CLUSTER_DEFAULTS,

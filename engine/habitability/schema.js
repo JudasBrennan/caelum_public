@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Shared normalized habitability-context schema.
 //
 // Stage 5 makes the metric layer consume a single versioned nested shape

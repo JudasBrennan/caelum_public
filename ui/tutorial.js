@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Shared tutorial toast panel
 //
 // Each page supplies its own steps array and localStorage key.

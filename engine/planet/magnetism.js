@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { fmt } from "../utils.js";
 
 function rawFieldStrength(cmf, densityGcm3, radiusEarth, massEarth, convBoost) {

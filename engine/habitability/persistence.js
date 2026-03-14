@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Long-term persistence multiplier for WorldSmith habitability.
 
 import { clamp, toFinite } from "../utils.js";

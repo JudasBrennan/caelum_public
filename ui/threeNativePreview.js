@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { loadThreeCore } from "./threeBridge2d.js";
 import { gasAssetPath, moonAssetPath, rockyAssetPath } from "./threeRenderAssetMap.js";
 

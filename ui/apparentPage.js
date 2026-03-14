@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { calcApparentModel, SOL_REFERENCES } from "../engine/apparent.js";
 import { buildApparentSnapshotInputs, SNAPSHOT_MODE_BUDGETS } from "../engine/worldAdapters.js";
 import { buildWorldSnapshot } from "../engine/worldSnapshot.js";

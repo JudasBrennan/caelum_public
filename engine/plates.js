@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Plate tectonics geometry — spherical Voronoi tessellation, Euler pole
 // rotation, and boundary classification for an interactive plate canvas.
 //

@@ -1,5 +1,10 @@
-// SPDX-License-Identifier: MPL-2.0
 import { clamp } from "../../engine/utils.js";
+import {
+  normalizeRingMode,
+  RING_MODE_FORCE_OFF,
+  RING_MODE_FORCE_ON,
+} from "../../engine/planetaryRings.js";
+import { normalizeRingStyleId } from "../ringAppearanceProfiles.js";
 
 // Practical giant-planet radius bounds in Jupiter radii (Rj):
 // lower bound ~= Neptune-size (~0.35 Rj), upper bound ~= inflated HAT-P-67 b (2.14 Rj).
@@ -90,13 +95,23 @@ export function normalizeGasGiant(raw, idx = 1) {
   const inclinationDeg = Number.isFinite(rawInc) && rawInc >= 0 && rawInc <= 180 ? rawInc : null;
   const rawTilt = Number(raw?.axialTiltDeg ?? raw?.axialTilt ?? raw?.obliquity);
   const axialTiltDeg = Number.isFinite(rawTilt) && rawTilt >= 0 && rawTilt <= 180 ? rawTilt : null;
+  const ringMode = normalizeRingMode(raw?.ringMode);
+  const ringStyleId = normalizeRingStyleId(raw?.ringStyleId);
+  const rings =
+    ringMode === RING_MODE_FORCE_ON
+      ? true
+      : ringMode === RING_MODE_FORCE_OFF
+        ? false
+        : raw?.rings === true;
   return {
     id: String(raw?.id || `gg${idx}`),
     name: String(raw?.name || `Gas giant ${idx}`),
     au: fixedAu,
     slotIndex,
     style: normalizeGasGiantStyle(raw?.style),
-    rings: raw?.rings === true,
+    ringMode,
+    ringStyleId,
+    rings,
     radiusRj,
     massMjup,
     rotationPeriodHours,

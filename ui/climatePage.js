@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { calcClimateZones } from "../engine/climate.js";
 import { calcPlanetExact } from "../engine/planet.js";
 import { fmt } from "../engine/utils.js";

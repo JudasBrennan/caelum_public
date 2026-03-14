@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 const G = 6.67e-11;
 const SECONDS_TO_GYR = 3.171e-17;
 

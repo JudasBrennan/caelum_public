@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Calendar model engine
 //
 // Builds solar, lunar, and lunisolar calendar structures from

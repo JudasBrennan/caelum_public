@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { calcPopulation, TECH_ERAS } from "../engine/population.js";
 import { calcClimateZones } from "../engine/climate.js";
 import { calcPlanetExact } from "../engine/planet.js";

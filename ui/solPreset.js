@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 const GREGORIAN_DAY_NAMES = [
   "Monday",
   "Tuesday",

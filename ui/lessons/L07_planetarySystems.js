@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { concept, analogy, keyIdea, eq, iq, vars, cite, dataTable } from "./helpers.js";
 
 /**

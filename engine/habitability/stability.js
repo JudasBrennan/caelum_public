@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Shared climate-stability helpers for rocky-world habitability metrics.
 
 import { clamp, toFinite } from "../utils.js";

@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: MPL-2.0
 import { calcStar } from "./star.js";
 import { calcSystem } from "./system.js";
 import { calcPlanetExact } from "./planet.js";
 import { calcGasGiant } from "./gasGiant.js";
-import { calcMoonExact } from "./moon.js";
+import {
+  buildGasGiantMoonParentOverride,
+  buildRockyMoonParentOverride,
+  solveMoonSystem,
+} from "./moon/system.js";
 import { resolveWorldStarConfig } from "./worldStarConfig.js";
 
 function orderedItems(section) {
@@ -45,7 +48,10 @@ function groupMoonInputsByParentId(moonEntries) {
     if (!moonInputsByParentId.has(raw.planetId)) {
       moonInputsByParentId.set(raw.planetId, []);
     }
-    moonInputsByParentId.get(raw.planetId).push(raw.inputs || {});
+    moonInputsByParentId.get(raw.planetId).push({
+      id: raw.id,
+      ...(raw.inputs || {}),
+    });
   }
   return moonInputsByParentId;
 }
@@ -69,54 +75,6 @@ function buildOtherGiantsById(gasGiantEntries) {
     );
   }
   return byId;
-}
-
-function buildRockyMoonParentOverride(model, { includeRadiation = true } = {}) {
-  return {
-    inputs: {
-      massEarth: model.inputs.massEarth,
-      semiMajorAxisAu: model.inputs.semiMajorAxisAu,
-      eccentricity: model.inputs.eccentricity,
-      rotationPeriodHours: model.inputs.rotationPeriodHours,
-      cmfPct: model.inputs.cmfPct,
-    },
-    derived: {
-      densityGcm3: model.derived.densityGcm3,
-      radiusEarth: model.derived.radiusEarth,
-      gravityG: model.derived.gravityG,
-      radioisotopeAbundance: model.inputs.radioisotopeAbundance ?? 1,
-      ...(includeRadiation
-        ? {
-            surfaceFieldEarths: model.derived?.surfaceFieldEarths ?? 0,
-            magnetopauseRp: model.derived?.magnetopauseRp ?? null,
-          }
-        : {}),
-    },
-  };
-}
-
-function buildGasGiantMoonParentOverride(model, { includeRadiation = true } = {}) {
-  return {
-    inputs: {
-      massEarth: model.physical.massEarth,
-      semiMajorAxisAu: model.inputs.orbitAu,
-      eccentricity: model.inputs.eccentricity,
-      rotationPeriodHours: model.inputs.rotationPeriodHours,
-      cmfPct: 0,
-    },
-    derived: {
-      densityGcm3: model.physical.densityGcm3,
-      radiusEarth: model.physical.radiusEarth,
-      gravityG: model.physical.gravityG,
-      radioisotopeAbundance: 1,
-      ...(includeRadiation
-        ? {
-            surfaceFieldEarths: model.magnetic?.surfaceFieldEarths ?? 0,
-            magnetopauseRp: model.magnetic?.magnetopauseRp ?? null,
-          }
-        : {}),
-    },
-  };
 }
 
 function toPlanetEntry(raw, model, moonIds, mode) {
@@ -301,21 +259,21 @@ export function buildWorldSnapshot(world, options = {}) {
   }));
   const planetModelsById = new Map(planetModels.map((entry) => [entry.raw.id, entry.model]));
 
-  const moonModels = moonEntries.map((raw) => {
-    const rockyParentModel = planetModelsById.get(raw.planetId);
+  const moonModels = [];
+  for (const parentId of moonInputsByParentId.keys()) {
+    const fullMoonEntries = moonEntries.filter((entry) => entry.planetId === parentId);
+    const rockyParentModel = planetModelsById.get(parentId);
     if (rockyParentModel) {
-      if (!rockyMoonParentOverridesById.has(raw.planetId)) {
+      if (!rockyMoonParentOverridesById.has(parentId)) {
         rockyMoonParentOverridesById.set(
-          raw.planetId,
+          parentId,
           buildRockyMoonParentOverride(rockyParentModel, {
             includeRadiation: includeMoonRadiation,
           }),
         );
       }
-      return {
-        raw,
-        parentKind: "planet",
-        model: calcMoonExact({
+      moonModels.push(
+        ...solveMoonSystem({
           starMassMsol: starConfig.massMsol,
           starAgeGyr: starConfig.ageGyr,
           starMetallicityFeH: starConfig.metallicityFeH,
@@ -323,27 +281,32 @@ export function buildWorldSnapshot(world, options = {}) {
           starLuminosityLsolOverride: starConfig.luminosityLsolOverride,
           starTempKOverride: starConfig.tempKOverride,
           starEvolutionMode: starConfig.evolutionMode,
-          moon: raw.inputs || {},
-          parentOverride: rockyMoonParentOverridesById.get(raw.planetId),
+          starHabitableZoneAu: star.habitableZoneAu,
+          parentKind: "planet",
+          parentOverride: rockyMoonParentOverridesById.get(parentId),
+          moonEntries: fullMoonEntries,
           detailLevel,
-        }),
-      };
+        }).map((entry) => ({
+          raw: entry.raw,
+          parentKind: "planet",
+          model: entry.model,
+        })),
+      );
+      continue;
     }
 
-    const gasParentModel = gasGiantModelsById.get(raw.planetId);
+    const gasParentModel = gasGiantModelsById.get(parentId);
     if (gasParentModel) {
-      if (!gasGiantMoonParentOverridesById.has(raw.planetId)) {
+      if (!gasGiantMoonParentOverridesById.has(parentId)) {
         gasGiantMoonParentOverridesById.set(
-          raw.planetId,
+          parentId,
           buildGasGiantMoonParentOverride(gasParentModel, {
             includeRadiation: includeMoonRadiation,
           }),
         );
       }
-      return {
-        raw,
-        parentKind: "gasGiant",
-        model: calcMoonExact({
+      moonModels.push(
+        ...solveMoonSystem({
           starMassMsol: starConfig.massMsol,
           starAgeGyr: starConfig.ageGyr,
           starMetallicityFeH: starConfig.metallicityFeH,
@@ -351,15 +314,22 @@ export function buildWorldSnapshot(world, options = {}) {
           starLuminosityLsolOverride: starConfig.luminosityLsolOverride,
           starTempKOverride: starConfig.tempKOverride,
           starEvolutionMode: starConfig.evolutionMode,
-          moon: raw.inputs || {},
-          parentOverride: gasGiantMoonParentOverridesById.get(raw.planetId),
+          starHabitableZoneAu: star.habitableZoneAu,
+          parentKind: "gasGiant",
+          parentOverride: gasGiantMoonParentOverridesById.get(parentId),
+          moonEntries: fullMoonEntries,
           detailLevel,
-        }),
-      };
+        }).map((entry) => ({
+          raw: entry.raw,
+          parentKind: "gasGiant",
+          model: entry.model,
+        })),
+      );
+      continue;
     }
 
-    throw new Error(`Moon "${raw.id}" references unknown parent "${raw.planetId}".`);
-  });
+    throw new Error(`Moon system references unknown parent "${parentId}".`);
+  }
 
   const planetsById = Object.fromEntries(
     planetModels.map((entry) => [

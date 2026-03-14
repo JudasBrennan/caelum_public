@@ -1,5 +1,7 @@
-// SPDX-License-Identifier: MPL-2.0
 import { LOCAL_CLUSTER_DEFAULTS, normalizeLocalClusterInputs } from "../../engine/localCluster.js";
+import { normalizeRingMode } from "../../engine/planetaryRings.js";
+import { normalizeMoonInputs } from "../../engine/moon/config.js";
+import { normalizeRingStyleId } from "../ringAppearanceProfiles.js";
 import { sanitizeImportedValue } from "./importValidation.js";
 import { normalizeGasGiant } from "./gasGiantModel.js";
 import {
@@ -100,7 +102,7 @@ export function migrateWorld(world) {
     for (const moonId of Object.keys(world.moons.byId)) {
       const moon = world.moons.byId[moonId];
       if (!moon) continue;
-      if (!moon.inputs) moon.inputs = {};
+      moon.inputs = normalizeMoonInputs(moon.inputs || {});
       if (!moon.name) moon.name = moon.inputs.name || "Luna";
       if (!moon.inputs.name) moon.inputs.name = moon.name;
       if (typeof moon.locked !== "boolean") moon.locked = false;
@@ -157,6 +159,8 @@ export function migrateWorld(world) {
     for (const planetId of Object.keys(world.planets.byId)) {
       const inputs = world.planets.byId[planetId]?.inputs;
       if (!inputs) continue;
+      if (inputs.ringMode == null) inputs.ringMode = "auto";
+      inputs.ringStyleId = normalizeRingStyleId(inputs.ringStyleId);
       if (!inputs.greenhouseMode) inputs.greenhouseMode = "manual";
       if (inputs.h2oPct == null) inputs.h2oPct = 0;
       if (inputs.ch4Pct == null) inputs.ch4Pct = 0;
@@ -167,14 +171,12 @@ export function migrateWorld(world) {
     }
   }
 
-  if (world.moons && world.moons.byId) {
-    for (const moonId of Object.keys(world.moons.byId)) {
-      const inputs = world.moons.byId[moonId]?.inputs;
-      if (inputs && inputs.compositionOverride === undefined) inputs.compositionOverride = null;
-    }
+  if (world.moon) world.moon = normalizeMoonInputs(world.moon);
+  if (world.planet && world.planet.ringMode == null) {
+    world.planet.ringMode = "auto";
   }
-  if (world.moon && world.moon.compositionOverride === undefined) {
-    world.moon.compositionOverride = null;
+  if (world.planet) {
+    world.planet.ringStyleId = normalizeRingStyleId(world.planet.ringStyleId);
   }
 
   if (world.planets && world.planets.byId) {
@@ -230,6 +232,7 @@ export function migrateWorld(world) {
 
   if (world.tectonics) {
     const tectonics = world.tectonics;
+    if ("simulator" in tectonics) delete tectonics.simulator;
     if (tectonics.spreadingRateFraction == null) tectonics.spreadingRateFraction = 0.5;
     if (!tectonics.isostasyMode) tectonics.isostasyMode = "off";
     if (!tectonics.margin) {
@@ -272,18 +275,6 @@ export function migrateWorld(world) {
 
   if (!world.system.orbitMode) world.system.orbitMode = "guided";
 
-  if (world.moons && world.moons.byId) {
-    for (const moonId of Object.keys(world.moons.byId)) {
-      const inputs = world.moons.byId[moonId]?.inputs;
-      if (inputs && inputs.initialRotationPeriodHours === undefined) {
-        inputs.initialRotationPeriodHours = null;
-      }
-    }
-  }
-  if (world.moon && world.moon.initialRotationPeriodHours === undefined) {
-    world.moon.initialRotationPeriodHours = null;
-  }
-
   if (world.planets && world.planets.byId) {
     for (const planetId of Object.keys(world.planets.byId)) {
       const inputs = world.planets.byId[planetId]?.inputs;
@@ -292,6 +283,14 @@ export function migrateWorld(world) {
       }
     }
   }
+
+  if (world.moons && world.moons.byId) {
+    for (const moonId of Object.keys(world.moons.byId)) {
+      const inputs = world.moons.byId[moonId]?.inputs;
+      if (inputs) world.moons.byId[moonId].inputs = normalizeMoonInputs(inputs);
+    }
+  }
+  if (world.moon) world.moon = normalizeMoonInputs(world.moon);
   if (world.planet && world.planet.radioisotopeAbundance === undefined) {
     world.planet.radioisotopeAbundance = null;
   }
@@ -316,6 +315,15 @@ export function migrateWorld(world) {
   }
 
   canonicalizeSystemFeatures(world, { normalizeGasGiant });
+
+  if (world.system?.gasGiants?.byId) {
+    for (const gasGiantId of Object.keys(world.system.gasGiants.byId)) {
+      const gasGiant = world.system.gasGiants.byId[gasGiantId];
+      if (!gasGiant) continue;
+      gasGiant.ringMode = normalizeRingMode(gasGiant.ringMode);
+      gasGiant.ringStyleId = normalizeRingStyleId(gasGiant.ringStyleId);
+    }
+  }
 
   if (world.version !== SCHEMA_VERSION) world.version = SCHEMA_VERSION;
 

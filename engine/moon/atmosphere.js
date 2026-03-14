@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 // Moon atmosphere helpers.
 //
 // Turns retained volatile outputs into an explicit moon atmosphere model so
@@ -17,6 +16,8 @@ const ATM_TO_PA = 101325;
 const R_GAS = 8.3145;
 
 const SPECIES_PROFILES = {
+  h2: { key: "h2", mwKgMol: 0.002, greenhouseKey: "h2" },
+  he: { key: "he", mwKgMol: 0.004, greenhouseKey: null },
   n2: { key: "n2", mwKgMol: 0.028, greenhouseKey: null },
   co: { key: "co", mwKgMol: 0.028, greenhouseKey: "co" },
   ch4: { key: "ch4", mwKgMol: 0.016, greenhouseKey: "ch4" },
@@ -42,6 +43,8 @@ const ATMOSPHERIC_AVAILABILITY = {
 
 function emptyComposition() {
   return {
+    h2: 0,
+    he: 0,
     n2: 0,
     co: 0,
     ch4: 0,
@@ -69,7 +72,9 @@ function deriveSourceClass({
   dominantSpecies,
   totalPressurePa,
   tidalFeedbackActive,
+  mode,
 }) {
+  if (mode === "manual" && totalPressurePa > 0) return "User-specified atmosphere";
   if (!retainedSpecies.length || totalPressurePa <= 0) return "None";
   if (
     tidalFeedbackActive &&
@@ -105,6 +110,8 @@ function computeComposition(retainedSpecies, totalPressurePa) {
 
 function normalizeCompositionPct(composition) {
   return {
+    h2Pct: composition.h2 * 100,
+    hePct: composition.he * 100,
     n2Pct: composition.n2 * 100,
     coPct: composition.co * 100,
     ch4Pct: composition.ch4 * 100,
@@ -119,6 +126,8 @@ function normalizeCompositionPct(composition) {
 
 function compositionSummary(compositionPct) {
   const entries = [
+    ["H\u2082", compositionPct.h2Pct],
+    ["He", compositionPct.hePct],
     ["N\u2082", compositionPct.n2Pct],
     ["CO", compositionPct.coPct],
     ["CH\u2084", compositionPct.ch4Pct],
@@ -150,6 +159,7 @@ function computeGreenhouseModel({ pressureAtm, compositionPct }) {
 
   const tauCore = computeGreenhouseTau({
     pressureAtm,
+    h2Pct: compositionPct.h2Pct,
     n2Pct: compositionPct.n2Pct,
     co2Pct: compositionPct.co2Pct,
     h2oPct: compositionPct.h2oPct,
@@ -176,29 +186,101 @@ function computeGreenhouseModel({ pressureAtm, compositionPct }) {
   };
 }
 
+function normalizeManualCompositionPct(manualCompositionPct = {}) {
+  const compositionPct = {
+    h2Pct: Math.max(0, toFinite(manualCompositionPct.h2Pct, 0)),
+    hePct: Math.max(0, toFinite(manualCompositionPct.hePct, 0)),
+    n2Pct: Math.max(0, toFinite(manualCompositionPct.n2Pct, 0)),
+    coPct: Math.max(0, toFinite(manualCompositionPct.coPct, 0)),
+    ch4Pct: Math.max(0, toFinite(manualCompositionPct.ch4Pct, 0)),
+    co2Pct: Math.max(0, toFinite(manualCompositionPct.co2Pct, 0)),
+    nh3Pct: Math.max(0, toFinite(manualCompositionPct.nh3Pct, 0)),
+    so2Pct: Math.max(0, toFinite(manualCompositionPct.so2Pct, 0)),
+    h2oPct: Math.max(0, toFinite(manualCompositionPct.h2oPct, 0)),
+    o2Pct: Math.max(0, toFinite(manualCompositionPct.o2Pct, 0)),
+    arPct: Math.max(0, toFinite(manualCompositionPct.arPct, 0)),
+  };
+  const explicitWithoutN2 =
+    compositionPct.h2Pct +
+    compositionPct.hePct +
+    compositionPct.coPct +
+    compositionPct.ch4Pct +
+    compositionPct.co2Pct +
+    compositionPct.nh3Pct +
+    compositionPct.so2Pct +
+    compositionPct.h2oPct +
+    compositionPct.o2Pct +
+    compositionPct.arPct;
+  if (explicitWithoutN2 <= 0 && compositionPct.n2Pct <= 0) {
+    compositionPct.n2Pct = 100;
+  }
+  if (!Number.isFinite(toFinite(manualCompositionPct.n2Pct, NaN))) {
+    compositionPct.n2Pct = Math.max(0, 100 - explicitWithoutN2);
+  }
+  const totalPct =
+    compositionPct.h2Pct +
+    compositionPct.hePct +
+    compositionPct.n2Pct +
+    compositionPct.coPct +
+    compositionPct.ch4Pct +
+    compositionPct.co2Pct +
+    compositionPct.nh3Pct +
+    compositionPct.so2Pct +
+    compositionPct.h2oPct +
+    compositionPct.o2Pct +
+    compositionPct.arPct;
+  if (totalPct <= 0) return compositionPct;
+  for (const key of Object.keys(compositionPct)) {
+    compositionPct[key] = (compositionPct[key] / totalPct) * 100;
+  }
+  return compositionPct;
+}
+
+function compositionFromPct(compositionPct = {}) {
+  return {
+    h2: Math.max(0, toFinite(compositionPct.h2Pct, 0)) / 100,
+    he: Math.max(0, toFinite(compositionPct.hePct, 0)) / 100,
+    n2: Math.max(0, toFinite(compositionPct.n2Pct, 0)) / 100,
+    co: Math.max(0, toFinite(compositionPct.coPct, 0)) / 100,
+    ch4: Math.max(0, toFinite(compositionPct.ch4Pct, 0)) / 100,
+    co2: Math.max(0, toFinite(compositionPct.co2Pct, 0)) / 100,
+    nh3: Math.max(0, toFinite(compositionPct.nh3Pct, 0)) / 100,
+    so2: Math.max(0, toFinite(compositionPct.so2Pct, 0)) / 100,
+    h2o: Math.max(0, toFinite(compositionPct.h2oPct, 0)) / 100,
+    o2: Math.max(0, toFinite(compositionPct.o2Pct, 0)) / 100,
+    ar: Math.max(0, toFinite(compositionPct.arPct, 0)) / 100,
+  };
+}
+
 export function computeMoonAtmosphere({
   volatileInventory = [],
   surfaceTempK = 0,
   gravityMs2 = 0,
   tidalFeedbackActive = false,
+  mode = "core",
+  manualSurfacePressureAtm = null,
+  manualCompositionPct = null,
 } = {}) {
+  const manualMode = mode === "manual";
   const retainedSpecies = normalizeHabitabilityInventory(volatileInventory).filter(
     (entry) => entry?.status === "Thin atmosphere" && scaledAtmospherePressurePa(entry) > 0,
   );
-  const totalPressurePa = retainedSpecies.reduce(
-    (sum, entry) => sum + scaledAtmospherePressurePa(entry),
-    0,
-  );
+  const manualPressureAtm = Math.max(0, toFinite(manualSurfacePressureAtm, 0));
+  const totalPressurePa = manualMode
+    ? manualPressureAtm * ATM_TO_PA
+    : retainedSpecies.reduce((sum, entry) => sum + scaledAtmospherePressurePa(entry), 0);
   const pressureAtm = totalPressurePa / ATM_TO_PA;
-  const dominantSpecies =
-    retainedSpecies.length > 0
-      ? retainedSpecies.reduce((left, right) =>
-          scaledAtmospherePressurePa(left) >= scaledAtmospherePressurePa(right) ? left : right,
-        ).species
-      : null;
-
-  const composition = computeComposition(retainedSpecies, totalPressurePa);
-  const compositionPct = normalizeCompositionPct(composition);
+  const compositionPct = manualMode
+    ? normalizeManualCompositionPct(manualCompositionPct || {})
+    : normalizeCompositionPct(computeComposition(retainedSpecies, totalPressurePa));
+  const composition = compositionFromPct(compositionPct);
+  const dominantSpecies = (() => {
+    const entries = Object.entries(compositionPct)
+      .filter(([, value]) => value > 0)
+      .sort((left, right) => right[1] - left[1]);
+    if (!entries.length) return null;
+    return entries[0][0].replace(/Pct$/, "");
+  })();
   const greenhouse = computeGreenhouseModel({ pressureAtm, compositionPct });
 
   const meanMolecularWeightKgMol = Object.entries(composition).reduce((sum, [key, share]) => {
@@ -222,10 +304,12 @@ export function computeMoonAtmosphere({
       dominantSpecies,
       totalPressurePa,
       tidalFeedbackActive,
+      mode,
     }),
     dominantSpecies: canonicalHabitabilitySpeciesLabel(
       normalizeHabitabilitySpecies(dominantSpecies),
     ),
+    mode,
     surfacePressurePa: totalPressurePa,
     surfacePressureAtm: pressureAtm,
     meanMolecularWeightKgMol,

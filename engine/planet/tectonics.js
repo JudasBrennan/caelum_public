@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 const REGIMES = ["stagnant", "mobile", "episodic", "plutonicSquishy"];
 
 function gauss(x, mu, sigma) {

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { clamp, toFinite } from "../utils.js";
 
 const VOLCANIC_CLASS_FACTOR = {

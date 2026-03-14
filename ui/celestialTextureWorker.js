@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MPL-2.0
 import { createSeededRng } from "../engine/stellarActivity.js";
 import { clamp } from "../engine/utils.js";
 import { paintCelestialTexture } from "./celestialComposer.js";
