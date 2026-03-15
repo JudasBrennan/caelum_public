@@ -96,11 +96,7 @@ export function buildLesson12(mode) {
         ["M_p", "planet mass"],
         ["M_\\star", "stellar mass"],
       ])}
-      <p>In practice, moons are only stable out to roughly half the Hill
-        radius for prograde orbits, and about two-thirds for retrograde
-        orbits, due to perturbative effects from the star and from other
-        planets. Long-term numerical integrations (Hamilton &amp; Burns 1991)
-        confirm this ~0.5 ${iq("r_\\text{Hill}")} stability boundary.</p>
+      <p>In practice, moons are only stable well inside the Hill sphere. WorldSmith now uses a deliberately conservative long-term rule of thumb: roughly one-third of the Hill radius for prograde orbits, and about one-half for retrograde orbits, with an extra comfort margin before that outer edge. The exact stable region still depends on the full three-body context, but major regular moons usually sit far inside these limits.</p>
       ${dataTable(
         ["Body", "Hill radius (10\\(^6\\) km)", "Outermost major moon"],
         [
@@ -257,16 +253,19 @@ export function buildLesson12(mode) {
     concept(
       "Moon Worlds in WorldSmith",
       /* basic */
-      `<p>WorldSmith now treats moons as small worlds rather than only tidal case studies. The Moon page derives a first-pass atmosphere, hydrosphere, climate, geology, biosphere, and habitability output from the same saved moon inputs used elsewhere in the app.</p>
-      <p>The page also separates moon science into <strong>Hydrosphere</strong>, <strong>Atmosphere</strong>, and <strong>Orbital Coupling</strong> modes. Core mode keeps the simple defaults, while Full and Manual expose more of the volatile, atmosphere, and resonance assumptions behind the result.</p>
-      <p>That means a moon can be airless, haze-shrouded, frozen, ocean-bearing, cryovolcanic, or even biologically active depending on its orbit, composition, volatile inventory, and parent-body environment.</p>
-      ${keyIdea("Surface habitability and subsurface potential are not the same thing. A moon can host a subsurface ocean and still remain surface-sterile under the current policy.")}`,
+      `<p>WorldSmith now treats moons as small worlds rather than only tidal case studies. The Moon page derives a first-pass atmosphere, hydrosphere, climate, geology, biosphere, radiation, and habitability output from the same saved moon inputs used elsewhere in the app.</p>
+      <p>The page also separates moon science into <strong>Hydrosphere</strong>, <strong>Atmosphere</strong>, and <strong>Orbital Coupling</strong> modes. Core mode keeps the simple defaults, while Full and Manual expose more of the volatile, atmosphere, resonance, and shielding assumptions behind the result.</p>
+      <p>That means a moon can be airless, haze-shrouded, frozen, ocean-bearing, cryovolcanic, radiation-limited at the surface, or even biologically active depending on its orbit, composition, volatile inventory, and parent-body environment.</p>
+      ${keyIdea("Surface habitability and subsurface potential are not the same thing. A moon can host a subsurface ocean and still remain surface-sterile under the current policy, especially under harsh parent-belt radiation.")}`,
 
       /* advanced */
-      `<p>In the current model, moon-world outputs are built in layers: volatile retention and greenhouse define the atmosphere, the hydrosphere model distinguishes dry / surface-liquid / frozen / subsurface-ocean / steam cases, the climate model adds parent-coupled illumination, eclipse forcing, and collapse-risk diagnostics, geology estimates resurfacing and volatile replenishment, and the biosphere gate checks whether exposed surface conditions remain viable.</p>
-      <p>The Moon page now exposes separate <strong>Hydrosphere</strong>, <strong>Atmosphere</strong>, and <strong>Orbital Coupling</strong> modes. In Full and Manual orbital-coupling modes, sibling moons are solved together first so the engine can tag resonance support, Laplace-chain membership, forced eccentricity floors, tidal-habitable-zone context, and formation scenarios before the single-moon climate stack runs.</p>
+      `<p>In the current model, moon-world outputs are built in layers: volatile retention and greenhouse define the atmosphere, the hydrosphere model distinguishes dry / surface-liquid / frozen / subsurface-ocean / steam cases, the climate model adds parent-coupled illumination, eclipse forcing, collapse-risk diagnostics, and conservative circumplanetary stability checks, radiation combines parent belts with atmosphere and magnetic shielding, geology estimates resurfacing and volatile replenishment, and the biosphere gate checks whether exposed surface conditions remain viable.</p>
+      <p>The Moon page now exposes separate <strong>Hydrosphere</strong>, <strong>Atmosphere</strong>, and <strong>Orbital Coupling</strong> modes. In Full and Manual orbital-coupling modes, sibling moons are solved together first so the engine can tag resonance support, Laplace-chain membership, forced eccentricity floors, a derived tidal-habitable-zone context, and formation scenarios before the single-moon climate stack runs.</p>
+      <p>Volatile availability is also mode-sensitive: Core mode keeps the lightweight density-based heuristic, while Full and Manual can use explicit water inventory, ammonia fraction, composition override, and manual atmospheric requests before the atmosphere solver runs.</p>
+      <p>Surface and subsurface outcomes are now separated explicitly. A moon can return <strong>surface ocean plausible</strong>, <strong>radiation-limited surface ocean</strong>, or <strong>subsurface ocean plausible</strong> depending on atmosphere retention, intrinsic and induced magnetic shielding, and whether the moon lies inside or outside the stellar habitable zone.</p>
+      <p>For exposed surface cases, the stellar habitable zone now comes from the star engine when available, then gets filtered through moon-specific cautions for very low-mass stars where compressed Hill-stable space and strong early XUV make surface-habitable moons harder to sustain.</p>
       <p>The exported world file stores the moon inputs, and the atmosphere / hydrosphere / climate / geology / biosphere / habitability outputs are recomputed from those inputs after load. This keeps moon-world behavior consistent across the Moon page, visualizer, import/export, and other snapshot-driven consumers.</p>
-      ${keyIdea("A strong moon habitability score can still come from subsurface support rather than exposed surface life. Read the hydrosphere, biosphere, and solvent-path notes together.")}`,
+      ${keyIdea("A strong moon habitability score can still come from subsurface support rather than exposed surface life, and a moon outside the stellar habitable zone can remain a credible subsurface-ocean candidate.")}`,
       mode,
     ),
 

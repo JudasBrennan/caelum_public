@@ -4,6 +4,142 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+### Guided Creation Expansion And Goal-Seeking Search
+
+**Extended the guided-creation framework across gas giants and stars, then added structured goal-building, session restore, dedicated routes, async search jobs, and controlled free-text aliases**
+(app.js, ui/guidedCreation/types.js, ui/guidedCreation/state.js,
+ui/guidedCreation/registry.js, ui/guidedCreation/flowController.js,
+ui/guidedCreation/routeState.js, ui/guidedCreation/sessionState.js,
+ui/guidedCreation/solverJob.js, ui/guidedCreation/goalTraits.js,
+ui/guidedCreation/goalCompiler.js, ui/guidedCreation/goalAliases.js,
+ui/guidedCreation/goalTextParser.js,
+ui/guidedCreation/goalTextInterpretation.js,
+ui/guidedCreation/components/guidedPanel.js,
+ui/guidedCreation/components/goalTextAssist.js,
+ui/guidedCreation/adapters/moon.js,
+ui/guidedCreation/adapters/rockyPlanet.js,
+ui/guidedCreation/adapters/gasGiant.js,
+ui/guidedCreation/adapters/star.js, ui/moonPage.js, ui/planetPage.js,
+ui/starPage.js, styles.css, tests/guidedCreationFlowController.test.js,
+tests/guidedCreationSessionState.test.js,
+tests/guidedGasGiantAdapter.test.js,
+tests/guidedGoalCompiler.test.js,
+tests/guidedGoalTextParser.test.js,
+tests/guidedGoalTraitRegistry.test.js,
+tests/guidedMoonAdapter.test.js, tests/guidedRockyAdapter.test.js,
+tests/guidedRoutes.ui.test.js, tests/guidedRouteState.test.js,
+tests/guidedSessionPersistence.ui.test.js,
+tests/guidedSolverJob.test.js, tests/guidedStarAdapter.test.js,
+tests/gasGiantGuidedCreation.ui.test.js,
+tests/moonGuidedCreation.ui.test.js,
+tests/rockyGuidedCreation.ui.test.js,
+tests/starGuidedCreation.ui.test.js)
+
+Guided creation is now a full cross-object product surface rather than a
+moon/rocky-world feature. Gas giants and stars now ship with the same
+top-level `Quick` and `Guided` workflows, and the framework supports
+restorable guided sessions, dedicated guided routes, async/cancelable
+search jobs, and structured goal-builder state instead of only
+archetype-first recommendations.
+
+This pass also completed the `PR 12` goal-seeking layer. Moons, rocky
+worlds, gas giants, and stars can now compile structured goals into
+bounded search requests, run seeded recommendation searches, and accept
+reviewed free-text aliases like `forest moon`, `ringed gas giant`, or
+`quiet orange dwarf` through a controlled parser that maps back onto the
+shared trait/template model instead of writing raw inputs directly.
+
+**Tests** (tests/guidedCreationFlowController.test.js,
+tests/guidedCreationSessionState.test.js,
+tests/guidedGasGiantAdapter.test.js,
+tests/guidedGoalCompiler.test.js,
+tests/guidedGoalTextParser.test.js,
+tests/guidedGoalTraitRegistry.test.js,
+tests/guidedMoonAdapter.test.js,
+tests/guidedRockyAdapter.test.js,
+tests/guidedRoutes.ui.test.js,
+tests/guidedRouteState.test.js,
+tests/guidedSessionPersistence.ui.test.js,
+tests/guidedSolverJob.test.js, tests/guidedStarAdapter.test.js)
+
+- Added framework, parser, session, routing, and end-to-end guided-flow
+  coverage for all supported object types.
+
+### Moon Habitability, Radiation, And Stability Follow-Up
+
+**Extended the moon model toward more defensible habitable and life-bearing moon outcomes with explicit radiation, shielding, stability, and surface-vs-subsurface habitability gates**
+(engine/moon.js, engine/moon/biosphere.js, engine/moon/climate.js,
+engine/moon/hydrosphere.js, engine/moon/magnetosphere.js,
+engine/moon/orbit.js, engine/moon/radiation.js,
+engine/moon/retention.js, engine/moon/system.js,
+engine/habitability/context.js, engine/habitability/radiation.js,
+ui/guidedCreation/adapters/moon.js, ui/moonPage.js,
+tests/crossModelCalendar.test.js, tests/engineWorldFixtures.test.js,
+tests/habitabilityRadiation.test.js, tests/moon.test.js,
+tests/moonAtmosphere.test.js, tests/moonClimate.test.js,
+tests/moonHabitability.test.js, tests/moonHydrosphere.test.js,
+tests/moonRadiationMagnetosphere.test.js)
+
+The moon engine now includes dedicated moon magnetosphere and radiation
+layers, separates surface and subsurface moon-life outcomes more
+explicitly, and pushes that richer radiation state all the way through
+moon biosphere and unified habitability scoring instead of collapsing it
+back to the older parent-belt proxy. Moon summaries and Moon-page
+outputs now distinguish cases like `surface ocean plausible`,
+`radiation-limited surface ocean`, and `subsurface ocean plausible`
+using explicit shielding and exposure diagnostics.
+
+This follow-up also tightened moon science where the prior review found
+we were still too heuristic: circumplanetary stability now uses
+conservative prograde/retrograde outer limits instead of treating the
+full Hill sphere as long-term stable space, exposed surface cases now
+prefer the star engine's real habitable-zone output with low-mass-star
+penalties, the moon-system tidal-habitable-zone flag is derived from the
+solved orbit/heating/radiation context rather than a fixed parent-type
+band, and `Full` / `Manual` moon volatile handling now respects explicit
+inventory and manual atmospheric requests more than raw density-only
+shortcuts.
+
+Guided moon search was reweighted around `water + atmosphere +
+radiation + stability` rather than leaning mainly on warmer orbits, so
+goal-seeking moon creation is now more willing to choose safer surface
+or subsurface outcomes over hotter but harsher inner-moon candidates.
+
+**Tests** (tests/moonRadiationMagnetosphere.test.js,
+tests/moonHabitability.test.js, tests/moonHydrosphere.test.js,
+tests/moonClimate.test.js, tests/moonAtmosphere.test.js,
+tests/moon.test.js, tests/habitabilityRadiation.test.js,
+tests/engineWorldFixtures.test.js)
+
+- Added new moon radiation/magnetosphere analog checks plus regression
+  coverage for the updated habitability, stability, volatile, and
+  guided-search paths.
+
+### Science, Lessons, And Visualiser Sync
+
+**Refreshed the science references, lessons, and science visualiser again so they stay aligned with the newer guided-search and moon-habitability model**
+(ui/sciencePage.js, ui/scienceVisualiserPage.js,
+ui/scienceGraphData.js, ui/lessons/L05_habitableZone.js,
+ui/lessons/L12_moonsTides.js, tests/sciencePageReference.ui.test.js,
+tests/lessonsContent.test.js, tests/scienceGraphData.test.js,
+tests/scienceVisualiser.ui.test.js)
+
+The science and lesson surfaces now reflect the current moon model more
+precisely: conservative moon-stability limits instead of the older
+larger Hill-sphere simplification, mode-sensitive moon volatile
+inventories instead of density-only wording, star-engine habitable-zone
+context with low-mass-star cautions for surface-habitable moons, and the
+current separation between exposed surface and subsurface moon-life
+outcomes. The Science Visualiser lede and graph metadata were updated to
+keep that language aligned across the reference surfaces.
+
+**Tests** (tests/sciencePageReference.ui.test.js,
+tests/lessonsContent.test.js, tests/scienceGraphData.test.js,
+tests/scienceVisualiser.ui.test.js)
+
+- Added regression checks for the updated moon-reference wording across
+  the Science page, lessons, and visualiser.
+
 ## 1.25.0 BETA - 2026-03-15
 
 ### Moon Science Parity And Coupled Moon Systems

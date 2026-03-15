@@ -23,6 +23,11 @@ function optionalFraction(value) {
   return Number.isFinite(numeric) ? clamp(numeric, 0, 1) : NaN;
 }
 
+function optionalFiniteNonNegative(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(numeric, 0) : NaN;
+}
+
 function objectOrEmpty(value) {
   return value && typeof value === "object" ? value : {};
 }
@@ -109,6 +114,21 @@ export function normalizeHabitabilityContext(rawContext = {}) {
     environment: {
       magnetosphericRadRemDay: finiteNonNegative(environment.magnetosphericRadRemDay, 0),
       radiationPenalty: fraction(environment.radiationPenalty, 1),
+      surfaceExposureRemDayEquivalent: optionalFiniteNonNegative(
+        environment.surfaceExposureRemDayEquivalent,
+      ),
+      subsurfaceExposureRemDayEquivalent: optionalFiniteNonNegative(
+        environment.subsurfaceExposureRemDayEquivalent,
+      ),
+      surfaceRadiationPenalty: optionalFraction(environment.surfaceRadiationPenalty),
+      subsurfaceRadiationPenalty: optionalFraction(environment.subsurfaceRadiationPenalty),
+      atmosphereShielding: optionalFraction(environment.atmosphereShielding),
+      intrinsicFieldShielding: optionalFraction(environment.intrinsicFieldShielding),
+      inducedFieldShielding: optionalFraction(environment.inducedFieldShielding),
+      magneticShielding: optionalFraction(environment.magneticShielding),
+      combinedShielding: optionalFraction(environment.combinedShielding),
+      surfaceRadiationClass: String(environment.surfaceRadiationClass || ""),
+      subsurfaceRadiationClass: String(environment.subsurfaceRadiationClass || ""),
       surfaceRadiationShieldingFactor: optionalFraction(
         environment.surfaceRadiationShieldingFactor,
       ),

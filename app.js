@@ -10,6 +10,7 @@ import { initApparentPage } from "./ui/apparentPage.js";
 import { initTectonicsPage } from "./ui/tectonicsPage.js";
 import { initClimatePage } from "./ui/climatePage.js";
 import { initPopulationPage } from "./ui/populationPage.js";
+import { parseGuidedRoute } from "./ui/guidedCreation/routeState.js";
 import * as store from "./ui/store.js";
 import { createSolPresetEnvelope } from "./ui/solPreset.js";
 import { showSplashOverlay } from "./ui/splashOverlay.js";
@@ -589,8 +590,8 @@ function renderRouteLoading(label) {
 
 async function route() {
   const hash = location.hash || "#/star";
-  const [_, path] = hash.split("#/");
-  const requestedKey = (path || "star").split("?")[0];
+  const routeState = parseGuidedRoute(hash);
+  const requestedKey = routeState.pageKey;
   if (requestedKey === "tectonics-simulator") {
     location.hash = "#/tectonics";
     return;
@@ -617,7 +618,7 @@ async function route() {
       const initFn = await pageSpec.load();
       if (routeToken !== activeRouteToken) return;
       appEl.innerHTML = "";
-      const maybeCleanup = initFn(appEl);
+      const maybeCleanup = initFn(appEl, { routeContext: routeState });
       currentPageCleanup = typeof maybeCleanup === "function" ? maybeCleanup : null;
     } catch (err) {
       if (routeToken !== activeRouteToken) return;

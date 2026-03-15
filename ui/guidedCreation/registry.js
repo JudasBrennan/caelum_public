@@ -1,9 +1,4 @@
-const REQUIRED_ADAPTER_METHODS = [
-  "listArchetypes",
-  "buildQuestions",
-  "solveRecommendation",
-  "applyRecommendation",
-];
+const REQUIRED_ADAPTER_METHODS = ["listArchetypes", "buildQuestions", "applyRecommendation"];
 
 function normalizeObjectType(objectType) {
   return String(objectType || "").trim();
@@ -24,6 +19,14 @@ export function validateGuidedAdapter(adapter) {
     if (typeof candidate?.[methodName] !== "function") {
       errors.push(`Adapter "${objectType || "<unknown>"}" is missing ${methodName}().`);
     }
+  }
+  if (
+    typeof candidate?.solveRecommendation !== "function" &&
+    typeof candidate?.startSearch !== "function"
+  ) {
+    errors.push(
+      `Adapter "${objectType || "<unknown>"}" must define solveRecommendation() or startSearch().`,
+    );
   }
 
   return {

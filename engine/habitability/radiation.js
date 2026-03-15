@@ -12,11 +12,70 @@ export function radiationPenaltyFromMagnetosphericDose(remDay) {
   return 0.05;
 }
 
-export function moonRadiationProfile({ magnetosphericRadRemDay } = {}) {
+function classifyMoonDose(remDay) {
+  const dose = Math.max(toFinite(remDay, 0), 0);
+  if (dose <= 0.01) return "Low";
+  if (dose <= 0.1) return "Elevated";
+  if (dose <= 1) return "Harsh";
+  return "Surface-sterilizing";
+}
+
+function radiationPenaltyFromMoonClass(exposureClass, fallbackDose) {
+  const label = String(exposureClass || "").trim();
+  if (label === "Low") return 1;
+  if (label === "Elevated") return 0.9;
+  if (label === "Harsh") return 0.7;
+  if (label === "Surface-sterilizing") return 0.05;
+  return radiationPenaltyFromMagnetosphericDose(fallbackDose);
+}
+
+export function moonRadiationProfile({
+  magnetosphericRadRemDay,
+  surfaceExposureRemDayEquivalent,
+  subsurfaceExposureRemDayEquivalent,
+  surfaceClass,
+  subsurfaceClass,
+  atmosphereShielding,
+  intrinsicFieldShielding,
+  inducedFieldShielding,
+  magneticShielding,
+  combinedShielding,
+} = {}) {
+  const parentDose = Math.max(toFinite(magnetosphericRadRemDay, 0), 0);
+  const surfaceDose = Number.isFinite(Number(surfaceExposureRemDayEquivalent))
+    ? Math.max(toFinite(surfaceExposureRemDayEquivalent, 0), 0)
+    : parentDose;
+  const subsurfaceDose = Number.isFinite(Number(subsurfaceExposureRemDayEquivalent))
+    ? Math.max(toFinite(subsurfaceExposureRemDayEquivalent, 0), 0)
+    : surfaceDose;
+  const resolvedSurfaceClass = String(surfaceClass || classifyMoonDose(surfaceDose));
+  const resolvedSubsurfaceClass = String(subsurfaceClass || classifyMoonDose(subsurfaceDose));
+  const surfaceRadiationPenalty = clamp(
+    radiationPenaltyFromMoonClass(resolvedSurfaceClass, surfaceDose),
+    0,
+    1,
+  );
+  const subsurfaceRadiationPenalty = clamp(
+    radiationPenaltyFromMoonClass(resolvedSubsurfaceClass, subsurfaceDose),
+    0,
+    1,
+  );
+
   return {
-    modelVersion: "magnetosphere-v1",
-    magnetosphericRadRemDay: Math.max(toFinite(magnetosphericRadRemDay, 0), 0),
-    radiationPenalty: clamp(radiationPenaltyFromMagnetosphericDose(magnetosphericRadRemDay), 0, 1),
+    modelVersion: "moon-radiation-profile-v2",
+    magnetosphericRadRemDay: parentDose,
+    surfaceExposureRemDayEquivalent: surfaceDose,
+    subsurfaceExposureRemDayEquivalent: subsurfaceDose,
+    surfaceClass: resolvedSurfaceClass,
+    subsurfaceClass: resolvedSubsurfaceClass,
+    atmosphereShielding: clamp(toFinite(atmosphereShielding, 0), 0, 1),
+    intrinsicFieldShielding: clamp(toFinite(intrinsicFieldShielding, 0), 0, 1),
+    inducedFieldShielding: clamp(toFinite(inducedFieldShielding, 0), 0, 1),
+    magneticShielding: clamp(toFinite(magneticShielding, 0), 0, 1),
+    combinedShielding: clamp(toFinite(combinedShielding, 0), 0, 1),
+    surfaceRadiationPenalty,
+    subsurfaceRadiationPenalty,
+    radiationPenalty: surfaceRadiationPenalty,
   };
 }
 
@@ -43,6 +102,82 @@ export function computeHabitabilityRadiationModel(
   const chemistry = normalized.chemistry;
   const environment = normalized.environment;
   const energy = normalized.energy;
+  const explicitMoonDoseAvailable =
+    normalized.bodyType === "moon" &&
+    (Number.isFinite(environment.surfaceExposureRemDayEquivalent) ||
+      Number.isFinite(environment.subsurfaceExposureRemDayEquivalent));
+
+  if (explicitMoonDoseAvailable) {
+    const useSubsurface = selectedPathway === "subsurface-water";
+    const effectiveDose = useSubsurface
+      ? Number.isFinite(environment.subsurfaceExposureRemDayEquivalent)
+        ? environment.subsurfaceExposureRemDayEquivalent
+        : environment.surfaceExposureRemDayEquivalent
+      : Number.isFinite(environment.surfaceExposureRemDayEquivalent)
+        ? environment.surfaceExposureRemDayEquivalent
+        : environment.magnetosphericRadRemDay;
+    const pathwayPenalty = clamp(
+      useSubsurface
+        ? Number.isFinite(environment.subsurfaceRadiationPenalty)
+          ? environment.subsurfaceRadiationPenalty
+          : radiationPenaltyFromMagnetosphericDose(effectiveDose)
+        : Number.isFinite(environment.surfaceRadiationPenalty)
+          ? environment.surfaceRadiationPenalty
+          : radiationPenaltyFromMagnetosphericDose(effectiveDose),
+      0,
+      1,
+    );
+    const photochemicalLiftEligible =
+      !useSubsurface &&
+      photochemicalShieldingScore > 0 &&
+      Number.isFinite(environment.atmosphereShielding) &&
+      environment.atmosphereShielding > 0.05;
+    const photochemicalAssist = photochemicalLiftEligible
+      ? clamp(
+          pathwayPenalty +
+            (1 - pathwayPenalty) *
+              clamp(toFinite(photochemicalShieldingScore, 0), 0, 1) *
+              clamp(toFinite(environment.atmosphereShielding, 0), 0, 1) *
+              0.08,
+          0,
+          1,
+        )
+      : pathwayPenalty;
+
+    return {
+      multiplier: photochemicalAssist,
+      modelVersion: "radiation-v3",
+      breakdown: {
+        effectiveDoseRemDay: effectiveDose,
+        pathwayPenalty,
+        surfaceRadiationPenalty: Number.isFinite(environment.surfaceRadiationPenalty)
+          ? environment.surfaceRadiationPenalty
+          : radiationPenaltyFromMagnetosphericDose(
+              environment.surfaceExposureRemDayEquivalent,
+            ),
+        subsurfaceRadiationPenalty: Number.isFinite(environment.subsurfaceRadiationPenalty)
+          ? environment.subsurfaceRadiationPenalty
+          : radiationPenaltyFromMagnetosphericDose(
+              environment.subsurfaceExposureRemDayEquivalent,
+            ),
+        atmosphereShielding: Number.isFinite(environment.atmosphereShielding)
+          ? environment.atmosphereShielding
+          : 0,
+        intrinsicFieldShielding: Number.isFinite(environment.intrinsicFieldShielding)
+          ? environment.intrinsicFieldShielding
+          : 0,
+        inducedFieldShielding: Number.isFinite(environment.inducedFieldShielding)
+          ? environment.inducedFieldShielding
+          : 0,
+        combinedShielding: Number.isFinite(environment.combinedShielding)
+          ? environment.combinedShielding
+          : 0,
+        directMoonRadiation: true,
+        photochemicalShieldingScore: clamp(toFinite(photochemicalShieldingScore, 0), 0, 1),
+      },
+    };
+  }
+
   const effectiveIceShield =
     selectedPathway === "subsurface-water" ? iceShieldFactor(surface.iceShellThicknessKm) : 0;
   const effectiveMagnetosphericDose =

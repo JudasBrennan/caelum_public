@@ -140,6 +140,9 @@ export function computeMoonClimate({
   const nightsideMinK = Math.max(meanTempK - synchronousContrastK - eclipseCoolingK, 0);
 
   const waterRegime = moonWaterRegimeFromHydrosphere(hydrosphere);
+  const surfaceLiquidWaterPlausible =
+    toFinite(hydrosphere?.surfaceAccessibleLiquidFraction, 0) > 0 ||
+    hydrosphere?.surfaceLiquidPresent === true;
   const climateState = deriveClimateState({
     meanTempK,
     maxTempK,
@@ -164,7 +167,7 @@ export function computeMoonClimate({
       toFinite(hydrosphere?.surfaceAccessibleLiquidFraction, 0) <= 0
         ? "Ice world"
         : "Earth-like",
-    liquidWaterPossible: toFinite(hydrosphere?.surfaceAccessibleLiquidFraction, 0) > 0,
+    liquidWaterPossible: surfaceLiquidWaterPlausible,
     climateState,
     gravityG: Math.max(toFinite(gravityG, 0), 0.01),
   });
@@ -191,6 +194,11 @@ export function computeMoonClimate({
     climateStatePenalty: stability.climateStatePenalty,
     collapsePenalty: stability.collapsePenalty,
     stabilityMultiplier: stability.stabilityMultiplier,
+    surfaceLiquidWaterPlausible,
+    frozenSurfaceLikely:
+      hydrosphere?.frozenSurface === true ||
+      (toFinite(hydrosphere?.permanentIceFraction, 0) >= 0.5 &&
+        toFinite(hydrosphere?.surfaceAccessibleLiquidFraction, 0) <= 0),
     dayNightContrastK: round(dayNightContrastK, 1),
     nightsideMinK: round(nightsideMinK, 1),
     collapseRisk: collapse.risk,

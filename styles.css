@@ -3596,6 +3596,11 @@ button.guided-entry-strip__mode:disabled {
   flex-direction: column;
   gap: 10px;
 }
+.guided-panel__type-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 .guided-panel__actions {
   display: flex;
   justify-content: flex-end;
@@ -3642,6 +3647,73 @@ button.guided-entry-strip__mode:disabled {
   background:
     linear-gradient(180deg, rgba(var(--accent-rgb), 0.14), rgba(var(--overlay-color), 0.04)),
     rgba(0, 0, 0, 0.12);
+}
+.guided-goal-text {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--overlay-color), 0.1);
+  background: rgba(var(--overlay-color), 0.045);
+}
+.guided-goal-text__label {
+  font-size: 12px;
+  font-weight: 700;
+}
+.guided-goal-text__help {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.guided-goal-text__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.guided-goal-text__input {
+  flex: 1 1 280px;
+  min-width: 200px;
+}
+.guided-goal-text__button {
+  min-width: 110px;
+}
+.guided-goal-text__button--secondary {
+  background: rgba(var(--overlay-color), 0.06);
+}
+.guided-goal-text__examples {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.guided-goal-text__examples-label {
+  font-weight: 700;
+  color: var(--text);
+}
+.guided-goal-text__interpretation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--accent-rgb), 0.18);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+.guided-goal-text__interpretation-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.guided-goal-text__interpretation-confidence {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+}
+.guided-goal-text__interpretation-summary {
+  font-size: 12px;
+  line-height: 1.5;
 }
 .guided-archetype-card__head {
   display: flex;

@@ -1,6 +1,7 @@
 import { calcMoonExact } from "../moon.js";
 import { clamp, toFinite } from "../utils.js";
 import { normalizeMoonInputs } from "./config.js";
+import { computeMoonStabilityLimits } from "./orbit.js";
 
 const EARTH_MASS_KG = 5.9722e24;
 const EARTH_RADIUS_KM = 6371;
@@ -52,18 +53,33 @@ function fallbackHabitableZone(starLuminosityLsol) {
   };
 }
 
-function buildTidalHabitableZone({ parentKind, parentOverride, starHabitableZoneAu }) {
+function buildTidalHabitableZone({
+  parentKind,
+  parentOverride,
+  starHabitableZoneAu,
+  starMassMsol,
+}) {
   const parentRadiusKm =
     Math.max(toFinite(parentOverride?.derived?.radiusEarth, 0), 0.01) * EARTH_RADIUS_KM;
   const parentOrbitAu = Math.max(toFinite(parentOverride?.inputs?.semiMajorAxisAu, 0), 0.001);
   const hz = starHabitableZoneAu || fallbackHabitableZone();
   const starHzEligible = parentOrbitAu >= hz.inner && parentOrbitAu <= hz.outer;
+  const stabilityLimits = computeMoonStabilityLimits({
+    starMassMsol: Math.max(toFinite(starMassMsol, 1), 0.01),
+    planetMassEarth: Math.max(toFinite(parentOverride?.inputs?.massEarth, 0), 0.001),
+    planetSemiMajorAxisAu: parentOrbitAu,
+    moonInclinationDeg: 0,
+  });
   const baseInnerRp = parentKind === "gasGiant" ? 6 : 4;
   const baseOuterRp = parentKind === "gasGiant" ? 45 : 18;
   return {
     starHzEligible,
     innerKm: parentRadiusKm * baseInnerRp,
     outerKm: parentRadiusKm * baseOuterRp,
+    hillRadiusKm: stabilityLimits.hillRadiusKm,
+    stableOuterLimitKm: stabilityLimits.stableOuterLimitKm,
+    progradeStableOuterLimitKm: stabilityLimits.progradeStableOuterLimitKm,
+    retrogradeStableOuterLimitKm: stabilityLimits.retrogradeStableOuterLimitKm,
     notes: starHzEligible
       ? ["parent-in-stellar-habitable-zone"]
       : ["parent-outside-stellar-habitable-zone"],
@@ -157,7 +173,13 @@ function buildManualResonanceState(entries) {
   return byId;
 }
 
-function analyseSystemCoupling({ moonEntries, parentKind, parentOverride, starHabitableZoneAu }) {
+function analyseSystemCoupling({
+  moonEntries,
+  parentKind,
+  parentOverride,
+  starHabitableZoneAu,
+  starMassMsol,
+}) {
   const entries = moonEntries
     .map((entry) => ({ ...entry, inputs: normalizeMoonInputs(entry.inputs || entry) }))
     .sort((left, right) => left.inputs.semiMajorAxisKm - right.inputs.semiMajorAxisKm);
@@ -168,6 +190,7 @@ function analyseSystemCoupling({ moonEntries, parentKind, parentOverride, starHa
     parentKind,
     parentOverride,
     starHabitableZoneAu,
+    starMassMsol,
   });
 
   for (const entry of entries) {
@@ -338,6 +361,7 @@ export function solveMoonSystem({
     parentKind,
     parentOverride,
     starHabitableZoneAu,
+    starMassMsol,
   });
 
   return moonEntries.map((entry) => {
@@ -353,6 +377,7 @@ export function solveMoonSystem({
         parentKind,
         parentOverride,
         starHabitableZoneAu,
+        starMassMsol,
       }),
     };
     const model = calcMoonExact({

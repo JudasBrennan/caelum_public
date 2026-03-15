@@ -1,4 +1,5 @@
 import { createElement, replaceChildren } from "../../domHelpers.js";
+import { guidedSearchStatusLabel } from "../types.js";
 import { createArchetypeGrid } from "./archetypeGrid.js";
 import { createDiagnosticList } from "./diagnosticList.js";
 import { createGuidedQuestionStep } from "./questionStep.js";
@@ -53,6 +54,48 @@ function createStepRail({ steps = [], currentStepId = "", onStepSelect = null } 
   );
 }
 
+function createStatusSummary(status = null) {
+  const compileStatus = String(status?.compileStatus || "").trim();
+  const searchStatus = String(status?.searchStatus || "").trim();
+  const title = String(status?.title || "").trim();
+  const detail = String(status?.detail || "").trim();
+  const diagnostics = Array.isArray(status?.diagnostics) ? status.diagnostics : [];
+  const show =
+    !!title ||
+    !!detail ||
+    !!compileStatus ||
+    (!!searchStatus && searchStatus !== "complete" && searchStatus !== "idle") ||
+    diagnostics.length > 0;
+  if (!show) return null;
+
+  const rows = [];
+  if (compileStatus) {
+    rows.push(
+      createElement("div", { className: "guided-panel__status-row" }, [
+        createElement("b", { text: "Compile:" }),
+        " ",
+        guidedSearchStatusLabel(compileStatus),
+      ]),
+    );
+  }
+  if (searchStatus) {
+    rows.push(
+      createElement("div", { className: "guided-panel__status-row" }, [
+        createElement("b", { text: "Search:" }),
+        " ",
+        guidedSearchStatusLabel(searchStatus),
+      ]),
+    );
+  }
+
+  return createElement("div", { className: "guided-panel__status" }, [
+    title ? createElement("div", { className: "guided-panel__status-title", text: title }) : null,
+    rows.length ? createElement("div", { className: "guided-panel__status-rows" }, rows) : null,
+    detail ? createElement("div", { className: "guided-panel__status-detail", text: detail }) : null,
+    diagnostics.length ? createDiagnosticList({ diagnostics }) : null,
+  ]);
+}
+
 export function createGuidedPanel({
   title = "Guided Creation",
   subtitle = "",
@@ -64,7 +107,10 @@ export function createGuidedPanel({
   answers = {},
   recommendation = null,
   previewContent = null,
+  status = null,
   visibleSections = null,
+  typeSupplement = null,
+  statusSectionTitle = "Status",
   typeSectionTitle = "Type",
   questionSectionTitle = "Questions",
   recommendationSectionTitle = "Recommendation",
@@ -75,9 +121,11 @@ export function createGuidedPanel({
   onStepSelect = null,
   onAction = null,
 } = {}) {
+  const statusSummary = createStatusSummary(status);
   const sectionVisibility = {
     type: visibleSections?.type !== false,
     questions: visibleSections?.questions !== false,
+    status: visibleSections?.status !== false && !!statusSummary,
     recommendation: visibleSections?.recommendation !== false,
     diagnostics: visibleSections?.diagnostics !== false,
   };
@@ -110,14 +158,20 @@ export function createGuidedPanel({
     ]),
     createElement("div", { className: "panel__body guided-panel__body" }, [
       createStepRail({ steps, currentStepId, onStepSelect }),
+      sectionVisibility.status
+        ? createSection(statusSectionTitle, statusSummary)
+        : null,
       sectionVisibility.type
         ? createSection(
             typeSectionTitle,
-            createArchetypeGrid({
-              archetypes,
-              selectedId: selectedArchetypeId,
-              onSelect: onArchetypeSelect,
-            }),
+            createElement("div", { className: "guided-panel__type-content" }, [
+              typeSupplement,
+              createArchetypeGrid({
+                archetypes,
+                selectedId: selectedArchetypeId,
+                onSelect: onArchetypeSelect,
+              }),
+            ]),
           )
         : null,
       sectionVisibility.questions && Array.isArray(questions) && questions.length

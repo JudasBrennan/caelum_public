@@ -1,4 +1,10 @@
 import { ROCKY_RECIPES } from "../../rockyPlanetStyles.js";
+import { compileGuidedGoal } from "../goalCompiler.js";
+import {
+  getGoalTemplate,
+  getGoalTrait,
+  listGoalTemplates,
+} from "../goalTraits.js";
 import { getGuidedAdapter, registerGuidedAdapter } from "../registry.js";
 
 const ROCKY_GUIDED_ARCHETYPES = Object.freeze([
@@ -145,6 +151,131 @@ const ROCKY_GUIDED_ARCHETYPES = Object.freeze([
   },
 ]);
 
+const GOAL_PRIORITY_OPTIONS = Object.freeze([
+  {
+    value: "maximize-realism",
+    label: "Maximize realism",
+    description: "Favor the most conservative physically defensible fit.",
+  },
+  {
+    value: "maximize-habitability",
+    label: "Maximize habitability",
+    description: "Push harder toward surface-water and life-friendly states.",
+  },
+  {
+    value: "preserve-current-system",
+    label: "Preserve current system",
+    description: "Stay closer to the current star and orbit context where possible.",
+  },
+  {
+    value: "preserve-current-orbit-context",
+    label: "Preserve current orbit",
+    description: "Prefer smaller orbital changes even if the fit is weaker.",
+  },
+]);
+
+const GOAL_ALLOWED_EDIT_OPTIONS = Object.freeze([
+  {
+    value: "edit-object-only",
+    label: "Planet only",
+    description: "Search only within the current rocky-world inputs.",
+  },
+  {
+    value: "edit-object-plus-host",
+    label: "Planet + host context",
+    description: "Allow orbit refits relative to the current stellar context.",
+  },
+  {
+    value: "edit-object-plus-local-system",
+    label: "Planet + local system",
+    description: "Allow the broadest seeded search in this pilot flow.",
+  },
+]);
+
+const GOAL_SEARCH_BUDGET_OPTIONS = Object.freeze([
+  {
+    value: "fast",
+    label: "Fast",
+    description: "Try a small seeded search for a quick answer.",
+  },
+  {
+    value: "balanced",
+    label: "Balanced",
+    description: "Try more seeded candidates before choosing the best fit.",
+  },
+  {
+    value: "deep",
+    label: "Deep",
+    description: "Try the broadest seeded search available in this pilot flow.",
+  },
+]);
+
+const ROCKY_GOAL_TEMPLATE_META = Object.freeze({
+  "habitable-rocky-world": {
+    confidenceClass: "defensible",
+    seedArchetypeIds: ["earthlike-rocky-planet", "tropical-jungle-planet", "ocean-world-planet"],
+    focusTraits: [
+      "surface-liquid-water",
+      "in-habitable-zone",
+      "breathable-oxygen-window",
+      "high-habitability",
+      "high-esi",
+      "magnetosphere-present",
+      "mixed-land-ocean",
+      "runaway-greenhouse",
+      "snowball-state",
+      "airless-surface",
+      "tidal-lock",
+    ],
+  },
+  "desert-world": {
+    confidenceClass: "plausible",
+    seedArchetypeIds: ["arid-steppe-planet", "marslike-desert-planet", "airless-rocky-planet"],
+    focusTraits: [
+      "surface-liquid-water",
+      "retained-atmosphere",
+      "runaway-greenhouse",
+      "snowball-state",
+      "airless-surface",
+    ],
+  },
+  "ocean-world": {
+    confidenceClass: "plausible",
+    seedArchetypeIds: ["ocean-world-planet", "earthlike-rocky-planet", "tropical-jungle-planet"],
+    focusTraits: [
+      "surface-liquid-water",
+      "in-habitable-zone",
+      "breathable-oxygen-window",
+      "high-habitability",
+      "mixed-land-ocean",
+      "runaway-greenhouse",
+      "snowball-state",
+      "airless-surface",
+    ],
+  },
+  "venus-like-world": {
+    confidenceClass: "defensible",
+    seedArchetypeIds: ["venuslike-greenhouse-planet", "lava-planet"],
+    focusTraits: [
+      "runaway-greenhouse",
+      "airless-surface",
+      "surface-liquid-water",
+      "in-habitable-zone",
+    ],
+  },
+  "mars-like-world": {
+    confidenceClass: "defensible",
+    seedArchetypeIds: ["marslike-desert-planet", "airless-rocky-planet", "snowball-planet"],
+    focusTraits: [
+      "surface-liquid-water",
+      "retained-atmosphere",
+      "snowball-state",
+      "airless-surface",
+      "in-habitable-zone",
+    ],
+  },
+});
+
 const ORBIT_POLICY_OPTIONS = Object.freeze([
   {
     value: "keep-current",
@@ -220,6 +351,197 @@ function normalizeText(value) {
   return String(value || "")
     .trim()
     .toLowerCase();
+}
+
+function toFiniteNumber(value, fallback = NaN) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function goalTraitSelected(compiledGoal = {}, traitId = "") {
+  return (
+    (compiledGoal?.requiredTraits || []).includes(traitId) ||
+    (compiledGoal?.preferredTraits || []).includes(traitId)
+  );
+}
+
+function goalTraitAvoided(compiledGoal = {}, traitId = "") {
+  return (compiledGoal?.avoidTraits || []).includes(traitId);
+}
+
+function traitRoleQuestionId(traitId) {
+  return `traitRole:${String(traitId || "").trim()}`;
+}
+
+function getRockyGoalTemplateMeta(goalTemplateId) {
+  return ROCKY_GOAL_TEMPLATE_META[String(goalTemplateId || "").trim()] || {
+    confidenceClass: "plausible",
+    seedArchetypeIds: ["earthlike-rocky-planet"],
+    focusTraits: [],
+  };
+}
+
+function mapRockyGoalTemplateToCard(template) {
+  const meta = getRockyGoalTemplateMeta(template?.id);
+  return {
+    id: template?.id || "",
+    objectType: "rockyPlanet",
+    label: template?.label || "Rocky goal",
+    shortLabel: template?.label || "Rocky goal",
+    summary: template?.summary || "",
+    confidenceClass: meta.confidenceClass,
+    quickEnabled: false,
+    guidedEnabled: true,
+    tags: [...(template?.requiredTraits || []), ...(template?.preferredTraits || [])]
+      .slice(0, 4)
+      .map((traitId) => getGoalTrait(traitId)?.label || traitId),
+  };
+}
+
+function listRockyGoalTemplateCards() {
+  return listGoalTemplates("rockyPlanet").map((template) => mapRockyGoalTemplateToCard(template));
+}
+
+function defaultRockyGoalDraft(goalTemplateId = "") {
+  const template = getGoalTemplate("rockyPlanet", goalTemplateId);
+  const traitRoles = {};
+  for (const traitId of template?.requiredTraits || []) traitRoles[traitId] = "required";
+  for (const traitId of template?.preferredTraits || []) {
+    if (!traitRoles[traitId]) traitRoles[traitId] = "preferred";
+  }
+  for (const traitId of template?.avoidTraits || []) {
+    if (!traitRoles[traitId]) traitRoles[traitId] = "avoid";
+  }
+  return {
+    priority: template?.defaultPriority || "maximize-realism",
+    allowedEdits: template?.defaultAllowedEdits || "edit-object-only",
+    searchBudget: template?.defaultSearchBudget || "balanced",
+    traitRoles,
+  };
+}
+
+function normalizeRockyGoalDraft(flowState = {}) {
+  const base = defaultRockyGoalDraft(flowState?.selectedGoalTemplateId);
+  const goalDraft =
+    flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+      ? flowState.goalDraft
+      : {};
+  const nextTraitRoles =
+    goalDraft.traitRoles && typeof goalDraft.traitRoles === "object" && !Array.isArray(goalDraft.traitRoles)
+      ? { ...base.traitRoles, ...goalDraft.traitRoles }
+      : { ...base.traitRoles };
+  return {
+    priority: goalDraft.priority || base.priority,
+    allowedEdits: goalDraft.allowedEdits || base.allowedEdits,
+    searchBudget: goalDraft.searchBudget || base.searchBudget,
+    traitRoles: nextTraitRoles,
+  };
+}
+
+function buildRockyGoalDraftQuestionOptions(traitId) {
+  const trait = getGoalTrait(traitId);
+  const allowedRoles = Array.isArray(trait?.allowedRoles) ? trait.allowedRoles : [];
+  const options = [
+    {
+      value: "off",
+      label: "Off",
+      description: "Do not explicitly optimize for or avoid this trait.",
+    },
+  ];
+  if (allowedRoles.includes("required")) {
+    options.push({
+      value: "required",
+      label: "Must have",
+      description: "Treat this as a hard constraint in the search.",
+    });
+  }
+  if (allowedRoles.includes("preferred")) {
+    options.push({
+      value: "preferred",
+      label: "Prefer",
+      description: "Improve the score when this trait is reached.",
+    });
+  }
+  if (allowedRoles.includes("avoid")) {
+    options.push({
+      value: "avoid",
+      label: "Avoid",
+      description: "Penalize results that trigger this trait.",
+    });
+  }
+  return options;
+}
+
+function buildRockyGoalQuestions(flowState, context = {}) {
+  const template = getGoalTemplate("rockyPlanet", flowState?.selectedGoalTemplateId);
+  if (!template) return [];
+  const draft = normalizeRockyGoalDraft(flowState);
+  const focusTraits = getRockyGoalTemplateMeta(template.id).focusTraits;
+  return [
+    {
+      id: "priority",
+      stepId: "orbit-context",
+      kind: "choice",
+      label: "Priority",
+      help:
+        context.currentContextText ||
+        "Choose whether this search should favor realism, habitability, or preserving the current orbit context.",
+      defaultValue: draft.priority,
+      options: GOAL_PRIORITY_OPTIONS.map((entry) => ({ ...entry })),
+    },
+    {
+      id: "allowedEdits",
+      stepId: "orbit-context",
+      kind: "choice",
+      label: "Allowed edits",
+      help: "Decide whether the search may only retune this rocky world or make broader local changes.",
+      defaultValue: draft.allowedEdits,
+      options: GOAL_ALLOWED_EDIT_OPTIONS.map((entry) => ({ ...entry })),
+    },
+    {
+      id: "searchBudget",
+      stepId: "orbit-context",
+      kind: "choice",
+      label: "Search budget",
+      help: "Controls how many seeded candidate paths this pilot goal search will try.",
+      defaultValue: draft.searchBudget,
+      options: GOAL_SEARCH_BUDGET_OPTIONS.map((entry) => ({ ...entry })),
+    },
+    ...focusTraits
+      .map((traitId) => getGoalTrait(traitId))
+      .filter(Boolean)
+      .map((trait) => ({
+        id: traitRoleQuestionId(trait.id),
+        stepId: "goal-details",
+        kind: "select",
+        label: trait.label,
+        help: trait.description,
+        defaultValue: draft.traitRoles?.[trait.id] || "off",
+        options: buildRockyGoalDraftQuestionOptions(trait.id),
+      })),
+  ];
+}
+
+function buildRockyGoalCompileInput(flowState = {}) {
+  const draft = normalizeRockyGoalDraft(flowState);
+  const requiredTraits = [];
+  const preferredTraits = [];
+  const avoidTraits = [];
+  for (const [traitId, role] of Object.entries(draft.traitRoles || {})) {
+    if (role === "required") requiredTraits.push(traitId);
+    else if (role === "preferred") preferredTraits.push(traitId);
+    else if (role === "avoid") avoidTraits.push(traitId);
+  }
+  return {
+    objectType: "rockyPlanet",
+    goalTemplateId: flowState?.selectedGoalTemplateId || "",
+    priority: draft.priority,
+    allowedEdits: draft.allowedEdits,
+    searchBudget: draft.searchBudget,
+    requiredTraits,
+    preferredTraits,
+    avoidTraits,
+  };
 }
 
 function includesAny(value, patterns = []) {
@@ -765,78 +1087,400 @@ function collectScienceModes(applyInputs = {}) {
   return { greenhouseMode: applyInputs.greenhouseMode || "manual" };
 }
 
+function solveRockyRecommendationFromArchetype(archetype, flowState, context = {}, answersOverride = null) {
+  if (!archetype) return null;
+
+  const recipe = getRecipeForArchetype(archetype.id, context);
+  if (!recipe) return null;
+
+  const answers = answersOverride || resolveRockyGuidedAnswers(archetype, flowState);
+  const applyInputs =
+    flowState?.uxMode === "guided"
+      ? tuneRockyApplyInputs(archetype, recipe, answers, context)
+      : buildRockyRecipeApplyInputs(
+          {
+            ...recipe.apply,
+            ...archetype.recommendedScienceModes,
+          },
+          recipe.id,
+          context.currentInputs,
+        );
+
+  let solved = null;
+  if (typeof context.solvePlanetInputs === "function") {
+    try {
+      solved = context.solvePlanetInputs(applyInputs) || null;
+    } catch (error) {
+      solved = {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Rocky quick-type solve failed for this context.",
+      };
+    }
+  }
+
+  return {
+    objectType: "rockyPlanet",
+    archetypeId: archetype.id,
+    confidenceClass: archetype.confidenceClass,
+    title: archetype.label,
+    summary: buildSummary(archetype, recipe, solved, answers, flowState?.uxMode),
+    scienceModeRecommendation: collectScienceModes(applyInputs),
+    applyPayload: {
+      objectInputs: applyInputs,
+      parentPatch: null,
+      siblingPatch: null,
+    },
+    previewPayload:
+      solved?.model && typeof solved.model === "object"
+        ? {
+            bodyType: "rockyPlanet",
+            name: context.currentPlanetName || recipe.label || archetype.label,
+            recipeId: recipe.id,
+            planetCalc: solved.model,
+          }
+        : null,
+    diagnostics: buildRockyDiagnostics(archetype, recipe, solved, answers, flowState, context),
+    rationale: buildRationale(archetype, answers, context),
+    nextActions: [...(archetype.nextActions || [])],
+  };
+}
+
+function rockySearchCandidateCap(searchBudget = "balanced") {
+  switch (String(searchBudget || "")) {
+    case "fast":
+      return 2;
+    case "deep":
+      return 6;
+    case "balanced":
+    default:
+      return 4;
+  }
+}
+
+function deriveRockyGoalSeedAnswers(compiledGoal = {}, archetypeId = "") {
+  const answers = { ...getRockyGuidedDefaults(archetypeId) };
+  if (goalTraitSelected(compiledGoal, "in-habitable-zone")) {
+    answers.orbit_policy = "fit-habitable-zone";
+  } else if (
+    String(compiledGoal?.priority || "") === "preserve-current-orbit-context" ||
+    String(compiledGoal?.allowedEdits || "") === "edit-object-only"
+  ) {
+    answers.orbit_policy = "keep-current";
+  } else if (archetypeId === "venuslike-greenhouse-planet" || archetypeId === "lava-planet") {
+    answers.orbit_policy = "use-archetype";
+  }
+
+  if (goalTraitSelected(compiledGoal, "surface-liquid-water")) {
+    answers.water_target = goalTraitSelected(compiledGoal, "mixed-land-ocean") ? "mixed" : "ocean";
+  } else if (goalTraitAvoided(compiledGoal, "surface-liquid-water")) {
+    answers.water_target = "dry";
+  }
+
+  if (goalTraitSelected(compiledGoal, "breathable-oxygen-window")) {
+    answers.atmosphere_target = "breathable";
+  } else if (goalTraitAvoided(compiledGoal, "airless-surface")) {
+    answers.atmosphere_target = "dense";
+  } else if (goalTraitAvoided(compiledGoal, "runaway-greenhouse")) {
+    answers.atmosphere_target = "thin";
+  } else if (archetypeId === "venuslike-greenhouse-planet" || archetypeId === "lava-planet") {
+    answers.atmosphere_target = "greenhouse";
+  }
+
+  if (
+    goalTraitSelected(compiledGoal, "high-habitability") ||
+    goalTraitSelected(compiledGoal, "high-esi") ||
+    goalTraitSelected(compiledGoal, "breathable-oxygen-window")
+  ) {
+    answers.life_goal = "rich-biosphere";
+  } else if (goalTraitSelected(compiledGoal, "surface-liquid-water")) {
+    answers.life_goal = "simple-biosphere";
+  } else {
+    answers.life_goal = "sterile";
+  }
+
+  return answers;
+}
+
+function buildRockyGoalSearchCandidates(compiledGoal = {}) {
+  const templateMeta = getRockyGoalTemplateMeta(compiledGoal.goalTemplateId);
+  return [...new Set(templateMeta.seedArchetypeIds || [])]
+    .map((archetypeId) => ({
+      archetypeId,
+      answers: deriveRockyGoalSeedAnswers(compiledGoal, archetypeId),
+    }))
+    .slice(0, rockySearchCandidateCap(compiledGoal.searchBudget));
+}
+
+function evaluateRockyGoalTrait(traitId, recommendation = {}) {
+  const model = recommendation?.previewPayload?.planetCalc || {};
+  const display = model.display || {};
+  const derived = model.derived || {};
+  const inputs = model.inputs || {};
+  const pressureAtm = Math.max(toFiniteNumber(inputs.pressureAtm, 0), 0);
+  const ppO2Atm = Math.max(toFiniteNumber(derived.ppO2Atm, 0), 0);
+  const habitability = toFiniteNumber(derived.habitabilityIndex ?? display.habitabilityIndex, 0);
+  const esi = toFiniteNumber(derived.earthSimilarityIndex ?? display.earthSimilarityIndex, 0);
+  const waterRegime = normalizeText(display.waterRegime);
+  const climateState = normalizeText(display.climateState);
+  const tectonics = normalizeText(display.tectonicRegime || derived.tectonicRegime);
+  const tidalLock = normalizeText(display.tidalLock);
+  const magnetosphere = normalizeText(display.magnetosphere);
+
+  switch (traitId) {
+    case "surface-liquid-water":
+      return !includesAny(waterRegime, ["dry", "ice"]);
+    case "retained-atmosphere":
+      return pressureAtm >= 0.05;
+    case "in-habitable-zone":
+      return derived.inHabitableZone === true;
+    case "breathable-oxygen-window":
+      return pressureAtm >= 0.5 && pressureAtm <= 5 && ppO2Atm >= 0.12 && ppO2Atm <= 0.5;
+    case "tectonically-active":
+      return tectonics && !includesAny(tectonics, ["stagnant"]);
+    case "high-habitability":
+      return habitability >= 0.6;
+    case "high-esi":
+      return esi >= 0.75;
+    case "magnetosphere-present":
+      return magnetosphere && !includesAny(magnetosphere, ["none"]);
+    case "mixed-land-ocean":
+      return !includesAny(waterRegime, ["dry", "global ocean", "deep ocean", "ice"]);
+    case "tidal-lock":
+      return includesAny(tidalLock, ["synchronous", "1:1"]);
+    case "snowball-state":
+      return includesAny(climateState, ["snowball"]) || includesAny(waterRegime, ["ice"]);
+    case "runaway-greenhouse":
+      return includesAny(climateState, ["runaway", "greenhouse"]);
+    case "airless-surface":
+      return pressureAtm < 0.02;
+    default:
+      return false;
+  }
+}
+
+function scoreRockyGoalRecommendation(compiledGoal = {}, recommendation = {}, context = {}) {
+  const evaluationPlan = compiledGoal?.evaluationPlan || {};
+  const matchedRequired = [];
+  const missingRequired = [];
+  const matchedPreferred = [];
+  const triggeredAvoid = [];
+  let score = 0;
+
+  for (const entry of evaluationPlan.hardConstraints || []) {
+    if (evaluateRockyGoalTrait(entry.traitId, recommendation)) {
+      matchedRequired.push(entry.traitId);
+      score += 6;
+    } else {
+      missingRequired.push(entry.traitId);
+      score -= 10;
+    }
+  }
+
+  for (const entry of evaluationPlan.preferredTraits || []) {
+    if (evaluateRockyGoalTrait(entry.traitId, recommendation)) {
+      matchedPreferred.push(entry.traitId);
+      score += Number(entry.weight) || 1;
+    }
+  }
+
+  for (const entry of evaluationPlan.avoidTraits || []) {
+    if (evaluateRockyGoalTrait(entry.traitId, recommendation)) {
+      triggeredAvoid.push(entry.traitId);
+      score -= Number(entry.penalty) || 1;
+    }
+  }
+
+  const currentOrbitAu = toFiniteNumber(context?.currentInputs?.semiMajorAxisAu, NaN);
+  const nextOrbitAu = toFiniteNumber(recommendation?.applyPayload?.objectInputs?.semiMajorAxisAu, NaN);
+  const orbitPenalty =
+    Number.isFinite(currentOrbitAu) && currentOrbitAu > 0 && Number.isFinite(nextOrbitAu)
+      ? Math.min(Math.abs(nextOrbitAu - currentOrbitAu) / currentOrbitAu, 2)
+      : 0;
+  score -= (Number(evaluationPlan.orbitDeviationWeight) || 1) * orbitPenalty;
+
+  return {
+    score,
+    matchedRequired,
+    missingRequired,
+    matchedPreferred,
+    triggeredAvoid,
+    fitClass:
+      missingRequired.length === 0 && triggeredAvoid.length === 0
+        ? "exact-match"
+        : missingRequired.length
+          ? "near-miss"
+          : "tradeoff",
+  };
+}
+
+function buildRockyGoalSearchDiagnostics(compiledGoal = {}, scoring = {}, searchMeta = {}) {
+  const diagnostics = [];
+  const matchedRequired = (scoring?.matchedRequired || []).map((traitId) => getGoalTrait(traitId)?.label || traitId);
+  const missingRequired = (scoring?.missingRequired || []).map((traitId) => getGoalTrait(traitId)?.label || traitId);
+  const triggeredAvoid = (scoring?.triggeredAvoid || []).map((traitId) => getGoalTrait(traitId)?.label || traitId);
+
+  pushDiagnostic(
+    diagnostics,
+    "info",
+    "goal-search-seed",
+    "Goal search seed",
+    `Best seeded fit came from ${searchMeta.seedLabel || "a rocky archetype"} after trying ${searchMeta.candidatesTried || 0} candidate paths.`,
+    [],
+  );
+
+  if (!missingRequired.length && !triggeredAvoid.length) {
+    pushDiagnostic(
+      diagnostics,
+      "info",
+      "goal-fit-exact",
+      "Goal fit reached",
+      `${compiledGoal.templateLabel || "This goal"} reached all required traits${matchedRequired.length ? ` (${matchedRequired.join(", ")})` : ""}.`,
+      [],
+    );
+    return diagnostics;
+  }
+
+  pushDiagnostic(
+    diagnostics,
+    missingRequired.length ? "warning" : "info",
+    "goal-fit-near-miss",
+    "Goal search found the closest fit",
+    [
+      missingRequired.length ? `Still missing: ${missingRequired.join(", ")}.` : "",
+      triggeredAvoid.length ? `Still triggers: ${triggeredAvoid.join(", ")}.` : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
+    [
+      "Treat this as a strong starting point, then refine the Planet page inputs if you need a tighter fit.",
+    ],
+  );
+  return diagnostics;
+}
+
+async function startRockyGoalSearch(compiledGoal = null, flowState = {}, context = {}, job = {}) {
+  if (!compiledGoal?.goalTemplateId) {
+    return {
+      recommendation: null,
+      terminationReason: "missing-goal-template",
+    };
+  }
+
+  const template = getGoalTemplate("rockyPlanet", compiledGoal.goalTemplateId);
+  const candidates = buildRockyGoalSearchCandidates(compiledGoal);
+  let bestResult = null;
+  let tried = 0;
+
+  for (const candidate of candidates) {
+    job?.throwIfCanceled?.();
+    await Promise.resolve();
+
+    const archetype = getRockyArchetype(candidate.archetypeId);
+    const recommendation = solveRockyRecommendationFromArchetype(
+      archetype,
+      { ...flowState, uxMode: "guided" },
+      context,
+      candidate.answers,
+    );
+    if (!recommendation) continue;
+    tried += 1;
+
+    const scoring = scoreRockyGoalRecommendation(compiledGoal, recommendation, context);
+    if (!bestResult || scoring.score > bestResult.scoring.score) {
+      bestResult = {
+        recommendation,
+        scoring,
+        seedLabel: archetype?.label || candidate.archetypeId,
+      };
+      if (scoring.fitClass === "exact-match" && String(compiledGoal.searchBudget || "") === "fast") {
+        break;
+      }
+    }
+  }
+
+  if (!bestResult) {
+    return {
+      recommendation: null,
+      terminationReason: "no-candidates",
+    };
+  }
+
+  const diagnostics = [
+    ...buildRockyGoalSearchDiagnostics(compiledGoal, bestResult.scoring, {
+      seedLabel: bestResult.seedLabel,
+      candidatesTried: tried,
+    }),
+    ...(bestResult.recommendation.diagnostics || []),
+  ];
+
+  return {
+    recommendation: {
+      ...bestResult.recommendation,
+      title: template?.label || bestResult.recommendation.title,
+      confidenceClass: getRockyGoalTemplateMeta(compiledGoal.goalTemplateId).confidenceClass,
+      summary:
+        `${template?.summary || bestResult.recommendation.summary} ` +
+        `Seeded from ${bestResult.seedLabel}.`,
+      diagnostics,
+      rationale: [
+        `Goal search tried ${tried} seeded rocky-world paths and selected ${bestResult.seedLabel}.`,
+        ...(bestResult.recommendation.rationale || []),
+      ],
+      nextActions: [
+        ...(bestResult.recommendation.nextActions || []),
+        "Re-run the search after changing traits or allowed edits if you want a different trade-off.",
+      ],
+      goalTemplateId: compiledGoal.goalTemplateId,
+      fitClass: bestResult.scoring.fitClass,
+    },
+    terminationReason:
+      bestResult.scoring.fitClass === "exact-match" ? "goal-fit-exact" : "goal-fit-near-miss",
+  };
+}
+
 export const rockyPlanetGuidedAdapter = {
   objectType: "rockyPlanet",
 
-  listArchetypes() {
+  listArchetypes(_context = {}, flowState = {}) {
+    if (flowState?.uxMode === "guided") return listRockyGoalTemplateCards();
     return ROCKY_GUIDED_ARCHETYPES.map((entry) => ({ ...entry }));
   },
 
   buildQuestions(flowState, context = {}) {
+    if (flowState?.uxMode === "guided" && flowState?.selectedGoalTemplateId) {
+      return buildRockyGoalQuestions(flowState, context);
+    }
     const archetype = getRockyArchetype(flowState?.selectedArchetypeId);
     if (!archetype || flowState?.uxMode !== "guided") return [];
     return buildRockyQuestions(archetype, context);
   },
 
+  compileGoal(flowState) {
+    if (!flowState?.selectedGoalTemplateId) {
+      return {
+        valid: false,
+        diagnostics: [
+          {
+            severity: "blocked",
+            code: "missing-goal-template",
+            title: "Choose a rocky-world goal",
+            detail: "Pick a rocky-world goal template before compiling the search target.",
+          },
+        ],
+      };
+    }
+    return compileGuidedGoal(buildRockyGoalCompileInput(flowState));
+  },
+
   solveRecommendation(flowState, context = {}) {
     const archetype = getRockyArchetype(flowState?.selectedArchetypeId);
-    if (!archetype) return null;
+    return solveRockyRecommendationFromArchetype(archetype, flowState, context);
+  },
 
-    const recipe = getRecipeForArchetype(archetype.id, context);
-    if (!recipe) return null;
-
-    const answers = resolveRockyGuidedAnswers(archetype, flowState);
-    const applyInputs =
-      flowState?.uxMode === "guided"
-        ? tuneRockyApplyInputs(archetype, recipe, answers, context)
-        : buildRockyRecipeApplyInputs(
-            {
-              ...recipe.apply,
-              ...archetype.recommendedScienceModes,
-            },
-            recipe.id,
-            context.currentInputs,
-          );
-
-    let solved = null;
-    if (typeof context.solvePlanetInputs === "function") {
-      try {
-        solved = context.solvePlanetInputs(applyInputs) || null;
-      } catch (error) {
-        solved = {
-          error:
-            error instanceof Error
-              ? error.message
-              : "Rocky quick-type solve failed for this context.",
-        };
-      }
-    }
-
-    return {
-      objectType: "rockyPlanet",
-      archetypeId: archetype.id,
-      confidenceClass: archetype.confidenceClass,
-      title: archetype.label,
-      summary: buildSummary(archetype, recipe, solved, answers, flowState?.uxMode),
-      scienceModeRecommendation: collectScienceModes(applyInputs),
-      applyPayload: {
-        objectInputs: applyInputs,
-        parentPatch: null,
-        siblingPatch: null,
-      },
-      previewPayload:
-        solved?.model && typeof solved.model === "object"
-          ? {
-              bodyType: "rockyPlanet",
-              name: context.currentPlanetName || recipe.label || archetype.label,
-              recipeId: recipe.id,
-              planetCalc: solved.model,
-            }
-          : null,
-      diagnostics: buildRockyDiagnostics(archetype, recipe, solved, answers, flowState, context),
-      rationale: buildRationale(archetype, answers, context),
-      nextActions: [...(archetype.nextActions || [])],
-    };
+  startSearch(compiledGoal, flowState, context, job) {
+    return startRockyGoalSearch(compiledGoal, flowState, context, job);
   },
 
   applyRecommendation(recommendation, storeContext = {}) {

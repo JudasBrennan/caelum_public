@@ -2,12 +2,23 @@ export const GUIDED_CONFIDENCE_CLASSES = ["defensible", "plausible", "speculativ
 export const GUIDED_DIAGNOSTIC_SEVERITIES = ["blocked", "warning", "info"];
 export const GUIDED_QUESTION_KINDS = ["choice", "number", "toggle", "select"];
 export const GUIDED_UX_MODES = ["quick", "guided", "advanced"];
+export const GUIDED_SEARCH_STATUSES = [
+  "idle",
+  "needs-compile",
+  "ready",
+  "searching",
+  "complete",
+  "canceled",
+  "stale",
+  "error",
+];
 
 /**
  * @typedef {"defensible" | "plausible" | "speculative"} GuidedConfidenceClass
  * @typedef {"blocked" | "warning" | "info"} GuidedDiagnosticSeverity
  * @typedef {"choice" | "number" | "toggle" | "select"} GuidedQuestionKind
  * @typedef {"quick" | "guided" | "advanced"} GuidedUxMode
+ * @typedef {"idle" | "needs-compile" | "ready" | "searching" | "complete" | "canceled" | "stale" | "error"} GuidedSearchStatus
  *
  * @typedef {object} GuidedDiagnostic
  * @property {GuidedDiagnosticSeverity} [severity]
@@ -40,6 +51,24 @@ export const GUIDED_UX_MODES = ["quick", "guided", "advanced"];
  * @property {object | null} [parentPatch]
  * @property {object | null} [siblingPatch]
  *
+ * @typedef {object} GuidedCompiledGoal
+ * @property {string} [objectType]
+ * @property {string | null} [goalTemplateId]
+ * @property {string | null} [archetypeId]
+ * @property {object} [goalDraft]
+ * @property {object} [answers]
+ *
+ * @typedef {object} GuidedSearchResult
+ * @property {GuidedSearchStatus} [status]
+ * @property {string} [jobId]
+ * @property {number} [generation]
+ * @property {GuidedCompiledGoal | null} [compiledGoal]
+ * @property {GuidedRecommendation | null} [recommendation]
+ * @property {string} [contextFingerprint]
+ * @property {string} [engineFingerprint]
+ * @property {string} [terminationReason]
+ * @property {string} [error]
+ *
  * @typedef {object} GuidedRecommendation
  * @property {string} [objectType]
  * @property {string} [archetypeId]
@@ -68,13 +97,18 @@ export const GUIDED_UX_MODES = ["quick", "guided", "advanced"];
  * @property {object} [recommendedScienceModes]
  * @property {(context: object) => object} [buildSeed]
  * @property {(context: object) => GuidedQuestionDescriptor[]} [buildQuestions]
+ * @property {(flowState: object, context: object) => object | null} [compileGoal]
  * @property {(flowState: object, context: object) => GuidedRecommendation | null} [solveRecommendation]
+ * @property {(compiledGoal: GuidedCompiledGoal | null, flowState: object, context: object, job: object) => Promise<GuidedRecommendation | null> | GuidedRecommendation | null} [startSearch]
  *
  * @typedef {object} GuidedAdapter
  * @property {string} objectType
+ * @property {"eager" | "manual"} [searchMode]
  * @property {(context: object, flowState?: object) => GuidedArchetypeDescriptor[]} listArchetypes
  * @property {(flowState: object, context: object) => GuidedQuestionDescriptor[]} buildQuestions
+ * @property {(flowState: object, context: object) => object | null} [compileGoal]
  * @property {(flowState: object, context: object) => GuidedRecommendation | null} solveRecommendation
+ * @property {(compiledGoal: GuidedCompiledGoal | null, flowState: object, context: object, job: object) => Promise<GuidedRecommendation | null> | GuidedRecommendation | null} [startSearch]
  * @property {(recommendation: GuidedRecommendation | null, storeContext?: object, context?: object, flowState?: object) => unknown} applyRecommendation
  */
 
@@ -101,6 +135,10 @@ export function normalizeGuidedUxMode(value) {
   return normalizeValue(value, GUIDED_UX_MODES, "guided");
 }
 
+export function normalizeGuidedSearchStatus(value) {
+  return normalizeValue(value, GUIDED_SEARCH_STATUSES, "idle");
+}
+
 export function guidedConfidenceLabel(confidenceClass) {
   switch (normalizeGuidedConfidenceClass(confidenceClass)) {
     case "defensible":
@@ -122,5 +160,27 @@ export function guidedDiagnosticSeverityLabel(severity) {
     case "info":
     default:
       return "Info";
+  }
+}
+
+export function guidedSearchStatusLabel(status) {
+  switch (normalizeGuidedSearchStatus(status)) {
+    case "needs-compile":
+      return "Needs Compile";
+    case "ready":
+      return "Ready";
+    case "searching":
+      return "Searching";
+    case "complete":
+      return "Complete";
+    case "canceled":
+      return "Canceled";
+    case "stale":
+      return "Stale";
+    case "error":
+      return "Error";
+    case "idle":
+    default:
+      return "Idle";
   }
 }

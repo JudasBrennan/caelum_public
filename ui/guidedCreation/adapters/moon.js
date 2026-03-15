@@ -1,6 +1,12 @@
 import { normalizeMoonInputs } from "../../../engine/moon/config.js";
 import { fmt } from "../../../engine/utils.js";
 import { MOON_RECIPES } from "../../moonStyles.js";
+import { compileGuidedGoal } from "../goalCompiler.js";
+import {
+  getGoalTemplate,
+  getGoalTrait,
+  listGoalTemplates,
+} from "../goalTraits.js";
 import { getGuidedAdapter, registerGuidedAdapter } from "../registry.js";
 
 const MOON_GUIDED_ARCHETYPES = Object.freeze([
@@ -162,10 +168,329 @@ const MOON_GUIDED_ARCHETYPES = Object.freeze([
   },
 ]);
 
+const GOAL_PRIORITY_OPTIONS = Object.freeze([
+  {
+    value: "maximize-realism",
+    label: "Maximize realism",
+    description: "Bias toward the most conservative science-backed fit.",
+  },
+  {
+    value: "maximize-habitability",
+    label: "Maximize habitability",
+    description: "Push harder toward ocean, atmosphere, and biosphere-friendly outcomes.",
+  },
+  {
+    value: "preserve-current-system",
+    label: "Preserve current system",
+    description: "Favor the current parent and moon-system context where possible.",
+  },
+  {
+    value: "preserve-current-orbit-context",
+    label: "Preserve current orbit",
+    description: "Prefer smaller orbital changes even if the fit is weaker.",
+  },
+]);
+
+const GOAL_ALLOWED_EDIT_OPTIONS = Object.freeze([
+  {
+    value: "edit-object-only",
+    label: "Moon only",
+    description: "Search only within the selected moon's own inputs.",
+  },
+  {
+    value: "edit-object-plus-host",
+    label: "Moon + host",
+    description: "Allow guided host fixes when the current parent blocks the goal.",
+  },
+  {
+    value: "edit-object-plus-local-system",
+    label: "Moon + local system",
+    description: "Allow host and sibling-moon edits for resonance-backed outcomes.",
+  },
+]);
+
+const GOAL_SEARCH_BUDGET_OPTIONS = Object.freeze([
+  {
+    value: "fast",
+    label: "Fast",
+    description: "Try a small seeded search for a quick answer.",
+  },
+  {
+    value: "balanced",
+    label: "Balanced",
+    description: "Try more seeded paths before choosing the best fit.",
+  },
+  {
+    value: "deep",
+    label: "Deep",
+    description: "Try the broadest seeded search available in this pilot flow.",
+  },
+]);
+
+const MOON_GOAL_TEMPLATE_META = Object.freeze({
+  "temperate-ocean-moon": {
+    confidenceClass: "plausible",
+    seedArchetypeIds: ["temperate-ocean-moon", "biologically-active-moon", "subsurface-ocean-moon"],
+    focusTraits: [
+      "surface-liquid-water",
+      "retained-atmosphere",
+      "in-stellar-habitable-zone",
+      "surface-biosphere-plausible",
+      "vegetation-plausible",
+      "visible-clouds",
+      "low-radiation",
+      "atmospheric-collapse",
+      "runaway-greenhouse",
+      "airless-surface",
+    ],
+  },
+  "subsurface-ocean-moon": {
+    confidenceClass: "defensible",
+    seedArchetypeIds: ["subsurface-ocean-moon", "temperate-ocean-moon"],
+    focusTraits: [
+      "subsurface-ocean",
+      "resonance-supported-heating",
+      "low-radiation",
+      "retained-atmosphere",
+      "airless-surface",
+    ],
+  },
+  "volcanic-moon": {
+    confidenceClass: "defensible",
+    seedArchetypeIds: ["volcanic-moon", "subsurface-ocean-moon", "airless-rocky-moon"],
+    focusTraits: [
+      "resonance-supported-heating",
+      "subsurface-ocean",
+      "low-radiation",
+      "retained-atmosphere",
+    ],
+  },
+  "titan-like-moon": {
+    confidenceClass: "defensible",
+    seedArchetypeIds: ["hazy-atmosphere-moon", "subsurface-ocean-moon", "temperate-ocean-moon"],
+    focusTraits: [
+      "retained-atmosphere",
+      "visible-clouds",
+      "low-radiation",
+      "airless-surface",
+      "surface-liquid-water",
+    ],
+  },
+  "captured-irregular-moon": {
+    confidenceClass: "defensible",
+    seedArchetypeIds: ["irregular-capture-moon", "airless-rocky-moon"],
+    focusTraits: [
+      "surface-liquid-water",
+      "retained-atmosphere",
+      "low-radiation",
+      "airless-surface",
+    ],
+  },
+});
+
 function normalizeText(value) {
   return String(value || "")
     .trim()
     .toLowerCase();
+}
+
+function toFiniteNumber(value, fallback = NaN) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function clampUnitInterval(value) {
+  return Math.max(0, Math.min(1, toFiniteNumber(value, 0)));
+}
+
+function goalTraitSelected(compiledGoal = {}, traitId = "") {
+  return (
+    (compiledGoal?.requiredTraits || []).includes(traitId) ||
+    (compiledGoal?.preferredTraits || []).includes(traitId)
+  );
+}
+
+function goalTraitRequired(compiledGoal = {}, traitId = "") {
+  return (compiledGoal?.requiredTraits || []).includes(traitId);
+}
+
+function goalTraitAvoided(compiledGoal = {}, traitId = "") {
+  return (compiledGoal?.avoidTraits || []).includes(traitId);
+}
+
+function traitRoleQuestionId(traitId) {
+  return `traitRole:${String(traitId || "").trim()}`;
+}
+
+function getMoonGoalTemplateMeta(goalTemplateId) {
+  return MOON_GOAL_TEMPLATE_META[String(goalTemplateId || "").trim()] || {
+    confidenceClass: "plausible",
+    seedArchetypeIds: ["temperate-ocean-moon"],
+    focusTraits: [],
+  };
+}
+
+function mapMoonGoalTemplateToCard(template) {
+  const meta = getMoonGoalTemplateMeta(template?.id);
+  return {
+    id: template?.id || "",
+    objectType: "moon",
+    label: template?.label || "Moon goal",
+    shortLabel: template?.label || "Moon goal",
+    summary: template?.summary || "",
+    confidenceClass: meta.confidenceClass,
+    quickEnabled: false,
+    guidedEnabled: true,
+    tags: [...(template?.requiredTraits || []), ...(template?.preferredTraits || [])]
+      .slice(0, 4)
+      .map((traitId) => getGoalTrait(traitId)?.label || traitId),
+  };
+}
+
+function listMoonGoalTemplateCards() {
+  return listGoalTemplates("moon").map((template) => mapMoonGoalTemplateToCard(template));
+}
+
+function defaultMoonGoalDraft(goalTemplateId = "") {
+  const template = getGoalTemplate("moon", goalTemplateId);
+  const traitRoles = {};
+  for (const traitId of template?.requiredTraits || []) traitRoles[traitId] = "required";
+  for (const traitId of template?.preferredTraits || []) {
+    if (!traitRoles[traitId]) traitRoles[traitId] = "preferred";
+  }
+  for (const traitId of template?.avoidTraits || []) {
+    if (!traitRoles[traitId]) traitRoles[traitId] = "avoid";
+  }
+  return {
+    priority: template?.defaultPriority || "maximize-realism",
+    allowedEdits: template?.defaultAllowedEdits || "edit-object-only",
+    searchBudget: template?.defaultSearchBudget || "balanced",
+    traitRoles,
+  };
+}
+
+function normalizeMoonGoalDraft(flowState = {}) {
+  const base = defaultMoonGoalDraft(flowState?.selectedGoalTemplateId);
+  const goalDraft =
+    flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+      ? flowState.goalDraft
+      : {};
+  const nextTraitRoles =
+    goalDraft.traitRoles && typeof goalDraft.traitRoles === "object" && !Array.isArray(goalDraft.traitRoles)
+      ? { ...base.traitRoles, ...goalDraft.traitRoles }
+      : { ...base.traitRoles };
+  return {
+    priority: goalDraft.priority || base.priority,
+    allowedEdits: goalDraft.allowedEdits || base.allowedEdits,
+    searchBudget: goalDraft.searchBudget || base.searchBudget,
+    traitRoles: nextTraitRoles,
+  };
+}
+
+function buildMoonGoalDraftQuestionOptions(traitId) {
+  const trait = getGoalTrait(traitId);
+  const allowedRoles = Array.isArray(trait?.allowedRoles) ? trait.allowedRoles : [];
+  const options = [
+    {
+      value: "off",
+      label: "Off",
+      description: "Do not explicitly optimize for or avoid this trait.",
+    },
+  ];
+  if (allowedRoles.includes("required")) {
+    options.push({
+      value: "required",
+      label: "Must have",
+      description: "Treat this as a hard constraint in the search.",
+    });
+  }
+  if (allowedRoles.includes("preferred")) {
+    options.push({
+      value: "preferred",
+      label: "Prefer",
+      description: "Improve the score when this trait is reached.",
+    });
+  }
+  if (allowedRoles.includes("avoid")) {
+    options.push({
+      value: "avoid",
+      label: "Avoid",
+      description: "Penalize results that trigger this trait.",
+    });
+  }
+  return options;
+}
+
+function buildMoonGoalQuestions(flowState, context = {}) {
+  const template = getGoalTemplate("moon", flowState?.selectedGoalTemplateId);
+  if (!template) return [];
+  const draft = normalizeMoonGoalDraft(flowState);
+  const focusTraits = getMoonGoalTemplateMeta(template.id).focusTraits;
+  return [
+    {
+      id: "priority",
+      stepId: "parent-context",
+      kind: "choice",
+      label: "Priority",
+      help:
+        context.currentContextText ||
+        "Choose whether this search should favor realism, habitability, or preserving the current system.",
+      defaultValue: draft.priority,
+      options: GOAL_PRIORITY_OPTIONS.map((entry) => ({ ...entry })),
+    },
+    {
+      id: "allowedEdits",
+      stepId: "parent-context",
+      kind: "choice",
+      label: "Allowed edits",
+      help: "Decide whether guided search may edit only this moon, the host too, or the local moon system.",
+      defaultValue: draft.allowedEdits,
+      options: GOAL_ALLOWED_EDIT_OPTIONS.map((entry) => ({ ...entry })),
+    },
+    {
+      id: "searchBudget",
+      stepId: "parent-context",
+      kind: "choice",
+      label: "Search budget",
+      help: "Controls how many seeded candidate paths this pilot goal search will try.",
+      defaultValue: draft.searchBudget,
+      options: GOAL_SEARCH_BUDGET_OPTIONS.map((entry) => ({ ...entry })),
+    },
+    ...focusTraits
+      .map((traitId) => getGoalTrait(traitId))
+      .filter(Boolean)
+      .map((trait) => ({
+        id: traitRoleQuestionId(trait.id),
+        stepId: "goal-details",
+        kind: "select",
+        label: trait.label,
+        help: trait.description,
+        defaultValue: draft.traitRoles?.[trait.id] || "off",
+        options: buildMoonGoalDraftQuestionOptions(trait.id),
+      })),
+  ];
+}
+
+function buildMoonGoalCompileInput(flowState = {}) {
+  const draft = normalizeMoonGoalDraft(flowState);
+  const requiredTraits = [];
+  const preferredTraits = [];
+  const avoidTraits = [];
+  for (const [traitId, role] of Object.entries(draft.traitRoles || {})) {
+    if (role === "required") requiredTraits.push(traitId);
+    else if (role === "preferred") preferredTraits.push(traitId);
+    else if (role === "avoid") avoidTraits.push(traitId);
+  }
+  return {
+    objectType: "moon",
+    goalTemplateId: flowState?.selectedGoalTemplateId || "",
+    priority: draft.priority,
+    allowedEdits: draft.allowedEdits,
+    searchBudget: draft.searchBudget,
+    requiredTraits,
+    preferredTraits,
+    avoidTraits,
+  };
 }
 
 function includesAny(value, patterns = []) {
@@ -814,7 +1139,107 @@ function applyActivityAndResonanceTargets(inputs, archetype, answers) {
   }
 }
 
-function tuneMoonApplyInputs(archetype, recipe, answers) {
+function moonGoalTargetsSurfaceWarmth(compiledGoal = {}) {
+  return (
+    goalTraitSelected(compiledGoal, "surface-liquid-water") ||
+    goalTraitSelected(compiledGoal, "surface-biosphere-plausible") ||
+    goalTraitSelected(compiledGoal, "vegetation-plausible")
+  );
+}
+
+function moonGoalNeedsInternalHeating(compiledGoal = {}, archetypeId = "") {
+  return (
+    goalTraitSelected(compiledGoal, "subsurface-ocean") ||
+    goalTraitSelected(compiledGoal, "resonance-supported-heating") ||
+    String(archetypeId || "") === "volcanic-moon"
+  );
+}
+
+function uniqueOrderedStrings(values = []) {
+  return [
+    ...new Set(
+      (Array.isArray(values) ? values : [])
+        .map((entry) => String(entry || "").trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function buildMoonGoalOrbitVariants(compiledGoal = {}, context = {}, archetypeId = "") {
+  const priority = String(compiledGoal?.priority || "").trim();
+  const parentKind = String(context?.parentContext?.parentKind || "").trim();
+  const wantsSurfaceWarmth = moonGoalTargetsSurfaceWarmth(compiledGoal);
+  const wantsInternalHeating = moonGoalNeedsInternalHeating(compiledGoal, archetypeId);
+
+  let variants = ["recipe-default"];
+  if (wantsSurfaceWarmth) {
+    variants =
+      parentKind === "gasGiant"
+        ? ["compact-habitable", "inner-habitable", "mid-habitable", "recipe-default"]
+        : ["inner-habitable", "mid-habitable", "recipe-default"];
+  } else if (wantsInternalHeating) {
+    variants =
+      String(archetypeId || "") === "volcanic-moon"
+        ? ["inner-hot", "inner-resonant", "mid-resonant", "recipe-default"]
+        : ["inner-resonant", "mid-resonant", "recipe-default"];
+  }
+
+  if (priority === "preserve-current-orbit-context") {
+    variants = ["recipe-default", ...variants.filter((entry) => entry !== "recipe-default")];
+  }
+
+  return uniqueOrderedStrings(variants);
+}
+
+function resolveMoonOrbitVariantAxis(baseAxisKm, context = {}, variantId = "") {
+  const referenceAxisKm =
+    toFiniteNumber(baseAxisKm, NaN) > 0
+      ? toFiniteNumber(baseAxisKm, NaN)
+      : Math.max(toFiniteNumber(context?.currentInputs?.semiMajorAxisKm, 360000), 120000);
+  const zoneInnerKm = Math.max(toFiniteNumber(context?.currentOrbitWindowKm?.inner, 0), 0);
+  const zoneOuterKm = Math.max(toFiniteNumber(context?.currentOrbitWindowKm?.outer, 0), 0);
+  const minAxisKm = zoneInnerKm > 0 ? Math.max(zoneInnerKm * 1.22, zoneInnerKm + 10000) : 100000;
+  const maxAxisKm =
+    zoneOuterKm > minAxisKm
+      ? Math.max(minAxisKm + 60000, zoneOuterKm * 0.82)
+      : Number.POSITIVE_INFINITY;
+
+  let targetAxisKm = referenceAxisKm;
+  switch (String(variantId || "")) {
+    case "compact-habitable":
+      targetAxisKm = zoneInnerKm > 0 ? zoneInnerKm * 1.75 : referenceAxisKm * 0.28;
+      break;
+    case "inner-habitable":
+      targetAxisKm = zoneInnerKm > 0 ? zoneInnerKm * 2.3 : referenceAxisKm * 0.4;
+      break;
+    case "mid-habitable":
+      targetAxisKm = zoneInnerKm > 0 ? zoneInnerKm * 3.1 : referenceAxisKm * 0.58;
+      break;
+    case "inner-hot":
+      targetAxisKm = zoneInnerKm > 0 ? zoneInnerKm * 1.45 : referenceAxisKm * 0.22;
+      break;
+    case "inner-resonant":
+      targetAxisKm = zoneInnerKm > 0 ? zoneInnerKm * 1.9 : referenceAxisKm * 0.34;
+      break;
+    case "mid-resonant":
+      targetAxisKm = zoneInnerKm > 0 ? zoneInnerKm * 2.6 : referenceAxisKm * 0.5;
+      break;
+    case "recipe-default":
+    default:
+      targetAxisKm = referenceAxisKm;
+      break;
+  }
+
+  const clampedAxisKm = Math.max(minAxisKm, Math.min(targetAxisKm, maxAxisKm));
+  return clampMoonAxisToInteger(clampedAxisKm) ?? clampMoonAxisToInteger(referenceAxisKm);
+}
+
+function applyMoonOrbitVariant(inputs, context = {}, variantId = "") {
+  const nextAxisKm = resolveMoonOrbitVariantAxis(inputs.semiMajorAxisKm, context, variantId);
+  if (nextAxisKm != null) inputs.semiMajorAxisKm = nextAxisKm;
+}
+
+function tuneMoonApplyInputs(archetype, recipe, answers, context = {}) {
   const baseInputs = buildMoonRecipeApplyInputs(
     {
       ...recipe.apply,
@@ -827,6 +1252,7 @@ function tuneMoonApplyInputs(archetype, recipe, answers) {
   applyWaterTarget(nextInputs, archetype, answers);
   applyAtmosphereTarget(nextInputs, archetype, answers);
   applyActivityAndResonanceTargets(nextInputs, archetype, answers);
+  applyMoonOrbitVariant(nextInputs, context, answers.orbit_variant);
 
   if (answers.life_goal === "surface-biosphere") {
     nextInputs.hydrosphereMode = "full";
@@ -1676,114 +2102,890 @@ function buildMoonDiagnostics(
   return diagnostics;
 }
 
+function solveMoonRecommendationFromArchetype(archetype, flowState, context = {}, answersOverride = null) {
+  if (!archetype) return null;
+
+  const recipe = getRecipeForArchetype(archetype.id, context);
+  if (!recipe) return null;
+
+  const answers = answersOverride || resolveMoonGuidedAnswers(archetype, flowState);
+  const applyInputs =
+    flowState?.uxMode === "guided"
+      ? tuneMoonApplyInputs(archetype, recipe, answers, context)
+      : buildMoonRecipeApplyInputs(
+          {
+            ...recipe.apply,
+            ...archetype.recommendedScienceModes,
+          },
+          recipe.id,
+        );
+
+  const runSolve = (options = {}) => {
+    if (typeof context.solveMoonInputs !== "function") return null;
+    try {
+      return context.solveMoonInputs(applyInputs, options) || null;
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error ? error.message : "Moon quick-type solve failed for this context.",
+      };
+    }
+  };
+
+  const currentSolved = runSolve();
+  const parentPatch =
+    flowState?.uxMode === "guided" && answers.parent_context_policy === "guided-patch"
+      ? buildMoonParentPatch(archetype, answers, currentSolved, context)
+      : null;
+  const hostAdjustedSolved =
+    parentPatch && flowState?.uxMode === "guided" ? runSolve({ parentPatch }) : currentSolved;
+  const siblingPatch =
+    flowState?.uxMode === "guided"
+      ? buildMoonSiblingPatch(archetype, answers, hostAdjustedSolved, context)
+      : null;
+  const solved =
+    parentPatch || siblingPatch ? runSolve({ parentPatch, siblingPatch }) : currentSolved;
+  const contextAdjustments = buildContextAdjustments(parentPatch, siblingPatch);
+  const diagnostics = buildMoonDiagnostics(
+    archetype,
+    recipe,
+    currentSolved,
+    answers,
+    flowState,
+    context,
+    {
+      recommendedSolved: solved,
+      parentPatch,
+      siblingPatch,
+    },
+  );
+
+  return {
+    objectType: "moon",
+    archetypeId: archetype.id,
+    confidenceClass: archetype.confidenceClass,
+    title: archetype.label,
+    summary: buildSummary(
+      archetype,
+      recipe,
+      solved,
+      answers,
+      flowState?.uxMode,
+      parentPatch,
+      siblingPatch,
+    ),
+    scienceModeRecommendation: collectScienceModes(applyInputs),
+    applyPayload: {
+      objectInputs: applyInputs,
+      parentPatch,
+      siblingPatch,
+    },
+    previewPayload:
+      solved?.model && typeof solved.model === "object"
+        ? {
+            bodyType: "moon",
+            name: context.currentMoonName || recipe.label || archetype.label,
+            recipeId: recipe.id,
+            moonCalc: solved.model,
+          }
+        : null,
+    contextAdjustments,
+    diagnostics,
+    rationale: buildRationale(archetype, answers, parentPatch, siblingPatch),
+    nextActions: [...(archetype.nextActions || [])],
+  };
+}
+
+function moonSearchCandidateCap(searchBudget = "balanced") {
+  switch (String(searchBudget || "")) {
+    case "fast":
+      return 4;
+    case "deep":
+      return 12;
+    case "balanced":
+    default:
+      return 9;
+  }
+}
+
+function deriveMoonGoalSeedAnswers(compiledGoal = {}, archetypeId = "", variantIndex = 0) {
+  const answers = { ...getMoonGuidedDefaults(archetypeId) };
+  const prefersSystemEdits = String(compiledGoal?.allowedEdits || "") === "edit-object-plus-local-system";
+  const prefersHostEdits = String(compiledGoal?.allowedEdits || "") === "edit-object-plus-host";
+  answers.parent_context_policy = prefersSystemEdits || prefersHostEdits ? "guided-patch" : "flexible";
+
+  if (goalTraitSelected(compiledGoal, "surface-liquid-water")) answers.water_state = "surface";
+  else if (goalTraitSelected(compiledGoal, "subsurface-ocean")) answers.water_state = "subsurface";
+  else if (goalTraitAvoided(compiledGoal, "surface-liquid-water")) answers.water_state = "dry";
+
+  if (goalTraitSelected(compiledGoal, "retained-atmosphere")) {
+    answers.atmosphere_target = goalTraitSelected(compiledGoal, "visible-clouds") ? "dense" : "substantial";
+  } else if (goalTraitAvoided(compiledGoal, "airless-surface")) {
+    answers.atmosphere_target = "thin";
+  } else {
+    answers.atmosphere_target = "airless";
+  }
+
+  if (goalTraitSelected(compiledGoal, "resonance-supported-heating")) {
+    answers.activity_target = archetypeId === "volcanic-moon" ? "active" : "moderate";
+    answers.resonance_support = goalTraitRequired(compiledGoal, "resonance-supported-heating")
+      ? "required"
+      : "preferred";
+  } else {
+    answers.resonance_support = "not-needed";
+    answers.activity_target =
+      archetypeId === "subsurface-ocean-moon" ? "moderate" : answers.activity_target || "quiet";
+  }
+
+  if (goalTraitSelected(compiledGoal, "vegetation-plausible")) {
+    answers.life_goal = "surface-biosphere";
+  } else if (goalTraitSelected(compiledGoal, "surface-biosphere-plausible")) {
+    answers.life_goal = variantIndex > 0 ? "surface-biosphere" : "microbial";
+  } else {
+    answers.life_goal = "sterile";
+  }
+
+  if (answers.water_state === "surface") {
+    answers.land_exposure_pref =
+      variantIndex > 1 ? "oceanic" : goalTraitSelected(compiledGoal, "vegetation-plausible") ? "balanced" : "balanced";
+  }
+
+  return answers;
+}
+
+function buildMoonGoalSearchCandidates(compiledGoal = {}, context = {}) {
+  const templateMeta = getMoonGoalTemplateMeta(compiledGoal.goalTemplateId);
+  const seedIds = [...new Set(templateMeta.seedArchetypeIds || [])];
+  const candidates = [];
+
+  for (const archetypeId of seedIds) {
+    const orbitVariants = buildMoonGoalOrbitVariants(compiledGoal, context, archetypeId);
+    let variantBudget = 1;
+    if (String(compiledGoal?.searchBudget || "") === "deep") variantBudget = 2;
+    if (
+      goalTraitSelected(compiledGoal, "surface-biosphere-plausible") ||
+      goalTraitSelected(compiledGoal, "vegetation-plausible") ||
+      orbitVariants.length > 3
+    ) {
+      variantBudget += 1;
+    }
+
+    for (let variantIndex = 0; variantIndex < variantBudget; variantIndex += 1) {
+      for (const orbitVariant of orbitVariants) {
+        candidates.push({
+          archetypeId,
+          variantIndex,
+          orbitVariant,
+          answers: {
+            ...deriveMoonGoalSeedAnswers(compiledGoal, archetypeId, variantIndex),
+            orbit_variant: orbitVariant,
+          },
+        });
+      }
+    }
+  }
+  return candidates.slice(0, moonSearchCandidateCap(compiledGoal.searchBudget));
+}
+
+function evaluateMoonGoalTrait(traitId, recommendation = {}) {
+  const model = recommendation?.previewPayload?.moonCalc || {};
+  const display = model.display || {};
+  const hydrosphere = model.hydrosphere || {};
+  const atmosphere = model.atmosphere || {};
+  const temperature = model.temperature || {};
+  const resonance = model.resonance || {};
+  const radiation = model.radiation || {};
+  const biosphere = model.biosphere || {};
+  const habitabilitySummary = model.habitability?.summary || {};
+  const classifications = habitabilitySummary.classifications || {};
+  const pressureAtm = Math.max(toFiniteNumber(atmosphere.surfacePressureAtm, 0), 0);
+  const surfaceK = Math.max(toFiniteNumber(temperature.surfaceK, 0), 0);
+  const magnetoDose = Math.max(toFiniteNumber(radiation.magnetosphericRadRemDay, 0), 0);
+  const climateText = normalizeText(display.climateState);
+  const atmosphereText = normalizeText(display.atmosphereClass);
+  const biosphereText = normalizeText(display.surfaceBiosphere);
+  const surfaceClass = String(radiation.surfaceClass || "").trim();
+  const subsurfaceClass = String(radiation.subsurfaceClass || "").trim();
+
+  switch (traitId) {
+    case "surface-liquid-water":
+      return (
+        classifications.surfaceOceanPlausible === true ||
+        classifications.surfaceRadiationLimited === true ||
+        hydrosphere.surfaceLiquidPresent === true
+      );
+    case "subsurface-ocean":
+      return (
+        classifications.subsurfaceOceanPlausible === true ||
+        hydrosphere.subsurfaceOceanPresent === true
+      );
+    case "retained-atmosphere":
+      return (
+        habitabilitySummary.gates?.atmosphereRetention?.surfacePass === true ||
+        pressureAtm >= 0.05 ||
+        !includesAny(atmosphereText, ["airless", "exosphere"])
+      );
+    case "resonance-supported-heating":
+      return resonance.sustainedHeatingFlag === true;
+    case "in-stellar-habitable-zone":
+      return (
+        habitabilitySummary.gates?.stellarZone?.pass === true ||
+        resonance.tidalHabitableZone?.starHzEligible !== false
+      );
+    case "surface-biosphere-plausible":
+      return (
+        classifications.surfaceBiospherePlausible === true ||
+        (toFiniteNumber(biosphere.surfaceBiologyScore, 0) >= 0.35 &&
+          hydrosphere.surfaceLiquidPresent === true &&
+          pressureAtm >= 0.1) ||
+        !includesAny(biosphereText, ["sterile"])
+      );
+    case "vegetation-plausible":
+      return biosphere.vegetationEligible === true;
+    case "visible-clouds":
+      return pressureAtm >= 0.2 && !includesAny(atmosphereText, ["airless", "thin"]);
+    case "low-radiation":
+      return (
+        ["Low", "Elevated"].includes(surfaceClass) ||
+        ["Low", "Elevated"].includes(subsurfaceClass) ||
+        magnetoDose < 1
+      );
+    case "atmospheric-collapse":
+      return includesAny(display.collapseState, ["collapse", "collapsed"]);
+    case "extreme-radiation":
+      return (
+        classifications.surfaceRadiationLimited === true ||
+        surfaceClass === "Surface-sterilizing" ||
+        magnetoDose >= 10
+      );
+    case "runaway-greenhouse":
+      return classifications.tidalOverheated === true || includesAny(climateText, ["runaway", "greenhouse"]);
+    case "airless-surface":
+      return pressureAtm < 0.02 || includesAny(atmosphereText, ["airless", "exosphere"]);
+    default:
+      return false;
+  }
+}
+
+function proximityToRange(value, min, max, shoulder = 0) {
+  const nextValue = toFiniteNumber(value, NaN);
+  const nextMin = toFiniteNumber(min, NaN);
+  const nextMax = toFiniteNumber(max, NaN);
+  const nextShoulder = Math.max(toFiniteNumber(shoulder, 0), 0);
+  if (
+    !Number.isFinite(nextValue) ||
+    !Number.isFinite(nextMin) ||
+    !Number.isFinite(nextMax) ||
+    nextMax <= nextMin
+  ) {
+    return 0;
+  }
+  if (nextValue >= nextMin && nextValue <= nextMax) return 1;
+  if (!nextShoulder) return 0;
+  if (nextValue < nextMin) return clampUnitInterval(1 - (nextMin - nextValue) / nextShoulder);
+  return clampUnitInterval(1 - (nextValue - nextMax) / nextShoulder);
+}
+
+function evaluateMoonGoalTraitProgress(traitId, recommendation = {}) {
+  if (evaluateMoonGoalTrait(traitId, recommendation)) return 1;
+
+  const model = recommendation?.previewPayload?.moonCalc || {};
+  const display = model.display || {};
+  const hydrosphere = model.hydrosphere || {};
+  const atmosphere = model.atmosphere || {};
+  const temperature = model.temperature || {};
+  const radiation = model.radiation || {};
+  const biosphere = model.biosphere || {};
+  const habitabilitySummary = model.habitability?.summary || {};
+  const classifications = habitabilitySummary.classifications || {};
+  const pressureAtm = Math.max(toFiniteNumber(atmosphere.surfacePressureAtm, 0), 0);
+  const surfaceK = Math.max(toFiniteNumber(temperature.surfaceK, 0), 0);
+  const magnetoDose = Math.max(toFiniteNumber(radiation.magnetosphericRadRemDay, 0), 0);
+  const biologyScore = clampUnitInterval(toFiniteNumber(biosphere.surfaceBiologyScore, 0));
+  const surfaceClass = String(radiation.surfaceClass || "").trim();
+  const subsurfaceClass = String(radiation.subsurfaceClass || "").trim();
+
+  switch (traitId) {
+    case "surface-liquid-water": {
+      const tempScore = proximityToRange(surfaceK, 273, 320, 85);
+      const pressureScore = clampUnitInterval(pressureAtm / 0.15);
+      const hydrosphereScore =
+        classifications.surfaceRadiationLimited === true
+          ? 1
+          : classifications.subsurfaceOceanPlausible === true || hydrosphere.subsurfaceOceanPresent
+            ? 0.45
+            : includesAny(display.hydrosphereState, ["ocean"])
+              ? 0.6
+              : includesAny(display.hydrosphereState, ["ice", "snowball", "frozen"])
+                ? 0.08
+                : 0.2;
+      return clampUnitInterval(tempScore * 0.5 + pressureScore * 0.25 + hydrosphereScore * 0.25);
+    }
+    case "retained-atmosphere": {
+      const pressureScore = clampUnitInterval(pressureAtm / 0.25);
+      const atmosphereScore = habitabilitySummary.classifications?.atmosphereMarginal
+        ? 0.7
+        : includesAny(display.atmosphereClass, ["thin"])
+          ? 0.45
+          : 0;
+      return clampUnitInterval(pressureScore * 0.75 + atmosphereScore * 0.25);
+    }
+    case "surface-biosphere-plausible": {
+      const waterScore = evaluateMoonGoalTraitProgress("surface-liquid-water", recommendation);
+      const atmosphereScore = evaluateMoonGoalTraitProgress("retained-atmosphere", recommendation);
+      const tempScore = proximityToRange(surfaceK, 260, 320, 65);
+      const radiationScore =
+        surfaceClass === "Low"
+          ? 1
+          : surfaceClass === "Elevated"
+            ? 0.8
+            : surfaceClass === "Harsh"
+              ? 0.2
+              : clampUnitInterval(1 - magnetoDose / 10);
+      return clampUnitInterval(
+        waterScore * 0.35 +
+          atmosphereScore * 0.25 +
+          tempScore * 0.2 +
+          radiationScore * 0.1 +
+          biologyScore * 0.1,
+      );
+    }
+    case "vegetation-plausible": {
+      const biosphereScore = evaluateMoonGoalTraitProgress(
+        "surface-biosphere-plausible",
+        recommendation,
+      );
+      const vegetationScore = biosphere.vegetationEligible === true ? 1 : 0;
+      return clampUnitInterval(vegetationScore * 0.55 + biosphereScore * 0.45);
+    }
+    case "low-radiation":
+      if (surfaceClass === "Low" || subsurfaceClass === "Low") return 1;
+      if (surfaceClass === "Elevated" || subsurfaceClass === "Elevated") return 0.78;
+      if (surfaceClass === "Harsh" || subsurfaceClass === "Harsh") return 0.3;
+      return clampUnitInterval(1 - magnetoDose / 10);
+    default:
+      return 0;
+  }
+}
+
+function moonRadiationClassScore(classLabel = "", exposureLevel = NaN) {
+  switch (String(classLabel || "").trim()) {
+    case "Low":
+      return 1;
+    case "Elevated":
+      return 0.8;
+    case "Harsh":
+      return 0.3;
+    case "Surface-sterilizing":
+      return 0;
+    default:
+      return clampUnitInterval(1 - toFiniteNumber(exposureLevel, 1));
+  }
+}
+
+function moonSurfaceAtmosphereScore(model = {}) {
+  const summary = model.habitability?.summary || {};
+  const atmosphere = model.atmosphere || {};
+  const display = model.display || {};
+  const pressureAtm = Math.max(toFiniteNumber(atmosphere.surfacePressureAtm, 0), 0);
+  if (summary.gates?.atmosphereRetention?.surfacePass === true) return 1;
+  if (summary.classifications?.atmosphereMarginal === true) return 0.68;
+  if (pressureAtm >= 0.25) return 0.82;
+  if (pressureAtm >= 0.08) return 0.55;
+  if (!includesAny(display.atmosphereClass, ["airless", "exosphere"])) return 0.3;
+  return 0;
+}
+
+function moonSurfaceWaterScore(model = {}) {
+  const summary = model.habitability?.summary || {};
+  const hydrosphere = model.hydrosphere || {};
+  const climate = model.climate || {};
+  const display = model.display || {};
+  if (
+    summary.classifications?.surfaceOceanPlausible === true ||
+    summary.classifications?.surfaceRadiationLimited === true ||
+    summary.classifications?.surfaceBiospherePlausible === true
+  ) {
+    return 1;
+  }
+  if (hydrosphere.surfaceLiquidPresent === true) return 0.88;
+  if (climate.surfaceLiquidWaterPlausible === true) return 0.72;
+  if (summary.classifications?.frozenSurface === true || includesAny(display.hydrosphereState, ["ice", "snowball", "frozen"])) {
+    return 0.08;
+  }
+  if (hydrosphere.subsurfaceOceanPresent === true || hydrosphere.subsurfaceOceanCandidate === true) {
+    return 0.35;
+  }
+  return 0.15;
+}
+
+function moonSubsurfaceWaterScore(model = {}) {
+  const summary = model.habitability?.summary || {};
+  const hydrosphere = model.hydrosphere || {};
+  if (summary.classifications?.subsurfaceOceanPlausible === true) return 1;
+  if (hydrosphere.subsurfaceOceanPresent === true) return 0.88;
+  if (hydrosphere.subsurfaceOceanCandidate === true) return 0.55;
+  return 0;
+}
+
+function moonStableOrbitScore(model = {}) {
+  const summary = model.habitability?.summary || {};
+  const orbit = model.orbit || {};
+  if (summary.classifications?.unstableOrbit === true || orbit.longTermStable === false) return 0;
+  const stabilityClass = String(orbit.orbitStabilityClass || "");
+  const stabilityMargin = Math.max(toFiniteNumber(orbit.stabilityMarginFraction, 0), 0);
+  if (stabilityClass === "near-outer-stability-edge") return 0.62;
+  if (summary.gates?.stableOrbit?.pass === true) {
+    if (stabilityMargin >= 0.18) return 1;
+    if (stabilityMargin >= 0.08) return 0.85;
+    if (stabilityMargin > 0) return 0.72;
+    return 0.6;
+  }
+  if (String(orbit.semiMajorAxisGuard || "none") === "lowered_to_remain_long_term_stable") {
+    return 0.28;
+  }
+  return String(orbit.semiMajorAxisGuard || "none") === "none" ? 0.7 : 0.15;
+}
+
+function moonSurfaceLongTermScore(model = {}, compiledGoal = {}) {
+  const summary = model.habitability?.summary || {};
+  const climate = model.climate || {};
+  const atmosphere = model.atmosphere || {};
+  const resonance = model.resonance || {};
+  const stellarZoneScore =
+    goalTraitSelected(compiledGoal, "in-stellar-habitable-zone") || moonGoalTargetsSurfaceWarmth(compiledGoal)
+      ? summary.gates?.stellarZone?.pass === true
+        ? 1
+        : resonance.tidalHabitableZone?.starHzEligible !== false
+          ? 0.75
+          : 0
+      : 1;
+  const climateScore =
+    String(climate.climateState || "") === "Runaway greenhouse"
+      ? 0
+      : String(climate.climateState || "") === "Snowball"
+        ? 0.2
+        : summary.classifications?.frozenSurface === true
+          ? 0.25
+          : 1;
+  const atmosphereScore =
+    String(atmosphere.stability?.balanceLabel || "") === "Stable"
+      ? 1
+      : String(atmosphere.stability?.balanceLabel || "") === "Marginal"
+        ? 0.7
+        : summary.classifications?.atmosphereMarginal === true
+          ? 0.55
+          : 0.2;
+  return clampUnitInterval(stellarZoneScore * 0.4 + climateScore * 0.35 + atmosphereScore * 0.25);
+}
+
+function moonTidalModerationScore(model = {}, compiledGoal = {}) {
+  const summary = model.habitability?.summary || {};
+  const tides = model.tides || {};
+  const resonance = model.resonance || {};
+  const heatingEarth = Math.max(toFiniteNumber(tides.tidalHeatingEarth, 0), 0);
+  if (String(compiledGoal?.goalTemplateId || "") === "volcanic-moon") {
+    const heatingScore = clampUnitInterval(Math.log10(1 + heatingEarth) / 2.4);
+    return resonance.sustainedHeatingFlag === true
+      ? Math.max(0.82, heatingScore)
+      : heatingScore;
+  }
+  if (goalTraitSelected(compiledGoal, "subsurface-ocean")) {
+    if (summary.classifications?.tidalOverheated === true) return 0.15;
+    if (resonance.sustainedHeatingFlag === true) return 0.9;
+    return clampUnitInterval(0.35 + Math.log10(1 + heatingEarth) / 5);
+  }
+  if (summary.classifications?.tidalOverheated === true) return 0;
+  if (heatingEarth <= 5) return 1;
+  if (heatingEarth <= 25) return 0.75;
+  if (heatingEarth <= 100) return 0.45;
+  return 0.15;
+}
+
+function inferMoonGuidedOutcomeLabel(compiledGoal = {}, recommendation = {}) {
+  const model = recommendation?.previewPayload?.moonCalc || {};
+  const summary = model.habitability?.summary || {};
+  const classifications = summary.classifications || {};
+  const atmosphere = model.atmosphere || {};
+  const display = model.display || {};
+  const pressureAtm = Math.max(toFiniteNumber(atmosphere.surfacePressureAtm, 0), 0);
+
+  if (classifications.surfaceBiospherePlausible === true) return "Surface Life Plausible";
+  if (classifications.surfaceRadiationLimited === true) return "Radiation-Limited Ocean Moon";
+  if (classifications.surfaceOceanPlausible === true) return "Temperate Ocean Moon";
+  if (classifications.subsurfaceOceanPlausible === true) return "Subsurface Ocean Moon";
+  if (
+    classifications.frozenSurface === true &&
+    pressureAtm >= 0.05 &&
+    !includesAny(display.atmosphereClass, ["airless", "exosphere"])
+  ) {
+    return "Frozen Atmosphere-Bearing Moon";
+  }
+  if (
+    classifications.tidalOverheated === true ||
+    String(compiledGoal?.goalTemplateId || "") === "volcanic-moon"
+  ) {
+    return "Volcanic / Tidal Moon";
+  }
+  return summary.primaryOutcome || "Marginal Moon Environment";
+}
+
+function scoreMoonEnvironmentFit(compiledGoal = {}, recommendation = {}) {
+  const model = recommendation?.previewPayload?.moonCalc || {};
+  const summary = model.habitability?.summary || {};
+  const classifications = summary.classifications || {};
+  const radiation = model.radiation || {};
+  const surfaceGoal = moonGoalTargetsSurfaceWarmth(compiledGoal);
+  const subsurfaceGoal =
+    goalTraitSelected(compiledGoal, "subsurface-ocean") &&
+    !goalTraitSelected(compiledGoal, "surface-liquid-water") &&
+    !goalTraitSelected(compiledGoal, "surface-biosphere-plausible") &&
+    !goalTraitSelected(compiledGoal, "vegetation-plausible");
+  const volcanicGoal = String(compiledGoal?.goalTemplateId || "") === "volcanic-moon";
+  const stableOrbitScore = moonStableOrbitScore(model);
+  const atmosphereScore = moonSurfaceAtmosphereScore(model);
+  const surfaceWaterScore = moonSurfaceWaterScore(model);
+  const subsurfaceWaterScore = moonSubsurfaceWaterScore(model);
+  const surfaceRadiationScore = classifications.surfaceRadiationLimited === true
+    ? 0
+    : moonRadiationClassScore(radiation.surfaceClass, radiation.surfaceExposure);
+  const subsurfaceRadiationScore = moonRadiationClassScore(
+    radiation.subsurfaceClass,
+    radiation.subsurfaceExposure,
+  );
+  const longTermScore = moonSurfaceLongTermScore(model, compiledGoal);
+  const tidalModerationScore = moonTidalModerationScore(model, compiledGoal);
+
+  let total = 0;
+  let components = {};
+
+  if (volcanicGoal) {
+    components = {
+      stableOrbit: stableOrbitScore,
+      resonanceHeating: tidalModerationScore,
+      radiation: Math.max(surfaceRadiationScore, subsurfaceRadiationScore * 0.8),
+      atmosphere: atmosphereScore,
+      longTerm: longTermScore,
+    };
+    total =
+      components.stableOrbit * 0.2 +
+      components.resonanceHeating * 0.45 +
+      components.radiation * 0.05 +
+      components.atmosphere * 0.1 +
+      components.longTerm * 0.2;
+  } else if (subsurfaceGoal) {
+    components = {
+      stableOrbit: stableOrbitScore,
+      water: subsurfaceWaterScore,
+      radiation: subsurfaceRadiationScore,
+      atmosphere: atmosphereScore,
+      internalHeating: tidalModerationScore,
+    };
+    total =
+      components.stableOrbit * 0.2 +
+      components.water * 0.35 +
+      components.radiation * 0.2 +
+      components.atmosphere * 0.1 +
+      components.internalHeating * 0.15;
+  } else {
+    components = {
+      stableOrbit: stableOrbitScore,
+      water: surfaceWaterScore,
+      atmosphere: atmosphereScore,
+      radiation: surfaceRadiationScore,
+      tidalModeration: tidalModerationScore,
+      longTerm: longTermScore,
+    };
+    const baseTotal =
+      components.stableOrbit * 0.15 +
+      components.water * 0.3 +
+      components.atmosphere * 0.2 +
+      components.radiation * 0.25 +
+      components.tidalModeration * 0.1;
+    total = baseTotal * (0.8 + components.longTerm * 0.2);
+  }
+
+  return {
+    total: clampUnitInterval(total),
+    score: clampUnitInterval(total) * 14,
+    components,
+    outcomeLabel: inferMoonGuidedOutcomeLabel(compiledGoal, recommendation),
+  };
+}
+
+function moonOrbitPenaltyMultiplier(compiledGoal = {}, context = {}, currentOrbitKm, nextOrbitKm) {
+  if (
+    !Number.isFinite(currentOrbitKm) ||
+    !Number.isFinite(nextOrbitKm) ||
+    currentOrbitKm <= 0 ||
+    String(compiledGoal?.priority || "") === "preserve-current-orbit-context"
+  ) {
+    return 1;
+  }
+
+  const parentKind = String(context?.parentContext?.parentKind || "").trim();
+  if (nextOrbitKm < currentOrbitKm && parentKind === "gasGiant" && moonGoalTargetsSurfaceWarmth(compiledGoal)) {
+    return 0.35;
+  }
+  if (nextOrbitKm < currentOrbitKm && moonGoalNeedsInternalHeating(compiledGoal)) {
+    return 0.55;
+  }
+  return 1;
+}
+
+function scoreMoonGoalRecommendation(compiledGoal = {}, recommendation = {}, context = {}) {
+  const evaluationPlan = compiledGoal?.evaluationPlan || {};
+  const matchedRequired = [];
+  const missingRequired = [];
+  const matchedPreferred = [];
+  const triggeredAvoid = [];
+  let score = 0;
+
+  for (const entry of evaluationPlan.hardConstraints || []) {
+    const matched = evaluateMoonGoalTrait(entry.traitId, recommendation);
+    if (matched) {
+      matchedRequired.push(entry.traitId);
+      score += 6;
+    } else {
+      missingRequired.push(entry.traitId);
+      score -= 10;
+      score += evaluateMoonGoalTraitProgress(entry.traitId, recommendation) * 6;
+    }
+  }
+
+  for (const entry of evaluationPlan.preferredTraits || []) {
+    const matched = evaluateMoonGoalTrait(entry.traitId, recommendation);
+    if (matched) {
+      matchedPreferred.push(entry.traitId);
+      score += Number(entry.weight) || 1;
+    } else {
+      score +=
+        evaluateMoonGoalTraitProgress(entry.traitId, recommendation) *
+        ((Number(entry.weight) || 1) * 0.6);
+    }
+  }
+
+  for (const entry of evaluationPlan.avoidTraits || []) {
+    if (evaluateMoonGoalTrait(entry.traitId, recommendation)) {
+      triggeredAvoid.push(entry.traitId);
+      score -= Number(entry.penalty) || 1;
+    }
+  }
+
+  const parentPatch = recommendation?.applyPayload?.parentPatch;
+  const siblingPatch = recommendation?.applyPayload?.siblingPatch;
+  const currentOrbitKm = toFiniteNumber(context?.currentInputs?.semiMajorAxisKm, NaN);
+  const nextOrbitKm = toFiniteNumber(recommendation?.applyPayload?.objectInputs?.semiMajorAxisKm, NaN);
+  const orbitPenalty =
+    Number.isFinite(currentOrbitKm) && currentOrbitKm > 0 && Number.isFinite(nextOrbitKm)
+      ? Math.min(Math.abs(nextOrbitKm - currentOrbitKm) / currentOrbitKm, 2)
+      : 0;
+  const adjustedOrbitPenalty =
+    orbitPenalty * moonOrbitPenaltyMultiplier(compiledGoal, context, currentOrbitKm, nextOrbitKm);
+  const contextPenalty = (parentPatch ? 1 : 0) + (siblingPatch ? 1.25 : 0);
+  const environmentFit = scoreMoonEnvironmentFit(compiledGoal, recommendation);
+  score += environmentFit.score;
+  score -= (Number(evaluationPlan.contextDeviationWeight) || 1) * contextPenalty;
+  score -= (Number(evaluationPlan.orbitDeviationWeight) || 1) * adjustedOrbitPenalty;
+
+  const exactMatch = missingRequired.length === 0 && triggeredAvoid.length === 0;
+  return {
+    score,
+    matchedRequired,
+    missingRequired,
+    matchedPreferred,
+    triggeredAvoid,
+    environmentFit,
+    fitClass: exactMatch ? "exact-match" : missingRequired.length ? "near-miss" : "tradeoff",
+  };
+}
+
+function buildMoonGoalSearchDiagnostics(compiledGoal = {}, scoring = {}, searchMeta = {}) {
+  const diagnostics = [];
+  const matchedRequired = (scoring?.matchedRequired || []).map((traitId) => getGoalTrait(traitId)?.label || traitId);
+  const missingRequired = (scoring?.missingRequired || []).map((traitId) => getGoalTrait(traitId)?.label || traitId);
+  const triggeredAvoid = (scoring?.triggeredAvoid || []).map((traitId) => getGoalTrait(traitId)?.label || traitId);
+  const environmentFit = scoring?.environmentFit || {};
+
+  pushDiagnostic(
+    diagnostics,
+    "info",
+    "goal-search-seed",
+    "Goal search seed",
+    `Best seeded fit came from ${searchMeta.seedLabel || "a moon archetype"} after trying ${searchMeta.candidatesTried || 0} candidate paths.`,
+    [],
+  );
+
+  if (environmentFit?.outcomeLabel) {
+    pushDiagnostic(
+      diagnostics,
+      missingRequired.length || triggeredAvoid.length ? "warning" : "info",
+      "goal-search-outcome",
+      "Best-fit outcome",
+      `Best-fit outcome: ${environmentFit.outcomeLabel}.`,
+      [],
+    );
+  }
+
+  if (!missingRequired.length && !triggeredAvoid.length) {
+    pushDiagnostic(
+      diagnostics,
+      "info",
+      "goal-fit-exact",
+      "Goal fit reached",
+      `${compiledGoal.templateLabel || "This goal"} reached all required traits${matchedRequired.length ? ` (${matchedRequired.join(", ")})` : ""}.`,
+      [],
+    );
+    return diagnostics;
+  }
+
+  pushDiagnostic(
+    diagnostics,
+    missingRequired.length ? "warning" : "info",
+    "goal-fit-near-miss",
+    "Goal search found the closest fit",
+    [
+      missingRequired.length ? `Still missing: ${missingRequired.join(", ")}.` : "",
+      triggeredAvoid.length ? `Still triggers: ${triggeredAvoid.join(", ")}.` : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
+    [
+      "Treat this as a strong starting point, then refine the Moon page inputs if you need a tighter fit.",
+    ],
+  );
+  return diagnostics;
+}
+
+async function startMoonGoalSearch(compiledGoal = null, flowState = {}, context = {}, job = {}) {
+  if (!compiledGoal?.goalTemplateId) {
+    return {
+      recommendation: null,
+      terminationReason: "missing-goal-template",
+    };
+  }
+
+  const template = getGoalTemplate("moon", compiledGoal.goalTemplateId);
+  const candidates = buildMoonGoalSearchCandidates(compiledGoal, context);
+  let bestResult = null;
+  let tried = 0;
+
+  for (const candidate of candidates) {
+    job?.throwIfCanceled?.();
+    await Promise.resolve();
+
+    const archetype = getMoonArchetype(candidate.archetypeId);
+    const recommendation = solveMoonRecommendationFromArchetype(
+      archetype,
+      { ...flowState, uxMode: "guided" },
+      context,
+      candidate.answers,
+    );
+    if (!recommendation) continue;
+    tried += 1;
+
+    const scoring = scoreMoonGoalRecommendation(compiledGoal, recommendation, context);
+    if (!bestResult || scoring.score > bestResult.scoring.score) {
+      bestResult = {
+        recommendation,
+        scoring,
+        seedLabel:
+          `${archetype?.label || candidate.archetypeId}${
+            candidate.orbitVariant && candidate.orbitVariant !== "recipe-default"
+              ? ` / ${candidate.orbitVariant.replaceAll("-", " ")}`
+              : ""
+          }`,
+      };
+      if (scoring.fitClass === "exact-match" && String(compiledGoal.searchBudget || "") === "fast") {
+        break;
+      }
+    }
+  }
+
+  if (!bestResult) {
+    return {
+      recommendation: null,
+      terminationReason: "no-candidates",
+    };
+  }
+
+  const diagnostics = [
+    ...buildMoonGoalSearchDiagnostics(compiledGoal, bestResult.scoring, {
+      seedLabel: bestResult.seedLabel,
+      candidatesTried: tried,
+    }),
+    ...(bestResult.recommendation.diagnostics || []),
+  ];
+
+  return {
+    recommendation: {
+      ...bestResult.recommendation,
+      title: template?.label || bestResult.recommendation.title,
+      confidenceClass: getMoonGoalTemplateMeta(compiledGoal.goalTemplateId).confidenceClass,
+      summary:
+        `${template?.summary || bestResult.recommendation.summary} ` +
+        `Best-fit outcome: ${bestResult.scoring.environmentFit?.outcomeLabel || inferMoonGuidedOutcomeLabel(compiledGoal, bestResult.recommendation)}. ` +
+        `Seeded from ${bestResult.seedLabel}.`,
+      diagnostics,
+      rationale: [
+        `Goal search tried ${tried} seeded moon paths and selected ${bestResult.seedLabel}.`,
+        `Best-fit outcome: ${bestResult.scoring.environmentFit?.outcomeLabel || inferMoonGuidedOutcomeLabel(compiledGoal, bestResult.recommendation)}.`,
+        ...(bestResult.recommendation.rationale || []),
+      ],
+      nextActions: [
+        ...(bestResult.recommendation.nextActions || []),
+        "Re-run the search after changing traits or allowed edits if you want a different trade-off.",
+      ],
+      goalTemplateId: compiledGoal.goalTemplateId,
+      fitClass: bestResult.scoring.fitClass,
+      outcomeLabel: bestResult.scoring.environmentFit?.outcomeLabel || inferMoonGuidedOutcomeLabel(compiledGoal, bestResult.recommendation),
+    },
+    terminationReason:
+      bestResult.scoring.fitClass === "exact-match" ? "goal-fit-exact" : "goal-fit-near-miss",
+  };
+}
+
 export const moonGuidedAdapter = {
   objectType: "moon",
 
-  listArchetypes() {
+  listArchetypes(_context = {}, flowState = {}) {
+    if (flowState?.uxMode === "guided") return listMoonGoalTemplateCards();
     return MOON_GUIDED_ARCHETYPES.map((entry) => ({ ...entry }));
   },
 
   buildQuestions(flowState, context = {}) {
+    if (flowState?.uxMode === "guided" && flowState?.selectedGoalTemplateId) {
+      return buildMoonGoalQuestions(flowState, context);
+    }
     const archetype = getMoonArchetype(flowState?.selectedArchetypeId);
     if (!archetype || flowState?.uxMode !== "guided") return [];
     return buildMoonQuestions(archetype, context);
   },
 
+  compileGoal(flowState) {
+    if (!flowState?.selectedGoalTemplateId) {
+      return {
+        valid: false,
+        diagnostics: [
+          {
+            severity: "blocked",
+            code: "missing-goal-template",
+            title: "Choose a moon goal",
+            detail: "Pick a moon goal template before compiling the search target.",
+          },
+        ],
+      };
+    }
+    return compileGuidedGoal(buildMoonGoalCompileInput(flowState));
+  },
+
   solveRecommendation(flowState, context = {}) {
     const archetype = getMoonArchetype(flowState?.selectedArchetypeId);
-    if (!archetype) return null;
+    return solveMoonRecommendationFromArchetype(archetype, flowState, context);
+  },
 
-    const recipe = getRecipeForArchetype(archetype.id, context);
-    if (!recipe) return null;
-
-    const answers = resolveMoonGuidedAnswers(archetype, flowState);
-    const applyInputs =
-      flowState?.uxMode === "guided"
-        ? tuneMoonApplyInputs(archetype, recipe, answers)
-        : buildMoonRecipeApplyInputs(
-            {
-              ...recipe.apply,
-              ...archetype.recommendedScienceModes,
-            },
-            recipe.id,
-          );
-
-    const runSolve = (options = {}) => {
-      if (typeof context.solveMoonInputs !== "function") return null;
-      try {
-        return context.solveMoonInputs(applyInputs, options) || null;
-      } catch (error) {
-        return {
-          error:
-            error instanceof Error
-              ? error.message
-              : "Moon quick-type solve failed for this context.",
-        };
-      }
-    };
-
-    const currentSolved = runSolve();
-    const parentPatch =
-      flowState?.uxMode === "guided" && answers.parent_context_policy === "guided-patch"
-        ? buildMoonParentPatch(archetype, answers, currentSolved, context)
-        : null;
-    const hostAdjustedSolved =
-      parentPatch && flowState?.uxMode === "guided" ? runSolve({ parentPatch }) : currentSolved;
-    const siblingPatch =
-      flowState?.uxMode === "guided"
-        ? buildMoonSiblingPatch(archetype, answers, hostAdjustedSolved, context)
-        : null;
-    const solved =
-      parentPatch || siblingPatch ? runSolve({ parentPatch, siblingPatch }) : currentSolved;
-    const contextAdjustments = buildContextAdjustments(parentPatch, siblingPatch);
-    const diagnostics = buildMoonDiagnostics(
-      archetype,
-      recipe,
-      currentSolved,
-      answers,
-      flowState,
-      context,
-      {
-        recommendedSolved: solved,
-        parentPatch,
-        siblingPatch,
-      },
-    );
-
-    return {
-      objectType: "moon",
-      archetypeId: archetype.id,
-      confidenceClass: archetype.confidenceClass,
-      title: archetype.label,
-      summary: buildSummary(
-        archetype,
-        recipe,
-        solved,
-        answers,
-        flowState?.uxMode,
-        parentPatch,
-        siblingPatch,
-      ),
-      scienceModeRecommendation: collectScienceModes(applyInputs),
-      applyPayload: {
-        objectInputs: applyInputs,
-        parentPatch,
-        siblingPatch,
-      },
-      previewPayload:
-        solved?.model && typeof solved.model === "object"
-          ? {
-              bodyType: "moon",
-              name: context.currentMoonName || recipe.label || archetype.label,
-              recipeId: recipe.id,
-              moonCalc: solved.model,
-            }
-          : null,
-      contextAdjustments,
-      diagnostics,
-      rationale: buildRationale(archetype, answers, parentPatch, siblingPatch),
-      nextActions: [...(archetype.nextActions || [])],
-    };
+  startSearch(compiledGoal, flowState, context, job) {
+    return startMoonGoalSearch(compiledGoal, flowState, context, job);
   },
 
   applyRecommendation(recommendation, storeContext = {}) {

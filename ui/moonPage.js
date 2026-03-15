@@ -12,7 +12,20 @@ import { bindNumberAndSlider } from "./bind.js";
 import { createElement } from "./domHelpers.js";
 import { createGuidedFlowController } from "./guidedCreation/flowController.js";
 import { createGuidedPanel } from "./guidedCreation/components/guidedPanel.js";
+import { createGoalTextAssist } from "./guidedCreation/components/goalTextAssist.js";
 import { consumeGuidedCreationLaunch } from "./guidedCreation/launchState.js";
+import { getGoalTextAliasHelp } from "./guidedCreation/goalAliases.js";
+import {
+  applyGuidedGoalTextInterpretation,
+  clearGuidedGoalTextInterpretation,
+} from "./guidedCreation/goalTextInterpretation.js";
+import {
+  buildGuidedSessionSnapshot,
+  clearGuidedSession,
+  createGuidedContextFingerprint,
+  loadGuidedSession,
+  saveGuidedSession,
+} from "./guidedCreation/sessionState.js";
 import {
   buildMoonRecipeApplyInputs,
   ensureMoonGuidedAdapterRegistered,
@@ -317,6 +330,18 @@ const TIP_LABEL = {
     "WorldSmith comparative habitability model for moons." +
     "\n\nThis is PHI-inspired, not a direct literature PHI implementation. The score depends on the selected solvent pathway and the active solvent-policy support for surface water, subsurface water, and alternative solvents." +
     "\n\nUse the expanded KPI details to see the current pathway, policy version, and term breakdown.",
+  "Surface Radiation":
+    "Gate-based surface-radiation class after parent-belt exposure, stellar XUV, atmosphere shielding, and moon magnetic shielding are combined.",
+  "Magnetic Shielding":
+    "Combined intrinsic and induced moon magnetic shielding class.\n\nIntrinsic shielding comes from a plausible moon dynamo. Induced shielding comes from a conductive salty subsurface ocean interacting with the parent field.",
+  "Life Class":
+    "High-level gate-based moon outcome.\n\nThis sits alongside the numeric Habitability Index and tells you whether the current moon is best described as a surface-life candidate, a radiation-limited ocean moon, a subsurface-ocean moon, or another environmental class.",
+  "Surface Habitability":
+    "Gate-based surface-habitability readout.\n\nThis separates true surface-life plausibility from warm-but-radiation-limited or marginal-atmosphere cases.",
+  "Subsurface Habitability":
+    "Gate-based subsurface-habitability readout.\n\nMoons outside the stellar habitable zone can still score well here if they plausibly sustain buried liquid water under ice.",
+  "Habitability Gates":
+    "Quick count of how many surface and subsurface habitability gates currently pass.",
 };
 
 const TUTORIAL_STEPS = [
@@ -358,7 +383,8 @@ const TUTORIAL_STEPS = [
   },
 ];
 
-export function initMoonPage(mountEl) {
+export function initMoonPage(mountEl, options = {}) {
+  const guidedRoute = options?.routeContext?.guided || null;
   const world = loadWorld();
 
   const sov0 = getStarOverrides(world.star);
@@ -639,6 +665,7 @@ export function initMoonPage(mountEl) {
     triggerBtn: wrap.querySelector("#moonTutorials"),
   });
 
+  const overlayClosers = new Set();
   const previewCleanupObserver = new MutationObserver(() => {
     if (wrap.isConnected) return;
     celestialPreviewController.dispose();
@@ -1286,6 +1313,16 @@ export function initMoonPage(mountEl) {
         : moonHabitabilityPolicyVersion === "surface-plus-subsurface-water-v1"
           ? "surface + subsurface water"
           : "surface water only";
+    const moonHabitabilitySummary = model.habitability?.summary || {};
+    const habitabilityGateMeta = [
+      moonHabitabilitySummary.gates?.stellarZone?.label,
+      moonHabitabilitySummary.gates?.stableOrbit?.label,
+      moonHabitabilitySummary.gates?.energyBudget?.label,
+      moonHabitabilitySummary.gates?.atmosphereRetention?.label,
+      moonHabitabilitySummary.gates?.radiationShielding?.label,
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const buildMoonKpi = (label, value, meta = "", overrides = {}) => ({
       label,
@@ -1330,6 +1367,7 @@ export function initMoonPage(mountEl) {
           buildMoonKpi("Surface Temp", model.display.surfaceTemp),
           buildMoonKpi("Hydrosphere", model.display.hydrosphereState),
           buildMoonKpi("Atmosphere", model.display.atmosphereClass, model.display.atmosphereSource),
+          buildMoonKpi("Life Class", model.display.lifeClass, model.display.habitabilityGates),
           buildMoonKpi("Habitability Index", model.display.habitabilityIndex, habitabilityMeta),
         ],
       },
@@ -1469,6 +1507,8 @@ export function initMoonPage(mountEl) {
             model.display.magnetosphericRad,
             model.display.magnetosphericLabel,
           ),
+          buildMoonKpi("Surface Radiation", model.display.surfaceRadiation),
+          buildMoonKpi("Magnetic Shielding", model.display.magneticShielding),
         ],
       },
       {
@@ -1476,6 +1516,7 @@ export function initMoonPage(mountEl) {
         title: "Habitability",
         density: "compact",
         items: [
+          buildMoonKpi("Life Class", model.display.lifeClass, model.display.habitabilityGates),
           buildMoonKpi("Habitability Index", model.display.habitabilityIndex, habitabilityMeta),
           buildMoonKpi(
             "Earth Similarity Index",
@@ -1485,6 +1526,13 @@ export function initMoonPage(mountEl) {
               `Escape ${fmt(earthSimilarityBreakdown.escapeVelocity ?? 0, 2)} | ` +
               `Temp ${fmt(earthSimilarityBreakdown.surfaceTemp ?? 0, 2)}`,
           ),
+          buildMoonKpi(
+            "Surface Habitability",
+            model.display.surfaceHabitability,
+            moonHabitabilitySummary.gates?.radiationShielding?.label || "",
+          ),
+          buildMoonKpi("Subsurface Habitability", model.display.subsurfaceHabitability),
+          buildMoonKpi("Habitability Gates", model.display.habitabilityGates, habitabilityGateMeta),
           buildMoonKpi(
             "Biosphere",
             compactBiosphereValue,
@@ -1680,12 +1728,19 @@ export function initMoonPage(mountEl) {
               value: model.display.magnetosphericRad,
               meta: model.display.magnetosphericLabel,
             },
+            { label: "Surface Radiation", value: model.display.surfaceRadiation },
+            { label: "Magnetic Shielding", value: model.display.magneticShielding },
           ],
         },
         {
           id: "moon-details-habitability",
           title: "Habitability",
           items: [
+            {
+              label: "Life Class",
+              value: model.display.lifeClass,
+              meta: model.display.habitabilityGates,
+            },
             {
               label: "Habitability Index",
               value: model.display.habitabilityIndex,
@@ -1699,6 +1754,20 @@ export function initMoonPage(mountEl) {
                 `Density ${fmt(earthSimilarityBreakdown.density ?? 0, 2)} | ` +
                 `Escape ${fmt(earthSimilarityBreakdown.escapeVelocity ?? 0, 2)} | ` +
                 `Temp ${fmt(earthSimilarityBreakdown.surfaceTemp ?? 0, 2)}`,
+            },
+            {
+              label: "Surface Habitability",
+              value: model.display.surfaceHabitability,
+              meta: moonHabitabilitySummary.gates?.radiationShielding?.label || "",
+            },
+            {
+              label: "Subsurface Habitability",
+              value: model.display.subsurfaceHabitability,
+            },
+            {
+              label: "Habitability Gates",
+              value: model.display.habitabilityGates,
+              meta: habitabilityGateMeta.replace(/\n/g, " | "),
             },
             {
               label: "Biosphere",
@@ -1912,9 +1981,9 @@ export function initMoonPage(mountEl) {
   /* ── Moon recipe picker modal ──────────────────────────────────────── */
 
   const moonGuidedSteps = Object.freeze([
-    { id: "type", label: "Type" },
-    { id: "parent-context", label: "Parent" },
-    { id: "goal-details", label: "Goals" },
+    { id: "type", label: "Goal" },
+    { id: "parent-context", label: "Setup" },
+    { id: "goal-details", label: "Traits" },
     { id: "recommendation", label: "Recommendation" },
   ]);
 
@@ -1948,6 +2017,17 @@ export function initMoonPage(mountEl) {
     return {
       currentMoonId: activeMoonId,
       currentMoonName: state.moonName || state.moon.name || "Moon",
+      currentInputs: { ...(activeMoonInputs || {}) },
+      currentOrbitWindowKm: {
+        inner:
+          Number(
+            solvedContext.model?.orbit?.zoneInnerKm ?? solvedContext.model?.orbit?.moonZoneInnerKm,
+          ) || null,
+        outer:
+          Number(
+            solvedContext.model?.orbit?.zoneOuterKm ?? solvedContext.model?.orbit?.moonZoneOuterKm,
+          ) || null,
+      },
       siblingEntries: listMoons(world).filter(
         (entry) =>
           entry?.id !== activeMoonId && (entry?.planetId ?? null) === (activePlanetId ?? null),
@@ -1968,6 +2048,139 @@ export function initMoonPage(mountEl) {
           siblingPatch: options.siblingPatch || null,
         });
       },
+    };
+  }
+
+  function buildMoonGoalQuestionValues(flowState, questions = []) {
+    const goalDraft =
+      flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+        ? flowState.goalDraft
+        : {};
+    const traitRoles =
+      goalDraft.traitRoles &&
+      typeof goalDraft.traitRoles === "object" &&
+      !Array.isArray(goalDraft.traitRoles)
+        ? goalDraft.traitRoles
+        : {};
+    const values = {};
+    for (const question of Array.isArray(questions) ? questions : []) {
+      if (question?.id === "priority") values.priority = goalDraft.priority || question?.defaultValue;
+      else if (question?.id === "allowedEdits") {
+        values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
+      } else if (question?.id === "searchBudget") {
+        values.searchBudget = goalDraft.searchBudget || question?.defaultValue;
+      } else if (String(question?.id || "").startsWith("traitRole:")) {
+        const traitId = String(question.id).slice("traitRole:".length);
+        values[question.id] = traitRoles[traitId] || "off";
+      }
+    }
+    return values;
+  }
+
+  function setMoonGoalDraftValue(controllerRef, flowState, questionId, value) {
+    const normalizedId = String(questionId || "");
+    if (!normalizedId) return;
+    if (normalizedId === "priority" || normalizedId === "allowedEdits" || normalizedId === "searchBudget") {
+      controllerRef?.setGoalDraftValue(normalizedId, value);
+      return;
+    }
+    if (normalizedId.startsWith("traitRole:")) {
+      const traitId = normalizedId.slice("traitRole:".length);
+      const currentGoalDraft =
+        flowState?.goalDraft &&
+        typeof flowState.goalDraft === "object" &&
+        !Array.isArray(flowState.goalDraft)
+          ? flowState.goalDraft
+          : {};
+      const nextTraitRoles =
+        currentGoalDraft.traitRoles &&
+        typeof currentGoalDraft.traitRoles === "object" &&
+        !Array.isArray(currentGoalDraft.traitRoles)
+          ? { ...currentGoalDraft.traitRoles }
+          : {};
+      if (!value || value === "off") delete nextTraitRoles[traitId];
+      else nextTraitRoles[traitId] = value;
+      controllerRef?.setGoalDraft({
+        ...currentGoalDraft,
+        traitRoles: nextTraitRoles,
+      });
+    }
+  }
+
+  function buildMoonGoalTextAssist(resolveController, flowState) {
+    const goalDraft =
+      flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+        ? flowState.goalDraft
+        : {};
+    const help = getGoalTextAliasHelp("moon");
+    return createGoalTextAssist({
+      objectLabel: "moon",
+      value: goalDraft.goalText || "",
+      placeholder: help.placeholder,
+      examples: help.examples,
+      interpretation: goalDraft.goalTextInterpretation || null,
+      onInterpret: (value) =>
+        applyGuidedGoalTextInterpretation(resolveController?.(), flowState, "moon", value),
+      onClear: () => clearGuidedGoalTextInterpretation(resolveController?.(), flowState),
+    });
+  }
+
+  function buildMoonGoalStatus(flowState) {
+    const compileDiagnostics = Array.isArray(flowState?.compileDiagnostics)
+      ? flowState.compileDiagnostics
+      : [];
+    const searchStatus = String(flowState?.searchStatus || "idle");
+    const hasRestoredResult = !!flowState?.lastSearchResult?.recommendation;
+    const title =
+      searchStatus === "searching"
+        ? "Goal search in progress"
+        : searchStatus === "complete"
+          ? hasRestoredResult
+            ? "Goal search result ready"
+            : "Ready to search"
+          : searchStatus === "ready"
+            ? "Goal compiled"
+            : searchStatus === "error"
+              ? "Goal compile or search blocked"
+              : searchStatus === "canceled"
+                ? "Goal search canceled"
+                : searchStatus === "needs-compile"
+                  ? "Goal needs compile"
+                  : "";
+    const detailParts = [];
+    if (searchStatus === "needs-compile") {
+      detailParts.push("Compile the goal or run the search again after changing setup or traits.");
+    } else if (searchStatus === "ready") {
+      detailParts.push("The structured goal is valid. Run Search to try seeded moon candidates.");
+    } else if (searchStatus === "searching") {
+      detailParts.push("Trying seeded moon candidates against the current parent context.");
+    } else if (searchStatus === "complete") {
+      detailParts.push("Review the result, diagnostics, and context adjustments before applying.");
+    } else if (searchStatus === "error" && flowState?.searchError) {
+      detailParts.push(flowState.searchError);
+    }
+    if (searchStatus !== "complete" && hasRestoredResult) {
+      detailParts.push("A previous search result is still visible below until you re-run the search.");
+    }
+    return {
+      compileStatus: compileDiagnostics.length ? "error" : searchStatus === "ready" || searchStatus === "complete" ? "ready" : searchStatus,
+      searchStatus,
+      title,
+      detail: detailParts.join(" "),
+      diagnostics: compileDiagnostics,
+    };
+  }
+
+  function getMoonGuidedSessionTarget() {
+    const world = loadWorld();
+    const selectedMoon = getSelectedMoon(world);
+    return {
+      objectKey: selectedMoon?.id || "",
+      contextFingerprint: createGuidedContextFingerprint({
+        moonId: selectedMoon?.id || "",
+        planetId: selectedMoon?.planetId || null,
+        inputs: selectedMoon?.inputs || null,
+      }),
     };
   }
 
@@ -2087,16 +2300,29 @@ export function initMoonPage(mountEl) {
     };
   }
 
-  function openMoonGuidedQuickPicker() {
+  function openMoonGuidedQuickPicker(restoredSession = null, dedicatedBaseHash = "") {
     const adapter = ensureMoonGuidedAdapterRegistered();
     const context = buildMoonGuidedContext();
+    const sessionTarget = getMoonGuidedSessionTarget();
     const { overlayEl, contentEl, closeButtonEl } = createMoonGuidedCreationOverlay();
     let controller = null;
 
-    function close() {
+    function teardownOverlay(preserveSession = false) {
+      controller?.cancelSearch?.("overlay-closed");
+      overlayClosers.delete(preserveClose);
+      if (!preserveSession) clearGuidedSession("moon");
       overlayEl.remove();
       document.removeEventListener("keydown", onKey);
     }
+
+    function close() {
+      teardownOverlay(false);
+      if (dedicatedBaseHash && location.hash !== dedicatedBaseHash) {
+        location.hash = dedicatedBaseHash;
+      }
+    }
+
+    const preserveClose = () => teardownOverlay(true);
 
     function onKey(e) {
       if (e.key === "Escape") close();
@@ -2108,6 +2334,8 @@ export function initMoonPage(mountEl) {
       initialState: {
         objectType: "moon",
         uxMode: "quick",
+        selectedArchetypeId: restoredSession?.selectedArchetypeId || "",
+        answers: restoredSession?.answers || {},
       },
       onUpdate: ({ state: flowState, archetypes, questions, recommendation }) => {
         const panel = createGuidedPanel({
@@ -2143,9 +2371,15 @@ export function initMoonPage(mountEl) {
           },
         });
         contentEl.replaceChildren(panel);
+        saveGuidedSession("moon", {
+          ...sessionTarget,
+          uxMode: "quick",
+          ...buildGuidedSessionSnapshot(flowState),
+        });
       },
     });
 
+    overlayClosers.add(preserveClose);
     closeButtonEl.addEventListener("click", close);
     overlayEl.addEventListener("click", (e) => {
       if (e.target === overlayEl) close();
@@ -2154,16 +2388,29 @@ export function initMoonPage(mountEl) {
     document.body.appendChild(overlayEl);
   }
 
-  function openMoonGuidedFlow() {
+  function openMoonGuidedFlow(restoredSession = null, dedicatedBaseHash = "") {
     const adapter = ensureMoonGuidedAdapterRegistered();
     const context = buildMoonGuidedContext();
+    const sessionTarget = getMoonGuidedSessionTarget();
     const { overlayEl, contentEl, closeButtonEl } = createMoonGuidedCreationOverlay();
     let controller = null;
 
-    function close() {
+    function teardownOverlay(preserveSession = false) {
+      controller?.cancelSearch?.("overlay-closed");
+      overlayClosers.delete(preserveClose);
+      if (!preserveSession) clearGuidedSession("moon");
       overlayEl.remove();
       document.removeEventListener("keydown", onKey);
     }
+
+    function close() {
+      teardownOverlay(false);
+      if (dedicatedBaseHash && location.hash !== dedicatedBaseHash) {
+        location.hash = dedicatedBaseHash;
+      }
+    }
+
+    const preserveClose = () => teardownOverlay(true);
 
     function onKey(e) {
       if (e.key === "Escape") close();
@@ -2195,10 +2442,19 @@ export function initMoonPage(mountEl) {
     controller = createGuidedFlowController({
       adapter,
       context,
+      searchMode: "manual",
       initialState: {
         objectType: "moon",
         uxMode: "guided",
-        currentStepId: "type",
+        currentStepId: restoredSession?.currentStepId || "type",
+        selectedArchetypeId: restoredSession?.selectedGoalTemplateId || "",
+        selectedGoalTemplateId: restoredSession?.selectedGoalTemplateId || "",
+        goalDraft: restoredSession?.goalDraft || {},
+        compiledGoal: restoredSession?.compiledGoal || null,
+        searchStatus: restoredSession?.searchStatus || "idle",
+        lastSearchResult: restoredSession?.lastSearchResult || null,
+        lastSearchContextFingerprint: restoredSession?.lastSearchContextFingerprint || "",
+        lastSearchEngineFingerprint: restoredSession?.lastSearchEngineFingerprint || "",
       },
       onUpdate: ({ state: flowState, archetypes, questions, recommendation }) => {
         const currentStepId = String(flowState.currentStepId || "type");
@@ -2206,29 +2462,33 @@ export function initMoonPage(mountEl) {
         const filteredQuestions = (questions || []).filter(
           (question) => String(question?.stepId || "goal-details") === currentStepId,
         );
+        const questionValues = buildMoonGoalQuestionValues(flowState, filteredQuestions);
         const hasGoalStep = (questions || []).some(
           (question) => question?.stepId === "goal-details",
         );
         const steps = moonGuidedSteps.map((step, index) => ({
           ...step,
           disabled:
-            (step.id !== "type" && !flowState.selectedArchetypeId) ||
+            (step.id !== "type" && !flowState.selectedGoalTemplateId) ||
             (step.id === "goal-details" && !hasGoalStep) ||
             (step.id === "recommendation" &&
-              (!flowState.selectedArchetypeId || index > currentStepIndex + 1)),
+              (!flowState.selectedGoalTemplateId || index > currentStepIndex + 1)),
         }));
 
         const panel = createGuidedPanel({
-          title: "Moon Guided Creation",
+          title: "Moon Goal Builder",
           subtitle:
-            "Choose a moon type, confirm how strictly the current host context should constrain it, then refine the target before applying the recommendation.",
+            "Choose the moon outcome you want, set scope and search budget, then compile and run a seeded goal search before applying the recommendation.",
           steps,
           currentStepId,
           archetypes: (archetypes || []).filter((entry) => entry?.guidedEnabled !== false),
-          selectedArchetypeId: flowState.selectedArchetypeId || "",
+          selectedArchetypeId: flowState.selectedGoalTemplateId || "",
+          typeSupplement:
+            currentStepId === "type" ? buildMoonGoalTextAssist(() => controller, flowState) : null,
           questions: filteredQuestions,
-          answers: flowState.answers,
+          answers: questionValues,
           recommendation,
+          status: currentStepId === "recommendation" ? buildMoonGoalStatus(flowState) : null,
           previewContent:
             currentStepId === "recommendation"
               ? createMoonGuidedPreviewContent(recommendation)
@@ -2236,25 +2496,37 @@ export function initMoonPage(mountEl) {
           visibleSections: {
             type: currentStepId === "type",
             questions: currentStepId === "parent-context" || currentStepId === "goal-details",
+            status: currentStepId === "recommendation",
             recommendation: currentStepId === "recommendation",
             diagnostics: currentStepId === "recommendation",
           },
-          typeSectionTitle: "Moon Type",
+          typeSectionTitle: "Moon Goal",
           questionSectionTitle:
-            currentStepId === "parent-context" ? "Parent Context" : "Goal Details",
-          recommendationSectionTitle: "Recommended Moon",
-          diagnosticSectionTitle: "Fit Diagnostics",
+            currentStepId === "parent-context" ? "Search Setup" : "Goal Traits",
+          recommendationSectionTitle: "Best Moon Fit",
+          diagnosticSectionTitle: "Search Diagnostics",
           actions: [
             ...(currentStepId !== "type" ? [{ id: "back", label: "Back" }] : []),
             ...(currentStepId !== "recommendation"
               ? [
                   {
                     id: "next",
-                    label: currentStepId === "goal-details" ? "See Recommendation" : "Next",
-                    disabled: currentStepId === "type" && !flowState.selectedArchetypeId,
+                    label: currentStepId === "goal-details" ? "Review Goal Search" : "Next",
+                    disabled: currentStepId === "type" && !flowState.selectedGoalTemplateId,
                   },
                 ]
               : [
+                  {
+                    id: "compile",
+                    label: "Compile Goal",
+                    disabled: !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
+                  },
+                  {
+                    id: "run-search",
+                    label: flowState.searchStatus === "searching" ? "Searching..." : "Run Search",
+                    disabled:
+                      !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
+                  },
                   {
                     id: "apply",
                     label:
@@ -2266,7 +2538,10 @@ export function initMoonPage(mountEl) {
                           : recommendation?.applyPayload?.siblingPatch
                             ? "Apply with Moon-System Fixes"
                             : "Apply",
-                    disabled: !recommendation || recommendation.hasBlockingDiagnostics,
+                    disabled:
+                      !recommendation ||
+                      recommendation.hasBlockingDiagnostics ||
+                      flowState.searchStatus !== "complete",
                   },
                   {
                     id: "apply-advanced",
@@ -2279,7 +2554,10 @@ export function initMoonPage(mountEl) {
                           : recommendation?.applyPayload?.siblingPatch
                             ? "Apply with Moon-System Fixes and open Advanced"
                             : "Apply and open Advanced",
-                    disabled: !recommendation || recommendation.hasBlockingDiagnostics,
+                    disabled:
+                      !recommendation ||
+                      recommendation.hasBlockingDiagnostics ||
+                      flowState.searchStatus !== "complete",
                   },
                 ]),
             {
@@ -2288,14 +2566,16 @@ export function initMoonPage(mountEl) {
               className: "is-secondary",
             },
           ],
-          onArchetypeSelect: (archetypeId) =>
+          onArchetypeSelect: (goalTemplateId) =>
             controller?.reset({
               objectType: "moon",
               uxMode: "guided",
               currentStepId: "type",
-              selectedArchetypeId: archetypeId,
+              selectedArchetypeId: goalTemplateId,
+              selectedGoalTemplateId: goalTemplateId,
             }),
-          onQuestionChange: (questionId, value) => controller?.setAnswer(questionId, value),
+          onQuestionChange: (questionId, value) =>
+            setMoonGoalDraftValue(controller, flowState, questionId, value),
           onStepSelect: (stepId, step) => {
             if (step?.disabled) return;
             controller?.setStep(stepId);
@@ -2315,6 +2595,14 @@ export function initMoonPage(mountEl) {
             }
             if (actionId === "next") {
               controller?.setStep(nextMoonGuidedStepId(flowState, questions));
+              return;
+            }
+            if (actionId === "compile") {
+              controller?.compileGoal();
+              return;
+            }
+            if (actionId === "run-search") {
+              void controller?.startSearch();
               return;
             }
             if ((actionId === "apply" || actionId === "apply-advanced") && recommendation) {
@@ -2344,9 +2632,17 @@ export function initMoonPage(mountEl) {
           },
         });
         contentEl.replaceChildren(panel);
+        saveGuidedSession("moon", {
+          ...sessionTarget,
+          uxMode: "guided",
+          ...buildGuidedSessionSnapshot(flowState, {
+            currentStepId: flowState.currentStepId || "type",
+          }),
+        });
       },
     });
 
+    overlayClosers.add(preserveClose);
     closeButtonEl.addEventListener("click", close);
     overlayEl.addEventListener("click", (e) => {
       if (e.target === overlayEl) close();
@@ -2382,6 +2678,7 @@ export function initMoonPage(mountEl) {
     });
 
     function close() {
+      overlayClosers.delete(close);
       overlay.remove();
       document.removeEventListener("keydown", onKey);
     }
@@ -2402,6 +2699,7 @@ export function initMoonPage(mountEl) {
     function onKey(e) {
       if (e.key === "Escape") close();
     }
+    overlayClosers.add(close);
     document.addEventListener("keydown", onKey);
   }
 
@@ -2410,8 +2708,44 @@ export function initMoonPage(mountEl) {
   render();
 
   const pendingGuidedLaunch = consumeGuidedCreationLaunch("moon");
-  if (pendingGuidedLaunch?.uxMode === "quick") openMoonGuidedQuickPicker();
-  else if (pendingGuidedLaunch) openMoonGuidedFlow();
+  if (guidedRoute?.dedicated && guidedRoute.objectType === "moon") {
+    const restoredMoonSession = loadGuidedSession("moon", getMoonGuidedSessionTarget());
+    if (guidedRoute.uxMode === "quick") {
+      openMoonGuidedQuickPicker(
+        restoredMoonSession?.uxMode === "quick" ? restoredMoonSession : null,
+        guidedRoute.baseHash || "",
+      );
+    } else {
+      openMoonGuidedFlow(
+        restoredMoonSession?.uxMode === "guided" ? restoredMoonSession : null,
+        guidedRoute.baseHash || "",
+      );
+    }
+  } else if (pendingGuidedLaunch?.uxMode === "quick") {
+    openMoonGuidedQuickPicker();
+  } else if (pendingGuidedLaunch) {
+    openMoonGuidedFlow();
+  } else {
+    const restoredMoonSession = loadGuidedSession("moon", getMoonGuidedSessionTarget());
+    if (restoredMoonSession?.uxMode === "quick") {
+      openMoonGuidedQuickPicker(restoredMoonSession);
+    } else if (restoredMoonSession) {
+      openMoonGuidedFlow(restoredMoonSession);
+    }
+  }
+
+  return () => {
+    overlayClosers.forEach((closeOverlay) => {
+      try {
+        closeOverlay();
+      } catch {
+        // Ignore close failures during page teardown.
+      }
+    });
+    if (noticeTimer) clearTimeout(noticeTimer);
+    previewCleanupObserver.disconnect();
+    celestialPreviewController.dispose();
+  };
 }
 
 function numWithSlider(id, label, unit, hint, min, max, step, tipLabelKey) {

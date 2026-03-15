@@ -353,6 +353,15 @@ export function buildMoonHabitabilityContext(model = {}) {
       ? model.habitability.radiation
       : moonRadiationProfile({
           magnetosphericRadRemDay: radiation.magnetosphericRadRemDay,
+          surfaceExposureRemDayEquivalent: radiation.surfaceExposureRemDayEquivalent,
+          subsurfaceExposureRemDayEquivalent: radiation.subsurfaceExposureRemDayEquivalent,
+          surfaceClass: radiation.surfaceClass,
+          subsurfaceClass: radiation.subsurfaceClass,
+          atmosphereShielding: radiation.atmosphereShielding,
+          intrinsicFieldShielding: radiation.intrinsicFieldShielding,
+          inducedFieldShielding: radiation.inducedFieldShielding,
+          magneticShielding: radiation.magneticShielding,
+          combinedShielding: radiation.combinedShielding,
         });
   const planetSemiMajorAxisAu = Math.max(toFinite(model.planet?.semiMajorAxisAu, 0), 0);
   const starLuminosityLsol = Math.max(toFinite(model.star?.luminosityLsol, 0), 0);
@@ -442,6 +451,42 @@ export function buildMoonHabitabilityContext(model = {}) {
     environment: {
       magnetosphericRadRemDay: toFinite(radiation.magnetosphericRadRemDay, 0),
       radiationPenalty: toFinite(radiationProfile.radiationPenalty, 1),
+      surfaceExposureRemDayEquivalent: toFinite(
+        radiation.surfaceExposureRemDayEquivalent,
+        toFinite(radiationProfile.surfaceExposureRemDayEquivalent, 0),
+      ),
+      subsurfaceExposureRemDayEquivalent: toFinite(
+        radiation.subsurfaceExposureRemDayEquivalent,
+        toFinite(radiationProfile.subsurfaceExposureRemDayEquivalent, 0),
+      ),
+      surfaceRadiationPenalty: toFinite(radiationProfile.surfaceRadiationPenalty, NaN),
+      subsurfaceRadiationPenalty: toFinite(radiationProfile.subsurfaceRadiationPenalty, NaN),
+      atmosphereShielding: toFinite(
+        radiation.atmosphereShielding,
+        toFinite(radiationProfile.atmosphereShielding, NaN),
+      ),
+      intrinsicFieldShielding: toFinite(
+        radiation.intrinsicFieldShielding,
+        toFinite(radiationProfile.intrinsicFieldShielding, NaN),
+      ),
+      inducedFieldShielding: toFinite(
+        radiation.inducedFieldShielding,
+        toFinite(radiationProfile.inducedFieldShielding, NaN),
+      ),
+      magneticShielding: toFinite(
+        radiation.magneticShielding,
+        toFinite(radiationProfile.magneticShielding, NaN),
+      ),
+      combinedShielding: toFinite(
+        radiation.combinedShielding,
+        toFinite(radiationProfile.combinedShielding, NaN),
+      ),
+      surfaceRadiationClass: String(
+        radiation.surfaceClass || radiationProfile.surfaceClass || "",
+      ),
+      subsurfaceRadiationClass: String(
+        radiation.subsurfaceClass || radiationProfile.subsurfaceClass || "",
+      ),
       surfaceRadiationShieldingFactor: surfaceRadiationShieldingFactor({
         pressureAtm: surfacePressurePa / 101325,
         surfaceFieldEarths: intrinsicFieldKnown ? moonIntrinsicField : 0,

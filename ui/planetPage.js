@@ -16,7 +16,24 @@ import { bindNumberAndSlider } from "./bind.js";
 import { createElement } from "./domHelpers.js";
 import { createGuidedFlowController } from "./guidedCreation/flowController.js";
 import { createGuidedPanel } from "./guidedCreation/components/guidedPanel.js";
+import { createGoalTextAssist } from "./guidedCreation/components/goalTextAssist.js";
 import { createGuidedCreationOverlay } from "./guidedCreation/components/overlay.js";
+import { getGoalTextAliasHelp } from "./guidedCreation/goalAliases.js";
+import {
+  applyGuidedGoalTextInterpretation,
+  clearGuidedGoalTextInterpretation,
+} from "./guidedCreation/goalTextInterpretation.js";
+import {
+  buildGuidedSessionSnapshot,
+  clearGuidedSession,
+  createGuidedContextFingerprint,
+  loadGuidedSession,
+  saveGuidedSession,
+} from "./guidedCreation/sessionState.js";
+import {
+  buildGasGiantRecipeApplyInputs,
+  ensureGasGiantGuidedAdapterRegistered,
+} from "./guidedCreation/adapters/gasGiant.js";
 import {
   buildRockyRecipeApplyInputs,
   ensureRockyPlanetGuidedAdapterRegistered,
@@ -595,7 +612,8 @@ const TUTORIAL_STEPS = [
   },
 ];
 
-export function initPlanetPage(mountEl) {
+export function initPlanetPage(mountEl, options = {}) {
+  const guidedRoute = options?.routeContext?.guided || null;
   // CMF auto-mode state (shared between selection handler and renderRockyOutputs)
   let cmfAutoBtn = null;
   let cmfEl = null;
@@ -689,6 +707,29 @@ export function initPlanetPage(mountEl) {
             </div>
           </div>
 
+          <div id="gasGiantCreateEntry" class="guided-entry-strip" hidden>
+            <div class="guided-entry-strip__title">Create This Gas Giant</div>
+            <div id="gasGiantCreateEntryHint" class="guided-entry-strip__copy">
+              Quick applies a gas-giant archetype, Guided walks you to a recommendation, and
+              Advanced is the direct editor below. Use Recipes alongside Advanced when you want a
+              preset starting point: Recipes will override the current gas-giant inputs.
+            </div>
+            <div class="guided-entry-strip__modes">
+              <button id="gasGiantCreateQuickBtn" type="button" class="guided-entry-strip__mode">
+                Quick
+              </button>
+              <button id="gasGiantCreateGuidedBtn" type="button" class="guided-entry-strip__mode">
+                Guided
+              </button>
+              <button id="gasGiantCreateRecipesBtn" type="button" class="guided-entry-strip__mode">
+                Recipes
+              </button>
+              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page">
+                Advanced
+              </span>
+            </div>
+          </div>
+
           <div id="bodyInputs"></div>
           <div id="bodyMoons" style="margin-top:14px"></div>
           <div id="bodyActions" style="margin-top:10px"></div>
@@ -709,6 +750,7 @@ export function initPlanetPage(mountEl) {
     triggerBtn: wrap.querySelector("#planetTutorials"),
   });
 
+  const overlayClosers = new Set();
   const previewCleanupObserver = new MutationObserver(() => {
     if (wrap.isConnected) return;
     celestialPreviewController.dispose();
@@ -723,6 +765,11 @@ export function initPlanetPage(mountEl) {
   const rockyCreateQuickBtn = wrap.querySelector("#rockyCreateQuickBtn");
   const rockyCreateGuidedBtn = wrap.querySelector("#rockyCreateGuidedBtn");
   const rockyCreateRecipesBtn = wrap.querySelector("#rockyCreateRecipesBtn");
+  const gasGiantCreateEntryEl = wrap.querySelector("#gasGiantCreateEntry");
+  const gasGiantCreateEntryHintEl = wrap.querySelector("#gasGiantCreateEntryHint");
+  const gasGiantCreateQuickBtn = wrap.querySelector("#gasGiantCreateQuickBtn");
+  const gasGiantCreateGuidedBtn = wrap.querySelector("#gasGiantCreateGuidedBtn");
+  const gasGiantCreateRecipesBtn = wrap.querySelector("#gasGiantCreateRecipesBtn");
   const bodyInputsEl = wrap.querySelector("#bodyInputs");
   const bodyMoonsEl = wrap.querySelector("#bodyMoons");
   const bodyActionsEl = wrap.querySelector("#bodyActions");
@@ -860,6 +907,361 @@ export function initPlanetPage(mountEl) {
     };
   }
 
+  function buildRockyGoalQuestionValues(flowState, questions = []) {
+    const goalDraft =
+      flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+        ? flowState.goalDraft
+        : {};
+    const traitRoles =
+      goalDraft.traitRoles &&
+      typeof goalDraft.traitRoles === "object" &&
+      !Array.isArray(goalDraft.traitRoles)
+        ? goalDraft.traitRoles
+        : {};
+    const values = {};
+    for (const question of Array.isArray(questions) ? questions : []) {
+      if (question?.id === "priority") values.priority = goalDraft.priority || question?.defaultValue;
+      else if (question?.id === "allowedEdits") {
+        values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
+      } else if (question?.id === "searchBudget") {
+        values.searchBudget = goalDraft.searchBudget || question?.defaultValue;
+      } else if (String(question?.id || "").startsWith("traitRole:")) {
+        const traitId = String(question.id).slice("traitRole:".length);
+        values[question.id] = traitRoles[traitId] || "off";
+      }
+    }
+    return values;
+  }
+
+  function setRockyGoalDraftValue(controllerRef, flowState, questionId, value) {
+    const normalizedId = String(questionId || "");
+    if (!normalizedId) return;
+    if (normalizedId === "priority" || normalizedId === "allowedEdits" || normalizedId === "searchBudget") {
+      controllerRef?.setGoalDraftValue(normalizedId, value);
+      return;
+    }
+    if (normalizedId.startsWith("traitRole:")) {
+      const traitId = normalizedId.slice("traitRole:".length);
+      const currentGoalDraft =
+        flowState?.goalDraft &&
+        typeof flowState.goalDraft === "object" &&
+        !Array.isArray(flowState.goalDraft)
+          ? flowState.goalDraft
+          : {};
+      const nextTraitRoles =
+        currentGoalDraft.traitRoles &&
+        typeof currentGoalDraft.traitRoles === "object" &&
+        !Array.isArray(currentGoalDraft.traitRoles)
+          ? { ...currentGoalDraft.traitRoles }
+          : {};
+      if (!value || value === "off") delete nextTraitRoles[traitId];
+      else nextTraitRoles[traitId] = value;
+      controllerRef?.setGoalDraft({
+        ...currentGoalDraft,
+        traitRoles: nextTraitRoles,
+      });
+    }
+  }
+
+  function buildPlanetGoalTextAssist(
+    resolveController,
+    flowState,
+    { objectType = "", objectLabel = "world" } = {},
+  ) {
+    const goalDraft =
+      flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+        ? flowState.goalDraft
+        : {};
+    const help = getGoalTextAliasHelp(objectType);
+    return createGoalTextAssist({
+      objectLabel,
+      value: goalDraft.goalText || "",
+      placeholder: help.placeholder,
+      examples: help.examples,
+      interpretation: goalDraft.goalTextInterpretation || null,
+      onInterpret: (value) =>
+        applyGuidedGoalTextInterpretation(resolveController?.(), flowState, objectType, value),
+      onClear: () => clearGuidedGoalTextInterpretation(resolveController?.(), flowState),
+    });
+  }
+
+  function buildRockyGoalStatus(flowState) {
+    const compileDiagnostics = Array.isArray(flowState?.compileDiagnostics)
+      ? flowState.compileDiagnostics
+      : [];
+    const searchStatus = String(flowState?.searchStatus || "idle");
+    const hasRestoredResult = !!flowState?.lastSearchResult?.recommendation;
+    const title =
+      searchStatus === "searching"
+        ? "Goal search in progress"
+        : searchStatus === "complete"
+          ? "Goal search result ready"
+          : searchStatus === "ready"
+            ? "Goal compiled"
+            : searchStatus === "error"
+              ? "Goal compile or search blocked"
+              : searchStatus === "canceled"
+                ? "Goal search canceled"
+                : searchStatus === "needs-compile"
+                  ? "Goal needs compile"
+                  : "";
+    const detailParts = [];
+    if (searchStatus === "needs-compile") {
+      detailParts.push("Compile the goal or run the search again after changing setup or traits.");
+    } else if (searchStatus === "ready") {
+      detailParts.push("The structured goal is valid. Run Search to try seeded rocky-world candidates.");
+    } else if (searchStatus === "searching") {
+      detailParts.push("Trying seeded rocky-world candidates against the current star context.");
+    } else if (searchStatus === "complete") {
+      detailParts.push("Review the result and diagnostics before applying.");
+    } else if (searchStatus === "error" && flowState?.searchError) {
+      detailParts.push(flowState.searchError);
+    }
+    if (searchStatus !== "complete" && hasRestoredResult) {
+      detailParts.push("A previous search result is still visible below until you re-run the search.");
+    }
+    return {
+      compileStatus:
+        compileDiagnostics.length
+          ? "error"
+          : searchStatus === "ready" || searchStatus === "complete"
+            ? "ready"
+            : searchStatus,
+      searchStatus,
+      title,
+      detail: detailParts.join(" "),
+      diagnostics: compileDiagnostics,
+    };
+  }
+
+  function buildGasGiantGoalQuestionValues(flowState, questions = []) {
+    const goalDraft =
+      flowState?.goalDraft &&
+      typeof flowState.goalDraft === "object" &&
+      !Array.isArray(flowState.goalDraft)
+        ? flowState.goalDraft
+        : {};
+    const traitRoles =
+      goalDraft.traitRoles &&
+      typeof goalDraft.traitRoles === "object" &&
+      !Array.isArray(goalDraft.traitRoles)
+        ? goalDraft.traitRoles
+        : {};
+    const values = {};
+    for (const question of Array.isArray(questions) ? questions : []) {
+      if (question?.id === "priority") values.priority = goalDraft.priority || question?.defaultValue;
+      else if (question?.id === "allowedEdits") {
+        values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
+      } else if (question?.id === "searchBudget") {
+        values.searchBudget = goalDraft.searchBudget || question?.defaultValue;
+      } else if (String(question?.id || "").startsWith("traitRole:")) {
+        const traitId = String(question.id).slice("traitRole:".length);
+        values[question.id] = traitRoles[traitId] || "off";
+      }
+    }
+    return values;
+  }
+
+  function setGasGiantGoalDraftValue(controllerRef, flowState, questionId, value) {
+    const normalizedId = String(questionId || "");
+    if (!normalizedId) return;
+    if (normalizedId === "priority" || normalizedId === "allowedEdits" || normalizedId === "searchBudget") {
+      controllerRef?.setGoalDraftValue(normalizedId, value);
+      return;
+    }
+    if (normalizedId.startsWith("traitRole:")) {
+      const traitId = normalizedId.slice("traitRole:".length);
+      const currentGoalDraft =
+        flowState?.goalDraft &&
+        typeof flowState.goalDraft === "object" &&
+        !Array.isArray(flowState.goalDraft)
+          ? flowState.goalDraft
+          : {};
+      const nextTraitRoles =
+        currentGoalDraft.traitRoles &&
+        typeof currentGoalDraft.traitRoles === "object" &&
+        !Array.isArray(currentGoalDraft.traitRoles)
+          ? { ...currentGoalDraft.traitRoles }
+          : {};
+      if (!value || value === "off") delete nextTraitRoles[traitId];
+      else nextTraitRoles[traitId] = value;
+      controllerRef?.setGoalDraft({
+        ...currentGoalDraft,
+        traitRoles: nextTraitRoles,
+      });
+    }
+  }
+
+  function buildGasGiantGoalStatus(flowState) {
+    const compileDiagnostics = Array.isArray(flowState?.compileDiagnostics)
+      ? flowState.compileDiagnostics
+      : [];
+    const searchStatus = String(flowState?.searchStatus || "idle");
+    const hasRestoredResult = !!flowState?.lastSearchResult?.recommendation;
+    const title =
+      searchStatus === "searching"
+        ? "Goal search in progress"
+        : searchStatus === "complete"
+          ? "Goal search result ready"
+          : searchStatus === "ready"
+            ? "Goal compiled"
+            : searchStatus === "error"
+              ? "Goal compile or search blocked"
+              : searchStatus === "canceled"
+                ? "Goal search canceled"
+                : searchStatus === "needs-compile"
+                  ? "Goal needs compile"
+                  : "";
+    const detailParts = [];
+    if (searchStatus === "needs-compile") {
+      detailParts.push("Compile the goal or run the search again after changing setup or traits.");
+    } else if (searchStatus === "ready") {
+      detailParts.push("The structured goal is valid. Run Search to try seeded gas-giant candidates.");
+    } else if (searchStatus === "searching") {
+      detailParts.push("Trying seeded gas-giant candidates against the current star context.");
+    } else if (searchStatus === "complete") {
+      detailParts.push("Review the result and diagnostics before applying.");
+    } else if (searchStatus === "error" && flowState?.searchError) {
+      detailParts.push(flowState.searchError);
+    }
+    if (searchStatus !== "complete" && hasRestoredResult) {
+      detailParts.push("A previous search result is still visible below until you re-run the search.");
+    }
+    return {
+      compileStatus:
+        compileDiagnostics.length
+          ? "error"
+          : searchStatus === "ready" || searchStatus === "complete"
+            ? "ready"
+            : searchStatus,
+      searchStatus,
+      title,
+      detail: detailParts.join(" "),
+      diagnostics: compileDiagnostics,
+    };
+  }
+
+  function solveGasGiantModelForWorld(world, { giantId, gasGiantInputs }) {
+    const latestWorld = world || loadWorld();
+    const currentGiant = listSystemGasGiants(latestWorld).find((entry) => entry.id === giantId);
+    if (!currentGiant) {
+      return { error: "No gas giant is currently selected." };
+    }
+
+    const ggSov = getStarOverrides(latestWorld.star);
+    const ggStarCalc = calcStar({
+      massMsol: Number(latestWorld.star.massMsol),
+      ageGyr: Number(latestWorld.star.ageGyr) || 4.6,
+      radiusRsolOverride: ggSov.r,
+      luminosityLsolOverride: ggSov.l,
+      tempKOverride: ggSov.t,
+      evolutionMode: ggSov.ev,
+    });
+    const sysModel = calcSystem({
+      starMassMsol: Number(latestWorld.star.massMsol),
+      spacingFactor: Number(latestWorld.system.spacingFactor),
+      orbit1Au: Number(latestWorld.system.orbit1Au),
+      luminosityLsolOverride: ggStarCalc.luminosityLsol,
+      radiusRsolOverride: ggStarCalc.radiusRsol,
+    });
+
+    const giant = {
+      ...currentGiant,
+      ...(gasGiantInputs || {}),
+    };
+    if (
+      Number.isFinite(Number(giant.slotIndex)) &&
+      Number(giant.slotIndex) >= 1 &&
+      Number(giant.slotIndex) <= sysModel.orbitsAu.length
+    ) {
+      giant.slotIndex = Math.round(Number(giant.slotIndex));
+      giant.au = sysModel.orbitsAu[giant.slotIndex - 1];
+    } else {
+      giant.slotIndex = null;
+      giant.au = Number.isFinite(Number(giant.au)) && Number(giant.au) > 0 ? Number(giant.au) : currentGiant.au;
+    }
+
+    const { gasCalc, derivedStyle, ringState, ringAppearance } = deriveGasGiantAppearanceState(
+      latestWorld,
+      giant,
+      sysModel,
+      listSystemGasGiants(latestWorld).map((entry) => (entry.id === giantId ? giant : entry)),
+    );
+    const orbitText = Number.isFinite(Number(giant.au)) ? `${fmt(Number(giant.au), 3)} AU` : "unknown orbit";
+    const classText = gasCalc?.classification?.sudarsky
+      ? `Class ${gasCalc.classification.sudarsky} ${gasCalc.classification.label || ""}`.trim()
+      : gasCalc?.display?.classification || "unknown class";
+    const ringText = ringState?.effectiveEnabled ? "Rings currently visible." : "Rings currently hidden.";
+
+    return {
+      model: gasCalc,
+      styleId: derivedStyle,
+      ringState,
+      ringAppearance,
+      contextText: `Current orbit ${orbitText}. ${classText}. ${gasCalc?.display?.equilibriumTemp || "Unknown equilibrium temperature"}. ${ringText}`,
+      starLuminosityLsol: ggStarCalc.luminosityLsol,
+    };
+  }
+
+  function buildGasGiantGuidedContext() {
+    const world = loadWorld();
+    const selectedGasGiant = getSelectedGasGiant(world);
+    const activeInputs = selectedGasGiant || {};
+    const solvedContext = selectedGasGiant
+      ? solveGasGiantModelForWorld(world, {
+          giantId: selectedGasGiant.id,
+          gasGiantInputs: activeInputs,
+        })
+      : { model: null, contextText: "No gas giant selected." };
+
+    return {
+      currentGasGiantId: selectedGasGiant?.id || null,
+      currentGasGiantName: selectedGasGiant?.name || "Gas giant",
+      currentInputs: { ...(activeInputs || {}) },
+      currentContextLabel: "Current star context",
+      currentContextText: solvedContext.contextText,
+      recipeCatalog: GAS_GIANT_RECIPES,
+      starLuminosityLsol: solvedContext.starLuminosityLsol || null,
+      solveGasGiantInputs: (gasGiantInputs) => {
+        const latestWorld = loadWorld();
+        const latestGasGiant = getSelectedGasGiant(latestWorld);
+        if (!latestGasGiant) {
+          return { error: "No gas giant is currently selected." };
+        }
+        return solveGasGiantModelForWorld(latestWorld, {
+          giantId: latestGasGiant.id,
+          gasGiantInputs,
+        });
+      },
+    };
+  }
+
+  function getRockyGuidedSessionTarget() {
+    const world = loadWorld();
+    const selectedPlanet = getSelectedPlanet(world);
+    return {
+      objectKey: selectedPlanet?.id || "",
+      contextFingerprint: createGuidedContextFingerprint({
+        bodyType: "planet",
+        planetId: selectedPlanet?.id || "",
+        inputs: selectedPlanet?.inputs || null,
+      }),
+    };
+  }
+
+  function getGasGiantGuidedSessionTarget() {
+    const world = loadWorld();
+    const selectedGasGiant = getSelectedGasGiant(world);
+    return {
+      objectKey: selectedGasGiant?.id || "",
+      contextFingerprint: createGuidedContextFingerprint({
+        bodyType: "gasGiant",
+        gasGiantId: selectedGasGiant?.id || "",
+        inputs: selectedGasGiant || null,
+      }),
+    };
+  }
+
   function showPlanetNotice(message) {
     let noteEl = wrap.querySelector(".planet-float-note");
     if (!noteEl) {
@@ -900,6 +1302,39 @@ export function initPlanetPage(mountEl) {
     };
   }
 
+  function applyGasGiantPresetInputs(nextInputs, { noticeLabel = "Gas giant preset" } = {}) {
+    const world = loadWorld();
+    const selectedGasGiant = getSelectedGasGiant(world);
+    if (!selectedGasGiant) return null;
+    const now = listSystemGasGiants(world).map((entry) =>
+      entry.id === selectedGasGiant.id
+        ? {
+            ...entry,
+            ...nextInputs,
+            style: nextInputs.style || entry.style,
+          }
+        : entry,
+    );
+    saveSystemGasGiants(now);
+    render();
+    return {
+      appliedInputs: nextInputs,
+      noticeLabel,
+    };
+  }
+
+  function applyGasGiantGuidedRecommendation(
+    recommendation,
+    { noticeLabel = "Guided gas giant" } = {},
+  ) {
+    const applied = applyGasGiantPresetInputs(recommendation?.applyPayload?.objectInputs || {}, {
+      noticeLabel,
+    });
+    return {
+      appliedInputs: applied?.appliedInputs || null,
+    };
+  }
+
   function syncRockyCreationEntry(world, bodyType) {
     if (!rockyCreateEntryEl) return;
     const isRocky = bodyType !== "gasGiant";
@@ -914,6 +1349,23 @@ export function initPlanetPage(mountEl) {
       rockyCreateEntryHintEl.textContent = hasSelection
         ? "Quick applies a rocky archetype, Guided walks you to a recommendation, and Advanced is the direct editor below. Use Recipes alongside Advanced when you want a preset starting point: Recipes will override the current rocky-world inputs."
         : "Create or select a rocky planet first. Quick, Guided, and Recipes are currently available for rocky planets, not gas giants.";
+    }
+  }
+
+  function syncGasGiantCreationEntry(world, bodyType) {
+    if (!gasGiantCreateEntryEl) return;
+    const isGasGiant = bodyType === "gasGiant";
+    gasGiantCreateEntryEl.hidden = !isGasGiant;
+    if (!isGasGiant) return;
+    const selectedGasGiant = getSelectedGasGiant(world);
+    const hasSelection = !!selectedGasGiant;
+    if (gasGiantCreateQuickBtn) gasGiantCreateQuickBtn.disabled = !hasSelection;
+    if (gasGiantCreateGuidedBtn) gasGiantCreateGuidedBtn.disabled = !hasSelection;
+    if (gasGiantCreateRecipesBtn) gasGiantCreateRecipesBtn.disabled = !hasSelection;
+    if (gasGiantCreateEntryHintEl) {
+      gasGiantCreateEntryHintEl.textContent = hasSelection
+        ? "Quick applies a gas-giant archetype, Guided walks you to a recommendation, and Advanced is the direct editor below. Use Recipes alongside Advanced when you want a preset starting point: Recipes will override the current gas-giant inputs."
+        : "Create or select a gas giant first. Quick, Guided, and Recipes are currently available for gas giants on this page.";
     }
   }
 
@@ -2609,10 +3061,6 @@ export function initPlanetPage(mountEl) {
       kind: "preview",
       label: "Appearance",
       tip: TIP_LABEL["Sudarsky"] || "",
-      actions: [
-        { className: "small gg-recipe-btn", text: "Recipes" },
-        { className: "small gg-pause-btn", text: "Pause" },
-      ],
       canvasClass: "gg-preview-canvas",
       canvasDataset: {
         style: derivedStyle,
@@ -2895,44 +3343,413 @@ export function initPlanetPage(mountEl) {
       celestialPreviewController.detach();
     }
 
-    bodyOutputsEl.querySelector(".gg-recipe-btn")?.addEventListener("click", () => {
-      openGgRecipePicker((recipe) => {
-        const w = loadWorld();
-        const giants = listSystemGasGiants(w);
-        const g = giants.find((x) => x.id === giant.id);
-        if (!g) return;
-        if (recipe.apply.massMjup !== undefined) g.massMjup = recipe.apply.massMjup;
-        if (recipe.apply.radiusRj !== undefined) g.radiusRj = recipe.apply.radiusRj;
-        if (recipe.apply.rotationPeriodHours !== undefined)
-          g.rotationPeriodHours = recipe.apply.rotationPeriodHours;
-        if (recipe.apply.metallicity !== undefined) g.metallicity = recipe.apply.metallicity;
-        g.appearanceRecipeId = recipe.id;
-        g.ringMode = normalizeRingMode(g.ringMode);
-        g.ringStyleId = normalizeRingStyleId(g.ringStyleId);
-        const { derivedStyle: recipeStyle, ringState: recipeRingState } =
-          deriveGasGiantAppearanceState(w, g, sysModel, giants);
-        g.style = recipeStyle;
-        g.rings = recipeRingState.effectiveEnabled;
-        saveSystemGasGiants(giants);
-        scheduleRender(true);
-      });
-    });
-
-    const ggPauseBtn = bodyOutputsEl.querySelector(".gg-pause-btn");
-    if (ggPauseBtn) {
-      ggPauseBtn.addEventListener("click", () => {
-        const paused = ggPauseBtn.textContent === "Pause";
-        celestialPreviewController.setPaused(paused);
-        ggPauseBtn.textContent = paused ? "Play" : "Pause";
-      });
-    }
   }
   /* ── Gas giant recipe picker modal ─────────────────────────────── */
 
+  const gasGiantGuidedSteps = Object.freeze([
+    { id: "type", label: "Goal" },
+    { id: "orbit-context", label: "Setup" },
+    { id: "goal-details", label: "Traits" },
+    { id: "recommendation", label: "Recommendation" },
+  ]);
+
+  function gasGiantGuidedStepIndex(stepId) {
+    const index = gasGiantGuidedSteps.findIndex((step) => step.id === String(stepId || ""));
+    return index >= 0 ? index : 0;
+  }
+
+  function createGasGiantGuidedPreviewMetric(label, value, meta = "") {
+    const displayValue =
+      value == null || value === ""
+        ? "n/a"
+        : typeof value === "number" && !Number.isFinite(value)
+          ? "n/a"
+          : String(value);
+    return createElement("div", { className: "guided-preview__metric" }, [
+      createElement("div", {
+        className: "guided-preview__metric-label",
+        text: label,
+      }),
+      createElement("div", {
+        className: "guided-preview__metric-value",
+        text: displayValue,
+      }),
+      meta
+        ? createElement("div", {
+            className: "guided-preview__metric-meta",
+            text: meta,
+          })
+        : null,
+    ]);
+  }
+
+  function createGasGiantGuidedPreviewContent(recommendation) {
+    const model = recommendation?.previewPayload?.gasCalc;
+    const ringState = recommendation?.previewPayload?.ringState;
+    const ringAppearance = recommendation?.previewPayload?.ringAppearance;
+    if (!model) return null;
+    return createElement("div", { className: "guided-preview guided-preview--gas-giant" }, [
+      createElement("div", {
+        className: "guided-preview__title",
+        text: "Solved preview in the current star context",
+      }),
+      createElement("div", { className: "guided-preview__grid" }, [
+        createGasGiantGuidedPreviewMetric(
+          "Class",
+          `Class ${model.classification?.sudarsky || "?"}`,
+          model.display?.classification,
+        ),
+        createGasGiantGuidedPreviewMetric(
+          "Orbit",
+          model.inputs?.orbitAu != null ? `${fmt(model.inputs.orbitAu, 3)} AU` : "n/a",
+          model.display?.equilibriumTemp,
+        ),
+        createGasGiantGuidedPreviewMetric(
+          "Rings",
+          ringState?.effectiveEnabled ? "Visible" : "Hidden",
+          ringAppearance?.label || model.display?.ringType || "",
+        ),
+        createGasGiantGuidedPreviewMetric(
+          "Mass Loss",
+          model.display?.massLossRate,
+          model.display?.evaporationTimescale,
+        ),
+      ]),
+    ]);
+  }
+
+  function openGasGiantGuidedQuickPicker(restoredSession = null, dedicatedBaseHash = "") {
+    const adapter = ensureGasGiantGuidedAdapterRegistered();
+    const context = buildGasGiantGuidedContext();
+    const sessionTarget = getGasGiantGuidedSessionTarget();
+    const { overlayEl, contentEl, closeButtonEl } = createGuidedCreationOverlay({
+      overlayClassName: "guided-overlay--gas-giant",
+      dialogClassName: "guided-dialog--gas-giant",
+      closeLabel: "Close gas giant quick types",
+    });
+    let controller = null;
+
+    function teardownOverlay(preserveSession = false) {
+      controller?.cancelSearch?.("overlay-closed");
+      overlayClosers.delete(preserveClose);
+      if (!preserveSession) clearGuidedSession("gasGiant");
+      overlayEl.remove();
+      document.removeEventListener("keydown", onKey);
+    }
+
+    function close() {
+      teardownOverlay(false);
+      if (dedicatedBaseHash && location.hash !== dedicatedBaseHash) {
+        location.hash = dedicatedBaseHash;
+      }
+    }
+
+    const preserveClose = () => teardownOverlay(true);
+
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+
+    controller = createGuidedFlowController({
+      adapter,
+      context,
+      initialState: {
+        objectType: "gasGiant",
+        uxMode: "quick",
+        selectedArchetypeId: restoredSession?.selectedArchetypeId || "",
+        answers: restoredSession?.answers || {},
+      },
+      onUpdate: ({ state: flowState, questions, recommendation, archetypes }) => {
+        const panel = createGuidedPanel({
+          title: "Gas Giant Quick Types",
+          subtitle:
+            "Pick a gas-giant starting point. Each option maps to an existing gas-giant recipe and is re-solved around the current star.",
+          archetypes: (archetypes || []).filter((entry) => entry?.quickEnabled !== false),
+          selectedArchetypeId: flowState.selectedArchetypeId || "",
+          questions,
+          answers: flowState.answers,
+          recommendation,
+          previewContent: createGasGiantGuidedPreviewContent(recommendation),
+          actions: [
+            {
+              id: "apply",
+              label: recommendation?.diagnostics?.some((entry) => entry?.severity === "warning")
+                ? "Apply Starting Point"
+                : "Apply Quick Type",
+              disabled: !recommendation,
+            },
+          ],
+          onArchetypeSelect: (archetypeId) => controller?.selectArchetype(archetypeId),
+          onQuestionChange: (questionId, value) => controller?.setAnswer(questionId, value),
+          onAction: (actionId) => {
+            if (actionId !== "apply" || !recommendation) return;
+            controller?.apply({
+              applyGasGiantRecommendation: (nextRecommendation) =>
+                applyGasGiantGuidedRecommendation(nextRecommendation, {
+                  noticeLabel: recommendation.title || "Gas giant quick type",
+                }),
+            });
+            close();
+          },
+        });
+        contentEl.replaceChildren(panel);
+        saveGuidedSession("gasGiant", {
+          ...sessionTarget,
+          uxMode: "quick",
+          ...buildGuidedSessionSnapshot(flowState),
+        });
+      },
+    });
+
+    overlayClosers.add(preserveClose);
+    closeButtonEl.addEventListener("click", close);
+    overlayEl.addEventListener("click", (e) => {
+      if (e.target === overlayEl) close();
+    });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlayEl);
+  }
+
+  function openGasGiantGuidedFlow(restoredSession = null, dedicatedBaseHash = "") {
+    const adapter = ensureGasGiantGuidedAdapterRegistered();
+    const context = buildGasGiantGuidedContext();
+    const sessionTarget = getGasGiantGuidedSessionTarget();
+    const { overlayEl, contentEl, closeButtonEl } = createGuidedCreationOverlay({
+      overlayClassName: "guided-overlay--gas-giant",
+      dialogClassName: "guided-dialog--gas-giant",
+      closeLabel: "Close gas giant guided creation",
+    });
+    let controller = null;
+
+    function teardownOverlay(preserveSession = false) {
+      controller?.cancelSearch?.("overlay-closed");
+      overlayClosers.delete(preserveClose);
+      if (!preserveSession) clearGuidedSession("gasGiant");
+      overlayEl.remove();
+      document.removeEventListener("keydown", onKey);
+    }
+
+    function close() {
+      teardownOverlay(false);
+      if (dedicatedBaseHash && location.hash !== dedicatedBaseHash) {
+        location.hash = dedicatedBaseHash;
+      }
+    }
+
+    const preserveClose = () => teardownOverlay(true);
+
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+
+    function nextGasGiantGuidedStepId(flowState, questions = []) {
+      const currentId = String(flowState?.currentStepId || "type");
+      if (currentId === "type") return "orbit-context";
+      if (currentId === "orbit-context") {
+        return questions.some((question) => question?.stepId === "goal-details")
+          ? "goal-details"
+          : "recommendation";
+      }
+      return "recommendation";
+    }
+
+    function previousGasGiantGuidedStepId(flowState) {
+      const currentId = String(flowState?.currentStepId || "type");
+      if (currentId === "recommendation") return "goal-details";
+      if (currentId === "goal-details") return "orbit-context";
+      if (currentId === "orbit-context") return "type";
+      return "type";
+    }
+
+    controller = createGuidedFlowController({
+      adapter,
+      context,
+      searchMode: "manual",
+      initialState: {
+        objectType: "gasGiant",
+        uxMode: "guided",
+        currentStepId: restoredSession?.currentStepId || "type",
+        selectedArchetypeId: restoredSession?.selectedGoalTemplateId || "",
+        selectedGoalTemplateId: restoredSession?.selectedGoalTemplateId || "",
+        goalDraft: restoredSession?.goalDraft || {},
+        compiledGoal: restoredSession?.compiledGoal || null,
+        searchStatus: restoredSession?.searchStatus || "idle",
+        lastSearchResult: restoredSession?.lastSearchResult || null,
+        lastSearchContextFingerprint: restoredSession?.lastSearchContextFingerprint || "",
+        lastSearchEngineFingerprint: restoredSession?.lastSearchEngineFingerprint || "",
+      },
+      onUpdate: ({ state: flowState, questions, recommendation, archetypes }) => {
+        const currentStepId = String(flowState.currentStepId || "type");
+        const currentStepIndex = gasGiantGuidedStepIndex(currentStepId);
+        const filteredQuestions = (questions || []).filter(
+          (question) => String(question?.stepId || "goal-details") === currentStepId,
+        );
+        const questionValues = buildGasGiantGoalQuestionValues(flowState, filteredQuestions);
+        const hasGoalStep = (questions || []).some(
+          (question) => question?.stepId === "goal-details",
+        );
+        const steps = gasGiantGuidedSteps.map((step, index) => ({
+          ...step,
+          disabled:
+            (step.id !== "type" && !flowState.selectedGoalTemplateId) ||
+            (step.id === "goal-details" && !hasGoalStep) ||
+            (step.id === "recommendation" &&
+              (!flowState.selectedGoalTemplateId || index > currentStepIndex + 1)),
+        }));
+
+        const panel = createGuidedPanel({
+          title: "Gas Giant Goal Builder",
+          subtitle:
+            "Choose the gas-giant outcome you want, set scope and search budget, then compile and run a seeded goal search before applying the recommendation.",
+          steps,
+          currentStepId,
+          archetypes: (archetypes || []).filter((entry) => entry?.guidedEnabled !== false),
+          selectedArchetypeId: flowState.selectedGoalTemplateId || "",
+          typeSupplement:
+            currentStepId === "type"
+              ? buildPlanetGoalTextAssist(() => controller, flowState, {
+                  objectType: "gasGiant",
+                  objectLabel: "gas giant",
+                })
+              : null,
+          questions: filteredQuestions,
+          answers: questionValues,
+          recommendation,
+          status: currentStepId === "recommendation" ? buildGasGiantGoalStatus(flowState) : null,
+          previewContent:
+            currentStepId === "recommendation"
+              ? createGasGiantGuidedPreviewContent(recommendation)
+              : null,
+          visibleSections: {
+            type: currentStepId === "type",
+            questions: currentStepId === "orbit-context" || currentStepId === "goal-details",
+            status: currentStepId === "recommendation",
+            recommendation: currentStepId === "recommendation",
+            diagnostics: currentStepId === "recommendation",
+          },
+          typeSectionTitle: "Gas-Giant Goal",
+          questionSectionTitle: currentStepId === "orbit-context" ? "Search Setup" : "Goal Traits",
+          recommendationSectionTitle: "Best Gas-Giant Fit",
+          diagnosticSectionTitle: "Search Diagnostics",
+          actions: [
+            ...(currentStepId !== "type" ? [{ id: "back", label: "Back" }] : []),
+            ...(currentStepId !== "recommendation"
+              ? [
+                  {
+                    id: "next",
+                    label: currentStepId === "goal-details" ? "Review Goal Search" : "Next",
+                    disabled: currentStepId === "type" && !flowState.selectedGoalTemplateId,
+                  },
+                ]
+              : [
+                  {
+                    id: "compile",
+                    label: "Compile Goal",
+                    disabled:
+                      !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
+                  },
+                  {
+                    id: "run-search",
+                    label: flowState.searchStatus === "searching" ? "Searching..." : "Run Search",
+                    disabled:
+                      !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
+                  },
+                  {
+                    id: "apply",
+                    label: "Apply",
+                    disabled:
+                      !recommendation ||
+                      recommendation.hasBlockingDiagnostics ||
+                      flowState.searchStatus !== "complete",
+                  },
+                  {
+                    id: "apply-advanced",
+                    label: "Apply and open Advanced",
+                    disabled:
+                      !recommendation ||
+                      recommendation.hasBlockingDiagnostics ||
+                      flowState.searchStatus !== "complete",
+                  },
+                ]),
+            { id: "reset", label: "Reset", className: "is-secondary" },
+          ],
+          onArchetypeSelect: (goalTemplateId) =>
+            controller?.reset({
+              objectType: "gasGiant",
+              uxMode: "guided",
+              currentStepId: "type",
+              selectedArchetypeId: goalTemplateId,
+              selectedGoalTemplateId: goalTemplateId,
+            }),
+          onQuestionChange: (questionId, value) =>
+            setGasGiantGoalDraftValue(controller, flowState, questionId, value),
+          onStepSelect: (stepId, step) => {
+            if (step?.disabled) return;
+            controller?.setStep(stepId);
+          },
+          onAction: (actionId) => {
+            if (actionId === "reset") {
+              controller?.reset({
+                objectType: "gasGiant",
+                uxMode: "guided",
+                currentStepId: "type",
+              });
+              return;
+            }
+            if (actionId === "back") {
+              controller?.setStep(previousGasGiantGuidedStepId(flowState));
+              return;
+            }
+            if (actionId === "next") {
+              controller?.setStep(nextGasGiantGuidedStepId(flowState, questions));
+              return;
+            }
+            if (actionId === "compile") {
+              controller?.compileGoal();
+              return;
+            }
+            if (actionId === "run-search") {
+              void controller?.startSearch();
+              return;
+            }
+            if ((actionId === "apply" || actionId === "apply-advanced") && recommendation) {
+              controller?.apply({
+                applyGasGiantRecommendation: (nextRecommendation) =>
+                  applyGasGiantGuidedRecommendation(nextRecommendation, {
+                    noticeLabel: recommendation.title || "Guided gas giant",
+                  }),
+              });
+              close();
+              if (actionId === "apply-advanced") {
+                showPlanetNotice("Continue refining with the Planet page controls.");
+              }
+            }
+          },
+        });
+        contentEl.replaceChildren(panel);
+        saveGuidedSession("gasGiant", {
+          ...sessionTarget,
+          uxMode: "guided",
+          ...buildGuidedSessionSnapshot(flowState, {
+            currentStepId: flowState.currentStepId || "type",
+          }),
+        });
+      },
+    });
+
+    overlayClosers.add(preserveClose);
+    closeButtonEl.addEventListener("click", close);
+    overlayEl.addEventListener("click", (e) => {
+      if (e.target === overlayEl) close();
+    });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlayEl);
+  }
+
   const rockyGuidedSteps = Object.freeze([
-    { id: "type", label: "Type" },
-    { id: "orbit-context", label: "Orbit & Climate" },
-    { id: "goal-details", label: "Goals" },
+    { id: "type", label: "Goal" },
+    { id: "orbit-context", label: "Setup" },
+    { id: "goal-details", label: "Traits" },
     { id: "recommendation", label: "Recommendation" },
   ]);
 
@@ -2995,9 +3812,10 @@ export function initPlanetPage(mountEl) {
     ]);
   }
 
-  function openRockyGuidedQuickPicker() {
+  function openRockyGuidedQuickPicker(restoredSession = null, dedicatedBaseHash = "") {
     const adapter = ensureRockyPlanetGuidedAdapterRegistered();
     const context = buildRockyGuidedContext();
+    const sessionTarget = getRockyGuidedSessionTarget();
     const { overlayEl, contentEl, closeButtonEl } = createGuidedCreationOverlay({
       overlayClassName: "guided-overlay--rocky",
       dialogClassName: "guided-dialog--rocky",
@@ -3005,10 +3823,22 @@ export function initPlanetPage(mountEl) {
     });
     let controller = null;
 
-    function close() {
+    function teardownOverlay(preserveSession = false) {
+      controller?.cancelSearch?.("overlay-closed");
+      overlayClosers.delete(preserveClose);
+      if (!preserveSession) clearGuidedSession("rockyPlanet");
       overlayEl.remove();
       document.removeEventListener("keydown", onKey);
     }
+
+    function close() {
+      teardownOverlay(false);
+      if (dedicatedBaseHash && location.hash !== dedicatedBaseHash) {
+        location.hash = dedicatedBaseHash;
+      }
+    }
+
+    const preserveClose = () => teardownOverlay(true);
 
     function onKey(e) {
       if (e.key === "Escape") close();
@@ -3020,6 +3850,8 @@ export function initPlanetPage(mountEl) {
       initialState: {
         objectType: "rockyPlanet",
         uxMode: "quick",
+        selectedArchetypeId: restoredSession?.selectedArchetypeId || "",
+        answers: restoredSession?.answers || {},
       },
       onUpdate: ({ state: flowState, questions, recommendation, archetypes }) => {
         const panel = createGuidedPanel({
@@ -3055,9 +3887,15 @@ export function initPlanetPage(mountEl) {
           },
         });
         contentEl.replaceChildren(panel);
+        saveGuidedSession("rockyPlanet", {
+          ...sessionTarget,
+          uxMode: "quick",
+          ...buildGuidedSessionSnapshot(flowState),
+        });
       },
     });
 
+    overlayClosers.add(preserveClose);
     closeButtonEl.addEventListener("click", close);
     overlayEl.addEventListener("click", (e) => {
       if (e.target === overlayEl) close();
@@ -3066,9 +3904,10 @@ export function initPlanetPage(mountEl) {
     document.body.appendChild(overlayEl);
   }
 
-  function openRockyGuidedFlow() {
+  function openRockyGuidedFlow(restoredSession = null, dedicatedBaseHash = "") {
     const adapter = ensureRockyPlanetGuidedAdapterRegistered();
     const context = buildRockyGuidedContext();
+    const sessionTarget = getRockyGuidedSessionTarget();
     const { overlayEl, contentEl, closeButtonEl } = createGuidedCreationOverlay({
       overlayClassName: "guided-overlay--rocky",
       dialogClassName: "guided-dialog--rocky",
@@ -3076,10 +3915,22 @@ export function initPlanetPage(mountEl) {
     });
     let controller = null;
 
-    function close() {
+    function teardownOverlay(preserveSession = false) {
+      controller?.cancelSearch?.("overlay-closed");
+      overlayClosers.delete(preserveClose);
+      if (!preserveSession) clearGuidedSession("rockyPlanet");
       overlayEl.remove();
       document.removeEventListener("keydown", onKey);
     }
+
+    function close() {
+      teardownOverlay(false);
+      if (dedicatedBaseHash && location.hash !== dedicatedBaseHash) {
+        location.hash = dedicatedBaseHash;
+      }
+    }
+
+    const preserveClose = () => teardownOverlay(true);
 
     function onKey(e) {
       if (e.key === "Escape") close();
@@ -3111,10 +3962,19 @@ export function initPlanetPage(mountEl) {
     controller = createGuidedFlowController({
       adapter,
       context,
+      searchMode: "manual",
       initialState: {
         objectType: "rockyPlanet",
         uxMode: "guided",
-        currentStepId: "type",
+        currentStepId: restoredSession?.currentStepId || "type",
+        selectedArchetypeId: restoredSession?.selectedGoalTemplateId || "",
+        selectedGoalTemplateId: restoredSession?.selectedGoalTemplateId || "",
+        goalDraft: restoredSession?.goalDraft || {},
+        compiledGoal: restoredSession?.compiledGoal || null,
+        searchStatus: restoredSession?.searchStatus || "idle",
+        lastSearchResult: restoredSession?.lastSearchResult || null,
+        lastSearchContextFingerprint: restoredSession?.lastSearchContextFingerprint || "",
+        lastSearchEngineFingerprint: restoredSession?.lastSearchEngineFingerprint || "",
       },
       onUpdate: ({ state: flowState, questions, recommendation, archetypes }) => {
         const currentStepId = String(flowState.currentStepId || "type");
@@ -3122,29 +3982,38 @@ export function initPlanetPage(mountEl) {
         const filteredQuestions = (questions || []).filter(
           (question) => String(question?.stepId || "goal-details") === currentStepId,
         );
+        const questionValues = buildRockyGoalQuestionValues(flowState, filteredQuestions);
         const hasGoalStep = (questions || []).some(
           (question) => question?.stepId === "goal-details",
         );
         const steps = rockyGuidedSteps.map((step, index) => ({
           ...step,
           disabled:
-            (step.id !== "type" && !flowState.selectedArchetypeId) ||
+            (step.id !== "type" && !flowState.selectedGoalTemplateId) ||
             (step.id === "goal-details" && !hasGoalStep) ||
             (step.id === "recommendation" &&
-              (!flowState.selectedArchetypeId || index > currentStepIndex + 1)),
+              (!flowState.selectedGoalTemplateId || index > currentStepIndex + 1)),
         }));
 
         const panel = createGuidedPanel({
-          title: "Rocky Guided Creation",
+          title: "Rocky Goal Builder",
           subtitle:
-            "Choose a rocky archetype, decide how the current orbit should constrain it, then refine the environmental target before applying the recommendation.",
+            "Choose the rocky-world outcome you want, set scope and search budget, then compile and run a seeded goal search before applying the recommendation.",
           steps,
           currentStepId,
           archetypes: (archetypes || []).filter((entry) => entry?.guidedEnabled !== false),
-          selectedArchetypeId: flowState.selectedArchetypeId || "",
+          selectedArchetypeId: flowState.selectedGoalTemplateId || "",
+          typeSupplement:
+            currentStepId === "type"
+              ? buildPlanetGoalTextAssist(() => controller, flowState, {
+                  objectType: "rockyPlanet",
+                  objectLabel: "rocky world",
+                })
+              : null,
           questions: filteredQuestions,
-          answers: flowState.answers,
+          answers: questionValues,
           recommendation,
+          status: currentStepId === "recommendation" ? buildRockyGoalStatus(flowState) : null,
           previewContent:
             currentStepId === "recommendation"
               ? createRockyGuidedPreviewContent(recommendation)
@@ -3152,46 +4021,66 @@ export function initPlanetPage(mountEl) {
           visibleSections: {
             type: currentStepId === "type",
             questions: currentStepId === "orbit-context" || currentStepId === "goal-details",
+            status: currentStepId === "recommendation",
             recommendation: currentStepId === "recommendation",
             diagnostics: currentStepId === "recommendation",
           },
-          typeSectionTitle: "Rocky Type",
+          typeSectionTitle: "Rocky Goal",
           questionSectionTitle:
-            currentStepId === "orbit-context" ? "Orbit & Climate Context" : "Goal Details",
-          recommendationSectionTitle: "Recommended Rocky World",
-          diagnosticSectionTitle: "Fit Diagnostics",
+            currentStepId === "orbit-context" ? "Search Setup" : "Goal Traits",
+          recommendationSectionTitle: "Best Rocky Fit",
+          diagnosticSectionTitle: "Search Diagnostics",
           actions: [
             ...(currentStepId !== "type" ? [{ id: "back", label: "Back" }] : []),
             ...(currentStepId !== "recommendation"
               ? [
                   {
                     id: "next",
-                    label: currentStepId === "goal-details" ? "See Recommendation" : "Next",
-                    disabled: currentStepId === "type" && !flowState.selectedArchetypeId,
+                    label: currentStepId === "goal-details" ? "Review Goal Search" : "Next",
+                    disabled: currentStepId === "type" && !flowState.selectedGoalTemplateId,
                   },
                 ]
               : [
                   {
+                    id: "compile",
+                    label: "Compile Goal",
+                    disabled: !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
+                  },
+                  {
+                    id: "run-search",
+                    label: flowState.searchStatus === "searching" ? "Searching..." : "Run Search",
+                    disabled:
+                      !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
+                  },
+                  {
                     id: "apply",
                     label: "Apply",
-                    disabled: !recommendation || recommendation.hasBlockingDiagnostics,
+                    disabled:
+                      !recommendation ||
+                      recommendation.hasBlockingDiagnostics ||
+                      flowState.searchStatus !== "complete",
                   },
                   {
                     id: "apply-advanced",
                     label: "Apply and open Advanced",
-                    disabled: !recommendation || recommendation.hasBlockingDiagnostics,
+                    disabled:
+                      !recommendation ||
+                      recommendation.hasBlockingDiagnostics ||
+                      flowState.searchStatus !== "complete",
                   },
                 ]),
             { id: "reset", label: "Reset", className: "is-secondary" },
           ],
-          onArchetypeSelect: (archetypeId) =>
+          onArchetypeSelect: (goalTemplateId) =>
             controller?.reset({
               objectType: "rockyPlanet",
               uxMode: "guided",
               currentStepId: "type",
-              selectedArchetypeId: archetypeId,
+              selectedArchetypeId: goalTemplateId,
+              selectedGoalTemplateId: goalTemplateId,
             }),
-          onQuestionChange: (questionId, value) => controller?.setAnswer(questionId, value),
+          onQuestionChange: (questionId, value) =>
+            setRockyGoalDraftValue(controller, flowState, questionId, value),
           onStepSelect: (stepId, step) => {
             if (step?.disabled) return;
             controller?.setStep(stepId);
@@ -3213,6 +4102,14 @@ export function initPlanetPage(mountEl) {
               controller?.setStep(nextRockyGuidedStepId(flowState, questions));
               return;
             }
+            if (actionId === "compile") {
+              controller?.compileGoal();
+              return;
+            }
+            if (actionId === "run-search") {
+              void controller?.startSearch();
+              return;
+            }
             if ((actionId === "apply" || actionId === "apply-advanced") && recommendation) {
               controller?.apply({
                 applyRockyPlanetRecommendation: (nextRecommendation) =>
@@ -3228,9 +4125,17 @@ export function initPlanetPage(mountEl) {
           },
         });
         contentEl.replaceChildren(panel);
+        saveGuidedSession("rockyPlanet", {
+          ...sessionTarget,
+          uxMode: "guided",
+          ...buildGuidedSessionSnapshot(flowState, {
+            currentStepId: flowState.currentStepId || "type",
+          }),
+        });
       },
     });
 
+    overlayClosers.add(preserveClose);
     closeButtonEl.addEventListener("click", close);
     overlayEl.addEventListener("click", (e) => {
       if (e.target === overlayEl) close();
@@ -3273,6 +4178,7 @@ export function initPlanetPage(mountEl) {
     });
 
     function close() {
+      overlayClosers.delete(close);
       overlay.remove();
       document.removeEventListener("keydown", onKey);
     }
@@ -3293,6 +4199,7 @@ export function initPlanetPage(mountEl) {
     function onKey(e) {
       if (e.key === "Escape") close();
     }
+    overlayClosers.add(close);
     document.addEventListener("keydown", onKey);
   }
 
@@ -3331,6 +4238,7 @@ export function initPlanetPage(mountEl) {
     });
 
     function close() {
+      overlayClosers.delete(close);
       overlay.remove();
       document.removeEventListener("keydown", onKey);
     }
@@ -3351,6 +4259,7 @@ export function initPlanetPage(mountEl) {
     function onKey(e) {
       if (e.key === "Escape") close();
     }
+    overlayClosers.add(close);
     document.addEventListener("keydown", onKey);
   }
 
@@ -3537,6 +4446,7 @@ export function initPlanetPage(mountEl) {
         // Body selector
         populateBodySelector(world);
         syncRockyCreationEntry(world, bodyType);
+        syncGasGiantCreationEntry(world, bodyType);
       }
 
       if (bodyType === "gasGiant") {
@@ -3595,6 +4505,29 @@ export function initPlanetPage(mountEl) {
       updatePlanet(pid, { inputs: nextInputs });
       updateWorld({ planet: nextInputs });
       render();
+    });
+  });
+  gasGiantCreateQuickBtn?.addEventListener("click", () => {
+    openGasGiantGuidedQuickPicker();
+  });
+  gasGiantCreateGuidedBtn?.addEventListener("click", () => {
+    openGasGiantGuidedFlow();
+  });
+  gasGiantCreateRecipesBtn?.addEventListener("click", () => {
+    openGgRecipePicker((recipe) => {
+      const w = loadWorld();
+      const selectedGasGiant = getSelectedGasGiant(w);
+      if (!selectedGasGiant) return;
+      applyGasGiantPresetInputs(
+        buildGasGiantRecipeApplyInputs(
+          recipe.apply,
+          recipe.id,
+          selectedGasGiant,
+        ),
+        {
+          noticeLabel: recipe.label || "Gas giant recipe",
+        },
+      );
     });
   });
 
@@ -3693,5 +4626,79 @@ export function initPlanetPage(mountEl) {
 
   /* ── Init ───────────────────────────────────────────────────────── */
 
+  if (guidedRoute?.dedicated && guidedRoute.objectType === "gasGiant") {
+    selectBodyType("gasGiant");
+  } else if (guidedRoute?.dedicated && guidedRoute.objectType === "rockyPlanet") {
+    selectBodyType("planet");
+  }
+
   render();
+
+  const restoredBodyType = loadWorld().selectedBodyType || "planet";
+  if (guidedRoute?.dedicated && guidedRoute.objectType === "gasGiant") {
+    const restoredGasGiantSession = loadGuidedSession(
+      "gasGiant",
+      getGasGiantGuidedSessionTarget(),
+    );
+    if (guidedRoute.uxMode === "quick") {
+      openGasGiantGuidedQuickPicker(
+        restoredGasGiantSession?.uxMode === "quick" ? restoredGasGiantSession : null,
+        guidedRoute.baseHash || "",
+      );
+    } else {
+      openGasGiantGuidedFlow(
+        restoredGasGiantSession?.uxMode === "guided" ? restoredGasGiantSession : null,
+        guidedRoute.baseHash || "",
+      );
+    }
+  } else if (guidedRoute?.dedicated && guidedRoute.objectType === "rockyPlanet") {
+    const restoredRockySession = loadGuidedSession(
+      "rockyPlanet",
+      getRockyGuidedSessionTarget(),
+    );
+    if (guidedRoute.uxMode === "quick") {
+      openRockyGuidedQuickPicker(
+        restoredRockySession?.uxMode === "quick" ? restoredRockySession : null,
+        guidedRoute.baseHash || "",
+      );
+    } else {
+      openRockyGuidedFlow(
+        restoredRockySession?.uxMode === "guided" ? restoredRockySession : null,
+        guidedRoute.baseHash || "",
+      );
+    }
+  } else if (restoredBodyType === "gasGiant") {
+    const restoredGasGiantSession = loadGuidedSession(
+      "gasGiant",
+      getGasGiantGuidedSessionTarget(),
+    );
+    if (restoredGasGiantSession?.uxMode === "quick") {
+      openGasGiantGuidedQuickPicker(restoredGasGiantSession);
+    } else if (restoredGasGiantSession) {
+      openGasGiantGuidedFlow(restoredGasGiantSession);
+    }
+  } else {
+    const restoredRockySession = loadGuidedSession(
+      "rockyPlanet",
+      getRockyGuidedSessionTarget(),
+    );
+    if (restoredRockySession?.uxMode === "quick") {
+      openRockyGuidedQuickPicker(restoredRockySession);
+    } else if (restoredRockySession) {
+      openRockyGuidedFlow(restoredRockySession);
+    }
+  }
+
+  return () => {
+    overlayClosers.forEach((closeOverlay) => {
+      try {
+        closeOverlay();
+      } catch {
+        // Ignore close failures during page teardown.
+      }
+    });
+    if (noticeTimer) clearTimeout(noticeTimer);
+    previewCleanupObserver.disconnect();
+    celestialPreviewController.dispose();
+  };
 }

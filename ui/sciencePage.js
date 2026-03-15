@@ -867,14 +867,19 @@ function buildOrbitalMechanics() {
       <p>Magnetopause shadowing: energetic particle drift orbits that intersect the magnetopause are lost, depleting the outer radiation belts. Applied as a logistic attenuation factor:</p>
       <div class="sci-formula__eq">${eq("D_{\\text{eff}} = \\frac{D}{1 + e^{25(L/L_{\\text{mp}} - 0.3)}} ")}</div>
       <p>where ${iq("L/L_{\\text{mp}}")} is the moon&rsquo;s L-shell as a fraction of the magnetopause distance. The rolloff onset at 30% matches observed radiation depletion at Callisto (${iq("L/L_{\\text{mp}} \\approx 0.35")}).</p>
+      <p>WorldSmith then converts the parent-belt term into separate surface and subsurface exposure classes with simple shielding factors:</p>
+      <div class="sci-formula__eq">${eq("D_{\\text{surface}} = (D_{\\text{eff}} + D_{\\text{XUV}})\\,(1 - S_{\\text{atm}})\\,(1 - S_{\\text{mag}})")}</div>
+      <div class="sci-formula__eq">${eq("D_{\\text{sub}} = D_{\\text{surface}} \\times f_{\\text{ice}}")}</div>
+      <p>Here ${iq("S_{\\text{atm}}")} is atmosphere shielding, ${iq("S_{\\text{mag}}")} combines intrinsic and induced magnetic shielding, and ${iq("f_{\\text{ice}}")} reduces dose below an ice shell. Ganymede-like intrinsic dynamos and salty-ocean induced fields are treated as partial shields rather than total immunity. Thick atmospheres often dominate surface protection, while buried oceans or thick ice shells are much safer than the surface.</p>
+      <p>This is why WorldSmith can classify the same moon as a <b>radiation-limited surface ocean</b> but still keep <b>subsurface ocean plausible</b>.</p>
+      <p><b>Calibration note:</b> the parent-belt term remains a comparative, Europa-anchored radiation model rather than a full first-principles particle-transport solution. The output is most reliable as a relative moon-environment classifier, not as an absolute dose forecast for arbitrary exomoon systems.</p>
       ${cite("Paranicas et al. (2009); Divine & Garrett (1983) — Jupiter radiation environment")}`,
     ),
 
     formula(
       "Volatile Inventory &amp; Atmospheric Retention",
       `<p>Identifies surface ices and thin atmospheres on airless moons via three checks per species:</p>
-      <p><b>1. Presence:</b> Species is available if the moon&rsquo;s bulk density ${iq("\\rho < \\rho_{\\text{max}}")} for that ice
-      (lower density &rArr; higher ice fraction). Exception: SO&#8322; requires active tidal feedback (volcanism).</p>
+      <p><b>1. Presence:</b> In <b>Core</b> mode, species availability falls back to the older bulk-density guard (${iq("\\rho < \\rho_{\\text{max}}")}) for that ice. In <b>Full</b> and <b>Manual</b> modes, WorldSmith instead folds in explicit water inventory, ammonia fraction, composition override, and manual gas-mix requests before deciding whether a species reservoir is available. Exception: SO&#8322; still requires active tidal feedback or a manual atmospheric request.</p>
       <p><b>2. Sublimation:</b> Vacuum sublimation onset when ${iq("T_{\\text{surf}} \\geq T_{\\text{sub}}")} (temperature
       at which vapor pressure &asymp; 1 Pa). These thresholds are lower than the triple-point temperatures
       used for planets because moons exist in near-vacuum.</p>
@@ -926,9 +931,14 @@ function buildOrbitalMechanics() {
         <li><b>Biosphere</b> is surface-only: exposed biology and plant-life outputs require accessible surface liquid, adequate atmosphere, tolerable radiation, and livable surface climate.</li>
         <li><b>Habitability</b> can score both exposed surface solvent and buried subsurface solvent, so a moon can rate as chemically or physically promising without supporting an exposed biosphere.</li>
       </ul>
-      <p><b>Coupled moon systems:</b> in Full and Manual orbital-coupling modes, the moon solver can incorporate sibling-moon resonances, Laplace-chain tagging, forced eccentricity floors, tidal-habitable-zone flags, and formation classification before the final moon-world outputs are derived.</p>
-      <p><b>Surface vs. subsurface:</b> a buried ocean below an ice shell can raise the moon&rsquo;s internal or comparative habitability score, but it does <em>not</em> by itself imply surface life, plant life, or an Earth-like surface environment. Surface biosphere outputs remain tied to exposed surface conditions.</p>
-      <p><b>Reference inputs:</b> this moon-world layer sits on top of the tidal heating, moon temperature, magnetospheric radiation, and volatile-retention blocks documented above, then adds WorldSmith&rsquo;s own hydrosphere, geology, biosphere, and integrated habitability policy layers.</p>`,
+      <p><b>Five-gate outcome:</b> the current moon-world stack effectively behaves like a five-gate habitability screen: stellar-zone context for exposed-surface cases, stable circumplanetary orbit, combined energy budget, atmosphere retention, and radiation shielding. A moon does not need to pass all five to remain scientifically interesting, but exposed surface-biosphere outcomes require the full set.</p>
+      <p><b>Orbit stability policy:</b> WorldSmith now treats the full Hill sphere as only the formal outer bound. The long-term stable moon zone is kept more conservatively inside it: roughly one-third of the Hill radius for prograde moons and about one-half for retrograde moons, with an additional comfort margin before the outer edge.</p>
+      <p><b>Coupled moon systems:</b> in Full and Manual orbital-coupling modes, the moon solver can incorporate sibling-moon resonances, Laplace-chain tagging, forced eccentricity floors, a derived tidal-habitable-zone diagnostic, and formation classification before the final moon-world outputs are derived.</p>
+      <p><b>Surface vs. subsurface:</b> a buried ocean below an ice shell can raise the moon&rsquo;s internal or comparative habitability score, but it does <em>not</em> by itself imply surface life, plant life, or an Earth-like surface environment. Surface biosphere outputs remain tied to exposed surface conditions, while the moon summary can now separate <i>surface ocean plausible</i>, <i>radiation-limited surface ocean</i>, and <i>subsurface ocean plausible</i> outcomes.</p>
+      <p><b>Radiation and shielding:</b> moon results now track parent-belt exposure, stellar high-energy input, atmospheric attenuation, intrinsic dynamo shielding, induced salty-ocean shielding, and ice-shell attenuation together. This lets WorldSmith flag a moon as surface-wet but radiation-limited without discarding its deeper subsurface potential.</p>
+      <p><b>Beyond the stellar habitable zone:</b> the star&rsquo;s habitable zone mainly matters for <em>surface</em> liquid-water cases. Outside the stellar HZ, moons can still remain scientifically plausible life candidates through buried oceans sustained by tides, chemistry, and internal heat.</p>
+      <p><b>Stellar-HZ context:</b> exposed surface cases now use the star engine&rsquo;s actual habitable-zone output when available, then apply moon-specific caution for very low-mass stars where the habitable zone sits so close in that circumplanetary stability and early XUV exposure become harder constraints.</p>
+      <p><b>Reference inputs:</b> this moon-world layer sits on top of the tidal heating, moon temperature, magnetospheric radiation, volatile-retention, magnetosphere, and atmosphere-stability blocks documented above, then adds WorldSmith&rsquo;s own hydrosphere, geology, biosphere, and integrated habitability policy layers.</p>`,
     ),
   ].join("");
 }

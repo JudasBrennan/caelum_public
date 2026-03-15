@@ -163,7 +163,11 @@ export function buildLesson05(mode) {
       <p>For M dwarfs, the HZ is so close that planets are likely
         tidally locked, presenting the same face to the star permanently.
         Whether such planets can maintain habitable surface conditions
-        depends on atmospheric heat transport.</p>
+        depends on atmospheric heat transport. For moons, the same close-in
+        geometry also compresses the Hill-stable circumplanetary region and
+        raises early-XUV escape pressure, so a stellar-HZ moon around a very
+        low-mass star is not automatically a strong surface-habitability
+        candidate.</p>
       ${cite("Kopparapu et al. (2013, ApJ 765, 131); Shields et al. (2016, Phys. Rep. 663, 1)")}`,
       mode,
     ),
@@ -180,7 +184,8 @@ export function buildLesson05(mode) {
             atmosphere leaves a planet frozen even inside the HZ.</li>
         <li><strong>Tidal heating</strong> — moons of giant planets (like
             Jupiter's Europa) can have subsurface oceans heated by tidal
-            forces, far outside any star's habitable zone.</li>
+            forces, far outside any star's habitable zone. Those are usually
+            subsurface-life cases, not automatic surface-habitability cases.</li>
         <li><strong>Planetary composition</strong> — the amount of water,
             volcanic outgassing, and plate tectonics all affect whether
             liquid water actually exists.</li>
@@ -189,7 +194,7 @@ export function buildLesson05(mode) {
         scorching hellscape because of its thick CO${iq("_2")} atmosphere.
         Mars sits near the outer edge but is too cold because it lost most
         of its atmosphere.</p>
-      ${keyIdea("The habitable zone marks where liquid water <em>could</em> exist, not where it <em>does</em> exist. Atmosphere, geology, and other factors determine actual habitability. Planets outside the HZ (like icy moons) might still harbour life.")}`,
+      ${keyIdea("The habitable zone marks where liquid water <em>could</em> exist, not where it <em>does</em> exist. Atmosphere, geology, radiation, and other factors determine actual habitability. Planets outside the HZ (like icy moons) might still harbour subsurface life.")}`,
 
       /* advanced */
       `<p>The classical HZ assumes a 1-Earth-mass planet with an
@@ -205,10 +210,10 @@ export function buildLesson05(mode) {
             outer edge can either warm (IR scattering) or cool (reflection)
             depending on altitude.</li>
         <li><strong>Tidal heating</strong> — for moons in eccentric orbits
-            around giant planets, dissipation can provide surface heat
-            fluxes comparable to or exceeding insolation, creating
-            "habitable" conditions far outside the HZ (e.g. Europa,
-            Enceladus).</li>
+            around giant planets, dissipation can provide enough internal
+            heat to maintain subsurface oceans far outside the HZ (e.g.
+            Europa, Enceladus). Surface habitability still depends on
+            atmosphere retention and tolerable radiation.</li>
         <li><strong>Atmospheric escape</strong> — M-dwarf planets in close
             HZs are subject to intense XUV irradiation during the star's
             active pre-main-sequence phase, potentially stripping

@@ -2,9 +2,27 @@
 import { computeStellarActivityModel } from "../engine/stellarActivity.js";
 import { clamp, fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
+import { createElement } from "./domHelpers.js";
 import { createCelestialVisualPreviewController } from "./celestialVisualPreview.js";
 import { renderDerivedDetails } from "./derivedDetails.js";
 import { renderKpiSections } from "./kpiSections.js";
+import { createGuidedFlowController } from "./guidedCreation/flowController.js";
+import { createGuidedPanel } from "./guidedCreation/components/guidedPanel.js";
+import { createGoalTextAssist } from "./guidedCreation/components/goalTextAssist.js";
+import { createGuidedCreationOverlay } from "./guidedCreation/components/overlay.js";
+import { ensureStarGuidedAdapterRegistered } from "./guidedCreation/adapters/star.js";
+import { getGoalTextAliasHelp } from "./guidedCreation/goalAliases.js";
+import {
+  applyGuidedGoalTextInterpretation,
+  clearGuidedGoalTextInterpretation,
+} from "./guidedCreation/goalTextInterpretation.js";
+import {
+  buildGuidedSessionSnapshot,
+  clearGuidedSession,
+  createGuidedContextFingerprint,
+  loadGuidedSession,
+  saveGuidedSession,
+} from "./guidedCreation/sessionState.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { loadWorld, updateWorld } from "./store.js";
 import { createTutorial } from "./tutorial.js";
@@ -107,8 +125,9 @@ const TUTORIAL_STEPS = [
   },
 ];
 
-export function initStarPage(mountEl) {
+export function initStarPage(mountEl, options = {}) {
   const defaults = { name: "Star", massMsol: 0.8653, ageGyr: 6.254 }; // workbook defaults
+  const guidedRoute = options?.routeContext?.guided || null;
   const world = loadWorld();
   const state = {
     name:
@@ -162,6 +181,26 @@ export function initStarPage(mountEl) {
       <div class="panel">
         <div class="panel__header"><h2>Inputs</h2></div>
         <div class="panel__body">
+          <div id="starCreateEntry" class="guided-entry-strip">
+            <div class="guided-entry-strip__title">Create This Star</div>
+            <div id="starCreateEntryHint" class="guided-entry-strip__copy">
+              Quick applies a stellar archetype, Guided walks you to a recommendation, and
+              Advanced is the direct editor below. Sol-ish Preset and Reset remain available as
+              direct input helpers.
+            </div>
+            <div class="guided-entry-strip__modes">
+              <button id="starCreateQuickBtn" type="button" class="guided-entry-strip__mode">
+                Quick
+              </button>
+              <button id="starCreateGuidedBtn" type="button" class="guided-entry-strip__mode">
+                Guided
+              </button>
+              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page">
+                Advanced
+              </span>
+            </div>
+          </div>
+
           <div class="form-row">
             <div>
               <div class="label">Name ${tipIcon(TIP_LABEL["Name"] || "")}</div>
@@ -330,11 +369,14 @@ export function initStarPage(mountEl) {
   const physicsModeHintEl = wrap.querySelector("#physicsModeHint");
   const evolutionModeRadios = wrap.querySelectorAll('[name="evolutionMode"]');
   const evolutionHintEl = wrap.querySelector("#evolutionHint");
+  const starCreateQuickBtn = wrap.querySelector("#starCreateQuickBtn");
+  const starCreateGuidedBtn = wrap.querySelector("#starCreateGuidedBtn");
   const sunPreviewController = createCelestialVisualPreviewController({ speedDaysPerSec: 0.5 });
+  const overlayClosers = new Set();
 
   // Dispose preview controller when page unmounts
   const _starPageObserver = new MutationObserver(() => {
-    if (!document.contains(wrap)) {
+    if (!wrap.isConnected) {
       sunPreviewController.dispose();
       _starPageObserver.disconnect();
     }
@@ -440,6 +482,186 @@ export function initStarPage(mountEl) {
         activityModelVersion: state.activityModelVersion,
       },
     });
+  }
+
+  function solveStarGuidedInputs(starInputs = {}) {
+    const nextState = {
+      ...state,
+      ...(starInputs || {}),
+      radiusRsolOverride: null,
+      luminosityLsolOverride: null,
+      tempKOverride: null,
+      physicsMode: "simple",
+      advancedDerivationMode: "rl",
+    };
+    const model = calcStar({
+      massMsol: Number(nextState.massMsol),
+      ageGyr: Number(nextState.ageGyr),
+      metallicityFeH: Number(nextState.metallicityFeH) || 0,
+      radiusRsolOverride: null,
+      luminosityLsolOverride: null,
+      tempKOverride: null,
+      evolutionMode: nextState.evolutionMode === "evolved" ? "evolved" : "zams",
+    });
+    const activityModel = computeStellarActivityModel(
+      {
+        massMsun: Number(nextState.massMsol),
+        ageGyr: Number(nextState.ageGyr),
+        teffK: model.tempK,
+        luminosityLsun: model.luminosityLsol,
+      },
+      { activityCycle: 0.5 },
+    );
+    return { model, activityModel };
+  }
+
+  function buildStarGuidedContext() {
+    const solvedContext = solveStarGuidedInputs(state);
+    const activity = solvedContext.activityModel?.activity || {};
+    return {
+      currentStarName: state.name || "Star",
+      currentInputs: {
+        name: state.name,
+        massMsol: state.massMsol,
+        ageGyr: state.ageGyr,
+        metallicityFeH: state.metallicityFeH,
+        physicsMode: state.physicsMode,
+        advancedDerivationMode: state.advancedDerivationMode,
+        radiusRsolOverride: state.radiusRsolOverride,
+        luminosityLsolOverride: state.luminosityLsolOverride,
+        tempKOverride: state.tempKOverride,
+        evolutionMode: state.evolutionMode,
+        activityModelVersion: state.activityModelVersion,
+      },
+      currentContextLabel: "Current star context",
+      currentContextText:
+        `${solvedContext.model.spectralClass}. ` +
+        `Habitable zone ${solvedContext.model.display?.hzAu || "n/a"}. ` +
+        `Activity ${activity.teffBin || "?"}/${activity.ageBand || "?"}.`,
+      solveStarInputs: (starInputs) => solveStarGuidedInputs(starInputs),
+    };
+  }
+
+  function getStarGuidedSessionTarget() {
+    return {
+      objectKey: "primary-star",
+      contextFingerprint: createGuidedContextFingerprint({
+        name: state.name,
+        massMsol: state.massMsol,
+        ageGyr: state.ageGyr,
+        metallicityFeH: state.metallicityFeH,
+        physicsMode: state.physicsMode,
+        advancedDerivationMode: state.advancedDerivationMode,
+        radiusRsolOverride: state.radiusRsolOverride,
+        luminosityLsolOverride: state.luminosityLsolOverride,
+        tempKOverride: state.tempKOverride,
+        evolutionMode: state.evolutionMode,
+        activityModelVersion: state.activityModelVersion,
+      }),
+    };
+  }
+
+  function createStarGuidedPreviewMetric(label, value, meta = "") {
+    const displayValue =
+      value == null || value === ""
+        ? "n/a"
+        : typeof value === "number" && !Number.isFinite(value)
+          ? "n/a"
+          : String(value);
+    return createElement("div", { className: "guided-preview__metric" }, [
+      createElement("div", {
+        className: "guided-preview__metric-label",
+        text: label,
+      }),
+      createElement("div", {
+        className: "guided-preview__metric-value",
+        text: displayValue,
+      }),
+      meta
+        ? createElement("div", {
+            className: "guided-preview__metric-meta",
+            text: meta,
+          })
+        : null,
+    ]);
+  }
+
+  function createStarGuidedPreviewContent(recommendation) {
+    const model = recommendation?.previewPayload?.starCalc;
+    const activity = recommendation?.previewPayload?.activityModel?.activity || null;
+    if (!model) return null;
+    return createElement("div", { className: "guided-preview guided-preview--star" }, [
+      createElement("div", {
+        className: "guided-preview__title",
+        text: "Solved preview in the current star-editor context",
+      }),
+      createElement("div", { className: "guided-preview__grid" }, [
+        createStarGuidedPreviewMetric("Class", model.spectralClass),
+        createStarGuidedPreviewMetric("Habitable Zone", model.display?.hzAu),
+        createStarGuidedPreviewMetric(
+          "Activity",
+          activity ? `${activity.teffBin}/${activity.ageBand}` : "n/a",
+          activity ? `${fmt(activity.energeticFlareRatePerDay, 2)} flares/day` : "",
+        ),
+        createStarGuidedPreviewMetric("Earth-like Life", model.earthLikeLifePossible),
+      ]),
+    ]);
+  }
+
+  function applyStarPresetInputs(nextInputs, { noticeLabel = "Star preset" } = {}) {
+    state.name = String(nextInputs?.name || state.name || defaults.name);
+    state.massMsol = Number(nextInputs?.massMsol ?? state.massMsol);
+    state.ageGyr = Number(nextInputs?.ageGyr ?? state.ageGyr);
+    state.metallicityFeH = Number(nextInputs?.metallicityFeH ?? state.metallicityFeH) || 0;
+    state.radiusRsolOverride = null;
+    state.luminosityLsolOverride = null;
+    state.tempKOverride = null;
+    state.physicsMode = "simple";
+    state.advancedDerivationMode = "rl";
+    state.evolutionMode = nextInputs?.evolutionMode === "evolved" ? "evolved" : "zams";
+    state.activityModelVersion = "v2";
+    nameEl.value = state.name;
+    massEl.value = state.massMsol;
+    ageEl.value = state.ageGyr;
+    metallicityEl.value = state.metallicityFeH;
+    radiusOverrideEl.value = "";
+    luminosityOverrideEl.value = "";
+    tempOverrideEl.value = "";
+    const physicsSimpleEl = wrap.querySelector("#physicsSimple");
+    if (physicsSimpleEl) physicsSimpleEl.checked = true;
+    const evolutionEl = wrap.querySelector(
+      `#${state.evolutionMode === "evolved" ? "evolutionOn" : "evolutionOff"}`,
+    );
+    if (evolutionEl) evolutionEl.checked = true;
+    setDerivMode("rl");
+    syncBoundInputs();
+    persistState();
+    render();
+    return {
+      appliedInputs: {
+        name: state.name,
+        massMsol: state.massMsol,
+        ageGyr: state.ageGyr,
+        metallicityFeH: state.metallicityFeH,
+        physicsMode: state.physicsMode,
+        advancedDerivationMode: state.advancedDerivationMode,
+        radiusRsolOverride: state.radiusRsolOverride,
+        luminosityLsolOverride: state.luminosityLsolOverride,
+        tempKOverride: state.tempKOverride,
+        evolutionMode: state.evolutionMode,
+        activityModelVersion: state.activityModelVersion,
+      },
+      noticeLabel,
+    };
+  }
+
+  function applyStarGuidedRecommendation(recommendation, { noticeLabel = "Guided star" } = {}) {
+    const applied = applyStarPresetInputs(recommendation?.applyPayload?.objectInputs || {}, {
+      noticeLabel,
+    });
+    return {
+      appliedInputs: applied?.appliedInputs || null,
+    };
   }
 
   function getDerivMode() {
@@ -857,6 +1079,470 @@ export function initStarPage(mountEl) {
     hydrating = false;
   }
 
+  function buildStarGoalQuestionValues(flowState, questions = []) {
+    const goalDraft =
+      flowState?.goalDraft &&
+      typeof flowState.goalDraft === "object" &&
+      !Array.isArray(flowState.goalDraft)
+        ? flowState.goalDraft
+        : {};
+    const traitRoles =
+      goalDraft.traitRoles &&
+      typeof goalDraft.traitRoles === "object" &&
+      !Array.isArray(goalDraft.traitRoles)
+        ? goalDraft.traitRoles
+        : {};
+    const values = {};
+    for (const question of Array.isArray(questions) ? questions : []) {
+      if (question?.id === "priority") values.priority = goalDraft.priority || question?.defaultValue;
+      else if (question?.id === "allowedEdits") {
+        values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
+      } else if (question?.id === "searchBudget") {
+        values.searchBudget = goalDraft.searchBudget || question?.defaultValue;
+      } else if (String(question?.id || "").startsWith("traitRole:")) {
+        const traitId = String(question.id).slice("traitRole:".length);
+        values[question.id] = traitRoles[traitId] || "off";
+      }
+    }
+    return values;
+  }
+
+  function setStarGoalDraftValue(controllerRef, flowState, questionId, value) {
+    const normalizedId = String(questionId || "");
+    if (!normalizedId) return;
+    if (normalizedId === "priority" || normalizedId === "allowedEdits" || normalizedId === "searchBudget") {
+      controllerRef?.setGoalDraftValue(normalizedId, value);
+      return;
+    }
+    if (normalizedId.startsWith("traitRole:")) {
+      const traitId = normalizedId.slice("traitRole:".length);
+      const currentGoalDraft =
+        flowState?.goalDraft &&
+        typeof flowState.goalDraft === "object" &&
+        !Array.isArray(flowState.goalDraft)
+          ? flowState.goalDraft
+          : {};
+      const nextTraitRoles =
+        currentGoalDraft.traitRoles &&
+        typeof currentGoalDraft.traitRoles === "object" &&
+        !Array.isArray(currentGoalDraft.traitRoles)
+          ? { ...currentGoalDraft.traitRoles }
+          : {};
+      if (!value || value === "off") delete nextTraitRoles[traitId];
+      else nextTraitRoles[traitId] = value;
+      controllerRef?.setGoalDraft({
+        ...currentGoalDraft,
+        traitRoles: nextTraitRoles,
+      });
+    }
+  }
+
+  function buildStarGoalTextAssist(resolveController, flowState) {
+    const goalDraft =
+      flowState?.goalDraft &&
+      typeof flowState.goalDraft === "object" &&
+      !Array.isArray(flowState.goalDraft)
+        ? flowState.goalDraft
+        : {};
+    const help = getGoalTextAliasHelp("star");
+    return createGoalTextAssist({
+      objectLabel: "star",
+      value: goalDraft.goalText || "",
+      placeholder: help.placeholder,
+      examples: help.examples,
+      interpretation: goalDraft.goalTextInterpretation || null,
+      onInterpret: (value) =>
+        applyGuidedGoalTextInterpretation(resolveController?.(), flowState, "star", value),
+      onClear: () => clearGuidedGoalTextInterpretation(resolveController?.(), flowState),
+    });
+  }
+
+  function buildStarGoalStatus(flowState) {
+    const compileDiagnostics = Array.isArray(flowState?.compileDiagnostics)
+      ? flowState.compileDiagnostics
+      : [];
+    const searchStatus = String(flowState?.searchStatus || "idle");
+    const hasRestoredResult = !!flowState?.lastSearchResult?.recommendation;
+    const title =
+      searchStatus === "searching"
+        ? "Goal search in progress"
+        : searchStatus === "complete"
+          ? "Goal search result ready"
+          : searchStatus === "ready"
+            ? "Goal compiled"
+            : searchStatus === "error"
+              ? "Goal compile or search blocked"
+              : searchStatus === "canceled"
+                ? "Goal search canceled"
+                : searchStatus === "needs-compile"
+                  ? "Goal needs compile"
+                  : "";
+    const detailParts = [];
+    if (searchStatus === "needs-compile") {
+      detailParts.push("Compile the goal or run the search again after changing setup or traits.");
+    } else if (searchStatus === "ready") {
+      detailParts.push("The structured goal is valid. Run Search to try seeded stellar candidates.");
+    } else if (searchStatus === "searching") {
+      detailParts.push("Trying seeded stellar candidates against the current star context.");
+    } else if (searchStatus === "complete") {
+      detailParts.push("Review the result and diagnostics before applying.");
+    } else if (searchStatus === "error" && flowState?.searchError) {
+      detailParts.push(flowState.searchError);
+    }
+    if (searchStatus !== "complete" && hasRestoredResult) {
+      detailParts.push("A previous search result is still visible below until you re-run the search.");
+    }
+    return {
+      compileStatus:
+        compileDiagnostics.length
+          ? "error"
+          : searchStatus === "ready" || searchStatus === "complete"
+            ? "ready"
+            : searchStatus,
+      searchStatus,
+      title,
+      detail: detailParts.join(" "),
+      diagnostics: compileDiagnostics,
+    };
+  }
+
+  const starGuidedSteps = Object.freeze([
+    { id: "type", label: "Goal" },
+    { id: "stellar-context", label: "Setup" },
+    { id: "goal-details", label: "Traits" },
+    { id: "recommendation", label: "Recommendation" },
+  ]);
+
+  function starGuidedStepIndex(stepId) {
+    const index = starGuidedSteps.findIndex((step) => step.id === String(stepId || ""));
+    return index >= 0 ? index : 0;
+  }
+
+  function openStarGuidedQuickPicker(restoredSession = null, dedicatedBaseHash = "") {
+    const adapter = ensureStarGuidedAdapterRegistered();
+    const context = buildStarGuidedContext();
+    const sessionTarget = getStarGuidedSessionTarget();
+    const { overlayEl, contentEl, closeButtonEl } = createGuidedCreationOverlay({
+      overlayClassName: "guided-overlay--star",
+      dialogClassName: "guided-dialog--star",
+      closeLabel: "Close star quick types",
+    });
+    let controller = null;
+
+    function teardownOverlay(preserveSession = false) {
+      controller?.cancelSearch?.("overlay-closed");
+      overlayClosers.delete(preserveClose);
+      if (!preserveSession) clearGuidedSession("star");
+      overlayEl.remove();
+      document.removeEventListener("keydown", onKey);
+    }
+
+    function close() {
+      teardownOverlay(false);
+      if (dedicatedBaseHash && location.hash !== dedicatedBaseHash) {
+        location.hash = dedicatedBaseHash;
+      }
+    }
+
+    const preserveClose = () => teardownOverlay(true);
+
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+
+    controller = createGuidedFlowController({
+      adapter,
+      context,
+      initialState: {
+        objectType: "star",
+        uxMode: "quick",
+        selectedArchetypeId: restoredSession?.selectedArchetypeId || "",
+        answers: restoredSession?.answers || {},
+      },
+      onUpdate: ({ state: flowState, questions, recommendation, archetypes }) => {
+        const panel = createGuidedPanel({
+          title: "Star Quick Types",
+          subtitle:
+            "Pick a stellar starting point. Each option re-solves the star and its activity outputs in the current editor context.",
+          archetypes: (archetypes || []).filter((entry) => entry?.quickEnabled !== false),
+          selectedArchetypeId: flowState.selectedArchetypeId || "",
+          questions,
+          answers: flowState.answers,
+          recommendation,
+          previewContent: createStarGuidedPreviewContent(recommendation),
+          actions: [
+            {
+              id: "apply",
+              label: recommendation?.diagnostics?.some((entry) => entry?.severity === "warning")
+                ? "Apply Starting Point"
+                : "Apply Quick Type",
+              disabled: !recommendation,
+            },
+          ],
+          onArchetypeSelect: (archetypeId) => controller?.selectArchetype(archetypeId),
+          onQuestionChange: (questionId, value) => controller?.setAnswer(questionId, value),
+          onAction: (actionId) => {
+            if (actionId !== "apply" || !recommendation) return;
+            controller?.apply({
+              applyStarRecommendation: (nextRecommendation) =>
+                applyStarGuidedRecommendation(nextRecommendation, {
+                  noticeLabel: recommendation.title || "Star quick type",
+                }),
+            });
+            close();
+          },
+        });
+        contentEl.replaceChildren(panel);
+        saveGuidedSession("star", {
+          ...sessionTarget,
+          uxMode: "quick",
+          ...buildGuidedSessionSnapshot(flowState),
+        });
+      },
+    });
+
+    overlayClosers.add(preserveClose);
+    closeButtonEl.addEventListener("click", close);
+    overlayEl.addEventListener("click", (e) => {
+      if (e.target === overlayEl) close();
+    });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlayEl);
+  }
+
+  function openStarGuidedFlow(restoredSession = null, dedicatedBaseHash = "") {
+    const adapter = ensureStarGuidedAdapterRegistered();
+    const context = buildStarGuidedContext();
+    const sessionTarget = getStarGuidedSessionTarget();
+    const { overlayEl, contentEl, closeButtonEl } = createGuidedCreationOverlay({
+      overlayClassName: "guided-overlay--star",
+      dialogClassName: "guided-dialog--star",
+      closeLabel: "Close star guided creation",
+    });
+    let controller = null;
+
+    function teardownOverlay(preserveSession = false) {
+      controller?.cancelSearch?.("overlay-closed");
+      overlayClosers.delete(preserveClose);
+      if (!preserveSession) clearGuidedSession("star");
+      overlayEl.remove();
+      document.removeEventListener("keydown", onKey);
+    }
+
+    function close() {
+      teardownOverlay(false);
+      if (dedicatedBaseHash && location.hash !== dedicatedBaseHash) {
+        location.hash = dedicatedBaseHash;
+      }
+    }
+
+    const preserveClose = () => teardownOverlay(true);
+
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+
+    function nextStarGuidedStepId(flowState, questions = []) {
+      const currentId = String(flowState?.currentStepId || "type");
+      if (currentId === "type") return "stellar-context";
+      if (currentId === "stellar-context") {
+        return questions.some((question) => question?.stepId === "goal-details")
+          ? "goal-details"
+          : "recommendation";
+      }
+      return "recommendation";
+    }
+
+    function previousStarGuidedStepId(flowState, questions = []) {
+      const currentId = String(flowState?.currentStepId || "type");
+      if (currentId === "recommendation") {
+        return questions.some((question) => question?.stepId === "goal-details")
+          ? "goal-details"
+          : "stellar-context";
+      }
+      if (currentId === "goal-details") return "stellar-context";
+      if (currentId === "stellar-context") return "type";
+      return "type";
+    }
+
+    controller = createGuidedFlowController({
+      adapter,
+      context,
+      searchMode: "manual",
+      initialState: {
+        objectType: "star",
+        uxMode: "guided",
+        currentStepId: restoredSession?.currentStepId || "type",
+        selectedArchetypeId: restoredSession?.selectedGoalTemplateId || "",
+        selectedGoalTemplateId: restoredSession?.selectedGoalTemplateId || "",
+        goalDraft: restoredSession?.goalDraft || {},
+        compiledGoal: restoredSession?.compiledGoal || null,
+        searchStatus: restoredSession?.searchStatus || "idle",
+        lastSearchResult: restoredSession?.lastSearchResult || null,
+        lastSearchContextFingerprint: restoredSession?.lastSearchContextFingerprint || "",
+        lastSearchEngineFingerprint: restoredSession?.lastSearchEngineFingerprint || "",
+      },
+      onUpdate: ({ state: flowState, questions, recommendation, archetypes }) => {
+        const currentStepId = String(flowState.currentStepId || "type");
+        const currentStepIndex = starGuidedStepIndex(currentStepId);
+        const filteredQuestions = (questions || []).filter(
+          (question) => String(question?.stepId || "goal-details") === currentStepId,
+        );
+        const questionValues = buildStarGoalQuestionValues(flowState, filteredQuestions);
+        const hasGoalStep = (questions || []).some(
+          (question) => question?.stepId === "goal-details",
+        );
+        const steps = starGuidedSteps.map((step, index) => ({
+          ...step,
+          disabled:
+            (step.id !== "type" && !flowState.selectedGoalTemplateId) ||
+            (step.id === "goal-details" && !hasGoalStep) ||
+            (step.id === "recommendation" &&
+              (!flowState.selectedGoalTemplateId || index > currentStepIndex + 1)),
+        }));
+
+        const panel = createGuidedPanel({
+          title: "Star Goal Builder",
+          subtitle:
+            "Choose the stellar outcome you want, set scope and search budget, then compile and run a seeded goal search before applying the recommendation.",
+          steps,
+          currentStepId,
+          archetypes: (archetypes || []).filter((entry) => entry?.guidedEnabled !== false),
+          selectedArchetypeId: flowState.selectedGoalTemplateId || "",
+          typeSupplement:
+            currentStepId === "type" ? buildStarGoalTextAssist(() => controller, flowState) : null,
+          questions: filteredQuestions,
+          answers: questionValues,
+          recommendation,
+          status: currentStepId === "recommendation" ? buildStarGoalStatus(flowState) : null,
+          previewContent:
+            currentStepId === "recommendation"
+              ? createStarGuidedPreviewContent(recommendation)
+              : null,
+          visibleSections: {
+            type: currentStepId === "type",
+            questions: currentStepId === "stellar-context" || currentStepId === "goal-details",
+            status: currentStepId === "recommendation",
+            recommendation: currentStepId === "recommendation",
+            diagnostics: currentStepId === "recommendation",
+          },
+          typeSectionTitle: "Star Goal",
+          questionSectionTitle:
+            currentStepId === "stellar-context" ? "Search Setup" : "Goal Traits",
+          recommendationSectionTitle: "Best Stellar Fit",
+          diagnosticSectionTitle: "Search Diagnostics",
+          actions: [
+            ...(currentStepId !== "type" ? [{ id: "back", label: "Back" }] : []),
+            ...(currentStepId !== "recommendation"
+              ? [
+                  {
+                    id: "next",
+                    label: currentStepId === "goal-details" ? "Review Goal Search" : "Next",
+                    disabled: currentStepId === "type" && !flowState.selectedGoalTemplateId,
+                  },
+                ]
+              : [
+                  {
+                    id: "compile",
+                    label: "Compile Goal",
+                    disabled:
+                      !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
+                  },
+                  {
+                    id: "run-search",
+                    label: flowState.searchStatus === "searching" ? "Searching..." : "Run Search",
+                    disabled:
+                      !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
+                  },
+                  {
+                    id: "apply",
+                    label: "Apply",
+                    disabled:
+                      !recommendation ||
+                      recommendation.hasBlockingDiagnostics ||
+                      flowState.searchStatus !== "complete",
+                  },
+                  {
+                    id: "apply-advanced",
+                    label: "Apply and open Advanced",
+                    disabled:
+                      !recommendation ||
+                      recommendation.hasBlockingDiagnostics ||
+                      flowState.searchStatus !== "complete",
+                  },
+                ]),
+            { id: "reset", label: "Reset", className: "is-secondary" },
+          ],
+          onArchetypeSelect: (goalTemplateId) =>
+            controller?.reset({
+              objectType: "star",
+              uxMode: "guided",
+              currentStepId: "type",
+              selectedArchetypeId: goalTemplateId,
+              selectedGoalTemplateId: goalTemplateId,
+            }),
+          onQuestionChange: (questionId, value) =>
+            setStarGoalDraftValue(controller, flowState, questionId, value),
+          onStepSelect: (stepId, step) => {
+            if (step?.disabled) return;
+            controller?.setStep(stepId);
+          },
+          onAction: (actionId) => {
+            if (actionId === "reset") {
+              controller?.reset({
+                objectType: "star",
+                uxMode: "guided",
+                currentStepId: "type",
+              });
+              return;
+            }
+            if (actionId === "back") {
+              controller?.setStep(previousStarGuidedStepId(flowState, questions));
+              return;
+            }
+            if (actionId === "next") {
+              controller?.setStep(nextStarGuidedStepId(flowState, questions));
+              return;
+            }
+            if (actionId === "compile") {
+              controller?.compileGoal();
+              return;
+            }
+            if (actionId === "run-search") {
+              void controller?.startSearch();
+              return;
+            }
+            if ((actionId === "apply" || actionId === "apply-advanced") && recommendation) {
+              controller?.apply({
+                applyStarRecommendation: (nextRecommendation) =>
+                  applyStarGuidedRecommendation(nextRecommendation, {
+                    noticeLabel: recommendation.title || "Guided star",
+                  }),
+              });
+              close();
+            }
+          },
+        });
+        contentEl.replaceChildren(panel);
+        saveGuidedSession("star", {
+          ...sessionTarget,
+          uxMode: "guided",
+          ...buildGuidedSessionSnapshot(flowState, {
+            currentStepId: flowState.currentStepId || "type",
+          }),
+        });
+      },
+    });
+
+    overlayClosers.add(preserveClose);
+    closeButtonEl.addEventListener("click", close);
+    overlayEl.addEventListener("click", (e) => {
+      if (e.target === overlayEl) close();
+    });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlayEl);
+  }
+
   // Initial population
   nameEl.value = state.name;
   massEl.value = state.massMsol;
@@ -929,6 +1615,13 @@ export function initStarPage(mountEl) {
     });
   });
 
+  starCreateQuickBtn?.addEventListener("click", () => {
+    openStarGuidedQuickPicker();
+  });
+  starCreateGuidedBtn?.addEventListener("click", () => {
+    openStarGuidedFlow();
+  });
+
   wrap.querySelector("#btn-sol").addEventListener("click", () => {
     // "Sol-ish" (simple): mass 1, age ~4.6 Gyr
     state.name = sanitiseName(nameEl.value);
@@ -985,4 +1678,35 @@ export function initStarPage(mountEl) {
     persistState();
     render();
   });
+
+  const restoredGuidedSession = loadGuidedSession("star", getStarGuidedSessionTarget());
+  if (guidedRoute?.dedicated && guidedRoute.objectType === "star") {
+    if (guidedRoute.uxMode === "quick") {
+      openStarGuidedQuickPicker(
+        restoredGuidedSession?.uxMode === "quick" ? restoredGuidedSession : null,
+        guidedRoute.baseHash || "",
+      );
+    } else {
+      openStarGuidedFlow(
+        restoredGuidedSession?.uxMode === "guided" ? restoredGuidedSession : null,
+        guidedRoute.baseHash || "",
+      );
+    }
+  } else if (restoredGuidedSession?.uxMode === "quick") {
+    openStarGuidedQuickPicker(restoredGuidedSession);
+  } else if (restoredGuidedSession) {
+    openStarGuidedFlow(restoredGuidedSession);
+  }
+
+  return () => {
+    overlayClosers.forEach((closeOverlay) => {
+      try {
+        closeOverlay();
+      } catch {
+        // Ignore close failures during page teardown.
+      }
+    });
+    _starPageObserver.disconnect();
+    sunPreviewController.dispose();
+  };
 }

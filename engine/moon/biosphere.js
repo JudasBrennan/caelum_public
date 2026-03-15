@@ -1,4 +1,5 @@
 import { vegetationColours } from "../planet/appearance.js";
+import { radiationPenaltyFromMagnetosphericDose } from "../habitability/radiation.js";
 import { clamp, toFinite } from "../utils.js";
 
 function pressureAdequacyScore(pressureAtm) {
@@ -117,6 +118,33 @@ function limitingFactors({
   return factors;
 }
 
+function moonSurfaceRadiationScore(radiation = {}) {
+  const state = radiation && typeof radiation === "object" ? radiation : {};
+  if (Number.isFinite(toFinite(state.surfaceRadiationPenalty, NaN))) {
+    return clamp(toFinite(state.surfaceRadiationPenalty, 1), 0, 1);
+  }
+  if (Number.isFinite(toFinite(state.radiationPenalty, NaN))) {
+    return clamp(toFinite(state.radiationPenalty, 1), 0, 1);
+  }
+  if (Number.isFinite(toFinite(state.surfaceExposureRemDayEquivalent, NaN))) {
+    return clamp(
+      radiationPenaltyFromMagnetosphericDose(state.surfaceExposureRemDayEquivalent),
+      0,
+      1,
+    );
+  }
+  const surfaceClass = String(state.surfaceClass || "").trim();
+  if (surfaceClass === "Low") return 1;
+  if (surfaceClass === "Elevated") return 0.9;
+  if (surfaceClass === "Harsh") return 0.7;
+  if (surfaceClass === "Surface-sterilizing") return 0.05;
+  return clamp(
+    radiationPenaltyFromMagnetosphericDose(toFinite(state.magnetosphericRadRemDay, 0)),
+    0,
+    1,
+  );
+}
+
 export function computeMoonBiosphere({
   starTempK = 0,
   insolationEarth = 0,
@@ -147,7 +175,7 @@ export function computeMoonBiosphere({
     0,
     1,
   );
-  const radiationScore = clamp(toFinite(radiationState.radiationPenalty, 1), 0, 1);
+  const radiationScore = moonSurfaceRadiationScore(radiationState);
   const spectralScore = spectralPhotosynthesisScore(starTempK);
   const illuminationScore = illuminationRegimeScore({
     synodicDays: orbitalPeriodSynodicDays,

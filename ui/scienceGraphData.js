@@ -825,7 +825,8 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     row: 4,
     summary:
       "Per-species volatile inventory (N2, CO, CH4, H2O, CO2, NH3, SO2) from sublimation state, Jeans retention, volcanic resupply, and atmosphere-stability checks.",
-    formula: "Species present if density allows; retained if Jeans lambda > 6 and tau_esc > age.",
+    formula:
+      "Core: density-based presence fallback. Full/Manual: explicit volatile inventory + composition/manual gas requests; retained if Jeans lambda > 6 and tau_esc > age.",
     engineRefs: ["engine/moon.js"],
     docs: [
       { label: "Science - Moons", href: "#/science" },
@@ -840,9 +841,16 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     sectionId: "moons",
     row: 5,
     summary:
-      "Combined moon-world outcome from atmosphere, hydrosphere, climate, geology, biosphere, and habitability, including resonance and stability diagnostics.",
-    formula: "state = f(atmosphere, hydrosphere, climate, geology, biosphere, resonance)",
-    engineRefs: ["engine/moon.js", "engine/moon/system.js", "ui/moonPage.js"],
+      "Combined moon-world outcome from atmosphere, hydrosphere, climate, radiation, geology, biosphere, and habitability, including resonance, conservative orbit stability, shielding, and surface-vs-subsurface diagnostics.",
+    formula:
+      "state = f(atmosphere, hydrosphere, climate, radiation, geology, biosphere, resonance)",
+    engineRefs: [
+      "engine/moon.js",
+      "engine/moon/system.js",
+      "engine/moon/radiation.js",
+      "engine/moon/magnetosphere.js",
+      "ui/moonPage.js",
+    ],
     docs: [
       { label: "Science - Moons", href: "#/science" },
       { label: "Lesson 12 - Moons & Tides", href: "#/lessons" },
@@ -1245,8 +1253,8 @@ export const SCIENCE_GRAPH_EDGES = Object.freeze([
     evidence: "runtime",
     relationship: "drives",
     summary:
-      "Surface temperature feeds the hydrosphere and climate branches of the moon-world classification.",
-    engineRefs: ["engine/moon.js"],
+      "Surface temperature feeds the hydrosphere and climate branches of the moon-world classification, helping separate frozen, surface-ocean, and steam paths before radiation gates are applied.",
+    engineRefs: ["engine/moon.js", "engine/moon/climate.js"],
   },
   {
     sourceId: "moon_volatiles",
@@ -1254,8 +1262,8 @@ export const SCIENCE_GRAPH_EDGES = Object.freeze([
     evidence: "runtime",
     relationship: "drives",
     summary:
-      "Retained volatiles and atmosphere stability determine whether moons stay airless, hazy, frozen, ocean-bearing, or biologically active.",
-    engineRefs: ["engine/moon.js"],
+      "Retained volatiles and atmosphere stability determine whether moons stay airless, hazy, frozen, subsurface-ocean, surface-ocean, or radiation-limited despite otherwise wet conditions, with explicit volatile inventories available in the richer moon modes.",
+    engineRefs: ["engine/moon.js", "engine/moon/atmosphere.js", "engine/moon/hydrosphere.js"],
   },
   {
     sourceId: "moon_tides",
@@ -1263,8 +1271,13 @@ export const SCIENCE_GRAPH_EDGES = Object.freeze([
     evidence: "runtime",
     relationship: "modulates",
     summary:
-      "Tidal heating and resonance support can sustain cryovolcanism, subsurface oceans, or volcanically active moon states.",
-    engineRefs: ["engine/moon.js", "engine/moon/system.js"],
+      "Tidal heating and resonance support can sustain cryovolcanism, subsurface oceans, volcanically active moon states, or the magnetic and internal heat budgets that keep buried oceans viable.",
+    engineRefs: [
+      "engine/moon.js",
+      "engine/moon/system.js",
+      "engine/moon/radiation.js",
+      "engine/moon/magnetosphere.js",
+    ],
   },
   {
     sourceId: "planet_wmf",
@@ -1784,7 +1797,8 @@ export const SCIENCE_GRAPH_EDGES = Object.freeze([
     targetId: "moon_volatiles",
     evidence: "runtime",
     relationship: "classifies",
-    summary: "Temperature determines which volatile ices sublimate into a thin atmosphere.",
+    summary:
+      "Temperature determines which volatile ices sublimate into a thin atmosphere once a species reservoir is available from the active moon volatile model.",
     engineRefs: ["engine/moon.js"],
   },
   {
