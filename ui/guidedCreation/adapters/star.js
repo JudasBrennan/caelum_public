@@ -2,11 +2,7 @@ import { calcStar } from "../../../engine/star.js";
 import { computeStellarActivityModel } from "../../../engine/stellarActivity.js";
 import { clamp, fmt } from "../../../engine/utils.js";
 import { compileGuidedGoal } from "../goalCompiler.js";
-import {
-  getGoalTemplate,
-  getGoalTrait,
-  listGoalTemplates,
-} from "../goalTraits.js";
+import { getGoalTemplate, getGoalTrait, listGoalTemplates } from "../goalTraits.js";
 import { getGuidedAdapter, registerGuidedAdapter } from "../registry.js";
 
 const STAR_GUIDED_ARCHETYPES = Object.freeze([
@@ -93,7 +89,8 @@ const STAR_GUIDED_ARCHETYPES = Object.freeze([
     objectType: "star",
     label: "Aging Subgiant",
     shortLabel: "Subgiant",
-    summary: "An evolved Sun-like star moving off the main sequence into a brighter subgiant phase.",
+    summary:
+      "An evolved Sun-like star moving off the main sequence into a brighter subgiant phase.",
     confidenceClass: "plausible",
     quickEnabled: true,
     guidedEnabled: true,
@@ -330,11 +327,13 @@ function traitRoleQuestionId(traitId) {
 }
 
 function getStarGoalTemplateMeta(goalTemplateId) {
-  return STAR_GOAL_TEMPLATE_META[String(goalTemplateId || "").trim()] || {
-    confidenceClass: "plausible",
-    seedArchetypeIds: ["sunlike-g-star"],
-    focusTraits: [],
-  };
+  return (
+    STAR_GOAL_TEMPLATE_META[String(goalTemplateId || "").trim()] || {
+      confidenceClass: "plausible",
+      seedArchetypeIds: ["sunlike-g-star"],
+      focusTraits: [],
+    }
+  );
 }
 
 function mapStarGoalTemplateToCard(template) {
@@ -379,11 +378,15 @@ function defaultStarGoalDraft(goalTemplateId = "") {
 function normalizeStarGoalDraft(flowState = {}) {
   const base = defaultStarGoalDraft(flowState?.selectedGoalTemplateId);
   const goalDraft =
-    flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+    flowState?.goalDraft &&
+    typeof flowState.goalDraft === "object" &&
+    !Array.isArray(flowState.goalDraft)
       ? flowState.goalDraft
       : {};
   const nextTraitRoles =
-    goalDraft.traitRoles && typeof goalDraft.traitRoles === "object" && !Array.isArray(goalDraft.traitRoles)
+    goalDraft.traitRoles &&
+    typeof goalDraft.traitRoles === "object" &&
+    !Array.isArray(goalDraft.traitRoles)
       ? { ...base.traitRoles, ...goalDraft.traitRoles }
       : { ...base.traitRoles };
   return {
@@ -505,11 +508,7 @@ function buildStarGoalCompileInput(flowState = {}) {
 export function buildStarPresetApplyInputs(source = {}, currentInputs = {}) {
   const sourceInputs = source && typeof source === "object" ? source : {};
   const current = currentInputs && typeof currentInputs === "object" ? currentInputs : {};
-  const massMsol = clamp(
-    Number(sourceInputs.massMsol ?? current.massMsol ?? 1),
-    0.075,
-    100,
-  );
+  const massMsol = clamp(Number(sourceInputs.massMsol ?? current.massMsol ?? 1), 0.075, 100);
   const ageGyr = Math.max(Number(sourceInputs.ageGyr ?? current.ageGyr ?? 4.6), 0.001);
   return {
     name: String(current.name || sourceInputs.name || "Star"),
@@ -751,15 +750,23 @@ function buildStarRationale(archetype, answers = {}, context = {}) {
   const rationale = [];
   if (context.currentContextText) rationale.push(context.currentContextText);
   if (answers.evolution_target === "evolving") {
-    rationale.push("The solve is biased toward a brighter post-main-sequence state instead of a purely static main-sequence star.");
+    rationale.push(
+      "The solve is biased toward a brighter post-main-sequence state instead of a purely static main-sequence star.",
+    );
   } else if (answers.evolution_target === "keep-current") {
-    rationale.push("The current evolution mode is preserved so the recommendation stays close to the current star state.");
+    rationale.push(
+      "The current evolution mode is preserved so the recommendation stays close to the current star state.",
+    );
   }
   if (answers.system_goal === "earthlike-window") {
-    rationale.push("The diagnostics check whether the resulting star still supports an Earth-like habitability window.");
+    rationale.push(
+      "The diagnostics check whether the resulting star still supports an Earth-like habitability window.",
+    );
   }
   if (archetype.id === "bright-a-star" || archetype.id === "aging-subgiant-star") {
-    rationale.push("This is a more specialised stellar target than the quieter K/G-dwarf archetypes.");
+    rationale.push(
+      "This is a more specialised stellar target than the quieter K/G-dwarf archetypes.",
+    );
   }
   return rationale;
 }
@@ -833,10 +840,7 @@ function buildStarDiagnostics(archetype, solved, answers = {}, flowState = {}) {
     );
   }
 
-  if (
-    answers.system_goal === "bright-short-lived" &&
-    Number(model.luminosityLsol) < 3
-  ) {
+  if (answers.system_goal === "bright-short-lived" && Number(model.luminosityLsol) < 3) {
     pushDiagnostic(
       diagnostics,
       "warning",
@@ -953,7 +957,9 @@ function deriveStarGoalSeedAnswers(compiledGoal = {}, archetypeId = "") {
     goalTraitSelected(compiledGoal, "high-luminosity")
   ) {
     answers.evolution_target =
-      archetypeId === "aging-subgiant-star" ? "evolving" : getStarGuidedDefaults(archetypeId).evolution_target;
+      archetypeId === "aging-subgiant-star"
+        ? "evolving"
+        : getStarGuidedDefaults(archetypeId).evolution_target;
   }
 
   if (
@@ -1143,7 +1149,9 @@ function buildStarGoalSearchDiagnostics(compiledGoal = {}, scoring = {}, searchM
     ]
       .filter(Boolean)
       .join(" "),
-    ["Treat this as a strong starting point, then refine the Star page inputs if you need a tighter fit."],
+    [
+      "Treat this as a strong starting point, then refine the Star page inputs if you need a tighter fit.",
+    ],
   );
   return diagnostics;
 }
@@ -1182,7 +1190,10 @@ async function startStarGoalSearch(compiledGoal = null, flowState = {}, context 
         scoring,
         seedLabel: archetype?.label || candidate.archetypeId,
       };
-      if (scoring.fitClass === "exact-match" && String(compiledGoal.searchBudget || "") === "fast") {
+      if (
+        scoring.fitClass === "exact-match" &&
+        String(compiledGoal.searchBudget || "") === "fast"
+      ) {
         break;
       }
     }
@@ -1275,10 +1286,7 @@ export const starGuidedAdapter = {
       return storeContext.applyStarRecommendation(recommendation);
     }
     if (typeof storeContext.applyStarInputs === "function") {
-      return storeContext.applyStarInputs(
-        recommendation.applyPayload.objectInputs,
-        recommendation,
-      );
+      return storeContext.applyStarInputs(recommendation.applyPayload.objectInputs, recommendation);
     }
     return recommendation.applyPayload;
   },

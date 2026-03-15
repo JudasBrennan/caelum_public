@@ -27,7 +27,7 @@ function labelSuffixVariant(label = "", suffixes = []) {
     if (!normalizedSuffix) continue;
     if (normalized === normalizedSuffix) continue;
     if (normalized.endsWith(` ${normalizedSuffix}`)) {
-      const stripped = normalized.slice(0, -(` ${normalizedSuffix}`).length).trim();
+      const stripped = normalized.slice(0, -` ${normalizedSuffix}`.length).trim();
       if (stripped.split(" ").length >= 2) return stripped;
     }
   }
@@ -43,7 +43,9 @@ function aliasEntry(kind, objectType, value, config = {}) {
     label: String(config.label || config.valueLabel || value || "").trim(),
     phrases: dedupePhrases(config.phrases || []),
     draftPatch:
-      config.draftPatch && typeof config.draftPatch === "object" && !Array.isArray(config.draftPatch)
+      config.draftPatch &&
+      typeof config.draftPatch === "object" &&
+      !Array.isArray(config.draftPatch)
         ? { ...config.draftPatch }
         : {},
   };
@@ -315,7 +317,7 @@ export function listGoalTextAliases(objectType = "") {
     ...GENERIC_ALIASES,
     ...buildTemplateAliases(normalizedObjectType),
     ...buildTraitAliases(normalizedObjectType),
-    ...((CUSTOM_ALIASES[normalizedObjectType] || []).map((entry) => ({ ...entry }))),
+    ...(CUSTOM_ALIASES[normalizedObjectType] || []).map((entry) => ({ ...entry })),
   ];
   const seen = new Set();
   const deduped = [];

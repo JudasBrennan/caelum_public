@@ -11,6 +11,10 @@ import { calcEccentricityFactor, calcTidalLockTimeGyr } from "../physics/rotatio
 const G = 6.67e-11;
 const C_ATM_TIDE = 12;
 
+function clampUnit(value, min = 0, max = 1) {
+  return Math.min(Math.max(value, min), max);
+}
+
 function planetTidalHeatingFromMoon(
   k2Planet,
   qualityFactor,
@@ -89,4 +93,55 @@ export function orbitalPeriodEarthYears(semiMajorAxisAu, starMassMsol) {
 
 export function orbitalDirectionFromInclination(inclinationDeg) {
   return sharedOrbitalDirectionFromInclination(inclinationDeg);
+}
+
+export function calcRockyOblateness({
+  massEarth,
+  radiusKm,
+  rotationPeriodHours,
+  cmfPct = 32.5,
+  wmfPct = 0,
+}) {
+  const massKg = planetMassEarthToKg(Math.max(Number(massEarth) || 0, 0));
+  const radiusM = Math.max(Number(radiusKm) || 0, 0) * 1000;
+  const rotationHours = Math.max(Number(rotationPeriodHours) || 0, 0);
+  if (massKg <= 0 || radiusM <= 0 || rotationHours <= 0) {
+    return {
+      flattening: 0,
+      equatorialRadiusKm: Math.max(Number(radiusKm) || 0, 0),
+      polarRadiusKm: Math.max(Number(radiusKm) || 0, 0),
+      j2: 0,
+      rotationalParameterQ: 0,
+      momentOfInertiaFactor: 0.33,
+    };
+  }
+
+  const omega = (2 * Math.PI) / (rotationHours * 3600);
+  const rotationalParameterQ = (omega ** 2 * radiusM ** 3) / (G * massKg);
+  const cmf = clampUnit((Number(cmfPct) || 0) / 100);
+  const wmf = clampUnit((Number(wmfPct) || 0) / 100, 0, 0.5);
+  const lowMassBonus = 0.05 * (1 - Math.min(Math.max(Number(massEarth) || 0, 0), 1) ** 0.2);
+  const momentOfInertiaFactor = Math.min(
+    Math.max(0.4 - 0.12 * Math.sqrt(cmf) + 0.03 * Math.sqrt(wmf) + lowMassBonus, 0.3),
+    0.4,
+  );
+
+  // Darwin-Radau-inspired hydrostatic estimate for rotational flattening.
+  const radauTerm = 2.5 * (1 - 1.5 * momentOfInertiaFactor);
+  const flattening = Math.min(
+    Math.max((5 * rotationalParameterQ) / (2 * (1 + radauTerm ** 2)), 0),
+    0.2,
+  );
+  const equatorialRadiusKm = radiusKm * (1 + flattening / 3);
+  const polarRadiusKm = radiusKm * (1 - (2 * flattening) / 3);
+  const j2 = Math.max((2 * flattening - rotationalParameterQ) / 3, 0);
+
+  return {
+    flattening,
+    equatorialRadiusKm,
+    polarRadiusKm,
+    j2,
+    rotationalParameterQ,
+    momentOfInertiaFactor,
+  };
 }

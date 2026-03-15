@@ -61,7 +61,12 @@ const GOAL_TRAITS = freezeRecord({
     description: "The solved body should support stable exposed liquid water at the surface.",
     objectTypes: ["moon", "rockyPlanet"],
     allowedRoles: ["required", "preferred", "avoid"],
-    incompatibleWith: ["subsurface-ocean", "snowball-state", "runaway-greenhouse", "airless-surface"],
+    incompatibleWith: [
+      "subsurface-ocean",
+      "snowball-state",
+      "runaway-greenhouse",
+      "airless-surface",
+    ],
   }),
   "subsurface-ocean": trait("subsurface-ocean", {
     label: "Subsurface ocean",
@@ -79,14 +84,16 @@ const GOAL_TRAITS = freezeRecord({
   }),
   "resonance-supported-heating": trait("resonance-supported-heating", {
     label: "Resonance-supported heating",
-    description: "The moon should depend on sustained resonance forcing or analogous system support.",
+    description:
+      "The moon should depend on sustained resonance forcing or analogous system support.",
     objectTypes: ["moon"],
     allowedRoles: ["required", "preferred"],
     minimumAllowedEdits: "edit-object-plus-local-system",
   }),
   "in-stellar-habitable-zone": trait("in-stellar-habitable-zone", {
     label: "In stellar habitable zone",
-    description: "The target should remain within the star's broad surface-habitability insolation window.",
+    description:
+      "The target should remain within the star's broad surface-habitability insolation window.",
     objectTypes: ["moon"],
     allowedRoles: ["required", "preferred", "avoid"],
   }),
@@ -100,7 +107,8 @@ const GOAL_TRAITS = freezeRecord({
   }),
   "vegetation-plausible": trait("vegetation-plausible", {
     label: "Vegetation plausible",
-    description: "The target should push toward upper-end vegetation plausibility rather than mere habitability.",
+    description:
+      "The target should push toward upper-end vegetation plausibility rather than mere habitability.",
     objectTypes: ["moon"],
     allowedRoles: ["preferred", "avoid"],
     prerequisites: ["surface-biosphere-plausible"],
@@ -153,7 +161,8 @@ const GOAL_TRAITS = freezeRecord({
   }),
   "breathable-oxygen-window": trait("breathable-oxygen-window", {
     label: "Breathable oxygen window",
-    description: "The rocky world should target an oxygen-bearing surface state in the Earth's broad window.",
+    description:
+      "The rocky world should target an oxygen-bearing surface state in the Earth's broad window.",
     objectTypes: ["rockyPlanet"],
     allowedRoles: ["required", "preferred", "avoid"],
     prerequisites: ["surface-liquid-water", "in-habitable-zone", "retained-atmosphere"],
@@ -167,7 +176,8 @@ const GOAL_TRAITS = freezeRecord({
   }),
   "high-habitability": trait("high-habitability", {
     label: "High habitability",
-    description: "Favor stronger modeled habitability scores rather than merely surviving constraints.",
+    description:
+      "Favor stronger modeled habitability scores rather than merely surviving constraints.",
     objectTypes: ["rockyPlanet"],
     allowedRoles: ["preferred", "avoid"],
     prerequisites: ["surface-liquid-water", "in-habitable-zone"],
@@ -188,7 +198,8 @@ const GOAL_TRAITS = freezeRecord({
   }),
   "mixed-land-ocean": trait("mixed-land-ocean", {
     label: "Mixed land and ocean",
-    description: "Favor exposed land plus substantial surface water rather than a dry or globally oceanic state.",
+    description:
+      "Favor exposed land plus substantial surface water rather than a dry or globally oceanic state.",
     objectTypes: ["rockyPlanet"],
     allowedRoles: ["preferred", "avoid"],
     prerequisites: ["surface-liquid-water"],
@@ -332,7 +343,8 @@ const GOAL_TRAITS = freezeRecord({
   }),
   "post-main-sequence": trait("post-main-sequence", {
     label: "Post-main-sequence",
-    description: "Avoid evolved stellar states when the goal requires stable main-sequence support.",
+    description:
+      "Avoid evolved stellar states when the goal requires stable main-sequence support.",
     objectTypes: ["star"],
     allowedRoles: ["avoid"],
   }),
@@ -516,7 +528,12 @@ function normalizeValue(value, allowed, fallback) {
   const normalized = String(value || "")
     .trim()
     .toLowerCase();
-  const match = allowed.find((entry) => String(entry || "").trim().toLowerCase() === normalized);
+  const match = allowed.find(
+    (entry) =>
+      String(entry || "")
+        .trim()
+        .toLowerCase() === normalized,
+  );
   return match || fallback;
 }
 
@@ -541,7 +558,10 @@ export function normalizeGoalPriority(value) {
 }
 
 export function compareGoalEditScope(left, right) {
-  return (SCOPE_RANK[normalizeGoalAllowedEdits(left)] ?? -1) - (SCOPE_RANK[normalizeGoalAllowedEdits(right)] ?? -1);
+  return (
+    (SCOPE_RANK[normalizeGoalAllowedEdits(left)] ?? -1) -
+    (SCOPE_RANK[normalizeGoalAllowedEdits(right)] ?? -1)
+  );
 }
 
 export function goalEditScopeSatisfies(allowedEdits, requiredEdits) {

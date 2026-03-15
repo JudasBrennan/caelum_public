@@ -52,7 +52,13 @@ const CONTEXT_PRIORITY_WEIGHTS = Object.freeze({
 });
 
 function normalizeTraitList(value) {
-  return [...new Set((Array.isArray(value) ? value : []).map((entry) => String(entry || "").trim()).filter(Boolean))].sort();
+  return [
+    ...new Set(
+      (Array.isArray(value) ? value : [])
+        .map((entry) => String(entry || "").trim())
+        .filter(Boolean),
+    ),
+  ].sort();
 }
 
 function sortObjectKeys(value) {
@@ -105,7 +111,12 @@ function buildDraft(rawDraft = {}) {
 function buildTemplateFallback(objectType, goalTemplateId, diagnostics) {
   if (!objectType) {
     diagnostics.push(
-      diagnostic("blocked", "missing-object-type", "Unknown object type", "Choose which kind of body this goal is trying to create."),
+      diagnostic(
+        "blocked",
+        "missing-object-type",
+        "Unknown object type",
+        "Choose which kind of body this goal is trying to create.",
+      ),
     );
     return null;
   }
@@ -126,8 +137,14 @@ function buildTemplateFallback(objectType, goalTemplateId, diagnostics) {
 
 function mergeTraits(template, draft) {
   return {
-    requiredTraits: normalizeTraitList([...(template?.requiredTraits || []), ...draft.requiredTraits]),
-    preferredTraits: normalizeTraitList([...(template?.preferredTraits || []), ...draft.preferredTraits]),
+    requiredTraits: normalizeTraitList([
+      ...(template?.requiredTraits || []),
+      ...draft.requiredTraits,
+    ]),
+    preferredTraits: normalizeTraitList([
+      ...(template?.preferredTraits || []),
+      ...draft.preferredTraits,
+    ]),
     avoidTraits: normalizeTraitList([...(template?.avoidTraits || []), ...draft.avoidTraits]),
   };
 }
@@ -137,7 +154,12 @@ function validateTraitSupport(traits, role, objectType, diagnostics, traitDetail
     const entry = getGoalTrait(traitId);
     if (!entry) {
       diagnostics.push(
-        diagnostic("blocked", "unknown-trait", "Unknown trait", `The trait "${traitId}" is not registered.`),
+        diagnostic(
+          "blocked",
+          "unknown-trait",
+          "Unknown trait",
+          `The trait "${traitId}" is not registered.`,
+        ),
       );
       continue;
     }
@@ -275,7 +297,8 @@ function detectScopeConflicts(compiled, templateEntry, traitDetails, diagnostics
 
 function computePreferredWeight(traitId, priority) {
   let weight = 1;
-  if (priority === "maximize-habitability" && HABITABILITY_PRIORITY_BOOSTS.has(traitId)) weight += 1;
+  if (priority === "maximize-habitability" && HABITABILITY_PRIORITY_BOOSTS.has(traitId))
+    weight += 1;
   if (priority === "maximize-realism" && REALISM_PRIORITY_BOOSTS.has(traitId)) weight += 0.5;
   if (priority === "preserve-current-system" || priority === "preserve-current-orbit-context") {
     weight += 0.25;
@@ -285,13 +308,15 @@ function computePreferredWeight(traitId, priority) {
 
 function computeAvoidPenalty(traitId, priority) {
   let penalty = 1;
-  if (priority === "maximize-habitability" && HABITABILITY_PRIORITY_BOOSTS.has(traitId)) penalty += 1;
+  if (priority === "maximize-habitability" && HABITABILITY_PRIORITY_BOOSTS.has(traitId))
+    penalty += 1;
   if (priority === "maximize-realism" && REALISM_PRIORITY_BOOSTS.has(traitId)) penalty += 0.5;
   return Number(penalty.toFixed(2));
 }
 
 function buildEvaluationPlan(compiled) {
-  const contextWeights = CONTEXT_PRIORITY_WEIGHTS[compiled.priority] || CONTEXT_PRIORITY_WEIGHTS["maximize-realism"];
+  const contextWeights =
+    CONTEXT_PRIORITY_WEIGHTS[compiled.priority] || CONTEXT_PRIORITY_WEIGHTS["maximize-realism"];
   return {
     priority: compiled.priority,
     hardConstraints: compiled.requiredTraits.map((traitId) => ({
@@ -331,7 +356,9 @@ export function compileGuidedGoal(rawDraft = {}) {
     objectType: draft.objectType,
     goalTemplateId: templateEntry.id,
     templateLabel: templateEntry.label,
-    priority: draft.priority ? normalizeGoalPriority(draft.priority) : templateEntry.defaultPriority,
+    priority: draft.priority
+      ? normalizeGoalPriority(draft.priority)
+      : templateEntry.defaultPriority,
     allowedEdits: draft.allowedEdits
       ? normalizeGoalAllowedEdits(draft.allowedEdits)
       : templateEntry.defaultAllowedEdits,
@@ -342,12 +369,42 @@ export function compileGuidedGoal(rawDraft = {}) {
   };
 
   const traitDetails = {};
-  validateTraitSupport(compiled.requiredTraits, "required", compiled.objectType, diagnostics, traitDetails);
-  validateTraitSupport(compiled.preferredTraits, "preferred", compiled.objectType, diagnostics, traitDetails);
-  validateTraitSupport(compiled.avoidTraits, "avoid", compiled.objectType, diagnostics, traitDetails);
+  validateTraitSupport(
+    compiled.requiredTraits,
+    "required",
+    compiled.objectType,
+    diagnostics,
+    traitDetails,
+  );
+  validateTraitSupport(
+    compiled.preferredTraits,
+    "preferred",
+    compiled.objectType,
+    diagnostics,
+    traitDetails,
+  );
+  validateTraitSupport(
+    compiled.avoidTraits,
+    "avoid",
+    compiled.objectType,
+    diagnostics,
+    traitDetails,
+  );
   applyPrerequisites(compiled, diagnostics, traitDetails);
-  validateTraitSupport(compiled.requiredTraits, "required", compiled.objectType, diagnostics, traitDetails);
-  validateTraitSupport(compiled.preferredTraits, "preferred", compiled.objectType, diagnostics, traitDetails);
+  validateTraitSupport(
+    compiled.requiredTraits,
+    "required",
+    compiled.objectType,
+    diagnostics,
+    traitDetails,
+  );
+  validateTraitSupport(
+    compiled.preferredTraits,
+    "preferred",
+    compiled.objectType,
+    diagnostics,
+    traitDetails,
+  );
   detectRoleContradictions(compiled, traitDetails, diagnostics);
   detectIncompatiblePositiveTraits(compiled, traitDetails, diagnostics);
   detectScopeConflicts(compiled, templateEntry, traitDetails, diagnostics);

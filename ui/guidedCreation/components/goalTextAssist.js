@@ -20,7 +20,10 @@ function createInterpretationSummary(interpretation = null) {
   if (!hasContent) return null;
 
   return createElement("div", { className: "guided-goal-text__interpretation" }, [
-    createElement("div", { className: "guided-goal-text__interpretation-title", text: "Interpreted Goal" }),
+    createElement("div", {
+      className: "guided-goal-text__interpretation-title",
+      text: "Interpreted Goal",
+    }),
     confidence
       ? createElement("div", {
           className: "guided-goal-text__interpretation-confidence",
@@ -103,7 +106,11 @@ export function createGoalTextAssist({
       className: "guided-goal-text__help",
       text: "Use short phrases. Interpretation only maps onto supported goals, traits, and modifiers.",
     }),
-    createElement("div", { className: "guided-goal-text__controls" }, [inputEl, interpretButton, clearButton]),
+    createElement("div", { className: "guided-goal-text__controls" }, [
+      inputEl,
+      interpretButton,
+      clearButton,
+    ]),
     createExamples(examples),
     createInterpretationSummary(interpretation),
   ]);

@@ -98,6 +98,7 @@ export function resolvePathwayStability(
   const energy = normalized.energy;
   const chemistry = normalized.chemistry;
   const climate = normalized.climate;
+  const environment = normalized.environment;
   const pathwayInputs = solventModel?.pathwayInputs || {};
   const climatePenalty = climateStatePenaltyFor(climate.climateState);
 
@@ -105,6 +106,10 @@ export function resolvePathwayStability(
     [climatePenalty, climate.climateLivabilityScore, pressureWindowScore(surface.pressureAtm)],
     [0.45, 0.35, 0.2],
   );
+  const surfaceExomoonCalibrationPenalty =
+    normalized.bodyType === "moon" && environment.surfaceExomoonCalibrationApplicable
+      ? clamp(toFinite(environment.surfaceExomoonCalibrationPenalty, 1), 0, 1)
+      : 1;
 
   const shellPersistenceScore =
     surface.iceShellThicknessKm <= 0
@@ -146,7 +151,7 @@ export function resolvePathwayStability(
 
   const stabilityMultiplier =
     selectedPathway === "surface-water"
-      ? surfaceCollapsePenalty
+      ? surfaceCollapsePenalty * surfaceExomoonCalibrationPenalty
       : selectedPathway === "subsurface-water"
         ? subsurfaceCollapsePenalty
         : selectedPathway === "alternative-solvent"
@@ -159,6 +164,7 @@ export function resolvePathwayStability(
     climateStatePenalty: climatePenalty,
     collapsePenalty: clamp(stabilityMultiplier, 0, 1),
     surfaceCollapsePenalty,
+    surfaceExomoonCalibrationPenalty,
     subsurfaceCollapsePenalty,
     altCollapsePenalty,
     shellPersistenceScore,

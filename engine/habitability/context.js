@@ -377,6 +377,7 @@ export function buildMoonHabitabilityContext(model = {}) {
   });
   const radiogenicHeatingEarth =
     Math.max(toFinite(temperature.radiogenicWm2, 0), 0) / EARTH_INTERNAL_HEAT_FLUX_WM2;
+  const surfaceExomoonCalibration = model.habitability?.summary?.surfaceExomoonCalibration || {};
   const moonIntrinsicField = Math.max(toFinite(model.physical?.surfaceFieldEarths, 0), 0);
   const intrinsicFieldKnown = Number.isFinite(model?.physical?.surfaceFieldEarths);
   const insolationEarth =
@@ -421,6 +422,7 @@ export function buildMoonHabitabilityContext(model = {}) {
       tidalHeatingEarth: toFinite(tides.tidalHeatingEarth, 0),
       radiogenicHeatingEarth,
       xuvFluxRatio: computeXuvFluxRatio(
+        toFinite(model.star?.massMsol, 1),
         starLuminosityLsol,
         toFinite(model.star?.ageGyr, 0),
         planetSemiMajorAxisAu,
@@ -481,9 +483,7 @@ export function buildMoonHabitabilityContext(model = {}) {
         radiation.combinedShielding,
         toFinite(radiationProfile.combinedShielding, NaN),
       ),
-      surfaceRadiationClass: String(
-        radiation.surfaceClass || radiationProfile.surfaceClass || "",
-      ),
+      surfaceRadiationClass: String(radiation.surfaceClass || radiationProfile.surfaceClass || ""),
       subsurfaceRadiationClass: String(
         radiation.subsurfaceClass || radiationProfile.subsurfaceClass || "",
       ),
@@ -492,6 +492,9 @@ export function buildMoonHabitabilityContext(model = {}) {
         surfaceFieldEarths: intrinsicFieldKnown ? moonIntrinsicField : 0,
         intrinsicFieldKnown,
       }),
+      surfaceExomoonCalibrationPenalty: surfaceExomoonCalibration.penalty,
+      surfaceExomoonCalibrationApplicable: surfaceExomoonCalibration.applicable === true,
+      surfaceExomoonCalibrationPass: surfaceExomoonCalibration.overallPass !== false,
       stellarAgeGyr: toFinite(model.star?.ageGyr, 0),
       tidallyLockedToPrimary: tides.moonLockedToPlanet === "Yes",
       tidallyLockedToStar: false,

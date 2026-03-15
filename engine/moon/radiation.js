@@ -29,6 +29,7 @@ function classifySurfaceExposure(remDay) {
 }
 
 export function computeMoonRadiationEnvironment({
+  starMassMsol = 1,
   surfaceFieldEarths = 0,
   magnetopauseRp = null,
   planetSemiMajorAxisAu = 1,
@@ -49,7 +50,7 @@ export function computeMoonRadiationEnvironment({
   });
   const parentBeltLevel = exposureLevelFromRemDay(parent.magnetosphericRadRemDay);
   const stellarXuvFluxRatio = Math.max(
-    computeXuvFluxRatio(starLuminosityLsol, starAgeGyr, planetSemiMajorAxisAu),
+    computeXuvFluxRatio(starMassMsol, starLuminosityLsol, starAgeGyr, planetSemiMajorAxisAu),
     0,
   );
   const stellarXuvLevel = round(

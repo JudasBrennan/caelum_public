@@ -10,6 +10,7 @@ import {
   calcEccentricityFactor,
   calcK2LoveNumber,
   calcTidalLockTimeSeconds,
+  selectSpinOrbitResonance,
 } from "../physics/rotation.js";
 
 const PI = Math.PI;
@@ -43,6 +44,58 @@ function planetLockStatusFromGyr(tGyr) {
   if (tGyr < 100) return "Maybe (~10s Gyr)";
   if (tGyr >= 100) return "Maybe (~100s Gyr)";
   return "";
+}
+
+function buildMoonSpinState({ tidallyEvolved, resonance }) {
+  if (!tidallyEvolved || !resonance) {
+    return {
+      modelVersion: "moon-spin-state-v1",
+      state: "Non-resonant / not tidally evolved",
+      ratio: null,
+      tidallyEvolved: false,
+      climateNote:
+        "The moon has not fully despun into a stable spin-orbit resonance, so no permanent parent-facing hemisphere is enforced.",
+      surfaceHabitabilityModifier: 1,
+      contrastScale: 0.08,
+    };
+  }
+
+  if (resonance.ratio === "1:1") {
+    return {
+      modelVersion: "moon-spin-state-v1",
+      state: "1:1 synchronous",
+      ratio: "1:1",
+      tidallyEvolved: true,
+      climateNote:
+        "A synchronous lock keeps one hemisphere permanently facing the parent, strengthening long-term hemispheric contrast.",
+      surfaceHabitabilityModifier: 0.92,
+      contrastScale: 1,
+    };
+  }
+
+  if (resonance.ratio === "3:2") {
+    return {
+      modelVersion: "moon-spin-state-v1",
+      state: "3:2 resonance",
+      ratio: "3:2",
+      tidallyEvolved: true,
+      climateNote:
+        "A 3:2 spin-orbit resonance rotates the sub-parent point and softens permanent contrast relative to a 1:1 lock.",
+      surfaceHabitabilityModifier: 1.04,
+      contrastScale: 0.38,
+    };
+  }
+
+  return {
+    modelVersion: "moon-spin-state-v1",
+    state: `${resonance.ratio} resonance`,
+    ratio: resonance.ratio,
+    tidallyEvolved: true,
+    climateNote:
+      "A higher-order spin-orbit resonance still redistributes parent-facing geometry more effectively than a strict 1:1 lock.",
+    surfaceHabitabilityModifier: 1.01,
+    contrastScale: 0.24,
+  };
 }
 
 export function formatRecession(cmYr) {
@@ -232,13 +285,21 @@ export function computeMoonTidalState({
   const timeToEscapeGyr =
     dadtTotal > 0 && distToHillM > 0 ? (distToHillM / dadtTotal) * SECONDS_TO_GYR : Infinity;
 
-  const moonLockedToPlanet = tMoonLockGyr <= systemAgeGyr ? "Yes" : "No";
+  const tidallyEvolvedMoon = tMoonLockGyr <= systemAgeGyr;
+  const spinOrbitResonance = tidallyEvolvedMoon
+    ? selectSpinOrbitResonance({ eccentricity: moonEccentricity })
+    : null;
+  const spinState = buildMoonSpinState({
+    tidallyEvolved: tidallyEvolvedMoon,
+    resonance: spinOrbitResonance,
+  });
+  const moonLockedToPlanet = spinState.tidallyEvolved && spinState.ratio === "1:1" ? "Yes" : "No";
   const planetLockedToMoon = planetLockStatusFromGyr(tPlanetLockToMoonGyr);
   const planetLockedToStar = tPlanetLockToStarGyr <= systemAgeGyr ? "Yes" : "No";
 
   let rotationPeriodDays;
-  if (moonLockedToPlanet === "Yes") {
-    rotationPeriodDays = orbitalPeriodSynodicDays;
+  if (spinState.tidallyEvolved && spinOrbitResonance?.p > 0) {
+    rotationPeriodDays = orbitalPeriodSiderealDays / spinOrbitResonance.p;
   } else {
     const tau = tMoonLockGyr / 5;
     const nSync = (2 * PI) / (orbitalPeriodSynodicDays * 24 * 3600);
@@ -264,6 +325,9 @@ export function computeMoonTidalState({
     recessionCmYr,
     timeToRocheGyr,
     timeToEscapeGyr,
+    tidallyEvolvedMoon,
+    spinOrbitResonance: spinOrbitResonance ? spinOrbitResonance.ratio : null,
+    spinState,
     moonLockedToPlanet,
     planetLockedToMoon,
     planetLockedToStar,

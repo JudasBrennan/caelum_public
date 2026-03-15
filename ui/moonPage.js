@@ -334,8 +334,14 @@ const TIP_LABEL = {
     "Gate-based surface-radiation class after parent-belt exposure, stellar XUV, atmosphere shielding, and moon magnetic shielding are combined.",
   "Magnetic Shielding":
     "Combined intrinsic and induced moon magnetic shielding class.\n\nIntrinsic shielding comes from a plausible moon dynamo. Induced shielding comes from a conductive salty subsurface ocean interacting with the parent field.",
+  "Surface Exomoon Calibration":
+    "Paper-informed exposed-surface moon calibration for cool-star systems.\n\n" +
+    "This surface-only gate weighs cool-star band, giant-host mass, moon mass floor, composition, and spin state. It does not block subsurface-ocean outcomes.",
+  "Spin State":
+    "Solved moon spin-orbit state from the tidal model.\n\n" +
+    "A 1:1 synchronous lock strengthens permanent parent-facing contrast, while a 3:2 resonance modestly softens that contrast for exposed-surface climate cases.",
   "Life Class":
-    "High-level gate-based moon outcome.\n\nThis sits alongside the numeric Habitability Index and tells you whether the current moon is best described as a surface-life candidate, a radiation-limited ocean moon, a subsurface-ocean moon, or another environmental class.",
+    "High-level gate-based moon outcome.\n\nThis sits alongside the numeric Habitability Index and tells you whether the current moon is best described as a surface-life candidate, a cool-star mass-limited surface moon, a radiation-limited ocean moon, a subsurface-ocean moon, or another environmental class.",
   "Surface Habitability":
     "Gate-based surface-habitability readout.\n\nThis separates true surface-life plausibility from warm-but-radiation-limited or marginal-atmosphere cases.",
   "Subsurface Habitability":
@@ -1314,6 +1320,23 @@ export function initMoonPage(mountEl, options = {}) {
           ? "surface + subsurface water"
           : "surface water only";
     const moonHabitabilitySummary = model.habitability?.summary || {};
+    const surfaceExomoonCalibration = moonHabitabilitySummary.surfaceExomoonCalibration || {};
+    const surfaceExomoonCalibrationMeta =
+      surfaceExomoonCalibration.applicable === true
+        ? [
+            surfaceExomoonCalibration.starClassBand,
+            surfaceExomoonCalibration.hostGiantFavorability?.label,
+            `Moon ${fmt(surfaceExomoonCalibration.moonMassEarth ?? 0, 3)} MEarth vs floor ${fmt(
+              surfaceExomoonCalibration.moonMassFloorEarth ?? 0,
+              3,
+            )} MEarth`,
+            surfaceExomoonCalibration.spinStateBenefit?.label,
+            ...(surfaceExomoonCalibration.notes || []),
+          ]
+            .filter(Boolean)
+            .join("\n")
+        : "Applied only to exposed-surface, atmosphere-bearing moons around cool-star giant-planet systems.";
+    const spinStateMeta = model.spinState?.climateNote || model.tides?.spinState?.climateNote || "";
     const habitabilityGateMeta = [
       moonHabitabilitySummary.gates?.stellarZone?.label,
       moonHabitabilitySummary.gates?.stableOrbit?.label,
@@ -1440,6 +1463,7 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Orbital Period (sidereal)", model.display.sidereal),
           buildMoonKpi("Orbital Period (synodic)", model.display.synodic),
           buildMoonKpi("Rotation Period", model.display.rot),
+          buildMoonKpi("Spin State", model.display.spinState, spinStateMeta),
           buildMoonKpi("Initial Rotation Period", model.display.initialRot),
           buildMoonKpi("Planetshine", model.display.planetshine),
           buildMoonKpi("Eclipse Cooling", model.display.eclipseCooling),
@@ -1530,6 +1554,11 @@ export function initMoonPage(mountEl, options = {}) {
             "Surface Habitability",
             model.display.surfaceHabitability,
             moonHabitabilitySummary.gates?.radiationShielding?.label || "",
+          ),
+          buildMoonKpi(
+            "Surface Exomoon Calibration",
+            model.display.surfaceExomoonCalibration,
+            surfaceExomoonCalibrationMeta,
           ),
           buildMoonKpi("Subsurface Habitability", model.display.subsurfaceHabitability),
           buildMoonKpi("Habitability Gates", model.display.habitabilityGates, habitabilityGateMeta),
@@ -1663,6 +1692,7 @@ export function initMoonPage(mountEl, options = {}) {
             { label: "Orbital Period (sidereal)", value: model.display.sidereal },
             { label: "Orbital Period (synodic)", value: model.display.synodic },
             { label: "Rotation Period", value: model.display.rot },
+            { label: "Spin State", value: model.display.spinState, meta: spinStateMeta },
             { label: "Initial Rotation Period", value: model.display.initialRot },
             { label: "Planetshine", value: model.display.planetshine },
             { label: "Eclipse Cooling", value: model.display.eclipseCooling },
@@ -1759,6 +1789,11 @@ export function initMoonPage(mountEl, options = {}) {
               label: "Surface Habitability",
               value: model.display.surfaceHabitability,
               meta: moonHabitabilitySummary.gates?.radiationShielding?.label || "",
+            },
+            {
+              label: "Surface Exomoon Calibration",
+              value: model.display.surfaceExomoonCalibration,
+              meta: surfaceExomoonCalibrationMeta.replace(/\n/g, " | "),
             },
             {
               label: "Subsurface Habitability",
@@ -2053,7 +2088,9 @@ export function initMoonPage(mountEl, options = {}) {
 
   function buildMoonGoalQuestionValues(flowState, questions = []) {
     const goalDraft =
-      flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+      flowState?.goalDraft &&
+      typeof flowState.goalDraft === "object" &&
+      !Array.isArray(flowState.goalDraft)
         ? flowState.goalDraft
         : {};
     const traitRoles =
@@ -2064,7 +2101,8 @@ export function initMoonPage(mountEl, options = {}) {
         : {};
     const values = {};
     for (const question of Array.isArray(questions) ? questions : []) {
-      if (question?.id === "priority") values.priority = goalDraft.priority || question?.defaultValue;
+      if (question?.id === "priority")
+        values.priority = goalDraft.priority || question?.defaultValue;
       else if (question?.id === "allowedEdits") {
         values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
       } else if (question?.id === "searchBudget") {
@@ -2080,7 +2118,11 @@ export function initMoonPage(mountEl, options = {}) {
   function setMoonGoalDraftValue(controllerRef, flowState, questionId, value) {
     const normalizedId = String(questionId || "");
     if (!normalizedId) return;
-    if (normalizedId === "priority" || normalizedId === "allowedEdits" || normalizedId === "searchBudget") {
+    if (
+      normalizedId === "priority" ||
+      normalizedId === "allowedEdits" ||
+      normalizedId === "searchBudget"
+    ) {
       controllerRef?.setGoalDraftValue(normalizedId, value);
       return;
     }
@@ -2109,7 +2151,9 @@ export function initMoonPage(mountEl, options = {}) {
 
   function buildMoonGoalTextAssist(resolveController, flowState) {
     const goalDraft =
-      flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+      flowState?.goalDraft &&
+      typeof flowState.goalDraft === "object" &&
+      !Array.isArray(flowState.goalDraft)
         ? flowState.goalDraft
         : {};
     const help = getGoalTextAliasHelp("moon");
@@ -2160,10 +2204,16 @@ export function initMoonPage(mountEl, options = {}) {
       detailParts.push(flowState.searchError);
     }
     if (searchStatus !== "complete" && hasRestoredResult) {
-      detailParts.push("A previous search result is still visible below until you re-run the search.");
+      detailParts.push(
+        "A previous search result is still visible below until you re-run the search.",
+      );
     }
     return {
-      compileStatus: compileDiagnostics.length ? "error" : searchStatus === "ready" || searchStatus === "complete" ? "ready" : searchStatus,
+      compileStatus: compileDiagnostics.length
+        ? "error"
+        : searchStatus === "ready" || searchStatus === "complete"
+          ? "ready"
+          : searchStatus,
       searchStatus,
       title,
       detail: detailParts.join(" "),
@@ -2501,8 +2551,7 @@ export function initMoonPage(mountEl, options = {}) {
             diagnostics: currentStepId === "recommendation",
           },
           typeSectionTitle: "Moon Goal",
-          questionSectionTitle:
-            currentStepId === "parent-context" ? "Search Setup" : "Goal Traits",
+          questionSectionTitle: currentStepId === "parent-context" ? "Search Setup" : "Goal Traits",
           recommendationSectionTitle: "Best Moon Fit",
           diagnosticSectionTitle: "Search Diagnostics",
           actions: [
@@ -2519,7 +2568,8 @@ export function initMoonPage(mountEl, options = {}) {
                   {
                     id: "compile",
                     label: "Compile Goal",
-                    disabled: !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
+                    disabled:
+                      !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
                   },
                   {
                     id: "run-search",

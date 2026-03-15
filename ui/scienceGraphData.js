@@ -841,7 +841,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     sectionId: "moons",
     row: 5,
     summary:
-      "Combined moon-world outcome from atmosphere, hydrosphere, climate, radiation, geology, biosphere, and habitability, including resonance, conservative orbit stability, shielding, and surface-vs-subsurface diagnostics.",
+      "Combined moon-world outcome from atmosphere, hydrosphere, climate, radiation, geology, biosphere, and habitability, including resonance, conservative orbit stability, shielding, cool-star surface calibration, and surface-vs-subsurface diagnostics.",
     formula:
       "state = f(atmosphere, hydrosphere, climate, radiation, geology, biosphere, resonance)",
     engineRefs: [
@@ -849,6 +849,8 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
       "engine/moon/system.js",
       "engine/moon/radiation.js",
       "engine/moon/magnetosphere.js",
+      "engine/moon/surfaceHabitabilityCalibration.js",
+      "engine/moon/tides.js",
       "ui/moonPage.js",
     ],
     docs: [
@@ -856,6 +858,28 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
       { label: "Lesson 12 - Moons & Tides", href: "#/lessons" },
     ],
     tags: ["moon", "habitability", "ocean", "biosphere"],
+  },
+  {
+    id: "moon_surface_calibration",
+    label: "Cool-Star Surface Moon Calibration",
+    kind: "classifier",
+    sectionId: "moons",
+    row: 6,
+    summary:
+      "Paper-informed calibration layer for exposed-surface moons around cool stars. It weighs stellar-zone pass, host giant favorability, moon mass floor, composition, and whether a 3:2 spin state modestly helps over strict 1:1 lock.",
+    formula:
+      "calibration = f(star mass band, stellar-zone pass, host giant mass, moon mass floor, composition, spin state)",
+    engineRefs: [
+      "engine/moon/surfaceHabitabilityCalibration.js",
+      "engine/moon/tides.js",
+      "engine/moon.js",
+      "ui/moonPage.js",
+    ],
+    docs: [
+      { label: "Science - Moons", href: "#/science" },
+      { label: "Lesson 12 - Moons & Tides", href: "#/lessons" },
+    ],
+    tags: ["moon", "habitability", "calibration", "cool-star"],
   },
   {
     id: "water_regime",
@@ -1278,6 +1302,42 @@ export const SCIENCE_GRAPH_EDGES = Object.freeze([
       "engine/moon/radiation.js",
       "engine/moon/magnetosphere.js",
     ],
+  },
+  {
+    sourceId: "habitable_zone",
+    targetId: "moon_surface_calibration",
+    evidence: "runtime",
+    relationship: "constrains",
+    summary:
+      "The stellar habitable-zone pass is one of the exposed-surface gates checked before the cool-star surface calibration can succeed.",
+    engineRefs: ["engine/moon.js", "engine/moon/surfaceHabitabilityCalibration.js"],
+  },
+  {
+    sourceId: "planet_mass",
+    targetId: "moon_surface_calibration",
+    evidence: "runtime",
+    relationship: "modulates",
+    summary:
+      "More massive giant hosts are treated as a more favorable cool-star surface-exomoon regime than weak giant hosts.",
+    engineRefs: ["engine/moon/surfaceHabitabilityCalibration.js"],
+  },
+  {
+    sourceId: "moon_tides",
+    targetId: "moon_surface_calibration",
+    evidence: "runtime",
+    relationship: "modulates",
+    summary:
+      "Spin-state classification from the tidal path can grant a modest 3:2 surface-climate benefit relative to strict 1:1 lock.",
+    engineRefs: ["engine/moon/tides.js", "engine/moon/surfaceHabitabilityCalibration.js"],
+  },
+  {
+    sourceId: "moon_surface_calibration",
+    targetId: "moon_world_state",
+    evidence: "runtime",
+    relationship: "constrains",
+    summary:
+      "The paper-informed calibration only constrains exposed surface-ocean and biosphere-style moon outcomes; subsurface-ocean cases remain independent.",
+    engineRefs: ["engine/moon.js", "engine/moon/surfaceHabitabilityCalibration.js"],
   },
   {
     sourceId: "planet_wmf",

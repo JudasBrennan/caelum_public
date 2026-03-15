@@ -103,12 +103,20 @@ function normalizeCompileResult(result, state, adapter) {
   const explicitValid = result.valid;
   const compiledGoal = clonePlainObject(result.compiledGoal, fallbackCompiledGoal);
   const valid =
-    explicitValid == null ? !!compiledGoal && !hasBlockingDiagnostics(diagnostics) : explicitValid !== false;
+    explicitValid == null
+      ? !!compiledGoal && !hasBlockingDiagnostics(diagnostics)
+      : explicitValid !== false;
   return {
     valid,
     compiledGoal,
     diagnostics,
-    searchStatus: valid ? "ready" : compiledGoal ? "error" : hasGuidedSelection(state) ? "needs-compile" : "idle",
+    searchStatus: valid
+      ? "ready"
+      : compiledGoal
+        ? "error"
+        : hasGuidedSelection(state)
+          ? "needs-compile"
+          : "idle",
   };
 }
 
@@ -159,12 +167,14 @@ export function createGuidedFlowController({
   const searchRunner = createGuidedSolverJobRunner();
 
   function currentContextFingerprint() {
-    if (typeof getContextFingerprint === "function") return String(getContextFingerprint(state, context) || "");
+    if (typeof getContextFingerprint === "function")
+      return String(getContextFingerprint(state, context) || "");
     return String(context?.contextFingerprint || "");
   }
 
   function currentEngineFingerprint() {
-    if (typeof getEngineFingerprint === "function") return String(getEngineFingerprint(state, context) || "");
+    if (typeof getEngineFingerprint === "function")
+      return String(getEngineFingerprint(state, context) || "");
     return String(context?.engineFingerprint || "");
   }
 
@@ -300,11 +310,14 @@ export function createGuidedFlowController({
       };
     }
 
-    const compiled = forceCompile || !state.compiledGoal ? compileGoal({ shouldNotify: false }) : {
-      valid: !!state.compiledGoal,
-      compiledGoal: state.compiledGoal,
-      diagnostics: state.compileDiagnostics,
-    };
+    const compiled =
+      forceCompile || !state.compiledGoal
+        ? compileGoal({ shouldNotify: false })
+        : {
+            valid: !!state.compiledGoal,
+            compiledGoal: state.compiledGoal,
+            diagnostics: state.compileDiagnostics,
+          };
 
     if (!compiled.valid || !compiled.compiledGoal) {
       setGuidedSearchState(state, {

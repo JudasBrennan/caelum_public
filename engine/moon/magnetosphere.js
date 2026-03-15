@@ -37,12 +37,17 @@ export function computeMoonMagnetosphere({
   const heatScore = clamp((Math.max(toFinite(internalHeatFluxWm2, 0), 0) - 0.0015) / 0.03, 0, 1);
   const coreProxyScore = diffScore * clamp(0.35 + massScore * 0.65, 0, 1);
   const activityBoost = clamp(
-    Math.max(toFinite(tidalHeatingWm2, 0), 0) * 18 + Math.max(toFinite(radiogenicHeatingWm2, 0), 0) * 8,
+    Math.max(toFinite(tidalHeatingWm2, 0), 0) * 18 +
+      Math.max(toFinite(radiogenicHeatingWm2, 0), 0) * 8,
     0,
     1,
   );
   const intrinsicFieldScore = clamp(
-    diffScore * 0.4 + massScore * 0.22 + coreProxyScore * 0.2 + heatScore * 0.12 + activityBoost * 0.06,
+    diffScore * 0.4 +
+      massScore * 0.22 +
+      coreProxyScore * 0.2 +
+      heatScore * 0.12 +
+      activityBoost * 0.06,
     0,
     1,
   );
@@ -78,17 +83,10 @@ export function computeMoonMagnetosphere({
     ? round(clamp(0.02 + inducedFieldScore * 0.12, 0, 0.18), 4)
     : 0;
 
-  const intrinsicFieldShielding = round(
-    clamp(intrinsicFieldStrengthRelEarth * 1.35, 0, 0.38),
-    4,
-  );
+  const intrinsicFieldShielding = round(clamp(intrinsicFieldStrengthRelEarth * 1.35, 0, 0.38), 4);
   const inducedFieldShielding = round(clamp(inducedFieldStrengthRelEarth * 1.25, 0, 0.24), 4);
   const combinedShieldingFraction = round(
-    clamp(
-      1 - (1 - intrinsicFieldShielding) * (1 - inducedFieldShielding),
-      0,
-      0.55,
-    ),
+    clamp(1 - (1 - intrinsicFieldShielding) * (1 - inducedFieldShielding), 0, 0.55),
     4,
   );
 

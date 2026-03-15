@@ -49,7 +49,8 @@ function similarityScore(left = "", right = "") {
 function bestWindowSimilarity(text = "", phrase = "") {
   const textTokens = splitTokens(text);
   const phraseTokens = splitTokens(phrase);
-  if (!textTokens.length || !phraseTokens.length) return { score: 0, distance: Number.POSITIVE_INFINITY };
+  if (!textTokens.length || !phraseTokens.length)
+    return { score: 0, distance: Number.POSITIVE_INFINITY };
   const phraseLength = phraseTokens.length;
   let best = { score: 0, distance: Number.POSITIVE_INFINITY };
   for (let length = Math.max(1, phraseLength - 1); length <= phraseLength + 1; length += 1) {
@@ -155,7 +156,9 @@ function buildMatchedAliasEntries(objectType = "", text = "") {
       break;
     }
   }
-  return matches.sort((left, right) => right.score - left.score || left.label.localeCompare(right.label));
+  return matches.sort(
+    (left, right) => right.score - left.score || left.label.localeCompare(right.label),
+  );
 }
 
 function chooseTemplateMatch(matches = []) {
@@ -237,7 +240,9 @@ function chooseTraitRoles(matches = []) {
     grouped.get(match.value).push(match);
   }
   for (const [traitId, entries] of grouped.entries()) {
-    entries.sort((left, right) => right.score - left.score || left.label.localeCompare(right.label));
+    entries.sort(
+      (left, right) => right.score - left.score || left.label.localeCompare(right.label),
+    );
     const [best, next] = entries;
     traitRoles[traitId] = best.role || "preferred";
     if (
@@ -312,7 +317,10 @@ function topTemplateSuggestions(objectType = "", text = "", limit = 3) {
   }
   return [...suggestions]
     .sort((left, right) => right.score - left.score || left.label.localeCompare(right.label))
-    .filter((entry, index, array) => array.findIndex((candidate) => candidate.value === entry.value) === index)
+    .filter(
+      (entry, index, array) =>
+        array.findIndex((candidate) => candidate.value === entry.value) === index,
+    )
     .slice(0, limit);
 }
 
@@ -381,7 +389,11 @@ export function interpretGoalText(objectType = "", text = "", options = {}) {
   const priorityChoice = chooseBestControl(matches, "priority");
   const allowedEditsChoice = chooseBestControl(matches, "allowedEdits");
   const searchBudgetChoice = chooseBestControl(matches, "searchBudget");
-  diagnostics.push(...priorityChoice.diagnostics, ...allowedEditsChoice.diagnostics, ...searchBudgetChoice.diagnostics);
+  diagnostics.push(
+    ...priorityChoice.diagnostics,
+    ...allowedEditsChoice.diagnostics,
+    ...searchBudgetChoice.diagnostics,
+  );
 
   const traitChoice = chooseTraitRoles(matches);
   diagnostics.push(...traitChoice.diagnostics);
@@ -405,7 +417,9 @@ export function interpretGoalText(objectType = "", text = "", options = {}) {
         suggestions.length
           ? `Try a more specific phrase. Closest matches: ${suggestions.map((entry) => entry.label).join(", ")}.`
           : "Use a supported goal phrase or pick a goal card directly.",
-        suggestions.length ? ["Try the closest suggested goal, or select a goal card directly."] : [],
+        suggestions.length
+          ? ["Try the closest suggested goal, or select a goal card directly."]
+          : [],
       ),
     );
   } else if (!templateChoice.match && currentGoalTemplateId) {
@@ -425,14 +439,13 @@ export function interpretGoalText(objectType = "", text = "", options = {}) {
 
   const exactMatches = matches.filter((entry) => entry.matchType === "exact").length;
   const fuzzyMatches = matches.filter((entry) => entry.matchType === "fuzzy").length;
-  const confidence =
-    diagnostics.some((entry) => entry.severity === "blocked")
-      ? "low"
-      : fuzzyMatches > 0
-        ? "medium"
-        : exactMatches > 0
-          ? "high"
-          : "low";
+  const confidence = diagnostics.some((entry) => entry.severity === "blocked")
+    ? "low"
+    : fuzzyMatches > 0
+      ? "medium"
+      : exactMatches > 0
+        ? "high"
+        : "low";
 
   const result = {
     objectType: normalizedObjectType,

@@ -1,4 +1,5 @@
-import { evaluateJeansEscapeSpecies, xuvFluxRatioEarth } from "../physics/escape.js";
+import { evaluateJeansEscapeSpecies } from "../physics/escape.js";
+import { computeStarXuvFluxRatioEarth } from "../star.js";
 
 const ATM_TO_KPA = 101.3;
 const ATM_TO_PA = 101325;
@@ -70,11 +71,23 @@ const ESCAPABLE_GASES = [
   { species: "nh3", pctKey: "nh3Pct" },
 ];
 
-export function computeXuvFluxRatio(starLuminosityLsol, starAgeGyr, semiMajorAxisAu) {
-  return xuvFluxRatioEarth({
-    starLuminosityLsol,
-    starAgeGyr,
-    orbitAu: semiMajorAxisAu,
+export function computeXuvFluxRatio(
+  starMassOrLuminosity,
+  starLuminosityOrAge,
+  starAgeOrOrbit,
+  semiMajorAxisAuMaybe,
+) {
+  const hasExplicitMass = semiMajorAxisAuMaybe !== undefined;
+  const starMassMsol = hasExplicitMass ? starMassOrLuminosity : 1;
+  const starLuminosityLsol = hasExplicitMass ? starLuminosityOrAge : starMassOrLuminosity;
+  const starAgeGyr = hasExplicitMass ? starAgeOrOrbit : starLuminosityOrAge;
+  const orbitAu = hasExplicitMass ? semiMajorAxisAuMaybe : starAgeOrOrbit;
+
+  return computeStarXuvFluxRatioEarth({
+    massMsol: starMassMsol,
+    luminosityLsol: starLuminosityLsol,
+    ageGyr: starAgeGyr,
+    orbitAu,
   });
 }
 

@@ -6,12 +6,7 @@ function cloneGoalDraft(goalDraft = {}) {
     : {};
 }
 
-export function applyGuidedGoalTextInterpretation(
-  controllerRef,
-  flowState,
-  objectType,
-  goalText,
-) {
+export function applyGuidedGoalTextInterpretation(controllerRef, flowState, objectType, goalText) {
   const currentGoalDraft = cloneGoalDraft(flowState?.goalDraft);
   const currentGoalTemplateId = String(
     flowState?.selectedGoalTemplateId || flowState?.selectedArchetypeId || "",

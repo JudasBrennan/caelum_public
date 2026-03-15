@@ -1,9 +1,5 @@
 import { escapeTimescaleSeconds } from "../utils.js";
-
-const DEFAULT_EARTH_XUV_FLUX_ERG_CM2_S = 4.64;
-const DEFAULT_SOLAR_AGE_GYR = 4.6;
-const DEFAULT_XUV_AGE_EXPONENT = -1.23;
-const DEFAULT_MIN_STELLAR_AGE_GYR = 0.1;
+import { computeStarXuvFluxAtOrbitErgCm2S, computeStarXuvFluxRatioEarth } from "../star.js";
 
 const DEFAULT_JEANS_RETAINED = 6;
 const DEFAULT_JEANS_MARGINAL = 3;
@@ -26,29 +22,26 @@ function nonThermalThresholdFactor(molecularWeight, nonThermalFactors) {
 }
 
 export function xuvFluxAtOrbitErgCm2S({
+  starMassMsol = 1,
   starLuminosityLsol,
   starAgeGyr,
   orbitAu,
-  earthXuvFluxErgCm2S = DEFAULT_EARTH_XUV_FLUX_ERG_CM2_S,
-  solarAgeGyr = DEFAULT_SOLAR_AGE_GYR,
-  ageExponent = DEFAULT_XUV_AGE_EXPONENT,
-  minStellarAgeGyr = DEFAULT_MIN_STELLAR_AGE_GYR,
 }) {
-  if (orbitAu <= 0) return 0;
-  const stellarAgeGyr = Math.max(minStellarAgeGyr, starAgeGyr);
-  const fluxAt1Au =
-    earthXuvFluxErgCm2S * starLuminosityLsol * (stellarAgeGyr / solarAgeGyr) ** ageExponent;
-  return fluxAt1Au / orbitAu ** 2;
+  return computeStarXuvFluxAtOrbitErgCm2S({
+    massMsol: starMassMsol,
+    luminosityLsol: starLuminosityLsol,
+    ageGyr: starAgeGyr,
+    orbitAu,
+  });
 }
 
 export function xuvFluxRatioEarth(options) {
-  const earthXuvFluxErgCm2S = options.earthXuvFluxErgCm2S ?? DEFAULT_EARTH_XUV_FLUX_ERG_CM2_S;
-  return (
-    xuvFluxAtOrbitErgCm2S({
-      ...options,
-      earthXuvFluxErgCm2S,
-    }) / earthXuvFluxErgCm2S
-  );
+  return computeStarXuvFluxRatioEarth({
+    massMsol: options.starMassMsol ?? 1,
+    luminosityLsol: options.starLuminosityLsol,
+    ageGyr: options.starAgeGyr,
+    orbitAu: options.orbitAu,
+  });
 }
 
 export function jeansStatus(

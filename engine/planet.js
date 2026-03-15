@@ -45,6 +45,7 @@ import { calcInsolationEarthRatio } from "./physics/radiative.js";
 import {
   analyseVolatiles,
   bodyClass,
+  classifyRockySurfaceState,
   classifyClimateState,
   compositionClass,
   suggestedCmfFromMetallicity,
@@ -54,13 +55,19 @@ import {
 } from "./planet/composition.js";
 import {
   atmosphereTideRatio,
-  orbitalDirectionFromInclination,
+  calcRockyOblateness,
   orbitalPeriodEarthYears as calcOrbitalPeriodEarthYears,
   planetMassEarthToKg,
   semiMajorAxisAuToMeters,
   tidalLockTimeGyr,
   totalPlanetTidalHeating,
 } from "./planet/orbit.js";
+import {
+  calcRvSemiAmplitudeMs,
+  calcTransitDepthFraction,
+  calcTransitProbabilityFraction,
+  orbitalDirectionFromInclination,
+} from "./physics/orbital.js";
 import { magneticFieldModel } from "./planet/magnetism.js";
 import {
   applyAtmosphericEscape,
@@ -76,6 +83,7 @@ import {
   computePlanetSurfaceTemperature,
   equilibriumTemperatureK,
 } from "./planet/temperature.js";
+import { computeLockedWorldAtmosphericCollapse } from "./planet/climate.js";
 import { calcClimateZones } from "./climate.js";
 import {
   tectonicAdvisory,
@@ -179,6 +187,12 @@ function buildPlanetSummaryResult({
   orbitalPeriodEarthYears,
   orbitalPeriodEarthDays,
   localDaysPerYear,
+  transitDepthFraction,
+  transitDepthPpm,
+  transitProbabilityFraction,
+  rvSemiAmplitudeMs,
+  oblateness,
+  surfaceState,
   rocheLimitKm,
   ringScienceSupported,
   ringScienceReason,
@@ -204,6 +218,12 @@ function buildPlanetSummaryResult({
       orbitalPeriodEarthYears,
       orbitalPeriodEarthDays,
       localDaysPerYear,
+      transitDepthFraction,
+      transitDepthPpm,
+      transitProbabilityFraction,
+      rvSemiAmplitudeMs,
+      oblateness,
+      surfaceState,
       rocheLimitKm,
       ringScienceSupported,
       ringScienceReason,
@@ -377,7 +397,12 @@ export function calcPlanetExact({
   const tEqNoGh = equilibriumTemperatureK(star.luminosityLsol, albedoBond, semiMajorAxisAu);
 
   // XUV flux ratio relative to present-day Earth at 1 AU (Ribas et al. 2005)
-  const fXuvRatio = computeXuvFluxRatio(star.luminosityLsol, starAgeGyr, semiMajorAxisAu);
+  const fXuvRatio = computeXuvFluxRatio(
+    star.massMsol,
+    star.luminosityLsol,
+    starAgeGyr,
+    semiMajorAxisAu,
+  );
 
   // Exobase temperature: XUV-heated thermosphere countered by CO₂ cooling.
   const co2Frac = clamp(planet.co2Pct ?? 0, 0, 100) / 100;
@@ -430,36 +455,35 @@ export function calcPlanetExact({
   const orbitalPeriodEarthYears = calcOrbitalPeriodEarthYears(semiMajorAxisAu, starMassMsol); // F36
   const orbitalPeriodEarthDays = orbitalPeriodEarthYears * DAYS_PER_YEAR; // F37
   const localDaysPerYear = (orbitalPeriodEarthDays * 24) / rotationPeriodHours; // C37
+  const transitDepthFraction = calcTransitDepthFraction({
+    bodyRadiusKm: radiusKm,
+    starRadiusKm: star.metric.radiusKm,
+  });
+  const transitDepthPpm = transitDepthFraction * 1e6;
+  const transitProbabilityFraction = calcTransitProbabilityFraction({
+    bodyRadiusKm: radiusKm,
+    starRadiusKm: star.metric.radiusKm,
+    semiMajorAxisAu,
+  });
+  const rvSemiAmplitudeMs = calcRvSemiAmplitudeMs({
+    orbitalPeriodDays: orbitalPeriodEarthDays,
+    primaryMassMsol: star.inputs.massMsol,
+    secondaryMassKg: planetMassEarthToKg(massEarth),
+    eccentricity,
+    sinI: 1,
+  });
+  const oblateness = calcRockyOblateness({
+    massEarth,
+    radiusKm,
+    rotationPeriodHours,
+    cmfPct,
+    wmfPct,
+  });
   const rockyRingScience = deriveRockyRingScience({
     hostRadiusKm: radiusKm,
     hostDensityGcm3: densityGcm3,
     moons,
   });
-
-  if (detailLevel === "summary") {
-    return buildPlanetSummaryResult({
-      star,
-      massEarth,
-      cmfPct,
-      wmfPct,
-      rotationPeriodHours,
-      semiMajorAxisAu,
-      eccentricity,
-      pressureAtm,
-      radioisotopeAbundance,
-      densityGcm3,
-      radiusEarth,
-      gravityG,
-      surfaceTempK: tKel,
-      orbitalPeriodEarthYears,
-      orbitalPeriodEarthDays,
-      localDaysPerYear,
-      rocheLimitKm: rockyRingScience.rocheLimitKm,
-      ringScienceSupported: rockyRingScience.ringScienceSupported,
-      ringScienceReason: rockyRingScience.ringScienceReason,
-      ringSourceMoonId: rockyRingScience.ringSourceMoonId,
-    });
-  }
 
   // Composition labels
   const compClass = compositionClass(cmf, wmf);
@@ -542,6 +566,42 @@ export function calcPlanetExact({
 
   // Only true for 1:1 synchronous lock — higher resonances still illuminate all sides
   const tidallyLockedToStar = tidallyEvolved && resonance.ratio === "1:1";
+  const surfaceState = classifyRockySurfaceState({
+    surfaceTempK: tKel,
+    tidallyLockedToStar,
+    bodyClass: bClass,
+  });
+
+  if (detailLevel === "summary") {
+    return buildPlanetSummaryResult({
+      star,
+      massEarth,
+      cmfPct,
+      wmfPct,
+      rotationPeriodHours,
+      semiMajorAxisAu,
+      eccentricity,
+      pressureAtm,
+      radioisotopeAbundance,
+      densityGcm3,
+      radiusEarth,
+      gravityG,
+      surfaceTempK: tKel,
+      orbitalPeriodEarthYears,
+      orbitalPeriodEarthDays,
+      localDaysPerYear,
+      transitDepthFraction,
+      transitDepthPpm,
+      transitProbabilityFraction,
+      rvSemiAmplitudeMs,
+      oblateness,
+      surfaceState,
+      rocheLimitKm: rockyRingScience.rocheLimitKm,
+      ringScienceSupported: rockyRingScience.ringScienceSupported,
+      ringScienceReason: rockyRingScience.ringScienceReason,
+      ringSourceMoonId: rockyRingScience.ringSourceMoonId,
+    });
+  }
 
   // Moon tidal heating on the planet (Peale et al. 1979, reciprocal formula).
   // Tidal dissipation from orbiting moons heats the planet's interior,
@@ -710,6 +770,25 @@ export function calcPlanetExact({
     temperatureK: tKel,
     gasPercentages: { o2Pct, co2Pct, arPct, n2Pct, h2oPct, ch4Pct, h2Pct, hePct, so2Pct, nh3Pct },
   });
+  const atmosphericCollapse = computeLockedWorldAtmosphericCollapse({
+    tidallyLockedToStar,
+    pressureAtm,
+    equilibriumTempK: tEqK,
+    surfaceTempK: tKel,
+    gravityG,
+    atmospherePartialPressuresAtm: {
+      n2: ppN2Atm,
+      o2: ppO2Atm,
+      co2: ppCO2Atm,
+      ar: ppArAtm,
+      h2o: ppH2OAtm,
+      ch4: ppCH4Atm,
+      h2: ppH2Atm,
+      he: ppHeAtm,
+      so2: ppSO2Atm,
+      nh3: ppNH3Atm,
+    },
+  });
 
   // Atmospheric circulation cells (PLANET C60..C67)
   let cellCount = "NA";
@@ -764,6 +843,7 @@ export function calcPlanetExact({
     climateState,
     tidallyLockedToStar,
     pressureAtm,
+    collapsePenalty: atmosphericCollapse.collapsePenalty,
   });
 
   // Apparent size of star (Calculations C146)
@@ -790,6 +870,11 @@ export function calcPlanetExact({
       climateStatePenalty: climateLivability.climateStatePenalty,
       collapsePenalty: climateLivability.collapsePenalty,
       stabilityMultiplier: climateLivability.stabilityMultiplier,
+      atmosphereCollapseRisk: atmosphericCollapse.collapseRisk,
+      atmosphereCollapseState: atmosphericCollapse.collapseState,
+      atmosphereCollapseThresholdK: atmosphericCollapse.condensationThresholdK,
+      nightsideMinK: atmosphericCollapse.nightsideMinK,
+      dominantAtmosphereSpecies: atmosphericCollapse.dominantSpeciesLabel,
       waterRegime: watRegime,
       hydrosphere,
       liquidOceanFraction: hydrosphere.liquidOceanFraction,
@@ -903,7 +988,14 @@ export function calcPlanetExact({
       climateStatePenalty: climateLivability.climateStatePenalty,
       collapsePenalty: climateLivability.collapsePenalty,
       stabilityMultiplier: climateLivability.stabilityMultiplier,
-      climateStabilityNotes: climateLivability.notes,
+      climateStabilityNotes: atmosphericCollapse.evaluated
+        ? [...climateLivability.notes, atmosphericCollapse.note]
+        : climateLivability.notes,
+      atmosphereCollapseRisk: atmosphericCollapse.collapseRisk,
+      atmosphereCollapseState: atmosphericCollapse.collapseState,
+      atmosphereCollapseThresholdK: atmosphericCollapse.condensationThresholdK,
+      nightsideMinK: atmosphericCollapse.nightsideMinK,
+      dominantAtmosphereSpecies: atmosphericCollapse.dominantSpeciesLabel,
       hydrosphere,
       liquidOceanFraction: hydrosphere.liquidOceanFraction,
       landFraction: hydrosphere.landFraction,
@@ -976,6 +1068,11 @@ export function calcPlanetExact({
       circulationCellRanges: cellRanges,
 
       apparentStarDeg,
+      transitDepthFraction,
+      transitDepthPpm,
+      transitProbabilityFraction,
+      rvSemiAmplitudeMs,
+      oblateness,
 
       earthSimilarityIndex: earthSimilarity.score,
       earthSimilarityBreakdown: earthSimilarity.components,
@@ -986,6 +1083,7 @@ export function calcPlanetExact({
 
       // Classification & composition (Phase A)
       bodyClass: bClass,
+      surfaceState,
       compositionClass: compClass,
       waterRegime: watRegime,
       coreRadiusFraction,
@@ -1033,6 +1131,8 @@ export function calcPlanetExact({
       radius: fmt(radiusEarth, 3) + " R⊕",
       gravity: fmt(gravityG, 3) + " g",
       escape: fmt(escapeVelocityKms, 2) + " km/s",
+      oblateness: `f = ${fmt(oblateness.flattening, 5)} (J2 = ${fmt(oblateness.j2, 5)})`,
+      equatorialPolarRadii: `${fmt(oblateness.equatorialRadiusKm, 0)} km eq / ${fmt(oblateness.polarRadiusKm, 0)} km pol`,
       tempK: fmt(tKel, 0) + " K",
       tempC: fmt(tC, 0) + " °C",
       horizon: fmt(horizonKm, 2) + " km",
@@ -1061,6 +1161,14 @@ export function calcPlanetExact({
           : "\u2014",
       yearDays: fmt(orbitalPeriodEarthDays, 2) + " days",
       localDays: fmt(localDaysPerYear, 2) + " local days",
+      transitDepth:
+        `${fmt(transitDepthFraction * 100, transitDepthFraction * 100 >= 0.1 ? 2 : 4)}%` +
+        ` (${fmt(transitDepthPpm, 0)} ppm)`,
+      transitProbability: `${fmt(transitProbabilityFraction * 100, 2)}% geometric probability`,
+      rvSemiAmplitude:
+        rvSemiAmplitudeMs >= 1000
+          ? `${fmt(rvSemiAmplitudeMs / 1000, 3)} km/s`
+          : `${fmt(rvSemiAmplitudeMs, rvSemiAmplitudeMs >= 10 ? 2 : 3)} m/s`,
       pressureKpa: fmt(pressureKpa, 2) + " kPa",
       atmWeight: fmt(atmWeightKgMol, 5) + " kg/mol",
       atmDensity: fmt(atmDensityKgM3, 4) + " kg/m³",
@@ -1075,7 +1183,15 @@ export function calcPlanetExact({
           : tidallyEvolved
             ? `Spin-orbit resonance (${resonance.ratio})`
             : fmt(tidalLockStarGyr, 2) + " Gyr to despinning",
+      atmosphericCollapse: atmosphericCollapse.collapseState,
+      nightsideMin: atmosphericCollapse.evaluated
+        ? `${fmt(atmosphericCollapse.nightsideMinK, 0)} K`
+        : "Not evaluated",
+      collapseThreshold: atmosphericCollapse.evaluated
+        ? `${fmt(atmosphericCollapse.condensationThresholdK, 0)} K (${atmosphericCollapse.dominantSpeciesLabel})`
+        : "Not evaluated",
       bodyClass: bClass,
+      surfaceState: surfaceState.label,
       compositionClass: compClass,
       waterRegime: watRegime,
       climateState,

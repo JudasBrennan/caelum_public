@@ -18,6 +18,7 @@ function seasonalitySummary({
   eclipseCoolingPenalty,
   planetshineFluxWm2,
   synchronousGeometryFactor,
+  spinStateLabel,
 }) {
   let label = "Low";
   if (totalAmplitudeK >= 18) label = "Extreme";
@@ -29,6 +30,7 @@ function seasonalitySummary({
   else if (eclipseCoolingPenalty > 0.005) tags.push("eclipse-light");
   if (planetshineFluxWm2 >= 0.5) tags.push("parentshine");
   if (synchronousGeometryFactor >= 0.03) tags.push("synchronous contrast");
+  if (String(spinStateLabel || "").includes("3:2")) tags.push("3:2 moderation");
   return tags.length > 0 ? `${label} (${tags.join(", ")})` : label;
 }
 
@@ -55,9 +57,14 @@ function deriveClimateState({ meanTempK, maxTempK, hydrosphere, pressureAtm }) {
   return "Stable";
 }
 
-function classifyCollapseRisk({ pressureAtm, moonLockedToPlanet, nightsideMinK, dominantSpecies }) {
+function classifyCollapseRisk({
+  pressureAtm,
+  persistentContrastScale,
+  nightsideMinK,
+  dominantSpecies,
+}) {
   if (pressureAtm <= 0.0001) return { risk: "None", penalty: 1 };
-  if (!moonLockedToPlanet) return { risk: "Low", penalty: 0.98 };
+  if (persistentContrastScale <= 0.12) return { risk: "Low", penalty: 0.98 };
   const dominant = String(dominantSpecies || "").toLowerCase();
   const volatileThresholdK =
     dominant === "n2"
@@ -72,10 +79,19 @@ function classifyCollapseRisk({ pressureAtm, moonLockedToPlanet, nightsideMinK, 
               ? 170
               : 110;
   if (pressureAtm < 0.01 && nightsideMinK < volatileThresholdK + 5) {
+    if (persistentContrastScale < 0.75) return { risk: "Moderate", penalty: 0.84 };
     return { risk: "High", penalty: 0.72 };
   }
   if (pressureAtm < 0.1 && nightsideMinK < volatileThresholdK + 15) {
+    if (persistentContrastScale < 0.45) return { risk: "Low", penalty: 0.95 };
     return { risk: "Moderate", penalty: 0.85 };
+  }
+  if (
+    pressureAtm < 0.3 &&
+    persistentContrastScale >= 0.75 &&
+    nightsideMinK < volatileThresholdK + 10
+  ) {
+    return { risk: "Moderate", penalty: 0.9 };
   }
   return { risk: "Low", penalty: 0.97 };
 }
@@ -88,6 +104,7 @@ export function computeMoonClimate({
   atmosphereComposition,
   dominantAtmosphereSpecies,
   illumination,
+  spinState = null,
   moonLockedToPlanet,
   moonSemiMajorAxisKm,
   tidalHabitableZone = null,
@@ -97,11 +114,22 @@ export function computeMoonClimate({
   const effectiveTilt = Math.max(toFinite(illumination?.effectiveAxialTiltDeg, 0), 0);
   const eclipseCoolingPenalty = clamp(toFinite(illumination?.eclipseCoolingPenalty, 0), 0, 0.25);
   const planetshineFluxWm2 = Math.max(toFinite(illumination?.planetshineFluxWm2, 0), 0);
-  const synchronousGeometryFactor = clamp(
-    toFinite(illumination?.synchronousGeometryFactor, 0),
+  const baselineGeometryFactor = clamp(
+    Math.max(
+      toFinite(illumination?.synchronousGeometryFactor, 0),
+      planetshineFluxWm2 /
+        Math.max(toFinite(illumination?.stellarFluxWm2, 0) + planetshineFluxWm2, 1e-9),
+    ),
     0,
     1,
   );
+  const spinStateLabel = String(spinState?.state || "");
+  const persistentContrastScale = clamp(
+    toFinite(spinState?.contrastScale, moonLockedToPlanet ? 1 : 0),
+    0,
+    1,
+  );
+  const synchronousGeometryFactor = round(baselineGeometryFactor * persistentContrastScale, 3);
 
   const atmosphereBuffer = clamp(Math.log10(1 + pressureAtm * 10) / 2.2, 0, 1);
   const hydrosphereBuffer = clamp(
@@ -119,16 +147,11 @@ export function computeMoonClimate({
     0,
     24,
   );
-  const synchronousContrastK = moonLockedToPlanet
-    ? clamp(
-        22 *
-          synchronousGeometryFactor *
-          (1 - 0.65 * atmosphereBuffer) *
-          (1 - 0.25 * hydrosphereBuffer),
-        0,
-        18,
-      )
-    : 0;
+  const synchronousContrastK = clamp(
+    22 * synchronousGeometryFactor * (1 - 0.65 * atmosphereBuffer) * (1 - 0.25 * hydrosphereBuffer),
+    0,
+    18,
+  );
   const eclipseCoolingK = clamp(40 * eclipseCoolingPenalty * (1 - 0.45 * atmosphereBuffer), 0, 12);
   const totalAmplitudeK = seasonalAmplitudeK + synchronousContrastK * 0.5 + eclipseCoolingK;
   const maxTempK = Math.max(meanTempK + seasonalAmplitudeK + synchronousContrastK * 0.5, 0);
@@ -175,7 +198,7 @@ export function computeMoonClimate({
   const climateLivability = climateLivabilityScore(climateLivabilityFraction);
   const collapse = classifyCollapseRisk({
     pressureAtm,
-    moonLockedToPlanet,
+    persistentContrastScale,
     nightsideMinK,
     dominantSpecies: dominantAtmosphereSpecies,
   });
@@ -232,6 +255,9 @@ export function computeMoonClimate({
       eclipseCoolingPenalty,
       planetshineFluxWm2,
       synchronousGeometryFactor,
+      spinStateLabel,
     }),
+    spinState: spinStateLabel || (moonLockedToPlanet ? "1:1 synchronous" : "Non-resonant"),
+    persistentContrastScale: round(persistentContrastScale, 3),
   };
 }

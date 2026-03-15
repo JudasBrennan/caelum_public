@@ -195,6 +195,8 @@ const TIP_LABEL = {
     "Surface water state derived from water mass fraction (WMF).\n\nDry: < 0.01% WMF\nShallow oceans: 0.01\u20130.1% WMF (Earth ~0.02%\u2014thin but widespread oceans)\nExtensive oceans: 0.1\u20131% WMF (deeper oceans, less exposed land)\nGlobal ocean: 1\u201310% WMF (no exposed land)\nDeep ocean: 10\u201330% WMF (high-pressure ice at seafloor)\nIce world: > 30% WMF",
   "Climate State":
     "Global climate stability classification based on surface temperature and absorbed stellar flux.\n\nStable: normal climate regime.\nSnowball: global glaciation from ice-albedo feedback (T < 240 K with surface water).\nMoist greenhouse: stratospheric water vapour enables hydrogen escape, risking long-term ocean loss (T > 340 K).\nRunaway greenhouse: absorbed flux exceeds the outgoing radiation limit; surface water boils off (flux > 282 W/m\u00b2).\n\nDry worlds are always classified as Stable.\n\nReference: Goldblatt et al. (2013); Kasting (1988); Budyko (1969).",
+  "Surface State":
+    "High-level rocky-surface classification. Standard rocky worlds stay below silicate-melt thresholds. Lava worlds are hot enough for extensive molten surface regions, and magma-ocean worlds are hot enough for globally widespread silicate melt.",
   "Earth Similarity Index":
     "Earth Similarity Index (ESI) is a 0-1 Earth-likeness score based on radius, density, escape velocity, and average surface temperature.\n\n1.0 = Earth-like across those four inputs. Lower values indicate a less Earth-like rocky world.\n\nESI is not a direct habitability verdict.",
   "Habitability Index":
@@ -219,12 +221,18 @@ const TIP_LABEL = {
     "The surface gravity at sea level on your planet. Earth = 1g = 9.8 m/s\u00b2\n\nHabitable Earth-like planets should surface gravities between 0.4 and 1.6 g.",
   "Escape Velocity":
     "How fast a spacecraft would need to travelling in order to escape the planet's gravitational pull. Earth = 1 VEarth = 11.2 km/s",
+  Oblateness:
+    "Rotational flattening f = (Req - Rpol) / Req. Faster rotation and lower central concentration make a rocky planet more oblate. J2 is the quadrupole gravity moment associated with that flattening.",
   "Surface Temperature (Avg.)":
     "The average surface temperature of your planet. Earth = ~287 K ( ~14\u00b0 C)",
   "Horizon Distance":
     "The distance to the horizon in km based on planet radius and observer height.",
   "Year length": "The orbital period shown in Earth days and local days.",
   "Star apparent size": "Apparent angular diameter of the star as seen from the planet.",
+  "Transit Depth":
+    "Fraction of the star's light blocked during a central transit, shown as both percent and ppm. Computed from (R_body / R_star)^2 and assumes the orbital geometry actually produces a transit.",
+  "RV Semi-Amplitude":
+    "Approximate stellar radial-velocity semi-amplitude K induced by the planet, assuming sin i = 1 (edge-on / transiting reference geometry). Higher values are easier to detect in stellar spectra.",
   "Sky colour (sun high)":
     "Estimated daytime sky colour near local noon based on stellar spectrum, surface pressure, gravity, temperature, and atmospheric composition.\n\nLower gravity or higher temperature increases the atmospheric column depth, shifting colours toward thicker-atmosphere entries. CO₂-rich atmospheres receive a warm amber tint.",
   "Sky colour (low sun)":
@@ -235,6 +243,8 @@ const TIP_LABEL = {
     "Stellar energy received at the planet's orbit relative to Earth. Insolation = L☉ / d² where L is stellar luminosity and d is the semi-major axis in AU.\n\nEarth = 1.0× by definition.",
   "Tidal lock":
     "Estimated tidal-evolution state of the planet's rotation.\n\n• Synchronous (1:1) — rotation period equals orbital period (permanent day/night sides).\n• Spin-orbit resonance (3:2, 2:1, …) — higher-order lock driven by orbital eccentricity (Goldreich & Peale 1966). Mercury is a real 3:2 example.\n• Atmosphere-stabilised — thick atmospheres generate thermal tides that counteract gravitational locking (Leconte+ 2015). Venus is the classic case.\n• Otherwise shows the estimated time to despin (Love-number k₂ / quality-factor Q model).\n\nHigh eccentricity favours higher-order resonances; thick atmospheres resist all locking.",
+  "Atmospheric Collapse":
+    "Locked-world atmospheric collapse check for synchronously rotating planets. The model estimates a pressure-supported night-side temperature and compares it against the dominant atmospheric gas condensation point. Thin CO2 atmospheres are the main risk case; ~0.1–1 bar atmospheres generally redistribute enough heat to stay stable.\n\nReferences: Joshi et al. (1997), Wordsworth (2015), Turbet et al. (2018).",
   "In habitable zone":
     "Whether the planet's semi-major axis falls within the star's conservative habitable zone (liquid water on the surface). The HZ boundaries use temperature-dependent Seff polynomials.",
   "Liquid water":
@@ -304,7 +314,7 @@ const TIP_LABEL = {
   "GG Interior":
     "Heavy-element budget from Thorngren et al. (2016): M_Z = 49.3 \u00d7 (M/Mj)^0.61 M\u2295. Core mass capped at 25 M\u2295 per Juno constraints. Bulk metallicity Z = M_Z / M_total.",
   "GG Suggested Radius":
-    "Age-dependent radius from Fortney et al. (2007) cooling models. Young systems have inflated radii; old systems contract toward baseline. Hot Jupiters (T_eq > 1000 K) receive an extra proximity inflation of 0.1\u20130.3 Rj.",
+    "Suggested gas-giant radius from age-dependent cooling plus hot-Jupiter irradiation. The cooling term follows the existing Fortney-style age correction, then highly irradiated giants receive a Thorngren & Fortney (2018)-style flux-driven radius anomaly with a conservative cap.",
   "GG Ring Properties":
     "Ring composition depends on equilibrium temperature: icy (<150 K), mixed (150\u2013300 K), or rocky (>300 K). Mass scaled from Saturn\u2019s rings. Optical depth classified as Dense (\u03c4 > 1), Moderate (0.1\u20131), or Tenuous (< 0.1).",
   "GG Rings":
@@ -909,7 +919,9 @@ export function initPlanetPage(mountEl, options = {}) {
 
   function buildRockyGoalQuestionValues(flowState, questions = []) {
     const goalDraft =
-      flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+      flowState?.goalDraft &&
+      typeof flowState.goalDraft === "object" &&
+      !Array.isArray(flowState.goalDraft)
         ? flowState.goalDraft
         : {};
     const traitRoles =
@@ -920,7 +932,8 @@ export function initPlanetPage(mountEl, options = {}) {
         : {};
     const values = {};
     for (const question of Array.isArray(questions) ? questions : []) {
-      if (question?.id === "priority") values.priority = goalDraft.priority || question?.defaultValue;
+      if (question?.id === "priority")
+        values.priority = goalDraft.priority || question?.defaultValue;
       else if (question?.id === "allowedEdits") {
         values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
       } else if (question?.id === "searchBudget") {
@@ -936,7 +949,11 @@ export function initPlanetPage(mountEl, options = {}) {
   function setRockyGoalDraftValue(controllerRef, flowState, questionId, value) {
     const normalizedId = String(questionId || "");
     if (!normalizedId) return;
-    if (normalizedId === "priority" || normalizedId === "allowedEdits" || normalizedId === "searchBudget") {
+    if (
+      normalizedId === "priority" ||
+      normalizedId === "allowedEdits" ||
+      normalizedId === "searchBudget"
+    ) {
       controllerRef?.setGoalDraftValue(normalizedId, value);
       return;
     }
@@ -969,7 +986,9 @@ export function initPlanetPage(mountEl, options = {}) {
     { objectType = "", objectLabel = "world" } = {},
   ) {
     const goalDraft =
-      flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+      flowState?.goalDraft &&
+      typeof flowState.goalDraft === "object" &&
+      !Array.isArray(flowState.goalDraft)
         ? flowState.goalDraft
         : {};
     const help = getGoalTextAliasHelp(objectType);
@@ -1009,7 +1028,9 @@ export function initPlanetPage(mountEl, options = {}) {
     if (searchStatus === "needs-compile") {
       detailParts.push("Compile the goal or run the search again after changing setup or traits.");
     } else if (searchStatus === "ready") {
-      detailParts.push("The structured goal is valid. Run Search to try seeded rocky-world candidates.");
+      detailParts.push(
+        "The structured goal is valid. Run Search to try seeded rocky-world candidates.",
+      );
     } else if (searchStatus === "searching") {
       detailParts.push("Trying seeded rocky-world candidates against the current star context.");
     } else if (searchStatus === "complete") {
@@ -1018,15 +1039,16 @@ export function initPlanetPage(mountEl, options = {}) {
       detailParts.push(flowState.searchError);
     }
     if (searchStatus !== "complete" && hasRestoredResult) {
-      detailParts.push("A previous search result is still visible below until you re-run the search.");
+      detailParts.push(
+        "A previous search result is still visible below until you re-run the search.",
+      );
     }
     return {
-      compileStatus:
-        compileDiagnostics.length
-          ? "error"
-          : searchStatus === "ready" || searchStatus === "complete"
-            ? "ready"
-            : searchStatus,
+      compileStatus: compileDiagnostics.length
+        ? "error"
+        : searchStatus === "ready" || searchStatus === "complete"
+          ? "ready"
+          : searchStatus,
       searchStatus,
       title,
       detail: detailParts.join(" "),
@@ -1049,7 +1071,8 @@ export function initPlanetPage(mountEl, options = {}) {
         : {};
     const values = {};
     for (const question of Array.isArray(questions) ? questions : []) {
-      if (question?.id === "priority") values.priority = goalDraft.priority || question?.defaultValue;
+      if (question?.id === "priority")
+        values.priority = goalDraft.priority || question?.defaultValue;
       else if (question?.id === "allowedEdits") {
         values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
       } else if (question?.id === "searchBudget") {
@@ -1065,7 +1088,11 @@ export function initPlanetPage(mountEl, options = {}) {
   function setGasGiantGoalDraftValue(controllerRef, flowState, questionId, value) {
     const normalizedId = String(questionId || "");
     if (!normalizedId) return;
-    if (normalizedId === "priority" || normalizedId === "allowedEdits" || normalizedId === "searchBudget") {
+    if (
+      normalizedId === "priority" ||
+      normalizedId === "allowedEdits" ||
+      normalizedId === "searchBudget"
+    ) {
       controllerRef?.setGoalDraftValue(normalizedId, value);
       return;
     }
@@ -1116,7 +1143,9 @@ export function initPlanetPage(mountEl, options = {}) {
     if (searchStatus === "needs-compile") {
       detailParts.push("Compile the goal or run the search again after changing setup or traits.");
     } else if (searchStatus === "ready") {
-      detailParts.push("The structured goal is valid. Run Search to try seeded gas-giant candidates.");
+      detailParts.push(
+        "The structured goal is valid. Run Search to try seeded gas-giant candidates.",
+      );
     } else if (searchStatus === "searching") {
       detailParts.push("Trying seeded gas-giant candidates against the current star context.");
     } else if (searchStatus === "complete") {
@@ -1125,15 +1154,16 @@ export function initPlanetPage(mountEl, options = {}) {
       detailParts.push(flowState.searchError);
     }
     if (searchStatus !== "complete" && hasRestoredResult) {
-      detailParts.push("A previous search result is still visible below until you re-run the search.");
+      detailParts.push(
+        "A previous search result is still visible below until you re-run the search.",
+      );
     }
     return {
-      compileStatus:
-        compileDiagnostics.length
-          ? "error"
-          : searchStatus === "ready" || searchStatus === "complete"
-            ? "ready"
-            : searchStatus,
+      compileStatus: compileDiagnostics.length
+        ? "error"
+        : searchStatus === "ready" || searchStatus === "complete"
+          ? "ready"
+          : searchStatus,
       searchStatus,
       title,
       detail: detailParts.join(" "),
@@ -1178,7 +1208,10 @@ export function initPlanetPage(mountEl, options = {}) {
       giant.au = sysModel.orbitsAu[giant.slotIndex - 1];
     } else {
       giant.slotIndex = null;
-      giant.au = Number.isFinite(Number(giant.au)) && Number(giant.au) > 0 ? Number(giant.au) : currentGiant.au;
+      giant.au =
+        Number.isFinite(Number(giant.au)) && Number(giant.au) > 0
+          ? Number(giant.au)
+          : currentGiant.au;
     }
 
     const { gasCalc, derivedStyle, ringState, ringAppearance } = deriveGasGiantAppearanceState(
@@ -1187,11 +1220,15 @@ export function initPlanetPage(mountEl, options = {}) {
       sysModel,
       listSystemGasGiants(latestWorld).map((entry) => (entry.id === giantId ? giant : entry)),
     );
-    const orbitText = Number.isFinite(Number(giant.au)) ? `${fmt(Number(giant.au), 3)} AU` : "unknown orbit";
+    const orbitText = Number.isFinite(Number(giant.au))
+      ? `${fmt(Number(giant.au), 3)} AU`
+      : "unknown orbit";
     const classText = gasCalc?.classification?.sudarsky
       ? `Class ${gasCalc.classification.sudarsky} ${gasCalc.classification.label || ""}`.trim()
       : gasCalc?.display?.classification || "unknown class";
-    const ringText = ringState?.effectiveEnabled ? "Rings currently visible." : "Rings currently hidden.";
+    const ringText = ringState?.effectiveEnabled
+      ? "Rings currently visible."
+      : "Rings currently hidden.";
 
     return {
       model: gasCalc,
@@ -1920,6 +1957,12 @@ export function initPlanetPage(mountEl, options = {}) {
       },
       { label: "Escape Velocity", value: model.display.escape },
       {
+        label: "Oblateness",
+        tipLabel: "Oblateness",
+        value: model.display.oblateness,
+        meta: model.display.equatorialPolarRadii,
+      },
+      {
         label: "Magnetic Field",
         value: model.display.magneticField,
         meta: d.dynamoActive
@@ -1937,6 +1980,21 @@ export function initPlanetPage(mountEl, options = {}) {
         label: "Climate State",
         value: model.display.climateState,
         meta: `Absorbed flux: ${model.display.absorbedFlux}`,
+      },
+      {
+        label: "Atmospheric Collapse",
+        tipLabel: "Atmospheric Collapse",
+        value: model.display.atmosphericCollapse,
+        meta:
+          d.nightsideMinK != null && d.atmosphereCollapseThresholdK != null
+            ? `Night side ${fmt(d.nightsideMinK, 0)} K | ${d.dominantAtmosphereSpecies || "Atmosphere"} condenses near ${fmt(d.atmosphereCollapseThresholdK, 0)} K`
+            : "",
+      },
+      {
+        label: "Surface State",
+        tipLabel: "Surface State",
+        value: model.display.surfaceState,
+        meta: d.surfaceState?.reason || "",
       },
       {
         label: "Earth Similarity Index",
@@ -2016,6 +2074,16 @@ export function initPlanetPage(mountEl, options = {}) {
         label: "Star Apparent Size",
         tipLabel: "Star apparent size",
         value: model.display.apparentStar,
+      },
+      {
+        label: "Transit Depth",
+        value: model.display.transitDepth,
+        meta: model.display.transitProbability,
+      },
+      {
+        label: "RV Semi-Amplitude",
+        value: model.display.rvSemiAmplitude,
+        meta: "Edge-on / transiting reference",
       },
       {
         label: "Sky Colour (Sun High)",
@@ -2100,11 +2168,14 @@ export function initPlanetPage(mountEl, options = {}) {
       "Density",
       "Gravity",
       "Escape Velocity",
+      "Oblateness",
       "Magnetic Field",
     ]);
     const environmentLabels = new Set([
       "Avg Surface Temp",
       "Climate State",
+      "Atmospheric Collapse",
+      "Surface State",
       "Water Regime",
       "Rings",
       "Sky Colour (Sun High)",
@@ -2112,7 +2183,13 @@ export function initPlanetPage(mountEl, options = {}) {
       "Vegetation Colour",
       "Vegetation (Twilight)",
     ]);
-    const systemLabels = new Set(["Year Length", "Horizon Distance", "Star Apparent Size"]);
+    const systemLabels = new Set([
+      "Year Length",
+      "Horizon Distance",
+      "Star Apparent Size",
+      "Transit Depth",
+      "RV Semi-Amplitude",
+    ]);
     const activityLabels = new Set(["Moon Tidal Heating", "Tectonic Regime", "Outgassing"]);
     const habitabilityLabels = new Set(["Earth Similarity Index", "Habitability Index"]);
     const normalizeRockyItem = (item) => ({
@@ -2270,6 +2347,11 @@ export function initPlanetPage(mountEl, options = {}) {
             },
             { label: "Escape Velocity", value: model.display.escape },
             {
+              label: "Oblateness",
+              value: model.display.oblateness,
+              meta: model.display.equatorialPolarRadii,
+            },
+            {
               label: "Magnetic Field",
               value: model.display.magneticField,
               meta: d.dynamoActive
@@ -2312,6 +2394,11 @@ export function initPlanetPage(mountEl, options = {}) {
               meta: `Absorbed flux: ${model.display.absorbedFlux}`,
             },
             {
+              label: "Surface State",
+              value: model.display.surfaceState,
+              meta: d.surfaceState?.reason || "",
+            },
+            {
               label: "Water Regime",
               value: model.display.waterRegime,
               meta: `~${fmt(model.inputs.wmfPct, 2)}% water by mass`,
@@ -2342,6 +2429,14 @@ export function initPlanetPage(mountEl, options = {}) {
             { label: "In habitable zone", value: d.inHabitableZone ? "Yes" : "No" },
             { label: "Insolation", value: model.display.insolation },
             { label: "Tidal lock", value: model.display.tidalLock },
+            {
+              label: "Atmospheric collapse",
+              value: model.display.atmosphericCollapse,
+              meta:
+                d.nightsideMinK != null && d.atmosphereCollapseThresholdK != null
+                  ? `Night side ${fmt(d.nightsideMinK, 0)} K | ${d.dominantAtmosphereSpecies || "Atmosphere"} condenses near ${fmt(d.atmosphereCollapseThresholdK, 0)} K`
+                  : "",
+            },
             ...(d.planetTidalHeatingW > 0 && !model.display.moonTidalHeating
               ? [
                   {
@@ -2358,6 +2453,16 @@ export function initPlanetPage(mountEl, options = {}) {
             },
             { label: "Horizon Distance", value: model.display.horizon },
             { label: "Star Apparent Size", value: model.display.apparentStar },
+            {
+              label: "Transit Depth",
+              value: model.display.transitDepth,
+              meta: model.display.transitProbability,
+            },
+            {
+              label: "RV Semi-Amplitude",
+              value: model.display.rvSemiAmplitude,
+              meta: "Edge-on / transiting reference",
+            },
             { label: "Roche limit", value: model.display.rocheLimit },
             {
               label: "Ring source moon",
@@ -3141,6 +3246,18 @@ export function initPlanetPage(mountEl, options = {}) {
       label: "Insolation",
       value: m.display.insolation,
     };
+    const transitDepthItem = {
+      label: "Transit Depth",
+      tip: TIP_LABEL["Transit Depth"] || "",
+      value: m.display.transitDepth,
+      meta: m.display.transitProbability,
+    };
+    const rvSemiAmplitudeItem = {
+      label: "RV Semi-Amplitude",
+      tip: TIP_LABEL["RV Semi-Amplitude"] || "",
+      value: m.display.rvSemiAmplitude,
+      meta: "Edge-on / transiting reference",
+    };
     const magnetosphereItem = {
       label: "Magnetosphere",
       value: m.display.magnetosphere,
@@ -3169,7 +3286,7 @@ export function initPlanetPage(mountEl, options = {}) {
     const identityItems = [classItem, metallicityItem];
     const physicalItems = [massItem, radiusItem, densityItem, gravityItem, escapeVelocityItem];
     const environmentItems = [equilibriumTempItem, atmosphereItem, ringsItem];
-    const systemItems = [orbitalPeriodItem, insolationItem];
+    const systemItems = [orbitalPeriodItem, insolationItem, transitDepthItem, rvSemiAmplitudeItem];
     const activityItems = [
       magneticFieldItem,
       magnetosphereItem,
@@ -3200,6 +3317,7 @@ export function initPlanetPage(mountEl, options = {}) {
             { label: "Gravity", value: m.display.gravity },
             { label: "Escape Velocity", value: m.display.escapeVelocity },
             { label: "Suggested radius", value: m.display.suggestedRadius },
+            { label: "Radius inflation", value: m.display.radiusInflation },
             { label: "Radius age note", value: m.display.radiusAgeNote },
             { label: "Oblateness", value: m.display.oblateness },
             { label: "Equatorial/Polar", value: m.display.equatorialRadius },
@@ -3244,6 +3362,16 @@ export function initPlanetPage(mountEl, options = {}) {
               meta: m.display.orbitalVelocity,
             },
             { label: "Insolation", value: m.display.insolation },
+            {
+              label: "Transit Depth",
+              value: m.display.transitDepth,
+              meta: m.display.transitProbability,
+            },
+            {
+              label: "RV Semi-Amplitude",
+              value: m.display.rvSemiAmplitude,
+              meta: "Edge-on / transiting reference",
+            },
             ...(m.display.peri
               ? [{ label: "Periapsis", value: `${m.display.peri} (${m.display.tempPeri})` }]
               : []),
@@ -3342,7 +3470,6 @@ export function initPlanetPage(mountEl, options = {}) {
     } else {
       celestialPreviewController.detach();
     }
-
   }
   /* ── Gas giant recipe picker modal ─────────────────────────────── */
 
@@ -4026,8 +4153,7 @@ export function initPlanetPage(mountEl, options = {}) {
             diagnostics: currentStepId === "recommendation",
           },
           typeSectionTitle: "Rocky Goal",
-          questionSectionTitle:
-            currentStepId === "orbit-context" ? "Search Setup" : "Goal Traits",
+          questionSectionTitle: currentStepId === "orbit-context" ? "Search Setup" : "Goal Traits",
           recommendationSectionTitle: "Best Rocky Fit",
           diagnosticSectionTitle: "Search Diagnostics",
           actions: [
@@ -4044,7 +4170,8 @@ export function initPlanetPage(mountEl, options = {}) {
                   {
                     id: "compile",
                     label: "Compile Goal",
-                    disabled: !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
+                    disabled:
+                      !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
                   },
                   {
                     id: "run-search",
@@ -4519,11 +4646,7 @@ export function initPlanetPage(mountEl, options = {}) {
       const selectedGasGiant = getSelectedGasGiant(w);
       if (!selectedGasGiant) return;
       applyGasGiantPresetInputs(
-        buildGasGiantRecipeApplyInputs(
-          recipe.apply,
-          recipe.id,
-          selectedGasGiant,
-        ),
+        buildGasGiantRecipeApplyInputs(recipe.apply, recipe.id, selectedGasGiant),
         {
           noticeLabel: recipe.label || "Gas giant recipe",
         },
@@ -4636,10 +4759,7 @@ export function initPlanetPage(mountEl, options = {}) {
 
   const restoredBodyType = loadWorld().selectedBodyType || "planet";
   if (guidedRoute?.dedicated && guidedRoute.objectType === "gasGiant") {
-    const restoredGasGiantSession = loadGuidedSession(
-      "gasGiant",
-      getGasGiantGuidedSessionTarget(),
-    );
+    const restoredGasGiantSession = loadGuidedSession("gasGiant", getGasGiantGuidedSessionTarget());
     if (guidedRoute.uxMode === "quick") {
       openGasGiantGuidedQuickPicker(
         restoredGasGiantSession?.uxMode === "quick" ? restoredGasGiantSession : null,
@@ -4652,10 +4772,7 @@ export function initPlanetPage(mountEl, options = {}) {
       );
     }
   } else if (guidedRoute?.dedicated && guidedRoute.objectType === "rockyPlanet") {
-    const restoredRockySession = loadGuidedSession(
-      "rockyPlanet",
-      getRockyGuidedSessionTarget(),
-    );
+    const restoredRockySession = loadGuidedSession("rockyPlanet", getRockyGuidedSessionTarget());
     if (guidedRoute.uxMode === "quick") {
       openRockyGuidedQuickPicker(
         restoredRockySession?.uxMode === "quick" ? restoredRockySession : null,
@@ -4668,20 +4785,14 @@ export function initPlanetPage(mountEl, options = {}) {
       );
     }
   } else if (restoredBodyType === "gasGiant") {
-    const restoredGasGiantSession = loadGuidedSession(
-      "gasGiant",
-      getGasGiantGuidedSessionTarget(),
-    );
+    const restoredGasGiantSession = loadGuidedSession("gasGiant", getGasGiantGuidedSessionTarget());
     if (restoredGasGiantSession?.uxMode === "quick") {
       openGasGiantGuidedQuickPicker(restoredGasGiantSession);
     } else if (restoredGasGiantSession) {
       openGasGiantGuidedFlow(restoredGasGiantSession);
     }
   } else {
-    const restoredRockySession = loadGuidedSession(
-      "rockyPlanet",
-      getRockyGuidedSessionTarget(),
-    );
+    const restoredRockySession = loadGuidedSession("rockyPlanet", getRockyGuidedSessionTarget());
     if (restoredRockySession?.uxMode === "quick") {
       openRockyGuidedQuickPicker(restoredRockySession);
     } else if (restoredRockySession) {

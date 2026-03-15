@@ -5,6 +5,7 @@ import { computeMoonMagnetosphere } from "./moon/magnetosphere.js";
 import { computeMoonOrbit } from "./moon/orbit.js";
 import { computeMoonRadiationEnvironment } from "./moon/radiation.js";
 import { analyseMoonVolatiles, radiationLabel } from "./moon/retention.js";
+import { computeSurfaceExomoonCalibration } from "./moon/surfaceHabitabilityCalibration.js";
 import { computeMoonTemperature } from "./moon/temperature.js";
 import { computeMoonTidalState, formatOrbitalFate, formatRecession } from "./moon/tides.js";
 import { buildMoonHabitabilityContext } from "./habitability/context.js";
@@ -78,8 +79,7 @@ function deriveMoonStellarZoneGate({
   parentRadiusEarth,
 }) {
   const hz = starHabitableZoneAu || fallbackHabitableZoneAu(starLuminosityLsol);
-  const inStellarZone =
-    planetSemiMajorAxisAu >= hz.inner && planetSemiMajorAxisAu <= hz.outer;
+  const inStellarZone = planetSemiMajorAxisAu >= hz.inner && planetSemiMajorAxisAu <= hz.outer;
   const parentRadiusKm = Math.max(toFinite(parentRadiusEarth, 0.01), 0.01) * 6371;
   const stableOuterLimitKm = Math.max(
     toFinite(orbit?.stableOuterLimitKm, orbit?.moonZoneOuterKm ?? 0),
@@ -88,7 +88,8 @@ function deriveMoonStellarZoneGate({
   const stableOuterLimitRp = parentRadiusKm > 0 ? stableOuterLimitKm / parentRadiusKm : Infinity;
   const veryLowMassBlocked = inStellarZone && starMassMsol < 0.2;
   const compressedStableBand = inStellarZone && starMassMsol < 0.35 && stableOuterLimitRp < 12;
-  const marginalLowMass = inStellarZone && !veryLowMassBlocked && !compressedStableBand && starMassMsol < 0.5;
+  const marginalLowMass =
+    inStellarZone && !veryLowMassBlocked && !compressedStableBand && starMassMsol < 0.5;
   const marginalCompressedBand =
     inStellarZone && !veryLowMassBlocked && !compressedStableBand && stableOuterLimitRp < 20;
   const pass = inStellarZone && !veryLowMassBlocked && !compressedStableBand;
@@ -111,13 +112,7 @@ function deriveMoonStellarZoneGate({
   };
 }
 
-function deriveMoonTidalHabitableZone({
-  baseZone,
-  orbit,
-  tides,
-  radiation,
-  parentRadiusEarth,
-}) {
+function deriveMoonTidalHabitableZone({ baseZone, orbit, tides, radiation, parentRadiusEarth }) {
   if (!baseZone) return null;
   const parentRadiusKm = Math.max(toFinite(parentRadiusEarth, 0.01), 0.01) * 6371;
   const stableOuterLimitKm = Math.max(
@@ -137,7 +132,8 @@ function deriveMoonTidalHabitableZone({
   const surfaceExposure = Math.max(toFinite(radiation?.surfaceExposure, 0), 0);
   const parentBeltLevel = clamp(toFinite(radiation?.parentBeltLevel, 0), 0, 1);
 
-  const radiationInnerRp = 4 + parentBeltLevel * 6 + clamp(Math.log10(1 + surfaceExposure * 60), 0, 4);
+  const radiationInnerRp =
+    4 + parentBeltLevel * 6 + clamp(Math.log10(1 + surfaceExposure * 60), 0, 4);
   const heatingInnerRp =
     4 + clamp(Math.log10(1 + tidalHeatingEarth), 0, 4) * 1.5 + eccentricity * 120;
   let innerRp = Math.max(rocheInnerRp * 1.05, radiationInnerRp, heatingInnerRp);
@@ -162,7 +158,8 @@ function deriveMoonTidalHabitableZone({
   const innerKm = innerRp * parentRadiusKm;
   const outerKm = outerRp * parentRadiusKm;
   const notes = [...(Array.isArray(baseZone.notes) ? baseZone.notes : [])];
-  if (parentBeltLevel >= 0.5 || surfaceExposure >= 0.5) notes.push("inner-edge-pushed-out-by-radiation");
+  if (parentBeltLevel >= 0.5 || surfaceExposure >= 0.5)
+    notes.push("inner-edge-pushed-out-by-radiation");
   if (tidalHeatingEarth < 0.05) notes.push("low-tidal-support");
   else if (tidalHeatingEarth > 20) notes.push("high-tidal-heating");
   else notes.push("moderate-tidal-support");
@@ -182,10 +179,7 @@ function deriveMoonTidalHabitableZone({
       stableOuterLimitKm,
     },
     notes,
-    withinZone:
-      baseZone.starHzEligible &&
-      currentAxisKm >= innerKm &&
-      currentAxisKm <= outerKm,
+    withinZone: baseZone.starHzEligible && currentAxisKm >= innerKm && currentAxisKm <= outerKm,
   };
 }
 
@@ -193,8 +187,14 @@ function buildMoonHabitabilitySummary({
   starHabitableZoneAu,
   starLuminosityLsol,
   starMassMsol,
+  parentMassEarth,
+  parentDensityGcm3,
   planetSemiMajorAxisAu,
   parentRadiusEarth,
+  moonMassMoon,
+  moonDensityGcm3,
+  compositionOverride,
+  spinState,
   orbit,
   atmosphere,
   hydrosphere,
@@ -219,6 +219,20 @@ function buildMoonHabitabilitySummary({
     orbit,
     parentRadiusEarth,
   });
+  const surfaceExomoonCalibration = computeSurfaceExomoonCalibration({
+    starMassMsol,
+    parentMassEarth,
+    parentDensityGcm3,
+    parentRadiusEarth,
+    parentSemiMajorAxisAu: planetSemiMajorAxisAu,
+    moonMassMoon,
+    moonDensityGcm3,
+    compositionOverride,
+    spinState,
+    stellarZonePass: stellarZoneGate.pass,
+  });
+  const surfaceCalibrationPass =
+    !surfaceExomoonCalibration.applicable || surfaceExomoonCalibration.overallPass === true;
   const stellarZonePass = stellarZoneGate.pass;
   const orbitStabilityClass = String(orbit?.orbitStabilityClass || "");
   const stableOrbitPass =
@@ -251,7 +265,8 @@ function buildMoonHabitabilitySummary({
   const atmosphereStableEnough =
     surfaceAtmospherePass &&
     ["Stable", "Marginal"].includes(String(atmosphere?.stability?.balanceLabel || ""));
-  const atmosphereMarginal = surfaceWaterAvailable && surfaceAtmospherePass && !atmosphereStableEnough;
+  const atmosphereMarginal =
+    surfaceWaterAvailable && surfaceAtmospherePass && !atmosphereStableEnough;
   const radiationSurfacePass = ["Low", "Elevated"].includes(surfaceClass);
   const radiationSubsurfacePass =
     ["Low", "Elevated", "Harsh"].includes(subsurfaceClass) ||
@@ -270,6 +285,15 @@ function buildMoonHabitabilitySummary({
   const surfaceOceanPlausible =
     stableOrbitPass &&
     stellarZonePass &&
+    surfaceCalibrationPass &&
+    surfaceWaterAvailable &&
+    surfaceAtmospherePass &&
+    !tidalOverheated &&
+    !["Snowball", "Runaway greenhouse"].includes(climateState);
+  const surfaceCalibrationLimited =
+    stableOrbitPass &&
+    stellarZonePass &&
+    !surfaceCalibrationPass &&
     surfaceWaterAvailable &&
     surfaceAtmospherePass &&
     !tidalOverheated &&
@@ -282,18 +306,17 @@ function buildMoonHabitabilitySummary({
     (Number(climate?.climateLivabilityFraction) || 0) >= 0.15 &&
     String(climate?.collapseRisk || "") !== "High";
   const subsurfaceOceanPlausible =
-    stableOrbitPass &&
-    subsurfaceWaterAvailable &&
-    !tidalOverheated &&
-    radiationSubsurfacePass;
+    stableOrbitPass && subsurfaceWaterAvailable && !tidalOverheated && radiationSubsurfacePass;
   const unstableOrbit = !stableOrbitPass;
   const surfaceGateCount = [
     stellarZonePass,
     stableOrbitPass,
+    surfaceCalibrationPass,
     surfaceWaterAvailable,
     surfaceAtmospherePass,
     radiationSurfacePass && !tidalOverheated,
   ].filter(Boolean).length;
+  const surfaceGateTotal = surfaceExomoonCalibration.applicable ? 6 : 5;
   const subsurfaceGateCount = [
     stableOrbitPass,
     subsurfaceWaterAvailable,
@@ -305,7 +328,9 @@ function buildMoonHabitabilitySummary({
   if (unstableOrbit) primaryOutcome = "Unstable-orbit moon";
   else if (surfaceBiospherePlausible) primaryOutcome = "Surface life plausible";
   else if (surfaceRadiationLimited) primaryOutcome = "Radiation-limited ocean moon";
-  else if (surfaceOceanPlausible && atmosphereMarginal) primaryOutcome = "Marginal surface-ocean moon";
+  else if (surfaceCalibrationLimited) primaryOutcome = "Cool-star mass-limited surface moon";
+  else if (surfaceOceanPlausible && atmosphereMarginal)
+    primaryOutcome = "Marginal surface-ocean moon";
   else if (surfaceOceanPlausible) primaryOutcome = "Surface ocean moon";
   else if (subsurfaceOceanPlausible) primaryOutcome = "Subsurface ocean moon";
   else if (tidalOverheated) primaryOutcome = "Tidal or overheated moon";
@@ -315,13 +340,15 @@ function buildMoonHabitabilitySummary({
     ? "Surface life plausible"
     : surfaceRadiationLimited
       ? "Radiation-limited surface ocean"
-      : surfaceOceanPlausible
-        ? atmosphereMarginal
-          ? "Marginal surface ocean"
-          : "Surface ocean plausible"
-        : frozenSurface
-          ? "Frozen surface"
-          : "Surface life unlikely";
+      : surfaceCalibrationLimited
+        ? "Surface ocean blocked by cool-star exomoon calibration"
+        : surfaceOceanPlausible
+          ? atmosphereMarginal
+            ? "Marginal surface ocean"
+            : "Surface ocean plausible"
+          : frozenSurface
+            ? "Frozen surface"
+            : "Surface life unlikely";
   const subsurfaceOutcome = subsurfaceOceanPlausible
     ? "Subsurface ocean plausible"
     : "No strong subsurface-ocean signal";
@@ -365,21 +392,28 @@ function buildMoonHabitabilitySummary({
         subsurfacePass: radiationSubsurfacePass,
         label: `${radiation?.surfaceClass || "Unknown"} surface / ${radiation?.subsurfaceClass || "Unknown"} subsurface`,
       },
+      surfaceExomoonCalibration: {
+        applicable: surfaceExomoonCalibration.applicable,
+        pass: surfaceCalibrationPass,
+        label: surfaceExomoonCalibration.label,
+      },
     },
     classifications: {
       surfaceOceanPlausible,
       surfaceBiospherePlausible,
       surfaceRadiationLimited,
+      surfaceCalibrationLimited,
       subsurfaceOceanPlausible,
       atmosphereMarginal,
       tidalOverheated,
       frozenSurface,
       unstableOrbit,
     },
+    surfaceExomoonCalibration,
     primaryOutcome,
     surfaceOutcome,
     subsurfaceOutcome,
-    gateSummary: `Surface ${surfaceGateCount}/5 | Subsurface ${subsurfaceGateCount}/4`,
+    gateSummary: `Surface ${surfaceGateCount}/${surfaceGateTotal} | Subsurface ${subsurfaceGateCount}/4`,
   };
 }
 
@@ -553,8 +587,10 @@ function buildMoonSummaryResult({
   interior,
   magnetosphere,
   radiation,
+  spinState,
   resonance,
   formation,
+  surfaceExomoonCalibration,
   habitabilitySummary,
   unifiedMoonHabitability,
 }) {
@@ -635,8 +671,10 @@ function buildMoonSummaryResult({
     interior,
     magnetosphere,
     radiation,
+    spinState,
     resonance,
     formation,
+    surfaceExomoonCalibration,
     habitability: {
       habitabilityIndex: unifiedMoonHabitability.score,
       habitabilityModelVersion: unifiedMoonHabitability.version,
@@ -652,12 +690,17 @@ function buildMoonSummaryResult({
       climateState: climate.climateState,
       surfaceBiosphere: biosphere.surfaceBiosphereClass,
       subsurfaceOcean: hydrosphere.subsurfaceOceanPresent ? "Yes" : "No",
+      spinState: spinState?.state || "Not evaluated",
       habitabilityIndex: fmt(unifiedMoonHabitability.score, 3),
       lifeClass: habitabilitySummary.primaryOutcome,
       surfaceHabitability: habitabilitySummary.surfaceOutcome,
       subsurfaceHabitability: habitabilitySummary.subsurfaceOutcome,
       habitabilityGates: habitabilitySummary.gateSummary,
       surfaceRadiation: radiation.surfaceClass,
+      surfaceExomoonCalibration:
+        surfaceExomoonCalibration?.applicable === true
+          ? surfaceExomoonCalibration.label
+          : "Not targeted",
     },
   };
 }
@@ -1012,6 +1055,7 @@ export function calcMoonExact({
     atmosphereComposition: atmosphere.composition,
     dominantAtmosphereSpecies: atmosphere.dominantSpecies,
     illumination,
+    spinState: tides.spinState,
     moonLockedToPlanet: tides.moonLockedToPlanet === "Yes",
     moonSemiMajorAxisKm: orbit.semiMajorAxisKm,
     tidalHabitableZone:
@@ -1049,6 +1093,7 @@ export function calcMoonExact({
     lShell: orbit.semiMajorAxisKm / Math.max(rPlanetRE * 6371, 1),
   });
   const radiation = computeMoonRadiationEnvironment({
+    starMassMsol: mStarMsol,
     surfaceFieldEarths,
     magnetopauseRp: parent.derived?.magnetopauseRp,
     planetSemiMajorAxisAu: aPlanetAU,
@@ -1109,8 +1154,14 @@ export function calcMoonExact({
     starHabitableZoneAu: resolvedStar.habitableZoneAu,
     starLuminosityLsol: lStarLsol,
     starMassMsol: mStarMsol,
+    parentMassEarth: mPlanetME,
+    parentDensityGcm3: rhoPlanetGcm3,
     planetSemiMajorAxisAu: aPlanetAU,
     parentRadiusEarth: rPlanetRE,
+    moonMassMoon: mMoonMM,
+    moonDensityGcm3: rhoMoonGcm3,
+    compositionOverride: moonInputs.compositionOverride || null,
+    spinState: tides.spinState,
     orbit,
     atmosphere,
     hydrosphere,
@@ -1265,8 +1316,10 @@ export function calcMoonExact({
       interior,
       magnetosphere,
       radiation,
+      spinState: tides.spinState,
       resonance,
       formation,
+      surfaceExomoonCalibration: habitabilitySummary.surfaceExomoonCalibration,
       habitabilitySummary,
       unifiedMoonHabitability,
     });
@@ -1419,7 +1472,11 @@ export function calcMoonExact({
       summary: habitabilitySummary,
     },
 
+    surfaceExomoonCalibration: habitabilitySummary.surfaceExomoonCalibration,
+
     climate,
+
+    spinState: tides.spinState,
 
     geology,
 
@@ -1451,6 +1508,9 @@ export function calcMoonExact({
       recessionCmYr: tides.recessionCmYr,
       timeToRocheGyr: tides.timeToRocheGyr,
       timeToEscapeGyr: tides.timeToEscapeGyr,
+      tidallyEvolvedMoon: tides.tidallyEvolvedMoon,
+      spinOrbitResonance: tides.spinOrbitResonance,
+      spinState: tides.spinState,
       moonLockedToPlanet: tides.moonLockedToPlanet,
       planetLockedToMoon: tides.planetLockedToMoon,
       planetLockedToStar: tides.planetLockedToStar,
@@ -1468,6 +1528,10 @@ export function calcMoonExact({
       surfaceHabitability: habitabilitySummary.surfaceOutcome,
       subsurfaceHabitability: habitabilitySummary.subsurfaceOutcome,
       habitabilityGates: habitabilitySummary.gateSummary,
+      surfaceExomoonCalibration:
+        habitabilitySummary.surfaceExomoonCalibration?.applicable === true
+          ? habitabilitySummary.surfaceExomoonCalibration.label
+          : "Not targeted",
       surfaceTemp: `${temperature.surfaceK} K (${temperature.surfaceC} °C)`,
       zoneInner: `${fmt(orbit.zoneInnerKm, 0)} km`,
       zoneOuter: `${fmt(orbit.zoneOuterKm, 0)} km`,
@@ -1478,9 +1542,12 @@ export function calcMoonExact({
       rot:
         tides.rotationPeriodDays === null
           ? "Not tidally locked"
-          : tides.moonLockedToPlanet === "Yes"
-            ? `${fmt(tides.rotationPeriodDays, 3)} days (locked)`
-            : `${fmt(tides.rotationPeriodDays, 3)} days (est.)`,
+          : tides.spinState?.ratio && tides.spinState.ratio !== "1:1"
+            ? `${fmt(tides.rotationPeriodDays, 3)} days (${tides.spinState.ratio} resonance)`
+            : tides.moonLockedToPlanet === "Yes"
+              ? `${fmt(tides.rotationPeriodDays, 3)} days (locked)`
+              : `${fmt(tides.rotationPeriodDays, 3)} days (est.)`,
+      spinState: tides.spinState?.state || "Not evaluated",
       initialRot: `${fmt(initialRotHours, 2)} hours`,
       tides: `${fmt(tides.totalEarthTides, 3)} Earth tides`,
       moonPct: `${fmt(tides.moonContributionPct, 1)} %`,

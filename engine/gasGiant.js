@@ -22,10 +22,14 @@ import { computeThermalProfile, getClouds } from "./gasGiant/temperature.js";
 import { calcTidalEffects } from "./gasGiant/tides.js";
 import {
   auToKilometers,
+  calcRvSemiAmplitudeMs,
   calcOrbitalPeriodDaysKepler,
   calcOrbitalPeriodYearsKepler,
+  calcTransitDepthFraction,
+  calcTransitProbabilityFraction,
   orbitalDirectionFromInclination,
 } from "./physics/orbital.js";
+import { calcStellarFluxWm2 } from "./physics/radiative.js";
 import { selectSpinOrbitResonance } from "./physics/rotation.js";
 
 export { estimateMetallicity, massToRadiusRj, radiusToMassMjup } from "./gasGiant/structure.js";
@@ -63,6 +67,10 @@ function buildGasGiantSummaryResult({
   ringType,
   orbitalPeriodYears,
   orbitalPeriodDays,
+  transitDepthFraction,
+  transitDepthPpm,
+  transitProbabilityFraction,
+  rvSemiAmplitudeMs,
 }) {
   return {
     inputs: {
@@ -99,6 +107,12 @@ function buildGasGiantSummaryResult({
     orbital: {
       orbitalPeriodYears: round(orbitalPeriodYears, 4),
       orbitalPeriodDays: round(orbitalPeriodDays, 2),
+    },
+    detection: {
+      transitDepthFraction: round(transitDepthFraction, 8),
+      transitDepthPpm: round(transitDepthPpm, 2),
+      transitProbabilityFraction: round(transitProbabilityFraction, 6),
+      rvSemiAmplitudeMs: round(rvSemiAmplitudeMs, 4),
     },
   };
 }
@@ -163,6 +177,33 @@ export function calcGasGiant({
     radiusSource = "default";
   }
 
+  const thermal = computeThermalProfile({
+    massMjup,
+    orbitAu: orbit,
+    starLuminosityLsol: sLum,
+    eccentricity,
+  });
+  const sudarsky = thermal.sudarsky;
+  const teqK = thermal.equilibriumTempK;
+  const ihRatio = thermal.internalHeatRatio;
+  const tEffK = thermal.effectiveTempK;
+  const internalFlux = thermal.internalFluxWm2;
+  const incidentFluxWm2 = calcStellarFluxWm2({
+    starLuminosityLsol: sLum,
+    orbitalDistanceAu: orbit,
+  });
+
+  if (radiusSource !== "user") {
+    const derivedAgeRadius = calcAgeRadiusCorrection(
+      massMjup,
+      radiusRj,
+      sAge,
+      teqK,
+      incidentFluxWm2,
+    );
+    radiusRj = clamp(derivedAgeRadius.suggestedRadiusRj, 0.15, 2.5);
+  }
+
   const massEarth = massMjup * EARTH_MASS_PER_MJUP;
   const massKg = massMjup * JUPITER_MASS_KG;
   const radiusKm = radiusRj * JUPITER_RADIUS_KM;
@@ -175,18 +216,6 @@ export function calcGasGiant({
   const gravityG = gravityMs2 / EARTH_GRAVITY_MS2;
   const escapeVelocityMs = Math.sqrt((2 * G * massKg) / radiusM);
   const escapeVelocityKms = escapeVelocityMs / 1000;
-
-  const thermal = computeThermalProfile({
-    massMjup,
-    orbitAu: orbit,
-    starLuminosityLsol: sLum,
-    eccentricity,
-  });
-  const sudarsky = thermal.sudarsky;
-  const teqK = thermal.equilibriumTempK;
-  const ihRatio = thermal.internalHeatRatio;
-  const tEffK = thermal.effectiveTempK;
-  const internalFlux = thermal.internalFluxWm2;
 
   const surfaceAreaM2 = 4 * Math.PI * radiusM ** 2;
   const ggK2 = gasGiantK2(massMjup);
@@ -229,6 +258,23 @@ export function calcGasGiant({
     centralMassMsol: sMass,
     daysPerYear: 365.25,
   });
+  const transitDepthFraction = calcTransitDepthFraction({
+    bodyRadiusKm: radiusKm,
+    starRadiusKm: starRadiusRsol * 696340,
+  });
+  const transitDepthPpm = transitDepthFraction * 1e6;
+  const transitProbabilityFraction = calcTransitProbabilityFraction({
+    bodyRadiusKm: radiusKm,
+    starRadiusKm: starRadiusRsol * 696340,
+    semiMajorAxisAu: orbit,
+  });
+  const rvSemiAmplitudeMs = calcRvSemiAmplitudeMs({
+    orbitalPeriodDays,
+    primaryMassMsol: sMass,
+    secondaryMassKg: massKg,
+    eccentricity,
+    sinI: 1,
+  });
 
   if (detailLevel === "summary") {
     return buildGasGiantSummaryResult({
@@ -255,6 +301,10 @@ export function calcGasGiant({
       ringType: ringProperties.ringType,
       orbitalPeriodYears,
       orbitalPeriodDays,
+      transitDepthFraction,
+      transitDepthPpm,
+      transitProbabilityFraction,
+      rvSemiAmplitudeMs,
     });
   }
 
@@ -280,7 +330,7 @@ export function calcGasGiant({
   const ggExobaseTempK = computeGasGiantExobaseTemp(tEffK, massLoss.xuvFluxRatioEarth);
   const ggJeansSpecies = computeGasGiantJeansEscape(escapeVelocityKms, ggExobaseTempK);
   const tidal = calcTidalEffects(massMjup, radiusKm, orbit, eccentricity, sMass, sAge);
-  const ageRadius = calcAgeRadiusCorrection(massMjup, radiusRj, sAge, teqK);
+  const ageRadius = calcAgeRadiusCorrection(massMjup, radiusRj, sAge, teqK, incidentFluxWm2);
 
   const eqRadiusM = oblateness.equatorialRadiusKm * 1000;
   const equatorialGravityMs2 = (G * massKg) / eqRadiusM ** 2;
@@ -342,6 +392,9 @@ export function calcGasGiant({
       suggestedRadiusRj: ageRadius.suggestedRadiusRj,
       radiusInflationFactor: ageRadius.radiusInflationFactor,
       proximityInflationRj: ageRadius.proximityInflationRj,
+      irradiationInflationFraction: ageRadius.irradiationInflationFraction,
+      hotJupiterInflationActive: ageRadius.hotJupiterInflationActive,
+      hotJupiterInflationCapped: ageRadius.hotJupiterInflationCapped,
       radiusAgeNote: ageRadius.radiusAgeNote,
     },
 
@@ -354,6 +407,8 @@ export function calcGasGiant({
       tEffApoK: round(tEffApoK, 1),
       internalHeatRatio: round(ihRatio, 2),
       internalFluxWm2: round(internalFlux, 3),
+      incidentFluxWm2: ageRadius.incidentFluxWm2,
+      incidentFluxErgCm2S: ageRadius.incidentFluxErgCm2S,
       bondAlbedo: round(sudarsky.bondAlbedo, 3),
       insolationEarth: round(insolationEarth, 4),
       moonTidalHeatingW: round(moonTidalHeatingW, 0),
@@ -405,6 +460,13 @@ export function calcGasGiant({
       nearestResonance,
     },
 
+    detection: {
+      transitDepthFraction: round(transitDepthFraction, 8),
+      transitDepthPpm: round(transitDepthPpm, 2),
+      transitProbabilityFraction: round(transitProbabilityFraction, 6),
+      rvSemiAmplitudeMs: round(rvSemiAmplitudeMs, 4),
+    },
+
     appearance: {
       colourHex: sudarsky.hex,
       colourLabel: sudarsky.label,
@@ -438,6 +500,14 @@ export function calcGasGiant({
       orbitalPeriod: `${fmt(orbitalPeriodYears, 2)} yr (${fmt(orbitalPeriodDays, 1)} days)`,
       orbitalVelocity: `${fmt(orbitalVelocityKms, 1)} km/s`,
       insolation: `${fmt(insolationEarth, 3)}× Earth`,
+      transitDepth:
+        `${fmt(transitDepthFraction * 100, transitDepthFraction * 100 >= 0.1 ? 2 : 4)}%` +
+        ` (${fmt(transitDepthPpm, 0)} ppm)`,
+      transitProbability: `${fmt(transitProbabilityFraction * 100, 2)}% geometric probability`,
+      rvSemiAmplitude:
+        rvSemiAmplitudeMs >= 1000
+          ? `${fmt(rvSemiAmplitudeMs / 1000, 3)} km/s`
+          : `${fmt(rvSemiAmplitudeMs, rvSemiAmplitudeMs >= 10 ? 2 : 3)} m/s`,
       peri: eccentricity > 0.005 ? `${fmt(periapsisAu, 4)} AU` : null,
       apo: eccentricity > 0.005 ? `${fmt(apoapsisAu, 4)} AU` : null,
       tempPeri:
@@ -467,6 +537,9 @@ export function calcGasGiant({
       rocheLobeRadius: `${fmt(massLoss.rocheLobeRadiusKm, 0)} km${massLoss.rocheLobeOverflow ? " (OVERFLOW)" : ""}`,
       jeansEscape: jeansDisplay,
       suggestedRadius: `${fmt(ageRadius.suggestedRadiusRj, 3)} Rj at ${fmt(sAge, 1)} Gyr`,
+      radiusInflation: ageRadius.hotJupiterInflationActive
+        ? `Age ×${fmt(ageRadius.radiusInflationFactor, 3)}; irradiation +${fmt(ageRadius.irradiationInflationFraction * 100, 0)}%`
+        : `Age ×${fmt(ageRadius.radiusInflationFactor, 3)}; irradiation inactive`,
       radiusAgeNote: ageRadius.radiusAgeNote,
       ringType: `${ringProperties.ringType} — ${ringProperties.ringComposition}`,
       ringDetails: `τ ≈ ${fmt(ringProperties.opticalDepth, 2)} (${ringProperties.opticalDepthClass}), ${ringProperties.estimatedMassKg.toExponential(2)} kg`,

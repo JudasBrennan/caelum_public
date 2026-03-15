@@ -36,6 +36,42 @@ export function bodyClass(massEarth) {
   return massEarth < 0.01 ? "Dwarf planet" : "Planet";
 }
 
+export function classifyRockySurfaceState({
+  surfaceTempK,
+  tidallyLockedToStar = false,
+  bodyClass = "Planet",
+}) {
+  if (bodyClass === "Dwarf planet") {
+    return {
+      key: "dwarf-rocky",
+      label: "Dwarf rocky world",
+      reason: "Low-mass rocky body without persistent silicate-melt conditions.",
+    };
+  }
+  if (surfaceTempK >= 1800) {
+    return {
+      key: "magma-ocean-world",
+      label: "Magma ocean world",
+      reason: "Average surface temperature is high enough for globally extensive silicate melt.",
+    };
+  }
+  if (surfaceTempK >= 1400 || (tidallyLockedToStar && surfaceTempK >= 1100)) {
+    return {
+      key: "lava-world",
+      label: "Lava world",
+      reason:
+        tidallyLockedToStar && surfaceTempK < 1400
+          ? "High average temperature plus permanent dayside heating suggests molten surface regions."
+          : "Average surface temperature is high enough for extensive surface silicate melting.",
+    };
+  }
+  return {
+    key: "standard-rocky",
+    label: "Standard rocky world",
+    reason: "Surface temperatures stay below the model's silicate-melt classification thresholds.",
+  };
+}
+
 export function classifyClimateState(surfaceTempK, absorbedFluxWm2, hasWater) {
   if (!hasWater) return "Stable";
   if (absorbedFluxWm2 > 282) return "Runaway greenhouse";

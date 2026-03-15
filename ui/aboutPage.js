@@ -9,7 +9,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 1.25.0 BETA</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 1.26.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, planetary systems, rocky worlds, gas giants, moons, and debris disks with
           real astrophysics. Model tectonics, climate zones, atmospheres, populations, and calendars.
           Explore your creations in an interactive 3D visualiser with procedural textures, or study
@@ -279,26 +279,43 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Built the modern stellar spectral classification system and cataloged hundreds of thousands of stars, turning overwhelming celestial complexity into a usable reference framework.",
   },
+  "1.26.0": {
+    name: "Jocelyn Bell Burnell",
+    born: 1943,
+    died: null,
+    country: "Northern Ireland",
+    summary:
+      "Discovered the first radio pulsars and helped reveal how faint repeating signals can expose hidden structure in stellar systems, turning subtle patterns into usable astronomy.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
   if (!s) return "";
   const surname = s.name.split(" ").pop();
+  const lifeYears = s.died === null ? `${s.born}\u2013` : `${s.born}\u2013${s.died}`;
   return `
         <div class="changelog-scientist">
           <div class="changelog-scientist__title">The ${surname} Release</div>
-          <div class="changelog-scientist__detail">${s.name} (${s.born}\u2013${s.died}) \u00b7 ${s.country}</div>
+          <div class="changelog-scientist__detail">${s.name} (${lifeYears}) \u00b7 ${s.country}</div>
           <div class="changelog-scientist__summary">${s.summary}</div>
         </div>`;
 }
 
-function release(version, note, items, { open = false, rolledBack = false, rolledBackNote = "" } = {}) {
+function release(
+  version,
+  note,
+  items,
+  { open = false, rolledBack = false, rolledBackNote = "" } = {},
+) {
   const openAttr = open ? " open" : "";
   const lis = items.map((i) => `<li>${i}</li>`).join("\n          ");
   const s = RELEASE_SCIENTISTS[version];
   const surname = s ? ` \u2014 The ${s.name.split(" ").pop()} Release` : "";
   const title = rolledBack ? `<s>Version ${version}${surname}</s>` : `Version ${version}${surname}`;
-  const statusNote = rolledBack && rolledBackNote ? ` <span class="changelog-release__note"><b>Rolled back:</b> ${rolledBackNote}</span>` : "";
+  const statusNote =
+    rolledBack && rolledBackNote
+      ? ` <span class="changelog-release__note"><b>Rolled back:</b> ${rolledBackNote}</span>`
+      : "";
   return `
       <details class="changelog-release"${openAttr}>
         <summary class="changelog-release__summary"><b>${title}</b> <span class="changelog-release__note">${note}</span>${statusNote}</summary>${scientistCard(version)}
@@ -309,6 +326,23 @@ function release(version, note, items, { open = false, rolledBack = false, rolle
 function changelogHTML() {
   return [
     release(
+      "1.26.0",
+      "(from 1.25.0 BETA)",
+      [
+        "<b>Guided Creation Across All Major Objects</b> &mdash; Guided and Quick creation now cover moons, rocky worlds, gas giants, and stars. You can start from archetypes, answer structured goal questions, use interpreted phrases like `forest moon`, or let the solver search toward a target outcome instead of hand-tuning every field.",
+        "<b>Moon Habitability Overhaul</b> &mdash; Moons now separate surface-ocean, radiation-limited, cool-star-mass-limited, and subsurface-ocean outcomes more explicitly. Radiation shielding, magnetic protection, spin state, and conservative orbit stability now feed the result directly, and guided moon search is much less likely to chase warm but hostile inner orbits.",
+        "<b>Cool-Star Moon Calibration</b> &mdash; Exposed-surface moons around cool stars now use a more selective calibration instead of being treated like generic warm moons. The Moon page also surfaces explicit `Spin State` and `Surface Exomoon Calibration` outputs so you can see why a promising moon does or does not clear the surface-life bar.",
+        "<b>Atmospheric Collapse On Tidally Locked Worlds</b> &mdash; Rocky planets now estimate whether a synchronously locked atmosphere can stay gaseous on the permanent night side. The Planet page surfaces the collapse state, modeled night-side minimum temperature, and dominant condensable gas directly in the rocky-world outputs.",
+        "<b>XUV Luminosity Evolution</b> &mdash; Stars now own their XUV evolution, with mass-dependent saturation lifetimes and explicit XUV outputs on the Star page. That higher-energy history now feeds atmospheric escape, gas-giant mass loss, and moon-radiation calculations instead of relying on the older generic heuristic.",
+        "<b>Hot Jupiter Radius Inflation</b> &mdash; Hot Jupiters now use a flux-based radius-inflation model when their radii are derived from mass. Highly irradiated giants gain a bounded inflation anomaly from incident flux instead of only showing a loose temperature-based suggestion.",
+        "<b>Lava World Classification</b> &mdash; Rocky planets now distinguish `Standard rocky world`, `Lava world`, and `Magma ocean world` explicitly. Extremely hot close-in planets no longer read as generic rocky bodies when the solved surface state is much more extreme.",
+        "<b>Transit Depth And RV Semi-Amplitude</b> &mdash; Rocky planets and gas giants now report exoplanet-detection metrics like transit depth, geometric transit probability, and stellar wobble amplitude. This makes it much easier to judge whether a generated world would be obvious in transit or radial-velocity surveys.",
+        "<b>Rocky Planet Oblateness And J2</b> &mdash; Rocky planets now report rotational flattening, equatorial versus polar radius, and `J2`. Fast rotators no longer present as perfectly spherical bodies in the science outputs.",
+        "<b>Science Reference Sync</b> &mdash; The Science &amp; Maths page, Lessons, and Science Visualiser now match the newer moon, radiation, and stellar-XUV models more closely, so the educational surfaces explain the same logic the live engine is using.",
+      ],
+      { open: true },
+    ),
+    release(
       "1.25.0 BETA",
       "(beta, from 1.24.0)",
       [
@@ -317,7 +351,7 @@ function changelogHTML() {
         "<b>Guided Moon Systems</b> &mdash; Guided moon creation can now launch from Moon, Planet, and System contexts, preview host fixes, and apply reviewed sibling-moon adjustments when resonance-backed setups need them. This makes oceanic, resonant, and biologically active moon builds much easier to reach deliberately.",
         "<b>Science Reference Refresh</b> &mdash; The Science page, Lessons, and Science Visualiser are now aligned with the current moon and ring models. Lesson links, moon-system descriptions, ring coverage, and graph nodes now match the live simulation instead of lagging behind it.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "1.24.0",
@@ -346,7 +380,11 @@ function changelogHTML() {
         "<b>Terrain and Topography Output</b> &mdash; The simulator derived terrain, bathymetry, shaded relief, and a dedicated topography map mode from the tectonic model. Terrain previews were smoother and more terrain-like, and the export buttons exposed the matching raster outputs directly.",
         "<b>Plate Editing Workflow</b> &mdash; Plate authoring supported select, brush, fill, and erase tools, separate ownership versus crust painting, richer selected-cell readouts, and JSON plate-map / crust-map imports. This gave the simulator a usable pre-climate authoring workflow instead of a seed-only preview.",
       ],
-      { open: false, rolledBack: true, rolledBackNote: "This beta was rolled back and is no longer in the codebase." },
+      {
+        open: false,
+        rolledBack: true,
+        rolledBackNote: "This beta was rolled back and is no longer in the codebase.",
+      },
     ),
     release("1.22.1", "(from 1.22.0)", [
       "<b>Unified Celestial Outputs</b> &mdash; Star, Planet, and Moon pages now share the same sectioned KPI layout, so dense output pages read as structured reports instead of one long wall of cards. Secondary values also open reliably on touch devices with explicit tap-to-expand detail.",

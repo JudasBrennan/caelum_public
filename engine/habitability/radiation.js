@@ -152,14 +152,10 @@ export function computeHabitabilityRadiationModel(
         pathwayPenalty,
         surfaceRadiationPenalty: Number.isFinite(environment.surfaceRadiationPenalty)
           ? environment.surfaceRadiationPenalty
-          : radiationPenaltyFromMagnetosphericDose(
-              environment.surfaceExposureRemDayEquivalent,
-            ),
+          : radiationPenaltyFromMagnetosphericDose(environment.surfaceExposureRemDayEquivalent),
         subsurfaceRadiationPenalty: Number.isFinite(environment.subsurfaceRadiationPenalty)
           ? environment.subsurfaceRadiationPenalty
-          : radiationPenaltyFromMagnetosphericDose(
-              environment.subsurfaceExposureRemDayEquivalent,
-            ),
+          : radiationPenaltyFromMagnetosphericDose(environment.subsurfaceExposureRemDayEquivalent),
         atmosphereShielding: Number.isFinite(environment.atmosphereShielding)
           ? environment.atmosphereShielding
           : 0,

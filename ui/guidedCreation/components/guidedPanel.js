@@ -91,7 +91,9 @@ function createStatusSummary(status = null) {
   return createElement("div", { className: "guided-panel__status" }, [
     title ? createElement("div", { className: "guided-panel__status-title", text: title }) : null,
     rows.length ? createElement("div", { className: "guided-panel__status-rows" }, rows) : null,
-    detail ? createElement("div", { className: "guided-panel__status-detail", text: detail }) : null,
+    detail
+      ? createElement("div", { className: "guided-panel__status-detail", text: detail })
+      : null,
     diagnostics.length ? createDiagnosticList({ diagnostics }) : null,
   ]);
 }
@@ -158,9 +160,7 @@ export function createGuidedPanel({
     ]),
     createElement("div", { className: "panel__body guided-panel__body" }, [
       createStepRail({ steps, currentStepId, onStepSelect }),
-      sectionVisibility.status
-        ? createSection(statusSectionTitle, statusSummary)
-        : null,
+      sectionVisibility.status ? createSection(statusSectionTitle, statusSummary) : null,
       sectionVisibility.type
         ? createSection(
             typeSectionTitle,

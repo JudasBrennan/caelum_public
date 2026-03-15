@@ -1,9 +1,6 @@
-import {
-  evaluateJeansEscapeSpecies,
-  xuvFluxAtOrbitErgCm2S,
-  xuvFluxRatioEarth,
-} from "../physics/escape.js";
+import { evaluateJeansEscapeSpecies } from "../physics/escape.js";
 import { auToKilometers } from "../physics/orbital.js";
+import { computeStarXuvFluxAtOrbitErgCm2S, computeStarXuvFluxRatioEarth } from "../star.js";
 import { round } from "../utils.js";
 
 const G = 6.674e-11;
@@ -42,9 +39,10 @@ export function calcMassLoss(
 ) {
   const massKg = massMjup * JUPITER_MASS_KG;
   const radiusM = radiusKm * 1000;
-  const fXuvAtOrbit = xuvFluxAtOrbitErgCm2S({
-    starLuminosityLsol,
-    starAgeGyr,
+  const fXuvAtOrbit = computeStarXuvFluxAtOrbitErgCm2S({
+    massMsol: starMassMsol,
+    luminosityLsol: starLuminosityLsol,
+    ageGyr: starAgeGyr,
     orbitAu,
   });
   const fXuvSI = fXuvAtOrbit * 1e-3;
@@ -57,9 +55,10 @@ export function calcMassLoss(
     massLossRateKgS: massLossKgS,
     evaporationTimescaleGyr: round(Math.min(evapTimescaleGyr, 1e12), 3),
     xuvFluxErgCm2S: round(fXuvAtOrbit, 4),
-    xuvFluxRatioEarth: xuvFluxRatioEarth({
-      starLuminosityLsol,
-      starAgeGyr,
+    xuvFluxRatioEarth: computeStarXuvFluxRatioEarth({
+      massMsol: starMassMsol,
+      luminosityLsol: starLuminosityLsol,
+      ageGyr: starAgeGyr,
       orbitAu,
     }),
     rocheLobeRadiusKm: round(rocheLobeKm, 0),

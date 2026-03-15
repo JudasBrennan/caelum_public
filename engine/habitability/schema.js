@@ -132,6 +132,11 @@ export function normalizeHabitabilityContext(rawContext = {}) {
       surfaceRadiationShieldingFactor: optionalFraction(
         environment.surfaceRadiationShieldingFactor,
       ),
+      surfaceExomoonCalibrationPenalty: optionalFraction(
+        environment.surfaceExomoonCalibrationPenalty,
+      ),
+      surfaceExomoonCalibrationApplicable: environment.surfaceExomoonCalibrationApplicable === true,
+      surfaceExomoonCalibrationPass: environment.surfaceExomoonCalibrationPass !== false,
       stellarAgeGyr: finiteNonNegative(environment.stellarAgeGyr, 0),
       tidallyLockedToPrimary: environment.tidallyLockedToPrimary === true,
       tidallyLockedToStar: environment.tidallyLockedToStar === true,

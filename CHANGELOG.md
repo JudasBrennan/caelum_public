@@ -4,6 +4,127 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 1.26.0 - 2026-03-15
+
+### Star XUV Evolution
+
+**Moved XUV history into the star engine, added mass-dependent saturation times, and exposed star-owned XUV outputs across escape, moon-radiation, and habitability paths**
+(engine/star.js, engine/physics/escape.js, engine/planet/atmosphere.js,
+engine/planet.js, engine/gasGiant/escape.js, engine/moon/radiation.js,
+engine/moon.js, engine/habitability/context.js, ui/starPage.js,
+tests/star.test.js, tests/physicsEscape.test.js,
+tests/starXuvPropagation.test.js, tests/inputDraftStability.ui.test.js)
+
+Stars now solve a dedicated XUV evolution track with a saturated
+high-energy phase and a mass-dependent saturation lifetime, instead of
+relying on the old escape-side age heuristic. That star-owned XUV model
+now drives rocky-planet escape, gas-giant mass loss, moon radiation, and
+habitability context building, while the Star page surfaces `XUV
+Regime`, `XUV Flux at 1 AU`, `XUV Luminosity`, and `XUV Saturation Age`
+directly.
+
+**Tests** (tests/star.test.js, tests/physicsEscape.test.js,
+tests/starXuvPropagation.test.js, tests/inputDraftStability.ui.test.js)
+
+- Added star-level XUV evolution regressions, downstream gas-giant and
+  moon propagation coverage, and Star-page rendering checks for the new
+  XUV outputs.
+
+### Atmospheric Collapse On Tidally Locked Worlds
+
+**Added a pressure-supported night-side atmospheric-collapse check for synchronously locked rocky planets and threaded it into rocky habitability scoring**
+(engine/planet.js, engine/planet/climate.js, ui/planetPage.js,
+tests/planet.test.js, tests/inputDraftStability.ui.test.js)
+
+Rocky planets now estimate whether a synchronously locked atmosphere can
+stay gaseous on the permanent night side, using dominant-gas
+condensation thresholds plus pressure-supported heat transport. Thin,
+locked atmospheres on M-dwarf worlds can now be flagged as marginal or
+collapse-prone, that penalty now feeds the rocky climate-stability and
+habitability path, and the Planet page surfaces the collapse state,
+modeled night-side minimum temperature, and dominant condensable gas.
+
+**Tests** (tests/planet.test.js, tests/inputDraftStability.ui.test.js)
+
+- Added direct locked-world collapse helper regressions, an end-to-end
+  locked rocky-world solve case, and a Planet-page rendering check for
+  the new `Atmospheric Collapse` output.
+
+### Hot Jupiter Radius Inflation
+
+**Replaced the old hot-giant proximity heuristic with a flux-based hot-Jupiter inflation model and applied it to real derived gas-giant radii**
+(engine/gasGiant.js, engine/gasGiant/structure.js, ui/planetPage.js,
+tests/gasGiant.test.js, tests/inputDraftStability.ui.test.js)
+
+Gas giants now use a Thorngren & Fortney-style irradiation anomaly when
+deriving radius from mass, rather than only exposing a loose
+temperature-based suggestion. Highly irradiated giants gain a bounded
+fractional radius anomaly from incident flux, manual radii remain
+authoritative, and the Planet page now surfaces the inflation state in
+the gas-giant physical outputs.
+
+**Tests** (tests/gasGiant.test.js, tests/inputDraftStability.ui.test.js)
+
+- Added direct hot-Jupiter flux-threshold tests, auto-derived hot-vs-cold
+  radius regression coverage, manual-radius override protection, and a
+  gas-giant UI rendering check for the new inflation output.
+
+### Lava World Classification
+
+**Added explicit lava-world and magma-ocean classification for rocky planets**
+(engine/planet/composition.js, engine/planet.js, ui/planetPage.js,
+tests/planet.test.js, tests/inputDraftStability.ui.test.js)
+
+Rocky planets now classify extremely hot surface states explicitly rather
+than leaving close-in scorched worlds as generic rocky bodies. The
+solver distinguishes `Standard rocky world`, `Lava world`, and `Magma
+ocean world` from solved surface temperature and tidal-lock context, and
+the Planet page now surfaces the resulting `Surface State` in both the
+headline outputs and detailed environment readouts.
+
+**Tests** (tests/planet.test.js, tests/inputDraftStability.ui.test.js)
+
+- Added direct threshold-order regression coverage for the rocky surface
+  classifier and Planet-page rendering checks for the new `Surface
+State` output.
+
+### Rocky Planet Oblateness And J2
+
+**Added rocky-planet rotational flattening and quadrupole gravity outputs**
+(engine/planet.js, engine/planet/orbit.js, ui/planetPage.js,
+tests/planet.test.js, tests/inputDraftStability.ui.test.js)
+
+Rocky planets now estimate rotational oblateness, equatorial and polar
+radii, and `J2` from mass, radius, spin rate, and bulk interior
+concentration. The Planet page surfaces those values in the rocky-world
+physical outputs so fast rotators no longer render as perfectly
+spherical bodies in the science readouts.
+
+**Tests** (tests/planet.test.js, tests/inputDraftStability.ui.test.js)
+
+- Added Earth-like flattening/J2 regression coverage and Planet-page
+  rendering checks for the new rocky-planet physical-state outputs.
+
+### Detection Observables
+
+**Added transit depth, geometric transit probability, and stellar radial-velocity semi-amplitude outputs for rocky planets and gas giants**
+(engine/physics/orbital.js, engine/planet.js, engine/gasGiant.js,
+ui/planetPage.js, tests/physicsOrbital.test.js, tests/planet.test.js,
+tests/gasGiant.test.js, tests/inputDraftStability.ui.test.js)
+
+Rocky planets and gas giants now expose basic exoplanet-detection
+observables in their solved outputs and Planet-page `System Context`
+panels. The engine computes transit depth in percent and ppm, geometric
+transit probability, and edge-on RV semi-amplitude, making it easier to
+judge whether a generated world would be detectable in transit or
+stellar wobble surveys.
+
+**Tests** (tests/physicsOrbital.test.js, tests/planet.test.js,
+tests/gasGiant.test.js, tests/inputDraftStability.ui.test.js)
+
+- Added direct orbital-helper regression tests and page-level rendering
+  checks for the new detection metrics.
+
 ### Guided Creation Expansion And Goal-Seeking Search
 
 **Extended the guided-creation framework across gas giants and stars, then added structured goal-building, session restore, dedicated routes, async search jobs, and controlled free-text aliases**
@@ -114,6 +235,41 @@ tests/engineWorldFixtures.test.js)
 - Added new moon radiation/magnetosphere analog checks plus regression
   coverage for the updated habitability, stability, volatile, and
   guided-search paths.
+
+### Cool-Star Surface-Habitable Moon Calibration
+
+**Added a paper-informed cool-star surface-moon calibration layer, real moon spin-state outputs, and the matching Moon/science-surface explanations**
+(engine/moon.js, engine/moon/tides.js,
+engine/moon/surfaceHabitabilityCalibration.js,
+ui/guidedCreation/adapters/moon.js, ui/moonPage.js, ui/sciencePage.js,
+ui/lessons/L12_moonsTides.js, ui/scienceGraphData.js,
+ui/scienceVisualiserPage.js, tests/moonSurfaceHabitabilityCalibration.test.js,
+tests/moonSpinState.test.js, tests/guidedMoonAdapter.test.js,
+tests/inputDraftStability.ui.test.js, tests/sciencePageReference.ui.test.js,
+tests/lessonsContent.test.js, tests/scienceGraphData.test.js,
+tests/scienceVisualiser.ui.test.js)
+
+Surface-habitable moons around cool stars are now calibrated more
+selectively instead of being treated as generic warm moon outcomes. The
+moon solver adds a dedicated surface-exomoon calibration block that
+weighs moon mass, host giant favorability, parent orbital distance,
+composition, and spin state; the tidal path now exposes `1:1`,
+`3:2`, and non-resonant moon spin states; and guided moon search now
+uses that calibration when scoring exposed-surface goals. The Moon page
+surfaces the new `Surface Exomoon Calibration` and `Spin State` outputs,
+while the Science page, Lesson 12, and Science Visualiser now explain
+that this layer only constrains exposed surface outcomes and does not
+replace the broader subsurface-ocean moon model.
+
+**Tests** (tests/moonSurfaceHabitabilityCalibration.test.js,
+tests/moonSpinState.test.js, tests/guidedMoonAdapter.test.js,
+tests/inputDraftStability.ui.test.js, tests/sciencePageReference.ui.test.js,
+tests/lessonsContent.test.js, tests/scienceGraphData.test.js,
+tests/scienceVisualiser.ui.test.js)
+
+- Added regression coverage for mass-floor behavior, 3:2 resonance
+  handling, guided selection of calibration-favored moons, Moon-page
+  rendering of the new outputs, and the updated science/reference copy.
 
 ### Science, Lessons, And Visualiser Sync
 

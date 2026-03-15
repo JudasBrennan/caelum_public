@@ -15,7 +15,9 @@ function buildGuidedState(initial = {}) {
       initial.selectedGoalTemplateId == null ? null : String(initial.selectedGoalTemplateId),
     answers: { ...(initial.answers || {}) },
     goalDraft:
-      initial.goalDraft && typeof initial.goalDraft === "object" && !Array.isArray(initial.goalDraft)
+      initial.goalDraft &&
+      typeof initial.goalDraft === "object" &&
+      !Array.isArray(initial.goalDraft)
         ? { ...initial.goalDraft }
         : {},
     archetypes: Array.isArray(initial.archetypes) ? [...initial.archetypes] : [],

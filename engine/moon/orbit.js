@@ -77,9 +77,7 @@ export function computeMoonStabilityLimits({
   const retrogradeStableOuterLimitKm = hillRadiusKm * RETROGRADE_STABLE_HILL_FRACTION;
   const orbitalDirection = orbitalDirectionFromInclination(moonInclinationDeg);
   const stableOuterLimitKm =
-    orbitalDirection === "Retrograde"
-      ? retrogradeStableOuterLimitKm
-      : progradeStableOuterLimitKm;
+    orbitalDirection === "Retrograde" ? retrogradeStableOuterLimitKm : progradeStableOuterLimitKm;
   const comfortOuterLimitKm = stableOuterLimitKm * COMFORTABLE_STABLE_FRACTION;
 
   return {
@@ -180,7 +178,11 @@ export function computeMoonOrbit({
   });
   const stabilityMarginFraction =
     stabilityLimits.stableOuterLimitKm > 0
-      ? clamp((stabilityLimits.stableOuterLimitKm - apoapsisKm) / stabilityLimits.stableOuterLimitKm, 0, 1)
+      ? clamp(
+          (stabilityLimits.stableOuterLimitKm - apoapsisKm) / stabilityLimits.stableOuterLimitKm,
+          0,
+          1,
+        )
       : 0;
 
   const orbitalPeriodSiderealDays =

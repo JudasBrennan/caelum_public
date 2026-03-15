@@ -759,7 +759,7 @@ export function initScienceVisualiserPage(mountEl) {
           <div class="science-viz__status">
             <div>
               <p class="science-viz__lede">
-                Trace how WorldSmith concepts feed into each other, from stellar metallicity and orbital layout through interiors, atmospheres, moon systems, radiation and shielding, surface-vs-subsurface moon outcomes, climates, gas giants, debris belts, rings, and population.
+                Trace how WorldSmith concepts feed into each other, from stellar metallicity and orbital layout through interiors, atmospheres, moon systems, cool-star surface-moon calibration, 3:2 spin states, radiation and shielding, surface-vs-subsurface moon outcomes, climates, gas giants, debris belts, rings, and population.
               </p>
               <p id="scienceVizSummary" class="hint science-viz__summary-line"></p>
             </div>

@@ -1,14 +1,15 @@
 import { massToRadiusRj } from "../../../engine/gasGiant.js";
 import { fmt } from "../../../engine/utils.js";
 import { GAS_GIANT_RECIPES } from "../../gasGiantStyles.js";
-import { normalizeRingMode, RING_MODE_AUTO, RING_MODE_FORCE_OFF, RING_MODE_FORCE_ON } from "../../../engine/planetaryRings.js";
+import {
+  normalizeRingMode,
+  RING_MODE_AUTO,
+  RING_MODE_FORCE_OFF,
+  RING_MODE_FORCE_ON,
+} from "../../../engine/planetaryRings.js";
 import { normalizeRingStyleId, RING_STYLE_AUTO } from "../../ringAppearanceProfiles.js";
 import { compileGuidedGoal } from "../goalCompiler.js";
-import {
-  getGoalTemplate,
-  getGoalTrait,
-  listGoalTemplates,
-} from "../goalTraits.js";
+import { getGoalTemplate, getGoalTrait, listGoalTemplates } from "../goalTraits.js";
 import { getGuidedAdapter, registerGuidedAdapter } from "../registry.js";
 
 const GAS_GIANT_GUIDED_ARCHETYPES = Object.freeze([
@@ -289,11 +290,7 @@ const GOAL_SEARCH_BUDGET_OPTIONS = Object.freeze([
 const GAS_GIANT_GOAL_TEMPLATE_META = Object.freeze({
   "ringed-gas-giant": {
     confidenceClass: "defensible",
-    seedArchetypeIds: [
-      "saturnian-ringed-giant",
-      "jupiter-cold-giant",
-      "neptune-like-ice-giant",
-    ],
+    seedArchetypeIds: ["saturnian-ringed-giant", "jupiter-cold-giant", "neptune-like-ice-giant"],
     focusTraits: [
       "rings-visible",
       "strong-ring-appearance",
@@ -321,11 +318,7 @@ const GAS_GIANT_GOAL_TEMPLATE_META = Object.freeze({
   },
   "warm-cloud-giant": {
     confidenceClass: "defensible",
-    seedArchetypeIds: [
-      "warm-water-cloud-giant",
-      "cloudless-warm-giant",
-      "jupiter-cold-giant",
-    ],
+    seedArchetypeIds: ["warm-water-cloud-giant", "cloudless-warm-giant", "jupiter-cold-giant"],
     focusTraits: [
       "class-ii-iii",
       "low-mass-loss",
@@ -339,11 +332,7 @@ const GAS_GIANT_GOAL_TEMPLATE_META = Object.freeze({
   },
   "ice-giant": {
     confidenceClass: "defensible",
-    seedArchetypeIds: [
-      "neptune-like-ice-giant",
-      "sub-neptune-giant",
-      "saturnian-ringed-giant",
-    ],
+    seedArchetypeIds: ["neptune-like-ice-giant", "sub-neptune-giant", "saturnian-ringed-giant"],
     focusTraits: [
       "ice-giant-mass-range",
       "enriched-metallicity",
@@ -395,11 +384,13 @@ function traitRoleQuestionId(traitId) {
 }
 
 function getGasGiantGoalTemplateMeta(goalTemplateId) {
-  return GAS_GIANT_GOAL_TEMPLATE_META[String(goalTemplateId || "").trim()] || {
-    confidenceClass: "plausible",
-    seedArchetypeIds: ["jupiter-cold-giant"],
-    focusTraits: [],
-  };
+  return (
+    GAS_GIANT_GOAL_TEMPLATE_META[String(goalTemplateId || "").trim()] || {
+      confidenceClass: "plausible",
+      seedArchetypeIds: ["jupiter-cold-giant"],
+      focusTraits: [],
+    }
+  );
 }
 
 function mapGasGiantGoalTemplateToCard(template) {
@@ -444,11 +435,15 @@ function defaultGasGiantGoalDraft(goalTemplateId = "") {
 function normalizeGasGiantGoalDraft(flowState = {}) {
   const base = defaultGasGiantGoalDraft(flowState?.selectedGoalTemplateId);
   const goalDraft =
-    flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+    flowState?.goalDraft &&
+    typeof flowState.goalDraft === "object" &&
+    !Array.isArray(flowState.goalDraft)
       ? flowState.goalDraft
       : {};
   const nextTraitRoles =
-    goalDraft.traitRoles && typeof goalDraft.traitRoles === "object" && !Array.isArray(goalDraft.traitRoles)
+    goalDraft.traitRoles &&
+    typeof goalDraft.traitRoles === "object" &&
+    !Array.isArray(goalDraft.traitRoles)
       ? { ...base.traitRoles, ...goalDraft.traitRoles }
       : { ...base.traitRoles };
   return {
@@ -601,7 +596,11 @@ export function buildGasGiantRecipeApplyInputs(
   const source = recipeApply && typeof recipeApply === "object" ? recipeApply : {};
   const current = currentInputs && typeof currentInputs === "object" ? currentInputs : {};
   const massMjup =
-    source.massMjup != null ? Number(source.massMjup) : current.massMjup != null ? Number(current.massMjup) : 1;
+    source.massMjup != null
+      ? Number(source.massMjup)
+      : current.massMjup != null
+        ? Number(current.massMjup)
+        : 1;
   const radiusRj = effectiveRadiusRj(
     source.radiusRj != null ? source.radiusRj : current.radiusRj,
     source.radiusRj != null ? source.radiusRj : current.radiusRj,
@@ -661,7 +660,8 @@ export function buildGasGiantRecipeApplyInputs(
         : Number.isFinite(Number(current.axialTiltDeg)) && Number(current.axialTiltDeg) >= 0
           ? clamp(Number(current.axialTiltDeg), 0, 180)
           : 3,
-    appearanceRecipeId: appearanceRecipeId ?? source.appearanceRecipeId ?? current.appearanceRecipeId ?? "",
+    appearanceRecipeId:
+      appearanceRecipeId ?? source.appearanceRecipeId ?? current.appearanceRecipeId ?? "",
   };
 }
 
@@ -778,9 +778,10 @@ function buildGasGiantQuestions(archetype, context = {}) {
 
 function scaleArchetypeOrbit(recipeAu, context = {}) {
   const starLuminosityLsol = Number(context?.starLuminosityLsol);
-  const scaledLuminosity = Number.isFinite(starLuminosityLsol) && starLuminosityLsol > 0
-    ? Math.sqrt(starLuminosityLsol)
-    : 1;
+  const scaledLuminosity =
+    Number.isFinite(starLuminosityLsol) && starLuminosityLsol > 0
+      ? Math.sqrt(starLuminosityLsol)
+      : 1;
   return recipeAu * scaledLuminosity;
 }
 
@@ -813,10 +814,7 @@ function targetMetallicityForBucket(bucket, currentValue = null) {
 function tuneGasGiantApplyInputs(archetype, recipe, answers, context = {}) {
   const nextInputs = buildGasGiantRecipeApplyInputs(recipe.apply, recipe.id, context.currentInputs);
 
-  if (
-    answers.orbit_policy === "fit-thermal-band" ||
-    answers.orbit_policy === "use-archetype"
-  ) {
+  if (answers.orbit_policy === "fit-thermal-band" || answers.orbit_policy === "use-archetype") {
     nextInputs.slotIndex = null;
     nextInputs.au = scaleArchetypeOrbit(archetype.orbitBand?.recipeAu || nextInputs.au, context);
     if (answers.orbit_policy === "fit-thermal-band") {
@@ -825,7 +823,11 @@ function tuneGasGiantApplyInputs(archetype, recipe, answers, context = {}) {
   }
 
   nextInputs.massMjup = targetMassForBucket(answers.mass_target);
-  nextInputs.radiusRj = effectiveRadiusRj(nextInputs.massMjup, recipe.apply?.radiusRj, nextInputs.radiusRj);
+  nextInputs.radiusRj = effectiveRadiusRj(
+    nextInputs.massMjup,
+    recipe.apply?.radiusRj,
+    nextInputs.radiusRj,
+  );
 
   if (archetype.id === "puffy-hot-giant") {
     nextInputs.radiusRj = Math.max(Number(nextInputs.radiusRj) || 1.4, 1.45);
@@ -876,7 +878,9 @@ function buildGasGiantSummary(archetype, recipe, solved, answers = {}, uxMode = 
   targets.push(`${answers.metallicity_target || "solar"} metallicity target`);
 
   const currentResult = [
-    display.classification ? `Class ${model.classification?.sudarsky || "?"} ${display.classification}` : "",
+    display.classification
+      ? `Class ${model.classification?.sudarsky || "?"} ${display.classification}`
+      : "",
     display.equilibriumTemp || "",
     display.ringType || "",
   ]
@@ -893,15 +897,23 @@ function buildGasGiantRationale(archetype, answers = {}, context = {}) {
   const rationale = [];
   if (context.currentContextText) rationale.push(context.currentContextText);
   if (answers.orbit_policy === "fit-thermal-band") {
-    rationale.push("The orbit is scaled around the current star so the giant stays in the intended irradiation regime.");
+    rationale.push(
+      "The orbit is scaled around the current star so the giant stays in the intended irradiation regime.",
+    );
   } else if (answers.orbit_policy === "keep-current") {
-    rationale.push("The current orbit is preserved, so the solve stays close to the existing system architecture.");
+    rationale.push(
+      "The current orbit is preserved, so the solve stays close to the existing system architecture.",
+    );
   }
   if (answers.ring_target === "ringed") {
-    rationale.push("Visible rings are treated as an explicit visual/science override rather than a guaranteed auto outcome.");
+    rationale.push(
+      "Visible rings are treated as an explicit visual/science override rather than a guaranteed auto outcome.",
+    );
   }
   if (archetype.id === "puffy-hot-giant") {
-    rationale.push("Inflated hot giants are more model-sensitive than colder or more compact gas-giant archetypes.");
+    rationale.push(
+      "Inflated hot giants are more model-sensitive than colder or more compact gas-giant archetypes.",
+    );
   }
   return rationale;
 }
@@ -928,7 +940,8 @@ function buildGasGiantDiagnostics(archetype, recipe, solved, answers = {}, flowS
   if (
     Number.isFinite(equilibriumTempK) &&
     archetype.orbitBand &&
-    (equilibriumTempK < archetype.orbitBand.minTeqK || equilibriumTempK > archetype.orbitBand.maxTeqK)
+    (equilibriumTempK < archetype.orbitBand.minTeqK ||
+      equilibriumTempK > archetype.orbitBand.maxTeqK)
   ) {
     pushDiagnostic(
       diagnostics,
@@ -960,11 +973,7 @@ function buildGasGiantDiagnostics(archetype, recipe, solved, answers = {}, flowS
     );
   }
 
-  if (
-    Number.isFinite(massMjup) &&
-    answers.mass_target === "compact" &&
-    massMjup > 0.12
-  ) {
+  if (Number.isFinite(massMjup) && answers.mass_target === "compact" && massMjup > 0.12) {
     pushDiagnostic(
       diagnostics,
       "warning",
@@ -986,11 +995,7 @@ function buildGasGiantDiagnostics(archetype, recipe, solved, answers = {}, flowS
       `The current solve lands at about ${fmt(massMjup, 2)} Mj instead of a Saturn-class mass.`,
       ["Refine mass after apply or choose a different mass target."],
     );
-  } else if (
-    Number.isFinite(massMjup) &&
-    answers.mass_target === "super" &&
-    massMjup < 2
-  ) {
+  } else if (Number.isFinite(massMjup) && answers.mass_target === "super" && massMjup < 2) {
     pushDiagnostic(
       diagnostics,
       "warning",
@@ -1021,7 +1026,9 @@ function buildGasGiantDiagnostics(archetype, recipe, solved, answers = {}, flowS
     archetype.id !== "jupiter-cold-giant" &&
     archetype.id !== "saturnian-ringed-giant"
   ) {
-    const evaporationGyr = Number(String(display.evaporationTimescale || "").replace(/[^0-9.+-]/g, ""));
+    const evaporationGyr = Number(
+      String(display.evaporationTimescale || "").replace(/[^0-9.+-]/g, ""),
+    );
     if (Number.isFinite(evaporationGyr) && evaporationGyr < 1) {
       pushDiagnostic(
         diagnostics,
@@ -1034,10 +1041,7 @@ function buildGasGiantDiagnostics(archetype, recipe, solved, answers = {}, flowS
     }
   }
 
-  if (
-    archetype.id === "neptune-like-ice-giant" &&
-    classification.sudarsky > 2
-  ) {
+  if (archetype.id === "neptune-like-ice-giant" && classification.sudarsky > 2) {
     pushDiagnostic(
       diagnostics,
       "warning",
@@ -1235,7 +1239,9 @@ function evaluateGasGiantGoalTrait(traitId, recommendation = {}) {
     case "ice-giant-mass-range":
       return Number.isFinite(massMjup) && massMjup > 0 && massMjup <= 0.12;
     case "low-mass-loss":
-      return Number.isFinite(evaporationGyr) ? evaporationGyr >= 1 : includesAny(display.massLossRate, ["low", "negligible"]);
+      return Number.isFinite(evaporationGyr)
+        ? evaporationGyr >= 1
+        : includesAny(display.massLossRate, ["low", "negligible"]);
     case "enriched-metallicity":
       return Number.isFinite(metallicitySolar) && metallicitySolar >= 10;
     case "rings-hidden":
@@ -1360,12 +1366,19 @@ function buildGasGiantGoalSearchDiagnostics(compiledGoal = {}, scoring = {}, sea
     ]
       .filter(Boolean)
       .join(" "),
-    ["Treat this as a strong starting point, then refine the Planet page inputs if you need a tighter fit."],
+    [
+      "Treat this as a strong starting point, then refine the Planet page inputs if you need a tighter fit.",
+    ],
   );
   return diagnostics;
 }
 
-async function startGasGiantGoalSearch(compiledGoal = null, flowState = {}, context = {}, job = {}) {
+async function startGasGiantGoalSearch(
+  compiledGoal = null,
+  flowState = {},
+  context = {},
+  job = {},
+) {
   if (!compiledGoal?.goalTemplateId) {
     return {
       recommendation: null,
@@ -1399,7 +1412,10 @@ async function startGasGiantGoalSearch(compiledGoal = null, flowState = {}, cont
         scoring,
         seedLabel: archetype?.label || candidate.archetypeId,
       };
-      if (scoring.fitClass === "exact-match" && String(compiledGoal.searchBudget || "") === "fast") {
+      if (
+        scoring.fitClass === "exact-match" &&
+        String(compiledGoal.searchBudget || "") === "fast"
+      ) {
         break;
       }
     }
@@ -1509,8 +1525,4 @@ export function ensureGasGiantGuidedAdapterRegistered() {
   return getGuidedAdapter("gasGiant") || registerGasGiantGuidedAdapter();
 }
 
-export {
-  GAS_GIANT_GUIDED_ARCHETYPES,
-  getGasGiantArchetype,
-  getRecipeForGasGiantArchetype,
-};
+export { GAS_GIANT_GUIDED_ARCHETYPES, getGasGiantArchetype, getRecipeForGasGiantArchetype };

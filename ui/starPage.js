@@ -85,6 +85,14 @@ const TIP_LABEL = {
     "Expected CME rate not explicitly tied to an individual rendered flare. For FGK stars this fills the gap between the associated rate and the cycle envelope.",
   "Total CME Rate":
     "Total expected CME rate per day. For FGK stars, this follows the solar-cycle envelope and is split into associated and background channels.\n\nReference: Yashiro et al. (2006, JGR 111, A12S05).",
+  "XUV Regime":
+    "Extreme-UV and soft X-ray activity regime from the star-owned XUV evolution model.\n\nYoung stars remain in a saturated high-XUV phase, while older stars decline through an unsaturated age-decay track. The saturation time depends on stellar mass, with cool stars staying active longer.",
+  "XUV Luminosity":
+    "High-energy stellar luminosity in the XUV band, reported from the star-owned evolution model.\n\nThis is the coronal luminosity used downstream by atmospheric escape and moon-radiation calculations.",
+  "XUV Flux at 1 AU":
+    "XUV flux a body would receive at 1 AU from this star.\n\nReported both as erg/cm²/s and relative to present-day Earth, then diluted by inverse-square distance for planets and moons.",
+  "XUV Saturation Age":
+    "Approximate duration of the star's saturated high-XUV phase.\n\nLower-mass cool stars keep elevated XUV output for much longer than Sun-like stars.",
 };
 
 const TUTORIAL_STEPS = [
@@ -737,6 +745,7 @@ export function initStarPage(mountEl, options = {}) {
       activity.teffBin === "FGK"
         ? "Solar-cycle envelope split into associated + background"
         : "Empirical split model outside FGK solar envelope";
+    const xuvFluxMeta = `${model.display.xuvFluxRatioEarth} | saturation ${model.display.xuvSaturationAge}`;
     const life = model.earthLikeLifePossible;
 
     const starKpi = (label, value, meta = "", overrides = {}) => ({
@@ -839,6 +848,9 @@ export function initStarPage(mountEl, options = {}) {
         density: "compact",
         items: [
           starKpi("Activity Regime", `${activity.teffBin}/${activity.ageBand}`, "Teff + age bins"),
+          starKpi("XUV Regime", model.display.xuvRegime, model.display.xuvSaturationAge),
+          starKpi("XUV Flux at 1 AU", model.display.xuvFluxAt1Au, xuvFluxMeta),
+          starKpi("XUV Luminosity", model.display.xuvLuminosityW, model.display.xuvLuminosityErgS),
           starKpi("N32 Rate", fmt(activity.energeticFlareRatePerDay, 3), "flares/day (>1e32 erg)", {
             tipLabel: "Energetic Flare Rate (>1e32 erg)",
           }),
@@ -933,6 +945,21 @@ export function initStarPage(mountEl, options = {}) {
           title: "Activity & Radiation",
           items: [
             { label: "Activity Regime", value: `${activity.teffBin}/${activity.ageBand}` },
+            {
+              label: "XUV Regime",
+              value: model.display.xuvRegime,
+              meta: model.display.xuvSaturationAge,
+            },
+            {
+              label: "XUV Flux at 1 AU",
+              value: model.display.xuvFluxAt1Au,
+              meta: model.display.xuvFluxRatioEarth,
+            },
+            {
+              label: "XUV Luminosity",
+              value: model.display.xuvLuminosityW,
+              meta: model.display.xuvLuminosityErgS,
+            },
             { label: "N32 Rate", value: `${fmt(activity.energeticFlareRatePerDay, 3)} flares/day` },
             { label: "Energetic Flare Recurrence", value: energeticRecurrenceText },
             {
@@ -1094,7 +1121,8 @@ export function initStarPage(mountEl, options = {}) {
         : {};
     const values = {};
     for (const question of Array.isArray(questions) ? questions : []) {
-      if (question?.id === "priority") values.priority = goalDraft.priority || question?.defaultValue;
+      if (question?.id === "priority")
+        values.priority = goalDraft.priority || question?.defaultValue;
       else if (question?.id === "allowedEdits") {
         values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
       } else if (question?.id === "searchBudget") {
@@ -1110,7 +1138,11 @@ export function initStarPage(mountEl, options = {}) {
   function setStarGoalDraftValue(controllerRef, flowState, questionId, value) {
     const normalizedId = String(questionId || "");
     if (!normalizedId) return;
-    if (normalizedId === "priority" || normalizedId === "allowedEdits" || normalizedId === "searchBudget") {
+    if (
+      normalizedId === "priority" ||
+      normalizedId === "allowedEdits" ||
+      normalizedId === "searchBudget"
+    ) {
       controllerRef?.setGoalDraftValue(normalizedId, value);
       return;
     }
@@ -1181,7 +1213,9 @@ export function initStarPage(mountEl, options = {}) {
     if (searchStatus === "needs-compile") {
       detailParts.push("Compile the goal or run the search again after changing setup or traits.");
     } else if (searchStatus === "ready") {
-      detailParts.push("The structured goal is valid. Run Search to try seeded stellar candidates.");
+      detailParts.push(
+        "The structured goal is valid. Run Search to try seeded stellar candidates.",
+      );
     } else if (searchStatus === "searching") {
       detailParts.push("Trying seeded stellar candidates against the current star context.");
     } else if (searchStatus === "complete") {
@@ -1190,15 +1224,16 @@ export function initStarPage(mountEl, options = {}) {
       detailParts.push(flowState.searchError);
     }
     if (searchStatus !== "complete" && hasRestoredResult) {
-      detailParts.push("A previous search result is still visible below until you re-run the search.");
+      detailParts.push(
+        "A previous search result is still visible below until you re-run the search.",
+      );
     }
     return {
-      compileStatus:
-        compileDiagnostics.length
-          ? "error"
-          : searchStatus === "ready" || searchStatus === "complete"
-            ? "ready"
-            : searchStatus,
+      compileStatus: compileDiagnostics.length
+        ? "error"
+        : searchStatus === "ready" || searchStatus === "complete"
+          ? "ready"
+          : searchStatus,
       searchStatus,
       title,
       detail: detailParts.join(" "),

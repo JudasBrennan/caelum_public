@@ -18,6 +18,32 @@ import { clamp, fmt, toFinite } from "./utils.js";
 
 const HZ_SOLAR_TEFF_K = 5778;
 const HZ_MIN_FLUX = 1e-6;
+const DEFAULT_SOLAR_AGE_GYR = 4.6;
+const SOLAR_LUMINOSITY_W = 3.828e26;
+const AU_M = 1.495978707e11;
+const EARTH_REFERENCE_XUV_FLUX_ERG_CM2_S = 4.64;
+const XUV_UNSATURATED_AGE_EXPONENT = -1.5;
+const XUV_MIN_AGE_GYR = 0.01;
+const SOLAR_XUV_SATURATION_AGE_GYR = 0.1;
+const SOLAR_REFERENCE_XUV_RATIO =
+  ((EARTH_REFERENCE_XUV_FLUX_ERG_CM2_S / 1000) * 4 * Math.PI * AU_M ** 2) / SOLAR_LUMINOSITY_W;
+const XUV_SATURATION_LBOL_RATIO =
+  SOLAR_REFERENCE_XUV_RATIO *
+  (DEFAULT_SOLAR_AGE_GYR / SOLAR_XUV_SATURATION_AGE_GYR) ** -XUV_UNSATURATED_AGE_EXPONENT;
+const XUV_SATURATION_ANCHORS = Object.freeze([
+  { massMsol: 0.075, saturationAgeGyr: 2.0 },
+  { massMsol: 0.15, saturationAgeGyr: 1.8 },
+  { massMsol: 0.25, saturationAgeGyr: 1.1 },
+  { massMsol: 0.35, saturationAgeGyr: 0.3 },
+  { massMsol: 0.45, saturationAgeGyr: 0.104 },
+  { massMsol: 0.5, saturationAgeGyr: 0.1 },
+  { massMsol: 0.65, saturationAgeGyr: 0.09 },
+  { massMsol: 0.85, saturationAgeGyr: 0.1 },
+  { massMsol: 1.0, saturationAgeGyr: SOLAR_XUV_SATURATION_AGE_GYR },
+  { massMsol: 1.3, saturationAgeGyr: 0.06 },
+  { massMsol: 1.8, saturationAgeGyr: 0.03 },
+  { massMsol: 5.0, saturationAgeGyr: 0.01 },
+]);
 
 // ---------------------------------------------------------------------------
 // Mass-Luminosity Relation: Eker et al. (2018, MNRAS 479, 5491)
@@ -288,6 +314,75 @@ export function populationLabel(metallicityFeH) {
   if (feH <= -0.3) return "Intermediate (old thin disk)";
   if (feH <= 0.15) return "Population I (solar neighbourhood)";
   return "Metal-rich (inner disk)";
+}
+
+export function estimateXuvSaturationAgeGyr(massMsol) {
+  const mass = clamp(toFinite(massMsol, 1), 0.075, 100);
+  if (mass <= XUV_SATURATION_ANCHORS[0].massMsol) {
+    return XUV_SATURATION_ANCHORS[0].saturationAgeGyr;
+  }
+  for (let index = 1; index < XUV_SATURATION_ANCHORS.length; index += 1) {
+    const previous = XUV_SATURATION_ANCHORS[index - 1];
+    const current = XUV_SATURATION_ANCHORS[index];
+    if (mass <= current.massMsol) {
+      const span = current.massMsol - previous.massMsol || 1;
+      const t = (mass - previous.massMsol) / span;
+      return previous.saturationAgeGyr + (current.saturationAgeGyr - previous.saturationAgeGyr) * t;
+    }
+  }
+  return XUV_SATURATION_ANCHORS[XUV_SATURATION_ANCHORS.length - 1].saturationAgeGyr;
+}
+
+export function computeStarXuvModel({ massMsol, ageGyr, luminosityLsol } = {}) {
+  const mass = clamp(toFinite(massMsol, 1), 0.075, 100);
+  const age = Math.max(XUV_MIN_AGE_GYR, toFinite(ageGyr, DEFAULT_SOLAR_AGE_GYR));
+  const luminosity = Math.max(toFinite(luminosityLsol, 0), 0);
+  const saturationAgeGyr = estimateXuvSaturationAgeGyr(mass);
+  const saturatedLuminosityRatio = XUV_SATURATION_LBOL_RATIO;
+  const saturated = age <= saturationAgeGyr;
+  const luminosityRatioLbol = saturated
+    ? saturatedLuminosityRatio
+    : saturatedLuminosityRatio * (age / saturationAgeGyr) ** XUV_UNSATURATED_AGE_EXPONENT;
+  const xuvLuminosityW = luminosity * SOLAR_LUMINOSITY_W * luminosityRatioLbol;
+  const fluxAt1AuWm2 = xuvLuminosityW / (4 * Math.PI * AU_M ** 2);
+  const fluxAt1AuErgCm2S = fluxAt1AuWm2 * 1000;
+  const fluxRatioEarth = fluxAt1AuErgCm2S / EARTH_REFERENCE_XUV_FLUX_ERG_CM2_S;
+
+  return {
+    modelVersion: "star-xuv-v1",
+    regime: saturated ? "saturated" : "unsaturated",
+    saturationAgeGyr,
+    saturatedLuminosityRatioLbol: saturatedLuminosityRatio,
+    luminosityRatioLbol,
+    xuvLuminosityW,
+    xuvLuminosityErgS: xuvLuminosityW * 1e7,
+    fluxAt1AuWm2,
+    fluxAt1AuErgCm2S,
+    fluxRatioEarth,
+  };
+}
+
+export function computeStarXuvFluxAtOrbitErgCm2S({
+  massMsol,
+  ageGyr,
+  luminosityLsol,
+  orbitAu,
+} = {}) {
+  const orbit = Math.max(toFinite(orbitAu, 0), 0);
+  if (orbit <= 0) return 0;
+  const xuv = computeStarXuvModel({ massMsol, ageGyr, luminosityLsol });
+  return xuv.fluxAt1AuErgCm2S / orbit ** 2;
+}
+
+export function computeStarXuvFluxRatioEarth({ massMsol, ageGyr, luminosityLsol, orbitAu } = {}) {
+  return (
+    computeStarXuvFluxAtOrbitErgCm2S({
+      massMsol,
+      ageGyr,
+      luminosityLsol,
+      orbitAu,
+    }) / EARTH_REFERENCE_XUV_FLUX_ERG_CM2_S
+  );
 }
 
 // ===========================================================================
@@ -659,6 +754,11 @@ export function calcStar({
   const massKg = 1.989e30 * m;
   const radiusKm = 696340 * radiusRsol;
   const luminosityW = 3.828e26 * luminosityLsol;
+  const xuvModel = computeStarXuvModel({
+    massMsol: m,
+    ageGyr: age,
+    luminosityLsol,
+  });
 
   return {
     inputs: { massMsol: m, ageGyr: age, metallicityFeH: toFinite(metallicityFeH, 0) },
@@ -699,12 +799,32 @@ export function calcStar({
       massKg,
       radiusKm,
       luminosityW,
+      xuvLuminosityW: xuvModel.xuvLuminosityW,
+      xuvLuminosityErgS: xuvModel.xuvLuminosityErgS,
     },
+    xuvModel,
 
     // handy pre-formatted strings for UI
     display: {
       hzAu: `${fmt(hzInnerAu, 3)} - ${fmt(hzOuterAu, 3)}`,
       hzMkm: `${fmt(hzInnerMkm, 2)} - ${fmt(hzOuterMkm, 2)}`,
+      xuvLuminosityW:
+        xuvModel.xuvLuminosityW < 1
+          ? `${xuvModel.xuvLuminosityW.toExponential(2)} W`
+          : xuvModel.xuvLuminosityW < 1e6
+            ? `${fmt(xuvModel.xuvLuminosityW, 0)} W`
+            : `${xuvModel.xuvLuminosityW.toExponential(2)} W`,
+      xuvLuminosityErgS: xuvModel.xuvLuminosityErgS.toExponential(2),
+      xuvFluxAt1Au:
+        xuvModel.fluxAt1AuErgCm2S < 0.01
+          ? `${xuvModel.fluxAt1AuErgCm2S.toExponential(2)} erg/cm²/s`
+          : `${fmt(xuvModel.fluxAt1AuErgCm2S, 2)} erg/cm²/s`,
+      xuvFluxRatioEarth:
+        xuvModel.fluxRatioEarth < 0.01
+          ? `${xuvModel.fluxRatioEarth.toExponential(2)}× Earth`
+          : `${fmt(xuvModel.fluxRatioEarth, 2)}× Earth`,
+      xuvRegime: xuvModel.regime === "saturated" ? "Saturated" : "Unsaturated",
+      xuvSaturationAge: `${fmt(xuvModel.saturationAgeGyr, 3)} Gyr`,
     },
     starColourHex: starColourHexFromTempK(tempK),
   };

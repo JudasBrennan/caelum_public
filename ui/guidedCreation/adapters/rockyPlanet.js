@@ -1,10 +1,6 @@
 import { ROCKY_RECIPES } from "../../rockyPlanetStyles.js";
 import { compileGuidedGoal } from "../goalCompiler.js";
-import {
-  getGoalTemplate,
-  getGoalTrait,
-  listGoalTemplates,
-} from "../goalTraits.js";
+import { getGoalTemplate, getGoalTrait, listGoalTemplates } from "../goalTraits.js";
 import { getGuidedAdapter, registerGuidedAdapter } from "../registry.js";
 
 const ROCKY_GUIDED_ARCHETYPES = Object.freeze([
@@ -374,11 +370,13 @@ function traitRoleQuestionId(traitId) {
 }
 
 function getRockyGoalTemplateMeta(goalTemplateId) {
-  return ROCKY_GOAL_TEMPLATE_META[String(goalTemplateId || "").trim()] || {
-    confidenceClass: "plausible",
-    seedArchetypeIds: ["earthlike-rocky-planet"],
-    focusTraits: [],
-  };
+  return (
+    ROCKY_GOAL_TEMPLATE_META[String(goalTemplateId || "").trim()] || {
+      confidenceClass: "plausible",
+      seedArchetypeIds: ["earthlike-rocky-planet"],
+      focusTraits: [],
+    }
+  );
 }
 
 function mapRockyGoalTemplateToCard(template) {
@@ -423,11 +421,15 @@ function defaultRockyGoalDraft(goalTemplateId = "") {
 function normalizeRockyGoalDraft(flowState = {}) {
   const base = defaultRockyGoalDraft(flowState?.selectedGoalTemplateId);
   const goalDraft =
-    flowState?.goalDraft && typeof flowState.goalDraft === "object" && !Array.isArray(flowState.goalDraft)
+    flowState?.goalDraft &&
+    typeof flowState.goalDraft === "object" &&
+    !Array.isArray(flowState.goalDraft)
       ? flowState.goalDraft
       : {};
   const nextTraitRoles =
-    goalDraft.traitRoles && typeof goalDraft.traitRoles === "object" && !Array.isArray(goalDraft.traitRoles)
+    goalDraft.traitRoles &&
+    typeof goalDraft.traitRoles === "object" &&
+    !Array.isArray(goalDraft.traitRoles)
       ? { ...base.traitRoles, ...goalDraft.traitRoles }
       : { ...base.traitRoles };
   return {
@@ -1087,7 +1089,12 @@ function collectScienceModes(applyInputs = {}) {
   return { greenhouseMode: applyInputs.greenhouseMode || "manual" };
 }
 
-function solveRockyRecommendationFromArchetype(archetype, flowState, context = {}, answersOverride = null) {
+function solveRockyRecommendationFromArchetype(
+  archetype,
+  flowState,
+  context = {},
+  answersOverride = null,
+) {
   if (!archetype) return null;
 
   const recipe = getRecipeForArchetype(archetype.id, context);
@@ -1293,7 +1300,10 @@ function scoreRockyGoalRecommendation(compiledGoal = {}, recommendation = {}, co
   }
 
   const currentOrbitAu = toFiniteNumber(context?.currentInputs?.semiMajorAxisAu, NaN);
-  const nextOrbitAu = toFiniteNumber(recommendation?.applyPayload?.objectInputs?.semiMajorAxisAu, NaN);
+  const nextOrbitAu = toFiniteNumber(
+    recommendation?.applyPayload?.objectInputs?.semiMajorAxisAu,
+    NaN,
+  );
   const orbitPenalty =
     Number.isFinite(currentOrbitAu) && currentOrbitAu > 0 && Number.isFinite(nextOrbitAu)
       ? Math.min(Math.abs(nextOrbitAu - currentOrbitAu) / currentOrbitAu, 2)
@@ -1317,9 +1327,15 @@ function scoreRockyGoalRecommendation(compiledGoal = {}, recommendation = {}, co
 
 function buildRockyGoalSearchDiagnostics(compiledGoal = {}, scoring = {}, searchMeta = {}) {
   const diagnostics = [];
-  const matchedRequired = (scoring?.matchedRequired || []).map((traitId) => getGoalTrait(traitId)?.label || traitId);
-  const missingRequired = (scoring?.missingRequired || []).map((traitId) => getGoalTrait(traitId)?.label || traitId);
-  const triggeredAvoid = (scoring?.triggeredAvoid || []).map((traitId) => getGoalTrait(traitId)?.label || traitId);
+  const matchedRequired = (scoring?.matchedRequired || []).map(
+    (traitId) => getGoalTrait(traitId)?.label || traitId,
+  );
+  const missingRequired = (scoring?.missingRequired || []).map(
+    (traitId) => getGoalTrait(traitId)?.label || traitId,
+  );
+  const triggeredAvoid = (scoring?.triggeredAvoid || []).map(
+    (traitId) => getGoalTrait(traitId)?.label || traitId,
+  );
 
   pushDiagnostic(
     diagnostics,
@@ -1394,7 +1410,10 @@ async function startRockyGoalSearch(compiledGoal = null, flowState = {}, context
         scoring,
         seedLabel: archetype?.label || candidate.archetypeId,
       };
-      if (scoring.fitClass === "exact-match" && String(compiledGoal.searchBudget || "") === "fast") {
+      if (
+        scoring.fitClass === "exact-match" &&
+        String(compiledGoal.searchBudget || "") === "fast"
+      ) {
         break;
       }
     }
