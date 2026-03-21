@@ -104,6 +104,35 @@ export function downloadCanvasPng(canvas, filename) {
   });
 }
 
+export function composeCanvasStack(canvases) {
+  const sourceCanvases = Array.isArray(canvases) ? canvases.filter(Boolean) : [];
+  const baseCanvas = sourceCanvases.find((canvas) => canvas?.width > 0 && canvas?.height > 0);
+  if (!baseCanvas) {
+    throw new Error("At least one canvas is required for export composition.");
+  }
+  if (typeof document === "undefined") {
+    throw new Error("Document is not available.");
+  }
+  const composite = document.createElement("canvas");
+  composite.width = baseCanvas.width;
+  composite.height = baseCanvas.height;
+  const ctx = composite.getContext("2d");
+  if (!ctx) {
+    throw new Error("Canvas composition is unavailable in this browser.");
+  }
+  sourceCanvases.forEach((canvas) => {
+    if (!canvas || canvas.width !== composite.width || canvas.height !== composite.height) return;
+    const drawable = canvas?.getContext?.("2d")?.canvas || canvas;
+    ctx.drawImage(drawable, 0, 0);
+  });
+  return composite;
+}
+
+export function downloadCanvasStackPng(canvases, filename) {
+  const composite = composeCanvasStack(canvases);
+  return downloadCanvasPng(composite, filename);
+}
+
 export async function captureCanvasGif({
   canvas,
   filename = "worldsmith-visualiser.gif",

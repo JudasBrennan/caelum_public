@@ -1,4 +1,5 @@
 import { LOCAL_CLUSTER_DEFAULTS, normalizeLocalClusterInputs } from "../engine/localCluster.js";
+import { buildHomeSystemContext, resolveHostFrameContext } from "../engine/homeSystem/context.js";
 import { deepMerge } from "./store/deepMerge.js";
 import {
   assignMoonToPlanetInWorld,
@@ -35,6 +36,15 @@ import {
 } from "./store/systemCollections.js";
 import { migrateWorld, normalizeWorld } from "./store/worldMigration.js";
 import { SCHEMA_VERSION, defaultWorld, mergeWorldForMigration } from "./store/worldSchema.js";
+import {
+  getDefaultHostFrameId,
+  getPrimaryStarId,
+  listStellarSystemHostFrames,
+  listStellarSystemPairs,
+  listStellarSystemStars,
+  normalizeStellarSystem,
+  projectPrimaryStarFromStellarSystem,
+} from "./store/stellarSystemModel.js";
 
 export { validateEnvelope };
 export {
@@ -214,6 +224,42 @@ export function getStarOverrides(star) {
   return { r: null, l: null, t: null, ev };
 }
 
+function buildNormalizedHomeSystemWorld(world = loadWorld()) {
+  const baseWorld =
+    world && typeof world === "object" && !Array.isArray(world) ? world : loadWorld();
+  const stellarSystem = normalizeStellarSystem(baseWorld?.stellarSystem, {
+    fallbackStar: baseWorld?.star,
+  });
+  const projectedPrimaryStar = projectPrimaryStarFromStellarSystem(stellarSystem, baseWorld?.star);
+  return {
+    ...baseWorld,
+    stellarSystem,
+    star: projectedPrimaryStar,
+  };
+}
+
+export function getProjectedPrimaryStar(world = loadWorld()) {
+  return buildNormalizedHomeSystemWorld(world).star;
+}
+
+export function buildWorldHomeSystemContext(world = loadWorld()) {
+  return buildHomeSystemContext(buildNormalizedHomeSystemWorld(world));
+}
+
+export function resolveWorldHostFrameContext(
+  world = loadWorld(),
+  hostFrameId = null,
+  homeSystemContext = null,
+) {
+  const resolvedWorld = buildNormalizedHomeSystemWorld(world);
+  const context = homeSystemContext || buildHomeSystemContext(resolvedWorld);
+  const fallbackHostFrameId = context?.defaultHostFrameId || context?.primaryStarId || null;
+  return (
+    resolveHostFrameContext(context, normalizeHostFrameId(hostFrameId, fallbackHostFrameId)) ||
+    resolveHostFrameContext(context, fallbackHostFrameId)
+  );
+}
+
 export function listPlanets(world = loadWorld()) {
   return world.planets.order.map((id) => world.planets.byId[id]).filter(Boolean);
 }
@@ -321,6 +367,20 @@ export function assignPlanetToSlot(planetId, slotIndexOrNull) {
   return world;
 }
 
+function normalizeHostFrameId(value, fallbackId = null) {
+  const id = String(value ?? "").trim();
+  return id || fallbackId || null;
+}
+
+function resolveOrbitSlotsForHostFrame(homeSystemContext, hostFrameId, fallbackSlots) {
+  const fallbackHostFrameId =
+    homeSystemContext?.defaultHostFrameId || homeSystemContext?.primaryStarId || null;
+  const resolvedHostFrameId = normalizeHostFrameId(hostFrameId, fallbackHostFrameId);
+  const orbitSlots = homeSystemContext?.hostFramesById?.[resolvedHostFrameId]?.system?.orbitsAu;
+  if (Array.isArray(orbitSlots) && orbitSlots.length) return orbitSlots;
+  return Array.isArray(fallbackSlots) ? fallbackSlots : [];
+}
+
 /**
  * Switch between guided (slot-based) and manual orbit placement modes.
  * When switching to manual, slot-bound planets and gas giants inherit the slot AU.
@@ -331,11 +391,17 @@ export function setOrbitMode(mode, orbitsAu) {
   const next = mode === "manual" ? "manual" : "guided";
   if (prev === next) return world;
 
-  if (next === "manual" && orbitsAu) {
+  if (next === "manual") {
+    const homeSystemContext = buildHomeSystemContext(world);
     for (const planetId of world.planets.order) {
       const planet = world.planets.byId[planetId];
       if (!planet || planet.slotIndex == null) continue;
-      const slotAu = orbitsAu[planet.slotIndex - 1];
+      const orbitSlots = resolveOrbitSlotsForHostFrame(
+        homeSystemContext,
+        planet.hostFrameId,
+        orbitsAu,
+      );
+      const slotAu = orbitSlots[planet.slotIndex - 1];
       if (Number.isFinite(slotAu) && slotAu > 0) {
         planet.inputs.semiMajorAxisAu = slotAu;
       }
@@ -345,7 +411,12 @@ export function setOrbitMode(mode, orbitsAu) {
       for (const gasGiantId of gasGiants.order || []) {
         const gasGiant = gasGiants.byId[gasGiantId];
         if (!gasGiant || gasGiant.slotIndex == null) continue;
-        const slotAu = orbitsAu[gasGiant.slotIndex - 1];
+        const orbitSlots = resolveOrbitSlotsForHostFrame(
+          homeSystemContext,
+          gasGiant.hostFrameId,
+          orbitsAu,
+        );
+        const slotAu = orbitSlots[gasGiant.slotIndex - 1];
         if (Number.isFinite(slotAu) && slotAu > 0) gasGiant.au = slotAu;
       }
     }
@@ -361,7 +432,81 @@ export function setOrbitMode(mode, orbitsAu) {
 }
 
 export function saveWorld(world, options = {}) {
-  return saveWorldRaw(JSON.stringify(world), options);
+  const normalized = migrateWorld(mergeWorldForMigration(world));
+  return saveWorldRaw(JSON.stringify(normalized), options);
+}
+
+export function applyGeneratedSystemDraft(draftEnvelope, options = {}) {
+  const currentWorld = loadWorld();
+  const draftWorld =
+    draftEnvelope?.draftWorld && typeof draftEnvelope.draftWorld === "object"
+      ? draftEnvelope.draftWorld
+      : null;
+  if (!draftWorld) return currentWorld;
+
+  const nextWorld = defaultWorld();
+  nextWorld.cluster = normalizeLocalClusterInputs(currentWorld.cluster || nextWorld.cluster);
+  nextWorld.clusterSystemNames = normalizeClusterSystemNames(currentWorld.clusterSystemNames);
+  nextWorld.clusterAdjustments =
+    currentWorld.clusterAdjustments && typeof currentWorld.clusterAdjustments === "object"
+      ? {
+          addedSystems: Array.isArray(currentWorld.clusterAdjustments.addedSystems)
+            ? currentWorld.clusterAdjustments.addedSystems
+            : [],
+          removedSystemIds: Array.isArray(currentWorld.clusterAdjustments.removedSystemIds)
+            ? currentWorld.clusterAdjustments.removedSystemIds
+            : [],
+          componentOverrides:
+            currentWorld.clusterAdjustments.componentOverrides &&
+            typeof currentWorld.clusterAdjustments.componentOverrides === "object"
+              ? currentWorld.clusterAdjustments.componentOverrides
+              : {},
+        }
+      : nextWorld.clusterAdjustments;
+
+  nextWorld.star =
+    draftWorld.star && typeof draftWorld.star === "object"
+      ? { ...draftWorld.star }
+      : nextWorld.star;
+  nextWorld.stellarSystem =
+    draftWorld.stellarSystem && typeof draftWorld.stellarSystem === "object"
+      ? normalizeStellarSystem(draftWorld.stellarSystem, { fallbackStar: nextWorld.star })
+      : nextWorld.stellarSystem;
+  nextWorld.system =
+    draftWorld.system && typeof draftWorld.system === "object"
+      ? deepMerge(nextWorld.system, draftWorld.system)
+      : nextWorld.system;
+  nextWorld.planets =
+    draftWorld.planets && typeof draftWorld.planets === "object"
+      ? draftWorld.planets
+      : nextWorld.planets;
+  nextWorld.planet =
+    draftWorld.planet && typeof draftWorld.planet === "object" ? draftWorld.planet : {};
+  nextWorld.moons =
+    draftWorld.moons && typeof draftWorld.moons === "object" ? draftWorld.moons : nextWorld.moons;
+  nextWorld.moon = draftWorld.moon && typeof draftWorld.moon === "object" ? draftWorld.moon : {};
+  nextWorld.selectedBodyType = draftWorld.selectedBodyType === "gasGiant" ? "gasGiant" : "planet";
+
+  const preserveWorldSections = Array.isArray(draftEnvelope?.generationMeta?.preserveWorldSections)
+    ? draftEnvelope.generationMeta.preserveWorldSections
+    : Array.isArray(draftWorld?.generationMeta?.preserveWorldSections)
+      ? draftWorld.generationMeta.preserveWorldSections
+      : [];
+  for (const section of preserveWorldSections) {
+    if (!section || typeof currentWorld?.[section] !== "object" || currentWorld[section] == null)
+      continue;
+    nextWorld[section] = structuredClone(currentWorld[section]);
+  }
+
+  if (draftWorld.generationMeta && typeof draftWorld.generationMeta === "object") {
+    nextWorld.generationMeta = {
+      ...draftWorld.generationMeta,
+      generatedUtc: new Date().toISOString(),
+    };
+  }
+
+  saveWorld(nextWorld, options);
+  return nextWorld;
 }
 
 export function updateWorld(patch) {
@@ -427,8 +572,40 @@ export function listSystemGasGiants(world = loadWorld()) {
   return getGasGiants(world, normalizeGasGiantModel);
 }
 
-export function listSystemDebrisDisks(world = loadWorld()) {
-  return getDebrisDisksModel(world);
+export function getStellarSystem(world = loadWorld()) {
+  return normalizeStellarSystem(world?.stellarSystem, { fallbackStar: world?.star });
+}
+
+export function saveStellarSystem(stellarSystem, options = {}) {
+  const world = loadWorld();
+  world.stellarSystem = normalizeStellarSystem(stellarSystem, { fallbackStar: world?.star });
+  world.star = projectPrimaryStarFromStellarSystem(world.stellarSystem, world?.star);
+  saveWorld(world, options);
+  return world;
+}
+
+export function getPrimaryHomeStarId(world = loadWorld()) {
+  return getPrimaryStarId(getStellarSystem(world));
+}
+
+export function getDefaultHomeSystemHostFrameId(world = loadWorld()) {
+  return getDefaultHostFrameId(getStellarSystem(world));
+}
+
+export function listHomeSystemStars(world = loadWorld()) {
+  return listStellarSystemStars(getStellarSystem(world));
+}
+
+export function listHomeSystemPairs(world = loadWorld()) {
+  return listStellarSystemPairs(getStellarSystem(world));
+}
+
+export function listHomeSystemHostFrames(world = loadWorld()) {
+  return listStellarSystemHostFrames(getStellarSystem(world));
+}
+
+export function listSystemDebrisDisks(world = loadWorld(), options = {}) {
+  return getDebrisDisksModel(world, options);
 }
 
 export function saveSystemGasGiants(list) {
@@ -470,8 +647,12 @@ export function selectBodyType(type) {
 
 export function saveSystemDebrisDisks(list) {
   const world = loadWorld();
+  const fallbackHostFrameId =
+    String(world?.stellarSystem?.defaultHostFrameId ?? "").trim() || "star_a";
   world.system.debrisDisks = makeCollection(
-    (list || []).map((disk, index) => normalizeDebrisDiskModel(disk, index + 1)),
+    (list || []).map((disk, index) =>
+      normalizeDebrisDiskModel(disk, index + 1, { fallbackHostFrameId }),
+    ),
     "dd",
   );
   const next = migrateWorld(world);

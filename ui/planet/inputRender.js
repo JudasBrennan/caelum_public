@@ -220,7 +220,10 @@ function createRockyFieldRows(fields, tipLabels) {
   );
 }
 
-export function renderRockyInputForm(container, { planet, tipLabels } = {}) {
+export function renderRockyInputForm(
+  container,
+  { planet, tipLabels, hostFrameOptions = [], hostFrameHint = "" } = {},
+) {
   const p = planet?.inputs || {};
   const greenhouseMode = p.greenhouseMode || "manual";
   const radioisotopeMode = p.radioisotopeMode || "simple";
@@ -385,6 +388,14 @@ export function renderRockyInputForm(container, { planet, tipLabels } = {}) {
     !p.tectonicRegime || p.tectonicRegime === "auto" ? "mobile" : p.tectonicRegime;
 
   replaceChildren(container, [
+    createSelectRow({
+      id: "hostFrameSelect",
+      label: "Host frame",
+      tip: tipLabels["Host frame"] || "",
+      hint: hostFrameHint,
+      options: hostFrameOptions,
+      style: "margin-top:8px",
+    }),
     createSelectRow({
       id: "slotSelect",
       label: "Orbital slot",
@@ -667,7 +678,15 @@ export function renderRockyInputForm(container, { planet, tipLabels } = {}) {
 
 export function renderGasGiantInputForm(
   container,
-  { giant, slotHint = "", slotOptions = [], tipLabels, ranges } = {},
+  {
+    giant,
+    slotHint = "",
+    slotOptions = [],
+    hostFrameOptions = [],
+    hostFrameHint = "",
+    tipLabels,
+    ranges,
+  } = {},
 ) {
   const ringModeValue =
     giant?.ringMode === "force-on" || giant?.ringMode === "force-off" ? giant.ringMode : "auto";
@@ -677,6 +696,14 @@ export function renderGasGiantInputForm(
     selected: option.value === (ringModeValue === "force-on" ? ringStyleValue : RING_STYLE_AUTO),
   }));
   replaceChildren(container, [
+    createSelectRow({
+      id: "ggHostFrame",
+      label: "Host frame",
+      tip: tipLabels["Host frame"] || "",
+      hint: hostFrameHint,
+      options: hostFrameOptions,
+      style: "margin-top:8px",
+    }),
     createSelectRow({
       id: "ggSlot",
       label: "Orbital slot",

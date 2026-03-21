@@ -1,5 +1,15 @@
-import { buildWorldSnapshot, buildWorldStarSystemContext } from "./worldSnapshot.js";
-import { bondToGeometricAlbedo, classifyBodyType } from "./apparent.js";
+import { buildWorldHomeSystemContext, buildWorldSnapshot } from "./worldSnapshot.js";
+import {
+  bondToGeometricAlbedo,
+  calcStarAbsoluteMagnitude,
+  calcStarApparentAtOrbit,
+  classifyBodyType,
+} from "./apparent.js";
+import { buildHomeSystemContext, resolveHostFrameContext } from "./homeSystem/context.js";
+import {
+  listCompanionStarsForHostFrame,
+  listHostStarsForHostFrame,
+} from "./homeSystem/companionPresentation.js";
 import { resolveGasGiantRingState } from "./planetaryRings.js";
 import { computeRockyVisualProfile } from "../ui/rockyPlanetStyles.js";
 import { resolveRingAppearance } from "../ui/ringAppearanceProfiles.js";
@@ -47,10 +57,130 @@ function toFiniteOrNull(value) {
   return Number.isFinite(num) ? num : null;
 }
 
-function buildDebrisRanges(world, rawWorld) {
+function normalizeHostFrameId(value, fallbackId = null) {
+  const id = String(value ?? "").trim();
+  return id || fallbackId || null;
+}
+
+function formatHostFrameLabel(hostFrameId = "", hostFramesById = null) {
+  const resolvedHostFrameId = String(hostFrameId || "").trim();
+  const explicitLabel = hostFramesById?.[resolvedHostFrameId]?.label;
+  if (explicitLabel) return explicitLabel;
+  switch (resolvedHostFrameId) {
+    case "star_b":
+      return "Star B";
+    case "star_c":
+      return "Star C";
+    case "star_d":
+      return "Star D";
+    case "pair_ab":
+      return "Pair A+B";
+    case "pair_abc":
+      return "Pair (A+B)+C";
+    case "pair_abcd":
+      return "Pair ((A+B)+C)+D";
+    case "star_a":
+    default:
+      return "Star A";
+  }
+}
+
+function filterEntriesForHostFrame(entries, hostFrameId, fallbackHostFrameId) {
+  const targetHostFrameId = normalizeHostFrameId(hostFrameId, fallbackHostFrameId);
+  return (entries || []).filter(
+    (entry) =>
+      normalizeHostFrameId(
+        entry?.hostFrameId || entry?.source?.hostFrameId,
+        fallbackHostFrameId,
+      ) === targetHostFrameId,
+  );
+}
+
+function buildGuidedPosterWorld(world, homeSystemContext) {
+  const planets = world?.planets;
+  const planetsById = planets?.byId && typeof planets.byId === "object" ? planets.byId : {};
+  const defaultHostFrameId =
+    homeSystemContext?.defaultHostFrameId || homeSystemContext?.primaryStarId || null;
+  let nextPlanetsById = null;
+
+  for (const planet of orderedCollectionValues(planets)) {
+    if (planet?.slotIndex == null) continue;
+    const hostFrameId = normalizeHostFrameId(planet?.hostFrameId, defaultHostFrameId);
+    const orbitSlots = homeSystemContext?.hostFramesById?.[hostFrameId]?.system?.orbitsAu || [];
+    const slotAu = Number(orbitSlots[planet.slotIndex - 1]);
+    if (!(Number.isFinite(slotAu) && slotAu > 0)) continue;
+    const current = planetsById[planet.id];
+    if (!current) continue;
+    if (Number(current.inputs?.semiMajorAxisAu) === slotAu) continue;
+    if (!nextPlanetsById) nextPlanetsById = { ...planetsById };
+    nextPlanetsById[planet.id] = {
+      ...current,
+      inputs: {
+        ...(current.inputs || {}),
+        semiMajorAxisAu: slotAu,
+      },
+    };
+  }
+
+  if (!nextPlanetsById) return world;
+
+  return {
+    ...world,
+    planets: {
+      ...(planets || {}),
+      byId: nextPlanetsById,
+    },
+  };
+}
+
+function buildPosterStarData(solveContext, fallbackStar) {
+  const starModel = solveContext?.starModel || fallbackStar || {};
+  const starConfig = solveContext?.starConfig || fallbackStar?.inputs || fallbackStar || {};
+  return {
+    ...starModel,
+    inputs: {
+      massMsol: Number(starConfig?.massMsol ?? fallbackStar?.inputs?.massMsol ?? 1),
+      ageGyr: Number(starConfig?.ageGyr ?? fallbackStar?.inputs?.ageGyr ?? 4.6),
+      metallicityFeH: Number(
+        starConfig?.metallicityFeH ?? fallbackStar?.inputs?.metallicityFeH ?? 0,
+      ),
+      name: solveContext?.starContext?.component?.name || fallbackStar?.inputs?.name || "Star",
+    },
+    name: solveContext?.starContext?.component?.name || fallbackStar?.inputs?.name || "Star",
+  };
+}
+
+function buildApparentStarEntry(starEntry, orbitAu, extras = {}) {
+  const starAbsoluteMagnitude = calcStarAbsoluteMagnitude(starEntry?.luminosityLsol);
+  const apparent = calcStarApparentAtOrbit({
+    starAbsoluteMagnitude,
+    starRadiusRsol: starEntry?.radiusRsol,
+    orbitAu: Math.max(0.000001, Number(orbitAu) || 1),
+    starLuminosityLsol: starEntry?.luminosityLsol,
+  });
+  return {
+    ...starEntry,
+    apparentMagnitude: apparent.magnitude,
+    angularDiameterArcsec: apparent.angularDiameterArcsec,
+    angularDiameterLabel: apparent.angularDiameterLabel,
+    brightnessRelativeToEarthSun: apparent.brightnessRelativeToEarthSun,
+    ...extras,
+  };
+}
+
+function buildDebrisRanges(world, rawWorld, { hostFramesById = null } = {}) {
+  const fallbackHostFrameId = normalizeHostFrameId(
+    world?.stellarSystem?.defaultHostFrameId,
+    "star_a",
+  );
   const normalizedRanges = orderedCollectionValues(world?.system?.debrisDisks)
     .map((disk) => ({
       name: disk?.name || "Debris disk",
+      hostFrameId: normalizeHostFrameId(disk?.hostFrameId, fallbackHostFrameId),
+      hostFrameLabel: formatHostFrameLabel(
+        normalizeHostFrameId(disk?.hostFrameId, fallbackHostFrameId),
+        hostFramesById,
+      ),
       inner: Number(disk?.innerAu ?? disk?.inner),
       outer: Number(disk?.outerAu ?? disk?.outer),
     }))
@@ -96,7 +226,9 @@ export function buildImportPreviewSummary(world, { rawWorld = world } = {}) {
   const snapshot = buildWorldSnapshot(world, { mode: SNAPSHOT_MODE_BUDGETS.importPreview });
   const planets = orderedCollectionValues(world?.planets);
   const gasGiants = Object.values(snapshot.gasGiantsById || {});
-  const debrisRanges = buildDebrisRanges(world, rawWorld);
+  const debrisRanges = buildDebrisRanges(world, rawWorld, {
+    hostFramesById: snapshot.hostFramesById,
+  });
   const tectonics =
     world?.tectonics && typeof world.tectonics === "object" ? world.tectonics : null;
   const population =
@@ -142,14 +274,17 @@ export function buildImportPreviewSummary(world, { rawWorld = world } = {}) {
 
   return {
     spec: String(
-      rawWorld?.star?.spectralClass || rawWorld?.star?.class || snapshot.star?.spectralClass || "",
+      snapshot.star?.spectralClass || rawWorld?.star?.spectralClass || rawWorld?.star?.class || "",
     ).trim(),
     starMass: toFiniteOrNull(
-      rawWorld?.star?.massMsol ?? rawWorld?.star?.mass ?? snapshot.star?.inputs?.massMsol,
+      snapshot.star?.inputs?.massMsol ?? rawWorld?.star?.massMsol ?? rawWorld?.star?.mass,
     ),
     starAge: toFiniteOrNull(
-      rawWorld?.star?.ageGyr ?? rawWorld?.star?.age ?? snapshot.star?.inputs?.ageGyr,
+      snapshot.star?.inputs?.ageGyr ?? rawWorld?.star?.ageGyr ?? rawWorld?.star?.age,
     ),
+    topologyKind: snapshot.meta?.topologyKind || snapshot.stellarSystem?.topologyKind || "single",
+    starCount: snapshot.stellarSystem?.stars?.order?.length || 1,
+    defaultHostFrameId: snapshot.meta?.defaultHostFrameId || null,
     planets: snapshot.meta?.counts?.planets ?? planets.length,
     moons: snapshot.meta?.counts?.moons ?? Object.keys(snapshot.moonsById || {}).length,
     assigned,
@@ -172,40 +307,6 @@ export function buildImportPreviewSummary(world, { rawWorld = world } = {}) {
   };
 }
 
-function buildGuidedPosterWorld(world, systemModel) {
-  const planets = world?.planets;
-  const planetsById = planets?.byId && typeof planets.byId === "object" ? planets.byId : {};
-  const orbitSlots = Array.isArray(systemModel?.orbitsAu) ? systemModel.orbitsAu : [];
-  let nextPlanetsById = null;
-
-  for (const planet of orderedCollectionValues(planets)) {
-    if (planet?.slotIndex == null) continue;
-    const slotAu = Number(orbitSlots[planet.slotIndex - 1]);
-    if (!(Number.isFinite(slotAu) && slotAu > 0)) continue;
-    const current = planetsById[planet.id];
-    if (!current) continue;
-    if (Number(current.inputs?.semiMajorAxisAu) === slotAu) continue;
-    if (!nextPlanetsById) nextPlanetsById = { ...planetsById };
-    nextPlanetsById[planet.id] = {
-      ...current,
-      inputs: {
-        ...(current.inputs || {}),
-        semiMajorAxisAu: slotAu,
-      },
-    };
-  }
-
-  if (!nextPlanetsById) return world;
-
-  return {
-    ...world,
-    planets: {
-      ...(planets || {}),
-      byId: nextPlanetsById,
-    },
-  };
-}
-
 /**
  * Build System-page poster inputs from the engine snapshot layer.
  *
@@ -214,25 +315,57 @@ function buildGuidedPosterWorld(world, systemModel) {
  * with the poster layout.
  *
  * @param {object} world
- * @param {{orbitMode?: "guided"|"manual"}} [options]
+ * @param {{orbitMode?: "guided"|"manual", hostFrameId?: string|null}} [options]
  * @returns {{snapshot: object, effectiveWorld: object, posterData: object}}
  */
-export function buildSystemPosterSnapshotInputs(world, { orbitMode = "guided" } = {}) {
-  const baseContext = buildWorldStarSystemContext(world);
+export function buildSystemPosterSnapshotInputs(
+  world,
+  { orbitMode = "guided", hostFrameId = null } = {},
+) {
+  const baseContext = buildWorldHomeSystemContext(world);
   const manualMode = orbitMode === "manual";
-  const effectiveWorld = manualMode ? world : buildGuidedPosterWorld(world, baseContext.system);
+  const activeHostFrameId = normalizeHostFrameId(
+    hostFrameId,
+    world?.stellarSystem?.defaultHostFrameId,
+    baseContext.homeSystemContext?.defaultHostFrameId ||
+      baseContext.homeSystemContext?.primaryStarId,
+  );
+  const activeSolveContext =
+    resolveHostFrameContext(baseContext.homeSystemContext, activeHostFrameId) ||
+    resolveHostFrameContext(
+      baseContext.homeSystemContext,
+      baseContext.homeSystemContext?.defaultHostFrameId ||
+        baseContext.homeSystemContext?.primaryStarId,
+    );
+  const effectiveWorld = manualMode
+    ? world
+    : buildGuidedPosterWorld(world, baseContext.homeSystemContext);
   const snapshot = buildWorldSnapshot(effectiveWorld, {
     mode: SNAPSHOT_MODE_BUDGETS.systemPoster,
     context: baseContext,
   });
+  const fallbackHostFrameId =
+    snapshot.meta?.defaultHostFrameId || baseContext.homeSystemContext?.defaultHostFrameId || null;
+  const resolvedHostFrameId = normalizeHostFrameId(
+    activeSolveContext?.hostFrameId,
+    activeHostFrameId || fallbackHostFrameId,
+  );
 
   const includedPlanetIds = new Set(
     orderedCollectionValues(effectiveWorld?.planets)
-      .filter((planet) => manualMode || planet?.slotIndex != null)
+      .filter(
+        (planet) =>
+          (manualMode || planet?.slotIndex != null) &&
+          normalizeHostFrameId(planet?.hostFrameId, fallbackHostFrameId) === resolvedHostFrameId,
+      )
       .map((planet) => planet.id),
   );
 
-  const planets = Object.values(snapshot.planetsById || {})
+  const planets = filterEntriesForHostFrame(
+    Object.values(snapshot.planetsById || {}),
+    resolvedHostFrameId,
+    fallbackHostFrameId,
+  )
     .filter((entry) => includedPlanetIds.has(entry.id))
     .map((entry) => {
       const visualProfile = computeRockyVisualProfile(entry.model?.derived, entry.source?.inputs);
@@ -261,7 +394,11 @@ export function buildSystemPosterSnapshotInputs(world, { orbitMode = "guided" } 
     })
     .filter((entry) => Number.isFinite(entry.au) && entry.au > 0);
 
-  const gasGiants = Object.values(snapshot.gasGiantsById || {})
+  const gasGiants = filterEntriesForHostFrame(
+    Object.values(snapshot.gasGiantsById || {}),
+    resolvedHostFrameId,
+    fallbackHostFrameId,
+  )
     .map((entry) => {
       const ringState = resolveGasGiantRingState({
         ringMode: entry.source?.ringMode,
@@ -291,8 +428,16 @@ export function buildSystemPosterSnapshotInputs(world, { orbitMode = "guided" } 
     })
     .filter((entry) => Number.isFinite(entry.au) && entry.au > 0);
 
-  const moons = Object.values(snapshot.moonsById || {})
-    .filter((entry) => entry.parentId != null)
+  const visibleParentIds = new Set([
+    ...planets.map((entry) => entry.id),
+    ...gasGiants.map((entry) => entry.id),
+  ]);
+  const moons = filterEntriesForHostFrame(
+    Object.values(snapshot.moonsById || {}),
+    resolvedHostFrameId,
+    fallbackHostFrameId,
+  )
+    .filter((entry) => entry.parentId != null && visibleParentIds.has(entry.parentId))
     .map((entry) => ({
       parentId: entry.parentId,
       name: entry.name || entry.source?.name || entry.source?.inputs?.name || "",
@@ -301,17 +446,34 @@ export function buildSystemPosterSnapshotInputs(world, { orbitMode = "guided" } 
       source: entry.source,
     }));
 
-  const debrisDisks = orderedCollectionValues(effectiveWorld?.system?.debrisDisks).map((disk) => ({
-    innerAu: Math.min(
-      Number(disk?.innerAu ?? disk?.inner ?? 0),
-      Number(disk?.outerAu ?? disk?.outer ?? 0),
-    ),
-    outerAu: Math.max(
-      Number(disk?.innerAu ?? disk?.inner ?? 0),
-      Number(disk?.outerAu ?? disk?.outer ?? 0),
-    ),
-    name: disk?.name || "Debris disk",
-  }));
+  const debrisDisks = orderedCollectionValues(effectiveWorld?.system?.debrisDisks)
+    .filter(
+      (disk) =>
+        normalizeHostFrameId(disk?.hostFrameId, fallbackHostFrameId) === resolvedHostFrameId,
+    )
+    .map((disk) => ({
+      innerAu: Math.min(
+        Number(disk?.innerAu ?? disk?.inner ?? 0),
+        Number(disk?.outerAu ?? disk?.outer ?? 0),
+      ),
+      outerAu: Math.max(
+        Number(disk?.innerAu ?? disk?.inner ?? 0),
+        Number(disk?.outerAu ?? disk?.outer ?? 0),
+      ),
+      name: disk?.name || "Debris disk",
+      hostFrameId: normalizeHostFrameId(disk?.hostFrameId, fallbackHostFrameId),
+    }));
+  const hostStars = listHostStarsForHostFrame(baseContext.homeSystemContext, resolvedHostFrameId);
+  const companionStars = listCompanionStarsForHostFrame(
+    baseContext.homeSystemContext,
+    resolvedHostFrameId,
+  );
+  const canvasMode =
+    activeSolveContext?.hostFrame?.frameKind === "pair" && hostStars.length > 1
+      ? "binary-p-type"
+      : companionStars.length > 0
+        ? "binary-s-type"
+        : "single";
 
   return {
     snapshot,
@@ -319,13 +481,32 @@ export function buildSystemPosterSnapshotInputs(world, { orbitMode = "guided" } 
     meta: {
       snapshotMode: SNAPSHOT_MODE_BUDGETS.systemPoster,
       orbitMode: manualMode ? "manual" : "guided",
+      topologyKind: snapshot.meta?.topologyKind || "single",
+      activeHostFrameId: resolvedHostFrameId,
+      activeHostFrameLabel:
+        activeSolveContext?.hostFrame?.label || snapshot.star?.inputs?.name || "Star",
+      canvasMode,
+      defaultHostFrameId: snapshot.meta?.defaultHostFrameId || null,
       reusedStarSystemContext: true,
       guidedOrbitProjection: !manualMode,
       effectiveWorldReused: effectiveWorld === world,
     },
+    homeSystem: {
+      stellarSystem: snapshot.stellarSystem,
+      hostFramesById: snapshot.hostFramesById,
+      activeHostFrameId: resolvedHostFrameId,
+      defaultHostFrameId: snapshot.meta?.defaultHostFrameId || null,
+    },
     posterData: {
-      star: snapshot.star,
-      system: snapshot.system,
+      star: buildPosterStarData(activeSolveContext, snapshot.star),
+      system: activeSolveContext?.hostFrame?.system || snapshot.system,
+      topologyKind: snapshot.meta?.topologyKind || "single",
+      activeHostFrameId: resolvedHostFrameId,
+      activeHostFrameLabel:
+        activeSolveContext?.hostFrame?.label || snapshot.star?.inputs?.name || "Star",
+      canvasMode,
+      hostStars,
+      companionStars,
       planets,
       gasGiants,
       moons,
@@ -369,6 +550,7 @@ export function buildApparentSnapshotInputs(
         kind: "planet",
         name: entry.name,
         classLabel: "Planet",
+        hostFrameId: entry.hostFrameId,
         orbitAu,
         radiusKm,
         geometricAlbedo: bondToGeometricAlbedo(bondAlbedo, bodyType),
@@ -390,6 +572,7 @@ export function buildApparentSnapshotInputs(
         kind: "gas",
         name: entry.name,
         classLabel: "Gas giant",
+        hostFrameId: entry.hostFrameId,
         orbitAu: Number(entry.model?.inputs?.orbitAu),
         radiusKm: Number(entry.model?.physical?.radiusKm),
         geometricAlbedo: gasGiantAlbedo(raw.style),
@@ -399,9 +582,77 @@ export function buildApparentSnapshotInputs(
     })
     .filter((entry) => Number.isFinite(entry.orbitAu) && entry.orbitAu > 0);
 
-  const allBodies = [...planets, ...gasGiants].sort((left, right) => left.orbitAu - right.orbitAu);
+  const allBodiesRaw = [...planets, ...gasGiants].sort(
+    (left, right) => left.orbitAu - right.orbitAu,
+  );
   const selectedHomePlanet = planets.find((entry) => entry.id === `planet:${homePlanetId}`) || null;
   const homeOrbitAu = selectedHomePlanet?.orbitAu || 1;
+  const fallbackHostFrameId =
+    fullSnapshot.meta?.defaultHostFrameId || fullSnapshot.stellarSystem?.defaultHostFrameId || null;
+  const homeHostFrameId = normalizeHostFrameId(
+    fullSnapshot.planetsById?.[homePlanetId]?.hostFrameId,
+    fallbackHostFrameId,
+  );
+  const homeSystemContext =
+    fullSnapshot.stellarSystem && typeof fullSnapshot.stellarSystem === "object"
+      ? buildHomeSystemContext({
+          star: fullSnapshot.star?.inputs || {},
+          system: fullSnapshot.system?.inputs || {},
+          stellarSystem: fullSnapshot.stellarSystem,
+        })
+      : null;
+  const homeSolveContext = homeSystemContext
+    ? resolveHostFrameContext(homeSystemContext, homeHostFrameId)
+    : null;
+  const companionStars = listCompanionStarsForHostFrame(homeSystemContext, homeHostFrameId).map(
+    (entry) =>
+      buildApparentStarEntry(entry, Number(entry.separationAu) || 1, { skyRole: "companion" }),
+  );
+  const pairHostStars =
+    homeSolveContext?.hostFrame?.frameKind === "pair"
+      ? listHostStarsForHostFrame(homeSystemContext, homeHostFrameId).map((entry) =>
+          buildApparentStarEntry(entry, homeOrbitAu, {
+            skyRole: "pair-host",
+            homeOrbitAu,
+          }),
+        )
+      : [];
+  const hasLivePrimaryPair =
+    pairHostStars.length === 2 &&
+    pairHostStars.every(
+      (entry) =>
+        Number.isFinite(Number(entry?.homeOrbitAu)) &&
+        Number(entry.homeOrbitAu) > 0 &&
+        Number.isFinite(Number(entry?.pairSemiMajorAxisAu)) &&
+        Number(entry.pairSemiMajorAxisAu) > 0 &&
+        Number.isFinite(Number(entry?.barycentricOrbitAu)) &&
+        Number(entry.barycentricOrbitAu) >= 0,
+    );
+  const hasApproximatePrimarySuns =
+    pairHostStars.length > 2 || (pairHostStars.length > 1 && !hasLivePrimaryPair);
+  const primarySuns = pairHostStars.length
+    ? pairHostStars
+    : [
+        buildApparentStarEntry(
+          homeSolveContext?.starModel
+            ? buildPosterStarData(homeSolveContext, fullSnapshot.star)
+            : fullSnapshot.star || {},
+          homeOrbitAu,
+          { skyRole: "primary-host" },
+        ),
+      ].filter(
+        (entry) => Number.isFinite(entry?.angularDiameterArcsec) && entry.angularDiameterArcsec > 0,
+      );
+  const skyStars = [...pairHostStars, ...companionStars];
+  const visibleSuns = [...primarySuns, ...companionStars];
+  const visibleSunsCount = visibleSuns.length || 1;
+  const visibleSunNames = visibleSuns.map((entry) => entry.name).filter(Boolean);
+
+  const allBodies = selectedHomePlanet
+    ? allBodiesRaw.filter(
+        (entry) => normalizeHostFrameId(entry.hostFrameId, fallbackHostFrameId) === homeHostFrameId,
+      )
+    : allBodiesRaw;
 
   const orbitSamples = allBodies
     .filter((entry) => entry.id !== selectedHomePlanet?.id)
@@ -440,9 +691,30 @@ export function buildApparentSnapshotInputs(
     });
 
   return {
-    starMassMsol: Number(fullSnapshot.star?.inputs?.massMsol ?? 1),
-    starAgeGyr: Number(fullSnapshot.star?.inputs?.ageGyr ?? 4.6),
-    starModel: fullSnapshot.star || null,
+    starMassMsol: Number(
+      homeSolveContext?.starConfig?.massMsol ?? fullSnapshot.star?.inputs?.massMsol ?? 1,
+    ),
+    starAgeGyr: Number(
+      homeSolveContext?.starConfig?.ageGyr ?? fullSnapshot.star?.inputs?.ageGyr ?? 4.6,
+    ),
+    starModel: homeSolveContext?.starModel
+      ? buildPosterStarData(homeSolveContext, fullSnapshot.star)
+      : fullSnapshot.star || null,
+    topologyKind:
+      fullSnapshot.meta?.topologyKind || fullSnapshot.stellarSystem?.topologyKind || "single",
+    defaultHostFrameId: fullSnapshot.meta?.defaultHostFrameId || null,
+    homeHostFrameId,
+    homeHostFrameLabel: homeSolveContext?.hostFrame?.label || null,
+    primarySuns,
+    companionStars,
+    skyStars,
+    hasLivePrimaryPair,
+    hasApproximatePrimarySuns,
+    hasApproximateCompanionSuns: companionStars.length > 0,
+    visibleSunsCount,
+    visibleSunNames,
+    stellarSystem: fullSnapshot.stellarSystem || null,
+    hostFramesById: fullSnapshot.hostFramesById || {},
     homeOrbitAu,
     selectedHomePlanet,
     planets,

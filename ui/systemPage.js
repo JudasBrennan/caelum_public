@@ -1,5 +1,3 @@
-import { calcStar } from "../engine/star.js";
-import { calcSystem } from "../engine/system.js";
 import { fmt } from "../engine/utils.js";
 import { buildSystemPosterSnapshotInputs } from "../engine/worldAdapters.js";
 import { bindNumberAndSlider } from "./bind.js";
@@ -18,7 +16,6 @@ import {
   updateWorld,
   listPlanets,
   listMoons,
-  getStarOverrides,
   assignPlanetToSlot,
   assignMoonToPlanet,
   selectPlanet,
@@ -28,20 +25,40 @@ import {
   listSystemGasGiants,
   listSystemDebrisDisks,
   setOrbitMode,
+  buildWorldHomeSystemContext,
+  getProjectedPrimaryStar,
+  resolveWorldHostFrameContext,
 } from "./store.js";
 import { createTutorial } from "./tutorial.js";
 import { launchGuidedMoonForParent } from "./moonGuidedLaunch.js";
+import { openSystemRandomGenerationOverlay } from "./systemRandomGeneration.js";
 
 const TIP_LABEL = {
   "Orbit Placement Mode":
     "Guided mode generates logarithmically-spaced orbit slots from Spacing Factor and Orbit 1; planets are assigned to slots via drag-and-drop.\n\n" +
     "Manual mode disables the slot system\u2014each planet\u2019s semi-major axis is set directly on the Planets page.\n\n" +
     "Switching from Guided to Manual copies each planet\u2019s slot distance into its semi-major axis input.",
+  "Host Frame":
+    "Select which stellar host frame this page is arranging.\n\n" +
+    "Single-star systems have one frame. Binary, triple, and quad systems can have separate circumstellar (S-type) or circumbinary (P-type) frames.\n\n" +
+    "The orbit ladder, planet list, KPIs, and poster preview all follow the selected host frame.",
+  "Selected Host":
+    "Read-only summary of the currently selected host frame.\n\n" +
+    "Change stellar topology and component properties on the Star page.",
   "Star Mass": "Star mass in solar masses (read-only; set on the Star page).\n\nSun = 1 Msol.",
+  "Host Mass":
+    "Effective mass of the selected host frame in solar masses.\n\n" +
+    "For a circumstellar frame this is the host star mass. For a circumbinary frame this is the combined pair mass.",
   "Habitable Zone":
     "A planet orbiting within this region receives Earth-like stellar heating.\n\nUses a temperature-dependent model where the inner/outer flux thresholds (S_in/S_out) vary with stellar effective temperature, based on Chromant\u2019s Desmos correction.",
   "Star Luminosity": "Stellar luminosity in solar luminosities.\n\nSun = 1 Lsol.",
+  "Host Luminosity":
+    "Radiative output used for the selected host frame.\n\n" +
+    "Circumbinary frames use the combined light of the host pair; circumstellar frames use the local host star with companion-flux adjustments applied to zones.",
   "Star Radius": "Stellar radius in solar radii.\n\nSun = 1 Rsol.",
+  "Host Radius":
+    "Characteristic radius used for the selected host frame.\n\n" +
+    "Circumbinary frames show a representative equivalent radius; circumstellar frames show the host star radius.",
   "Star Density": "Mean stellar density in solar densities.\n\nSun = 1 Dsol.",
   "Habitable Zone (Inner)":
     "Inner boundary of the habitable zone in AU, from the temperature-dependent HZ model.\n\n1 AU = ~150,000,000 km.",
@@ -74,6 +91,9 @@ const TIP_LABEL = {
     "Visual lineup of all bodies in the system, arranged left-to-right by orbital distance. " +
     "Body sizes use a power-law scale so rocky planets remain visible next to gas giants. " +
     "The green band marks the habitable zone; the dashed line marks the H\u2082O frost line.",
+  "Multistar info panel":
+    "Show or hide the multistar summary overlay on supported system-poster views.\n\n" +
+    "This affects the in-canvas host-frame, hierarchy, and companion-branch information card.",
 };
 
 /* ── System Poster ────────────────────────────────────── */
@@ -90,6 +110,136 @@ function drawSystemPoster(canvas, data, opts = {}) {
 
 function orbitSlotToleranceAu(slotAu) {
   return Math.max(0.05, slotAu * 0.02);
+}
+
+function normalizeHostFrameId(value, fallbackId = null) {
+  const id = String(value ?? "").trim();
+  return id || fallbackId || null;
+}
+
+function filterBodiesForHostFrame(entries, hostFrameId, fallbackHostFrameId) {
+  const targetHostFrameId = normalizeHostFrameId(hostFrameId, fallbackHostFrameId);
+  return (entries || []).filter(
+    (entry) => normalizeHostFrameId(entry?.hostFrameId, fallbackHostFrameId) === targetHostFrameId,
+  );
+}
+
+function formatHostFrameScopeLabel(hostFrame) {
+  if (!hostFrame) return "Host frame";
+  if (hostFrame.frameKind === "pair") return "P-type circumbinary";
+  if (hostFrame.orbitFamilyKind === "single") return "Single-star";
+  return "S-type circumstellar";
+}
+
+function formatHostFrameOptionLabel(hostFrame) {
+  const label = hostFrame?.label || hostFrame?.id || "Host frame";
+  return `${label} (${formatHostFrameScopeLabel(hostFrame)})`;
+}
+
+function formatHabitableZoneRange(habitableZoneAu) {
+  const inner = Number(habitableZoneAu?.inner);
+  const outer = Number(habitableZoneAu?.outer);
+  if (!(Number.isFinite(inner) && Number.isFinite(outer))) return "Unavailable";
+  return `${fmt(inner, 3)} - ${fmt(outer, 3)} AU`;
+}
+
+function formatHostFrameHint(solveContext) {
+  if (!solveContext?.hostFrame) return "Host-frame context unavailable.";
+  const hostFrame = solveContext.hostFrame;
+  const parts = [`${hostFrame.label} is the active ${formatHostFrameScopeLabel(hostFrame)} view.`];
+  if (hostFrame.frameKind === "pair") {
+    parts.push("Planets here orbit the host pair barycenter.");
+  } else {
+    const companionFluxEarth = Number(solveContext.companionFluxEarth || 0);
+    if (companionFluxEarth > 0.0005) {
+      parts.push(`Companion adds about ${fmt(companionFluxEarth, 3)}x Earth flux on average.`);
+    } else {
+      parts.push("Companion heating is negligible here.");
+    }
+  }
+  const variability = Number(solveContext.fluxVariabilityFraction || 0);
+  if (variability > 0.001) {
+    parts.push(`Flux swing is about ${fmt(variability * 100, 1)}% across the host orbit.`);
+  }
+  return parts.join(" ");
+}
+
+function buildSelectedHostReadout(solveContext) {
+  if (!solveContext?.hostFrame) return "Host-frame context unavailable.";
+  const hostFrame = solveContext.hostFrame;
+  const hostMass = Number(solveContext.starConfig?.massMsol || 0);
+  const hzText = formatHabitableZoneRange(hostFrame.zones?.habitableZoneAu);
+  return [
+    `Selected host: ${hostFrame.label} (${formatHostFrameScopeLabel(hostFrame)})`,
+    `Host mass: ${fmt(hostMass, 4)} Msol`,
+    `Habitable zone: ${hzText}`,
+  ].join(" | ");
+}
+
+function buildHostFrameOptions(homeSystemContext) {
+  return Object.values(homeSystemContext?.hostFramesById || {}).map((hostFrame) => ({
+    id: hostFrame.id,
+    label: formatHostFrameOptionLabel(hostFrame),
+  }));
+}
+
+function buildOtherHostFrameBodies({
+  planets,
+  gasGiants,
+  selectedHostFrameId,
+  fallbackHostFrameId,
+  homeSystemContext,
+  orbitMode,
+}) {
+  const bodies = [];
+  const targetHostFrameId = normalizeHostFrameId(selectedHostFrameId, fallbackHostFrameId);
+  const pushBody = (body) => {
+    if (!body) return;
+    bodies.push(body);
+  };
+
+  for (const planet of planets || []) {
+    const hostFrameId = normalizeHostFrameId(planet?.hostFrameId, fallbackHostFrameId);
+    if (hostFrameId === targetHostFrameId) continue;
+    const hostFrame = homeSystemContext?.hostFramesById?.[hostFrameId] || null;
+    const orbitSlots = hostFrame?.system?.orbitsAu || [];
+    const slotAu =
+      planet?.slotIndex != null ? Number(orbitSlots[planet.slotIndex - 1]) : Number.NaN;
+    const manualAu = Number(planet?.inputs?.semiMajorAxisAu);
+    const au =
+      orbitMode === "manual" ? manualAu : Number.isFinite(slotAu) && slotAu > 0 ? slotAu : manualAu;
+    const orbitLabel =
+      orbitMode === "manual"
+        ? Number.isFinite(manualAu) && manualAu > 0
+          ? `${fmt(manualAu, 3)} AU`
+          : "Orbit TBD"
+        : planet?.slotIndex != null
+          ? Number.isFinite(slotAu) && slotAu > 0
+            ? `Slot ${String(planet.slotIndex).padStart(2, "0")} - ${fmt(slotAu, 3)} AU`
+            : `Slot ${String(planet.slotIndex).padStart(2, "0")}`
+          : "Unassigned";
+    pushBody({
+      name: planet.name || planet.inputs?.name || planet.id,
+      kind: `Rocky planet - ${hostFrame?.label || hostFrameId}`,
+      au: Number.isFinite(au) && au > 0 ? au : Number.POSITIVE_INFINITY,
+      auLabel: orbitLabel,
+    });
+  }
+
+  for (const giant of gasGiants || []) {
+    const hostFrameId = normalizeHostFrameId(giant?.hostFrameId, fallbackHostFrameId);
+    if (hostFrameId === targetHostFrameId) continue;
+    const hostFrame = homeSystemContext?.hostFramesById?.[hostFrameId] || null;
+    const au = Number(giant?.au);
+    pushBody({
+      name: giant.name || giant.id,
+      kind: `Gas giant - ${hostFrame?.label || hostFrameId}`,
+      au: Number.isFinite(au) && au > 0 ? au : Number.POSITIVE_INFINITY,
+      auLabel: Number.isFinite(au) && au > 0 ? `${fmt(au, 3)} AU` : "Orbit TBD",
+    });
+  }
+
+  return bodies.sort((left, right) => left.au - right.au);
 }
 
 const TUTORIAL_STEPS = [
@@ -137,14 +287,19 @@ export function initSystemPage(mountEl) {
   };
 
   const world = loadWorld();
+  const primaryStar = getProjectedPrimaryStar(world);
   const state = {
-    starMassMsol: Number(world.star.massMsol),
+    starMassMsol: Number(primaryStar.massMsol),
     spacingFactor: Number.isFinite(world.system.spacingFactor)
       ? Number(world.system.spacingFactor)
       : defaults.spacingFactor,
     orbit1Au: Number.isFinite(world.system.orbit1Au)
       ? Number(world.system.orbit1Au)
       : defaults.orbit1Au,
+    activeHostFrameId: normalizeHostFrameId(
+      world?.stellarSystem?.defaultHostFrameId,
+      world?.star ? "star_a" : null,
+    ),
   };
 
   const wrap = document.createElement("div");
@@ -157,6 +312,9 @@ export function initSystemPage(mountEl) {
       </div>
       <div class="panel__body">
         <div class="hint">Tune Spacing Factor and Orbit 1 to generate slot spacing, then assign inner planets to available orbit slots.</div>
+        <div class="button-row" style="margin-top:10px">
+          <button id="systemGenerateRandomBtn" type="button">Generate Random System</button>
+        </div>
       </div>
     </div>
 
@@ -179,6 +337,7 @@ export function initSystemPage(mountEl) {
             <label class="viz-check"><input id="pchk-debris" type="checkbox" checked /><span>Debris disks</span></label>
             <label class="viz-check"><input id="pchk-guides" type="checkbox" checked /><span>Orbital guides</span></label>
             <label class="viz-check"><input id="pchk-starfield" type="checkbox" checked /><span>Starfield</span></label>
+            <label class="viz-check"><input id="pchk-multistar-info" type="checkbox" checked /><span>Multistar info ${tipIcon(TIP_LABEL["Multistar info panel"] || "")}</span></label>
           </div>
           <div class="poster-controls__row">
             <div class="pill-toggle-wrap" style="min-width:260px">
@@ -217,8 +376,21 @@ export function initSystemPage(mountEl) {
 
           <div style="height:10px"></div>
 
-          <div class="label">Derived Data ${tipIcon(TIP_LABEL["Star Mass"] || "")}</div>
-          <div class="hint">Read-only. Change it on the Star tab.</div>
+          <div class="form-row" id="hostFrameRow">
+            <div>
+              <div class="label">Host Frame ${tipIcon(TIP_LABEL["Host Frame"] || "")}</div>
+              <div class="hint">Choose which star or pair this page is arranging.</div>
+            </div>
+            <div class="input-pair">
+              <select id="hostFrameSelect" aria-label="Host frame"></select>
+              <div class="hint" id="hostFrameHint"></div>
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="label">Selected Host ${tipIcon(TIP_LABEL["Selected Host"] || "")}</div>
+          <div class="hint">Read-only. Change stellar topology and properties on the Star tab.</div>
           <div class="derived-readout" id="massDisplay"></div>
 
           <div id="guidedInputs">
@@ -275,8 +447,16 @@ export function initSystemPage(mountEl) {
 
             <div id="manualOutputs" style="display:none">
               <div class="label">Bodies by orbit</div>
-              <div class="hint">Sorted by semi-major axis. Edit orbits on the Planets tab.</div>
+              <div class="hint" id="manualBodyHint">Sorted by semi-major axis in the selected host frame. Edit orbits on the Planets tab.</div>
               <div id="manualBodyList" style="margin-top:10px"></div>
+            </div>
+
+            <div id="otherHostBodiesWrap" style="display:none; margin-top:14px">
+              <div class="label">Other host-frame bodies</div>
+              <div class="hint" id="otherHostBodiesHint">
+                Bodies assigned to other stars or pairs stay listed here. Switch Host Frame to edit them in the main ladder.
+              </div>
+              <div id="otherHostBodies" style="margin-top:10px"></div>
             </div>
           </div>
         </div>
@@ -294,6 +474,9 @@ export function initSystemPage(mountEl) {
   });
 
   const massDisplay = wrap.querySelector("#massDisplay");
+  const hostFrameRowEl = wrap.querySelector("#hostFrameRow");
+  const hostFrameSelectEl = wrap.querySelector("#hostFrameSelect");
+  const hostFrameHintEl = wrap.querySelector("#hostFrameHint");
 
   const spacingEl = wrap.querySelector("#spacing");
   const orbit1El = wrap.querySelector("#orbit1");
@@ -306,7 +489,11 @@ export function initSystemPage(mountEl) {
   const guidedInputsEl = wrap.querySelector("#guidedInputs");
   const guidedOutputsEl = wrap.querySelector("#guidedOutputs");
   const manualOutputsEl = wrap.querySelector("#manualOutputs");
+  const manualBodyHintEl = wrap.querySelector("#manualBodyHint");
   const manualBodyListEl = wrap.querySelector("#manualBodyList");
+  const otherHostBodiesWrapEl = wrap.querySelector("#otherHostBodiesWrap");
+  const otherHostBodiesHintEl = wrap.querySelector("#otherHostBodiesHint");
+  const otherHostBodiesEl = wrap.querySelector("#otherHostBodies");
   const posterCanvas = wrap.querySelector("#systemPoster");
   const posterWrap = wrap.querySelector("#posterWrap");
   const posterBody = wrap.querySelector("#posterBody");
@@ -349,6 +536,7 @@ export function initSystemPage(mountEl) {
     debris: true,
     guides: true,
     starfield: true,
+    multistarInfo: true,
     scale: "log", // "log" or "linear"
     collapsed: false,
   };
@@ -420,6 +608,7 @@ export function initSystemPage(mountEl) {
     debris: wrap.querySelector("#pchk-debris"),
     guides: wrap.querySelector("#pchk-guides"),
     starfield: wrap.querySelector("#pchk-starfield"),
+    multistarInfo: wrap.querySelector("#pchk-multistar-info"),
   };
   for (const [key, el] of Object.entries(posterChecks)) {
     el.addEventListener("change", () => {
@@ -466,7 +655,12 @@ export function initSystemPage(mountEl) {
   }
 
   function getDebrisDisks(w) {
-    return listSystemDebrisDisks(w);
+    return listSystemDebrisDisks(w, {
+      hostFrameId: state.activeHostFrameId,
+      fallbackHostFrameId:
+        normalizeHostFrameId(w?.stellarSystem?.defaultHostFrameId, state.activeHostFrameId) ||
+        "star_a",
+    });
   }
 
   function mapGasGiantsToSlots(orbitsAu, gasGiants) {
@@ -502,8 +696,28 @@ export function initSystemPage(mountEl) {
 
   function syncFromWorld() {
     const w = loadWorld();
-    state.starMassMsol = Number(w.star.massMsol);
-    massDisplay.textContent = `Star Mass: ${fmt(state.starMassMsol, 4)} Msol`;
+    state.spacingFactor = Number.isFinite(w.system.spacingFactor)
+      ? Number(w.system.spacingFactor)
+      : defaults.spacingFactor;
+    state.orbit1Au = Number.isFinite(w.system.orbit1Au)
+      ? Number(w.system.orbit1Au)
+      : defaults.orbit1Au;
+  }
+
+  function renderHostFrameSelector(homeSystemContext, solveContext) {
+    const options = buildHostFrameOptions(homeSystemContext);
+    hostFrameRowEl.style.display = options.length > 1 ? "" : "none";
+    hostFrameSelectEl.replaceChildren(
+      ...options.map((option) => {
+        const node = document.createElement("option");
+        node.value = option.id;
+        node.textContent = option.label;
+        return node;
+      }),
+    );
+    hostFrameSelectEl.value = solveContext?.hostFrameId || state.activeHostFrameId || "";
+    hostFrameSelectEl.disabled = options.length <= 1;
+    hostFrameHintEl.textContent = formatHostFrameHint(solveContext);
   }
 
   function render() {
@@ -513,32 +727,56 @@ export function initSystemPage(mountEl) {
       syncFromWorld();
 
       const w0 = loadWorld();
+      const primaryStar = getProjectedPrimaryStar(w0);
 
-      const sov = getStarOverrides(w0.star);
-      const starModel = calcStar({
-        massMsol: state.starMassMsol,
-        ageGyr: Number(w0.star.ageGyr) || 4.6,
-        metallicityFeH: Number(w0.star.metallicityFeH) || 0,
-        radiusRsolOverride: sov.r,
-        luminosityLsolOverride: sov.l,
-        tempKOverride: sov.t,
-        evolutionMode: sov.ev,
-      });
+      const homeSystemContext = buildWorldHomeSystemContext(w0);
+      const fallbackHostFrameId =
+        homeSystemContext.defaultHostFrameId || homeSystemContext.primaryStarId || null;
+      const activeSolveContext = resolveWorldHostFrameContext(
+        w0,
+        normalizeHostFrameId(state.activeHostFrameId, fallbackHostFrameId),
+        homeSystemContext,
+      );
+      state.activeHostFrameId =
+        activeSolveContext?.hostFrameId ||
+        normalizeHostFrameId(state.activeHostFrameId, fallbackHostFrameId);
+      const activeHostFrame = activeSolveContext?.hostFrame || null;
+      const model = activeHostFrame?.system || homeSystemContext.primarySystem;
+      state.starMassMsol = Number(activeSolveContext?.starConfig?.massMsol || primaryStar.massMsol);
 
-      const model = calcSystem({
-        starMassMsol: state.starMassMsol,
-        spacingFactor: state.spacingFactor,
-        orbit1Au: state.orbit1Au,
-        luminosityLsolOverride: starModel.luminosityLsol,
-        radiusRsolOverride: starModel.radiusRsol,
-      });
+      renderHostFrameSelector(homeSystemContext, activeSolveContext);
+      massDisplay.textContent = buildSelectedHostReadout(activeSolveContext);
 
       const items = [
-        { label: "Habitable Zone", value: model.display.hzAu, meta: "AU" },
-        { label: "H2O Frost Line", value: model.display.frostAu, meta: "AU" },
-        { label: "System Inner Limit", value: model.display.innerLimitAu, meta: "AU" },
-        { label: "Star Luminosity", value: fmt(model.star.luminosityLsol, 3), meta: "Lsol" },
-        { label: "Star Radius", value: fmt(model.star.radiusRsol, 3), meta: "Rsol" },
+        {
+          label: "Habitable Zone",
+          value: formatHabitableZoneRange(activeHostFrame?.zones?.habitableZoneAu).replace(
+            " AU",
+            "",
+          ),
+          meta: "AU",
+        },
+        {
+          label: "H2O Frost Line",
+          value: fmt(Number(activeHostFrame?.zones?.frostLineAu) || 0, 3),
+          meta: "AU",
+        },
+        {
+          label: "System Inner Limit",
+          value: fmt(Number(activeHostFrame?.zones?.systemInnerLimitAu) || 0, 4),
+          meta: "AU",
+        },
+        { label: "Host Mass", value: fmt(state.starMassMsol, 4), meta: "Msol" },
+        {
+          label: "Host Luminosity",
+          value: fmt(Number(activeSolveContext?.starModel?.luminosityLsol) || 0, 3),
+          meta: "Lsol",
+        },
+        {
+          label: "Host Radius",
+          value: fmt(Number(activeSolveContext?.starModel?.radiusRsol) || 0, 3),
+          meta: "Rsol",
+        },
       ];
 
       renderSystemKpis(kpisEl, items, TIP_LABEL);
@@ -553,14 +791,24 @@ export function initSystemPage(mountEl) {
       guidedInputsEl.style.display = isManual ? "none" : "";
       guidedOutputsEl.style.display = isManual ? "none" : "";
       manualOutputsEl.style.display = isManual ? "" : "none";
+      manualBodyHintEl.textContent = `Sorted by semi-major axis in ${activeHostFrame?.label || "the selected host frame"}. Edit orbits on the Planets tab.`;
 
       // Planet assignment UI
-      const w = w0;
-      const planets = listPlanets(w);
+      const planets = listPlanets(w0);
 
       // Build ordered orbit items with slot replacement by gas giants.
       const gasGiants = getGasGiants(w0);
-      const gasBySlot = mapGasGiantsToSlots(model.orbitsAu, gasGiants);
+      const hostPlanets = filterBodiesForHostFrame(
+        planets,
+        state.activeHostFrameId,
+        fallbackHostFrameId,
+      );
+      const hostGasGiants = filterBodiesForHostFrame(
+        gasGiants,
+        state.activeHostFrameId,
+        fallbackHostFrameId,
+      );
+      const gasBySlot = mapGasGiantsToSlots(model.orbitsAu, hostGasGiants);
       const debrisRows = getDebrisDisks(w0)
         .filter((d) => d.innerAu > 0 && d.outerAu > 0)
         .map((d) => ({
@@ -570,7 +818,9 @@ export function initSystemPage(mountEl) {
           outer: Math.max(d.innerAu, d.outerAu),
         }));
 
-      const maxGasAu = gasGiants.length ? Math.max(...gasGiants.map((g) => Number(g.au) || 0)) : 0;
+      const maxGasAu = hostGasGiants.length
+        ? Math.max(...hostGasGiants.map((giant) => Number(giant.au) || 0))
+        : 0;
       const maxDebrisAu = debrisRows.length
         ? Math.max(...debrisRows.map((d) => Number(d.outer) || 0))
         : 0;
@@ -598,24 +848,38 @@ export function initSystemPage(mountEl) {
       const validSlots = new Set(
         orbitItems.filter((it) => it.type === "slot").map((it) => it.slot),
       );
-      const invalidAssignments = planets.filter(
+      const invalidAssignments = hostPlanets.filter(
         (p) => p.slotIndex != null && !validSlots.has(p.slotIndex),
       );
       if (invalidAssignments.length) {
         for (const p of invalidAssignments) assignPlanetToSlot(p.id, null);
       }
-      let worldForUi = w;
-      let planetsForUi = planets;
+      let worldForUi = w0;
+      let allPlanetsForUi = planets;
       if (invalidAssignments.length) {
         worldForUi = loadWorld();
-        planetsForUi = listPlanets(worldForUi);
+        allPlanetsForUi = listPlanets(worldForUi);
       }
+      const planetsForUi = filterBodiesForHostFrame(
+        allPlanetsForUi,
+        state.activeHostFrameId,
+        fallbackHostFrameId,
+      );
+      const gasGiantsForUi = filterBodiesForHostFrame(
+        getGasGiants(worldForUi),
+        state.activeHostFrameId,
+        fallbackHostFrameId,
+      );
       const moonsForUi = listMoons(worldForUi);
       const planetsById = worldForUi?.planets?.byId || {};
+      const visibleParentIds = new Set([
+        ...planetsForUi.map((planet) => planet.id),
+        ...gasGiantsForUi.map((giant) => giant.id),
+      ]);
       const moonsByPlanet = new Map();
       for (const moon of moonsForUi) {
         const pid = moon?.planetId;
-        if (!pid) continue;
+        if (!pid || !visibleParentIds.has(pid)) continue;
         if (!moonsByPlanet.has(pid)) moonsByPlanet.set(pid, []);
         moonsByPlanet.get(pid).push(moon);
       }
@@ -633,7 +897,8 @@ export function initSystemPage(mountEl) {
       const unassignedMoons = moonsForUi.filter((m) => m.planetId == null).sort(sortMoonsByOrbitKm);
       renderUnassignedMoons(unassignedMoonsEl, unassignedMoons, { planetsById });
       renderOrbitSlots(slotsUiEl, {
-        starMassMsol: state.starMassMsol,
+        hostTitle: activeHostFrame?.label || "Host frame",
+        hostSummary: `${formatHostFrameScopeLabel(activeHostFrame)} - ${fmt(state.starMassMsol, 4)} Msol`,
         orbitItems,
         planets: planetsForUi,
         sysModel: model,
@@ -658,7 +923,7 @@ export function initSystemPage(mountEl) {
             auLabel: `${fmt(au, 3)} AU`,
           });
         }
-        for (const g of gasGiants) {
+        for (const g of gasGiantsForUi) {
           const au = Number(g.au) || 0;
           allBodies.push({
             kind: "Gas giant",
@@ -681,9 +946,28 @@ export function initSystemPage(mountEl) {
       } else {
         manualBodyListEl.replaceChildren();
       }
+      const otherHostBodies = buildOtherHostFrameBodies({
+        planets: allPlanetsForUi,
+        gasGiants: getGasGiants(worldForUi),
+        selectedHostFrameId: state.activeHostFrameId,
+        fallbackHostFrameId,
+        homeSystemContext,
+        orbitMode,
+      });
+      if (otherHostBodies.length) {
+        otherHostBodiesWrapEl.style.display = "";
+        otherHostBodiesHintEl.textContent = `Bodies assigned outside ${activeHostFrame?.label || "this host frame"} stay listed here. Switch Host Frame to work on their orbit family.`;
+        renderManualBodyList(otherHostBodiesEl, otherHostBodies);
+      } else {
+        otherHostBodiesWrapEl.style.display = "none";
+        otherHostBodiesEl.replaceChildren();
+      }
 
       // ── System Poster ──────────────────────────────
-      const posterSnapshot = buildSystemPosterSnapshotInputs(worldForUi, { orbitMode });
+      const posterSnapshot = buildSystemPosterSnapshotInputs(worldForUi, {
+        orbitMode,
+        hostFrameId: state.activeHostFrameId,
+      });
       const posterPlanets = posterSnapshot.posterData.planets.map((planet) => ({
         id: planet.id,
         name: planet.name,
@@ -698,6 +982,12 @@ export function initSystemPage(mountEl) {
       cachedPosterData = {
         star: posterSnapshot.posterData.star,
         system: posterSnapshot.posterData.system,
+        topologyKind: posterSnapshot.posterData.topologyKind,
+        activeHostFrameId: posterSnapshot.posterData.activeHostFrameId,
+        activeHostFrameLabel: posterSnapshot.posterData.activeHostFrameLabel,
+        canvasMode: posterSnapshot.posterData.canvasMode,
+        hostStars: posterSnapshot.posterData.hostStars,
+        companionStars: posterSnapshot.posterData.companionStars,
         planets: posterPlanets,
         gasGiants: posterSnapshot.posterData.gasGiants,
         moons: posterSnapshot.posterData.moons,
@@ -762,28 +1052,27 @@ export function initSystemPage(mountEl) {
     render();
   });
 
+  wrap.querySelector("#systemGenerateRandomBtn")?.addEventListener("click", () => {
+    openSystemRandomGenerationOverlay({
+      onApplied() {
+        loadIntoInputs();
+        render();
+      },
+    });
+  });
+
   // ── Orbit placement mode toggle ──
   wrap.querySelector('[data-toggle="orbitMode"]').addEventListener("change", (e) => {
     const mode = e.target.value;
-    const w = loadWorld();
-    const sov = getStarOverrides(w.star);
-    const starModel = calcStar({
-      massMsol: Number(w.star.massMsol),
-      ageGyr: Number(w.star.ageGyr) || 4.6,
-      metallicityFeH: Number(w.star.metallicityFeH) || 0,
-      radiusRsolOverride: sov.r,
-      luminosityLsolOverride: sov.l,
-      tempKOverride: sov.t,
-      evolutionMode: sov.ev,
-    });
-    const sysModel = calcSystem({
-      starMassMsol: state.starMassMsol,
-      spacingFactor: state.spacingFactor,
-      orbit1Au: state.orbit1Au,
-      luminosityLsolOverride: starModel.luminosityLsol,
-      radiusRsolOverride: starModel.radiusRsol,
-    });
-    setOrbitMode(mode, sysModel.orbitsAu);
+    setOrbitMode(mode);
+    render();
+  });
+
+  hostFrameSelectEl.addEventListener("change", () => {
+    state.activeHostFrameId = normalizeHostFrameId(
+      hostFrameSelectEl.value,
+      state.activeHostFrameId,
+    );
     render();
   });
 
@@ -939,7 +1228,19 @@ export function initSystemPage(mountEl) {
         // If the slot is occupied by a locked planet, do not allow replacement
         const wNow = loadWorld();
         const planetsNow = listPlanets(wNow);
-        const occ = planetsNow.find((p) => p.slotIndex === slot);
+        const fallbackHostFrameId = normalizeHostFrameId(
+          wNow?.stellarSystem?.defaultHostFrameId,
+          state.activeHostFrameId,
+        );
+        const activeHostFrameId = normalizeHostFrameId(
+          state.activeHostFrameId,
+          fallbackHostFrameId,
+        );
+        const occ = planetsNow.find(
+          (p) =>
+            p.slotIndex === slot &&
+            normalizeHostFrameId(p?.hostFrameId, fallbackHostFrameId) === activeHostFrameId,
+        );
         if (occ && occ.locked && occ.id !== payload.id) {
           return;
         }

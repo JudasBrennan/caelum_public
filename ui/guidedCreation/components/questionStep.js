@@ -1,4 +1,5 @@
 import { createElement } from "../../domHelpers.js";
+import { tipIconNode } from "../../tooltip.js";
 import { normalizeGuidedQuestionKind } from "../types.js";
 
 function normalizeNumberValue(value) {
@@ -118,6 +119,7 @@ function createQuestionControl(question, value, onChange) {
 }
 
 export function createGuidedQuestionStep({ question, value, onChange = null } = {}) {
+  const tooltipText = String(question?.tooltip || question?.help || "").trim();
   return createElement(
     "div",
     {
@@ -129,10 +131,13 @@ export function createGuidedQuestionStep({ question, value, onChange = null } = 
     },
     [
       createElement("div", { className: "guided-question-step__head" }, [
-        createElement("div", {
-          className: "guided-question-step__label",
-          text: question?.label || "Question",
-        }),
+        createElement("div", { className: "guided-question-step__label-row" }, [
+          createElement("div", {
+            className: "guided-question-step__label",
+            text: question?.label || "Question",
+          }),
+          tipIconNode(tooltipText),
+        ]),
         question?.help
           ? createElement("div", {
               className: "guided-question-step__help",

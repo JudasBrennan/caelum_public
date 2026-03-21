@@ -37,6 +37,8 @@ export function computeMoonRadiationEnvironment({
   moonSemiMajorAxisKm = 0,
   starLuminosityLsol = 1,
   starAgeGyr = 4.6,
+  hostXuvFluxRatioAt1Au = null,
+  extraStellarXuvFluxRatio = 0,
   surfacePressurePa = 0,
   iceShellThicknessKm = 0,
   magnetosphere = null,
@@ -49,8 +51,13 @@ export function computeMoonRadiationEnvironment({
     moonSemiMajorAxisKm,
   });
   const parentBeltLevel = exposureLevelFromRemDay(parent.magnetosphericRadRemDay);
+  const resolvedHostXuvFluxRatioAt1Au = toFinite(hostXuvFluxRatioAt1Au, null);
+  const hostStellarXuvFluxRatio =
+    Number.isFinite(resolvedHostXuvFluxRatioAt1Au) && resolvedHostXuvFluxRatioAt1Au > 0
+      ? resolvedHostXuvFluxRatioAt1Au / Math.max(toFinite(planetSemiMajorAxisAu, 0), 0.01) ** 2
+      : computeXuvFluxRatio(starMassMsol, starLuminosityLsol, starAgeGyr, planetSemiMajorAxisAu);
   const stellarXuvFluxRatio = Math.max(
-    computeXuvFluxRatio(starMassMsol, starLuminosityLsol, starAgeGyr, planetSemiMajorAxisAu),
+    hostStellarXuvFluxRatio + Math.max(toFinite(extraStellarXuvFluxRatio, 0), 0),
     0,
   );
   const stellarXuvLevel = round(

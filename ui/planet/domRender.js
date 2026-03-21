@@ -12,6 +12,11 @@ function tipIconNode(text) {
   });
 }
 
+function normalizeHostFrameKey(value) {
+  const id = String(value ?? "").trim();
+  return id || "__default__";
+}
+
 function hintNode(text) {
   return createElement("div", { className: "hint", text });
 }
@@ -80,8 +85,10 @@ export function renderBodySelector(selectEl, entries, selectedValue) {
 }
 
 export function buildPlanetSlotOptions({ orbitsAu, planets, gasGiants, debrisDisks, planet } = {}) {
+  const targetHostFrameKey = normalizeHostFrameKey(planet?.hostFrameId);
   const assigned = new Map();
   for (const entry of planets || []) {
+    if (normalizeHostFrameKey(entry?.hostFrameId) !== targetHostFrameKey) continue;
     const slotIndex = Number(entry?.slotIndex);
     if (Number.isFinite(slotIndex) && slotIndex > 0) assigned.set(slotIndex, entry);
   }
@@ -89,6 +96,7 @@ export function buildPlanetSlotOptions({ orbitsAu, planets, gasGiants, debrisDis
   const gasBySlot = new Map();
   const usedSlots = new Set();
   for (const giant of gasGiants || []) {
+    if (normalizeHostFrameKey(giant?.hostFrameId) !== targetHostFrameKey) continue;
     let bestSlot = null;
     let bestDiff = Infinity;
     for (let index = 0; index < (orbitsAu || []).length; index += 1) {

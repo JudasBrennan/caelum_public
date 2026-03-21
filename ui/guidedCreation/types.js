@@ -48,6 +48,7 @@ export const GUIDED_SEARCH_STATUSES = [
  *
  * @typedef {object} GuidedApplyPayload
  * @property {object} [objectInputs]
+ * @property {object | null} [systemInputs]
  * @property {object | null} [parentPatch]
  * @property {object | null} [siblingPatch]
  *

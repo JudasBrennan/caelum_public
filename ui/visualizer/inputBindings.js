@@ -1,4 +1,4 @@
-import { captureCanvasGif, downloadCanvasPng } from "../canvasExport.js";
+import { captureCanvasGif, downloadCanvasPng, downloadCanvasStackPng } from "../canvasExport.js";
 
 function mapTouches(touches) {
   return Array.from(touches).map((touch) => ({
@@ -38,6 +38,7 @@ export function bindVisualizerInputBindings({
     chkGrid,
     chkRotation,
     chkAxialTilt,
+    chkMultistarInfo,
     chkClickFocusBodies,
     chkClickFocusStar,
     chkDebug,
@@ -109,6 +110,7 @@ export function bindVisualizerInputBindings({
     updateSpeedUI,
     updateStarBursts,
   } = helpers;
+  const isSystemOverviewMode = () => state.mode === "system" && state.systemViewMode === "overview";
 
   let dragMode = null;
   let draggedLabel = null;
@@ -181,6 +183,7 @@ export function bindVisualizerInputBindings({
   });
 
   addDisposableListener(canvas, "mousedown", (event) => {
+    if (isSystemOverviewMode()) return;
     killInertia();
     state.resetting = false;
     state.resetTargets = null;
@@ -249,6 +252,14 @@ export function bindVisualizerInputBindings({
   });
 
   addDisposableListener(window, "mousemove", (event) => {
+    if (!dragMode && isSystemOverviewMode()) {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const hit = hitTestBody(x, y);
+      canvas.style.cursor = hit?.kind === "overview-host-frame" ? "pointer" : "default";
+      return;
+    }
     if (!isLive() || !dragMode) return;
     if (dragMode === "label") {
       if (!draggedLabel?.key) return;
@@ -319,6 +330,14 @@ export function bindVisualizerInputBindings({
     }
     if (labelHit) return;
     const hit = hitTestBody(x, y);
+    if (isSystemOverviewMode()) {
+      if (hit?.kind === "overview-host-frame" && hit.hostFrameId) {
+        state.activeHostFrameId = String(hit.hostFrameId || "").trim() || null;
+        invalidateSnapshot();
+        draw();
+      }
+      return;
+    }
     if (!hit?.id || !hit?.kind) {
       if (state.focusTargetId) {
         clearFocusTarget();
@@ -364,6 +383,7 @@ export function bindVisualizerInputBindings({
     "wheel",
     (event) => {
       if (!isLive() || state.transitioning) return;
+      if (isSystemOverviewMode()) return;
       event.preventDefault();
       const delta = Math.sign(event.deltaY);
       if (state.mode === "cluster") {
@@ -397,6 +417,7 @@ export function bindVisualizerInputBindings({
     "touchstart",
     (event) => {
       event.preventDefault();
+      if (isSystemOverviewMode()) return;
       killInertia();
       state.resetting = false;
       state.resetTargets = null;
@@ -420,6 +441,7 @@ export function bindVisualizerInputBindings({
     "touchmove",
     (event) => {
       event.preventDefault();
+      if (isSystemOverviewMode()) return;
       const touches = Array.from(event.touches);
       const now = performance.now() / 1000;
       const moveDt = now - lastMoveTime;
@@ -525,6 +547,10 @@ export function bindVisualizerInputBindings({
     if (state.exportingGif) return;
     try {
       draw();
+      if (isSystemOverviewMode()) {
+        await downloadCanvasStackPng([canvas, overlayCanvas], exportFileName("png"));
+        return;
+      }
       const target = state.mode === "cluster" ? overlayCanvas : canvas;
       await downloadCanvasPng(target, exportFileName("png"));
     } catch (err) {
@@ -533,6 +559,7 @@ export function bindVisualizerInputBindings({
   });
 
   addDisposableListener(btnExportGif, "click", async () => {
+    if (isSystemOverviewMode()) return;
     const playing = state.mode === "cluster" ? state.clusterIsPlaying : state.isPlaying;
     if (!playing || state.exportingGif) return;
     state.exportingGif = true;
@@ -686,6 +713,7 @@ export function bindVisualizerInputBindings({
     chkGrid,
     chkRotation,
     chkAxialTilt,
+    chkMultistarInfo,
     chkClickFocusBodies,
     chkClickFocusStar,
     chkDebug,
@@ -717,6 +745,7 @@ export function bindVisualizerInputBindings({
   });
 
   addDisposableListener(canvas, "mouseleave", () => {
+    if (isSystemOverviewMode()) canvas.style.cursor = "default";
     state.clusterMouseX = null;
     state.clusterMouseY = null;
     if (state.mode === "cluster" && !state.clusterIsPlaying && !state.transitioning) draw();

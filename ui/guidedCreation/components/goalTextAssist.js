@@ -1,5 +1,7 @@
 import { createElement } from "../../domHelpers.js";
+import { tipIconNode } from "../../tooltip.js";
 import { createDiagnosticList } from "./diagnosticList.js";
+import { buildGuidedGoalTextTooltip, GUIDED_GOAL_TEXT_BUTTON_TOOLTIPS } from "../tooltips.js";
 
 function createExamples(examples = []) {
   const normalized = (Array.isArray(examples) ? examples : []).filter(Boolean);
@@ -50,6 +52,7 @@ export function createGoalTextAssist({
   onInterpret = null,
   onClear = null,
 } = {}) {
+  const labelTooltip = buildGuidedGoalTextTooltip(objectLabel);
   const inputEl = createElement("input", {
     className: "guided-goal-text__input",
     attrs: {
@@ -71,7 +74,10 @@ export function createGoalTextAssist({
 
   const interpretButton = createElement("button", {
     className: "guided-goal-text__button",
-    attrs: { type: "button" },
+    attrs: {
+      type: "button",
+      "data-tip": GUIDED_GOAL_TEXT_BUTTON_TOOLTIPS.interpret,
+    },
     dataset: { actionId: "interpret-goal-text" },
     text: "Interpret",
   });
@@ -81,7 +87,10 @@ export function createGoalTextAssist({
 
   const clearButton = createElement("button", {
     className: "guided-goal-text__button guided-goal-text__button--secondary",
-    attrs: { type: "button" },
+    attrs: {
+      type: "button",
+      "data-tip": GUIDED_GOAL_TEXT_BUTTON_TOOLTIPS.clear,
+    },
     dataset: { actionId: "clear-goal-text" },
     text: "Clear",
   });
@@ -98,13 +107,16 @@ export function createGoalTextAssist({
   syncButtonState();
 
   return createElement("div", { className: "guided-goal-text" }, [
-    createElement("div", {
-      className: "guided-goal-text__label",
-      text: `Describe the ${objectLabel} you want`,
-    }),
+    createElement("div", { className: "guided-goal-text__label-row" }, [
+      createElement("div", {
+        className: "guided-goal-text__label",
+        text: `Describe the ${objectLabel} you want`,
+      }),
+      tipIconNode(labelTooltip),
+    ]),
     createElement("div", {
       className: "guided-goal-text__help",
-      text: "Use short phrases. Interpretation only maps onto supported goals, traits, and modifiers.",
+      text: "Use short phrases. Interpretation only maps onto supported goals, traits, and modifiers, and does not run a search by itself.",
     }),
     createElement("div", { className: "guided-goal-text__controls" }, [
       inputEl,

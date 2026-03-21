@@ -1,4 +1,4 @@
-# WorldSmith Web 1.26.0
+# WorldSmith Web 1.27.0
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, planetary systems, planets, moons, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -6,6 +6,8 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Multistar home systems now work as a normalized first-class feature across binary, triple, and quad layouts, including paired quads, host-frame-aware editing, and whole-system visualizer overviews.
+- Seeded random system generation can now draft complete star systems with curated names, AU-safe orbit allocation, and preserve/reroll strategies.
 - Star modelling with metallicity, advanced R/L/T overrides, stellar evolution, and animated flare/CME preview.
 - Planetary system generation with habitable zone, frost line, orbit-slot assignment, and system poster view.
 - Rocky planets with composition, atmosphere, magnetic field, tectonics, sky/vegetation colours, periapsis/apoapsis temperatures, volatile sublimation flags, and gas giant resonance.

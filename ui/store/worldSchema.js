@@ -1,12 +1,17 @@
 import { LOCAL_CLUSTER_DEFAULTS } from "../../engine/localCluster.js";
 import { mergeDefaults } from "./deepMerge.js";
+import { createSingleStarStellarSystem } from "./stellarSystemModel.js";
 
-export const SCHEMA_VERSION = 63;
+export const SCHEMA_VERSION = 65;
 
 function hasNonEmptyPlainObject(value) {
   return (
     !!value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0
   );
+}
+
+function hasPlainObjectShape(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function hasExplicitCollectionShape(value) {
@@ -19,22 +24,28 @@ function hasExplicitCollectionShape(value) {
   );
 }
 
+export function defaultStar() {
+  return {
+    name: "Star",
+    massMsol: 0.8653,
+    ageGyr: 6.254,
+    radiusRsolOverride: null,
+    luminosityLsolOverride: null,
+    tempKOverride: null,
+    metallicityFeH: 0.0,
+    physicsMode: "simple",
+    advancedDerivationMode: "rl",
+    evolutionMode: "zams",
+    activityModelVersion: "v2",
+  };
+}
+
 export function defaultWorld() {
+  const star = defaultStar();
   return {
     version: SCHEMA_VERSION,
-    star: {
-      name: "Star",
-      massMsol: 0.8653,
-      ageGyr: 6.254,
-      radiusRsolOverride: null,
-      luminosityLsolOverride: null,
-      tempKOverride: null,
-      metallicityFeH: 0.0,
-      physicsMode: "simple",
-      advancedDerivationMode: "rl",
-      evolutionMode: "zams",
-      activityModelVersion: "v2",
-    },
+    star,
+    stellarSystem: createSingleStarStellarSystem(star),
     selectedBodyType: "planet",
     system: {
       orbitMode: "guided",
@@ -113,6 +124,8 @@ export function defaultWorld() {
 export function mergeWorldForMigration(worldLike) {
   const source =
     worldLike && typeof worldLike === "object" && !Array.isArray(worldLike) ? worldLike : {};
+  const preserveExplicitStar = hasPlainObjectShape(source.star);
+  const preserveExplicitStellarSystem = hasPlainObjectShape(source.stellarSystem);
   const preserveLegacyPlanet =
     !hasExplicitCollectionShape(source.planets) && hasNonEmptyPlainObject(source.planet);
   const preserveLegacyMoon =
@@ -121,6 +134,8 @@ export function mergeWorldForMigration(worldLike) {
 
   if (preserveLegacyPlanet) delete merged.planets;
   if (preserveLegacyMoon) delete merged.moons;
+  if (preserveExplicitStar && !preserveExplicitStellarSystem) merged.stellarSystem = null;
+  if (preserveExplicitStellarSystem && !preserveExplicitStar) merged.star = null;
   if (merged.tectonics && "simulator" in merged.tectonics) {
     delete merged.tectonics.simulator;
   }

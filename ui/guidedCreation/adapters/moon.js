@@ -168,22 +168,26 @@ const GOAL_PRIORITY_OPTIONS = Object.freeze([
   {
     value: "maximize-realism",
     label: "Maximize realism",
-    description: "Bias toward the most conservative science-backed fit.",
+    description:
+      "Keeps the fit conservative and resists large host, orbit, or biosphere shifts that are only weakly supported.",
   },
   {
     value: "maximize-habitability",
     label: "Maximize habitability",
-    description: "Push harder toward ocean, atmosphere, and biosphere-friendly outcomes.",
+    description:
+      "Accepts bigger retunes if they improve surface water, atmosphere retention, and life-facing moon outcomes.",
   },
   {
     value: "preserve-current-system",
     label: "Preserve current system",
-    description: "Favor the current parent and moon-system context where possible.",
+    description:
+      "Keeps the result closer to the current host and moon-system framing even if the goal fit is weaker.",
   },
   {
     value: "preserve-current-orbit-context",
     label: "Preserve current orbit",
-    description: "Prefer smaller orbital changes even if the fit is weaker.",
+    description:
+      "Strongly resists orbit moves, so heating, radiation, or surface-water goals may only be partially reached.",
   },
 ]);
 
@@ -191,17 +195,20 @@ const GOAL_ALLOWED_EDIT_OPTIONS = Object.freeze([
   {
     value: "edit-object-only",
     label: "Moon only",
-    description: "Search only within the selected moon's own inputs.",
+    description:
+      "Only this moon's inputs move, so the result stays local but may miss goals blocked by the current host context.",
   },
   {
     value: "edit-object-plus-host",
     label: "Moon + host",
-    description: "Allow guided host fixes when the current parent blocks the goal.",
+    description:
+      "Allows host fixes when the parent is the main blocker, improving difficult atmosphere or radiation outcomes.",
   },
   {
     value: "edit-object-plus-local-system",
     label: "Moon + local system",
-    description: "Allow host and sibling-moon edits for resonance-backed outcomes.",
+    description:
+      "Allows host and sibling-moon edits, which is most useful for resonance-backed heating or coupled moon-system goals.",
   },
 ]);
 
@@ -209,17 +216,20 @@ const GOAL_SEARCH_BUDGET_OPTIONS = Object.freeze([
   {
     value: "fast",
     label: "Fast",
-    description: "Try a small seeded search for a quick answer.",
+    description:
+      "Tries only a few seeded candidates, so it returns quickly but can miss a better moon fit.",
   },
   {
     value: "balanced",
     label: "Balanced",
-    description: "Try more seeded paths before choosing the best fit.",
+    description:
+      "Tries a moderate number of seeded candidates and is the default speed-versus-fit trade-off.",
   },
   {
     value: "deep",
     label: "Deep",
-    description: "Try the broadest seeded search available in this pilot flow.",
+    description:
+      "Tries the broadest seeded search, taking longer but increasing the chance of a closer match.",
   },
 ]);
 
@@ -396,28 +406,32 @@ function buildMoonGoalDraftQuestionOptions(traitId) {
     {
       value: "off",
       label: "Off",
-      description: "Do not explicitly optimize for or avoid this trait.",
+      description:
+        "Leaves this trait neutral, so it does not help or hurt a candidate unless other choices imply it.",
     },
   ];
   if (allowedRoles.includes("required")) {
     options.push({
       value: "required",
       label: "Must have",
-      description: "Treat this as a hard constraint in the search.",
+      description:
+        "Treats this as a hard requirement, so candidates missing it usually fall out of contention.",
     });
   }
   if (allowedRoles.includes("preferred")) {
     options.push({
       value: "preferred",
       label: "Prefer",
-      description: "Improve the score when this trait is reached.",
+      description:
+        "Raises the score when this trait is reached, but still allows trade-off results that miss it.",
     });
   }
   if (allowedRoles.includes("avoid")) {
     options.push({
       value: "avoid",
       label: "Avoid",
-      description: "Penalize results that trigger this trait.",
+      description:
+        "Pushes the search away from this trait without making it completely impossible.",
     });
   }
   return options;
@@ -436,7 +450,7 @@ function buildMoonGoalQuestions(flowState, context = {}) {
       label: "Priority",
       help:
         context.currentContextText ||
-        "Choose whether this search should favor realism, habitability, or preserving the current system.",
+        "Sets the scoring bias for the search. Realism stays conservative, habitability accepts larger retunes, and preserve-current resists bigger moon-system changes.",
       defaultValue: draft.priority,
       options: GOAL_PRIORITY_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -445,7 +459,7 @@ function buildMoonGoalQuestions(flowState, context = {}) {
       stepId: "parent-context",
       kind: "choice",
       label: "Allowed edits",
-      help: "Decide whether guided search may edit only this moon, the host too, or the local moon system.",
+      help: "Sets how far the search may move. Broader scopes allow host or sibling fixes when those are the main blockers to the target moon outcome.",
       defaultValue: draft.allowedEdits,
       options: GOAL_ALLOWED_EDIT_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -454,7 +468,7 @@ function buildMoonGoalQuestions(flowState, context = {}) {
       stepId: "parent-context",
       kind: "choice",
       label: "Search budget",
-      help: "Controls how many seeded candidate paths this pilot goal search will try.",
+      help: "Sets how many seeded candidate paths the search tries. Deeper searches take longer but are more likely to find a closer moon fit.",
       defaultValue: draft.searchBudget,
       options: GOAL_SEARCH_BUDGET_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -572,18 +586,20 @@ const PARENT_CONTEXT_OPTIONS = [
   {
     value: "strict",
     label: "Fit current parent",
-    description: "Blocks recommendations that the current host context does not support.",
+    description:
+      "Requires the current host context to work as-is, so impossible parents block stronger moon outcomes outright.",
   },
   {
     value: "guided-patch",
     label: "Allow host fixes",
     description:
-      "Applies recommended host-context adjustments when the current parent is a poor fit.",
+      "Allows guided host-context adjustments when the current parent is the main blocker to the target moon type.",
   },
   {
     value: "flexible",
     label: "Best-effort fit",
-    description: "Keeps a starting point even if the current host context is hostile.",
+    description:
+      "Keeps the best starting point even when the current host context is hostile, so the result may come with heavier warnings.",
   },
 ];
 
@@ -591,17 +607,20 @@ const WATER_STATE_OPTIONS = {
   dry: {
     value: "dry",
     label: "Dry",
-    description: "Bias toward little or no accessible water.",
+    description:
+      "Biases toward little or no accessible water, favoring airless, frozen, or inert moon outcomes.",
   },
   subsurface: {
     value: "subsurface",
     label: "Buried Ocean",
-    description: "Prefer water under an ice shell rather than exposed seas.",
+    description:
+      "Pushes water below an ice shell, favoring Europa-like or Enceladus-like buried-ocean outcomes.",
   },
   surface: {
     value: "surface",
     label: "Surface Ocean",
-    description: "Target exposed surface liquid water where the host context allows it.",
+    description:
+      "Pushes toward exposed surface seas, which usually needs the strongest atmosphere, radiation, and heating support.",
   },
 };
 
@@ -609,22 +628,26 @@ const ATMOSPHERE_TARGET_OPTIONS = {
   airless: {
     value: "airless",
     label: "Airless",
-    description: "Prefer an airless or exosphere-level result.",
+    description:
+      "Favors an airless or exosphere-level result, which is the easiest state for small or strongly irradiated moons to defend.",
   },
   thin: {
     value: "thin",
     label: "Thin",
-    description: "Allow only a tenuous near-surface atmosphere.",
+    description:
+      "Allows only a tenuous atmosphere, which can support transient volatiles without demanding Titan-like retention.",
   },
   substantial: {
     value: "substantial",
     label: "Substantial",
-    description: "Target a persistent volatile atmosphere.",
+    description:
+      "Targets a persistent volatile atmosphere, which usually needs stronger gravity, colder conditions, or better shielding.",
   },
   dense: {
     value: "dense",
     label: "Dense / Hazy",
-    description: "Target a thicker volatile atmosphere with more haze or clouds.",
+    description:
+      "Targets a thicker atmosphere with haze or clouds, pushing the solve toward Titan-like or other strongly atmospheric cases.",
   },
 };
 
@@ -632,17 +655,20 @@ const ACTIVITY_TARGET_OPTIONS = {
   quiet: {
     value: "quiet",
     label: "Quiet",
-    description: "Minimize tidal forcing and resurfacing where possible.",
+    description:
+      "Minimizes tidal forcing and resurfacing, favoring quieter frozen or inert moons over strongly active ones.",
   },
   moderate: {
     value: "moderate",
     label: "Moderate",
-    description: "Allow some internal activity without pushing to extremes.",
+    description:
+      "Allows some internal activity without demanding an Io-like extreme, which often suits subsurface-ocean targets.",
   },
   active: {
     value: "active",
     label: "Active",
-    description: "Bias toward stronger volcanism, cryovolcanism, or tidal support.",
+    description:
+      "Pushes toward stronger volcanism, cryovolcanism, or tidal support, often at the cost of calmer surface conditions.",
   },
 };
 
@@ -650,17 +676,20 @@ const RESONANCE_SUPPORT_OPTIONS = {
   "not-needed": {
     value: "not-needed",
     label: "Not needed",
-    description: "Do not depend on sibling-moon resonance support.",
+    description:
+      "Avoids depending on sibling resonances, so the recommendation tries to work without moon-system coupling.",
   },
   preferred: {
     value: "preferred",
     label: "Preferred",
-    description: "Use resonance support when it improves the target moon type.",
+    description:
+      "Uses resonance support when helpful, making coupled heating more likely but not mandatory.",
   },
   required: {
     value: "required",
     label: "Required",
-    description: "Treat sustained resonance support as part of the target.",
+    description:
+      "Treats sustained resonance support as part of the target, so the result may need sibling-moon fixes to succeed.",
   },
 };
 
@@ -668,17 +697,20 @@ const LIFE_GOAL_OPTIONS = {
   sterile: {
     value: "sterile",
     label: "Sterile",
-    description: "No surface biology target.",
+    description:
+      "Does not spend search effort on exposed biology, allowing colder, harsher, or simpler moon states to win.",
   },
   microbial: {
     value: "microbial",
     label: "Microbial",
-    description: "Bias toward conservative surface or near-surface biology support.",
+    description:
+      "Aims for conservative surface or near-surface biology support without demanding a strong complex-biosphere case.",
   },
   "surface-biosphere": {
     value: "surface-biosphere",
     label: "Surface Biosphere",
-    description: "Push for a stronger exposed biosphere where defensible.",
+    description:
+      "Pushes for a stronger exposed biosphere, which usually needs the best atmosphere, water, radiation, and climate alignment.",
   },
 };
 
@@ -686,17 +718,20 @@ const LAND_EXPOSURE_OPTIONS = {
   archipelago: {
     value: "archipelago",
     label: "Archipelago",
-    description: "Bias toward more exposed land and island chains.",
+    description:
+      "Biases toward more exposed land and island chains, reducing the chance of a fully ocean-covered surface.",
   },
   balanced: {
     value: "balanced",
     label: "Balanced",
-    description: "Target a mix of ocean and exposed land.",
+    description:
+      "Targets a mix of ocean and exposed land, which is usually the most flexible surface-ocean compromise.",
   },
   oceanic: {
     value: "oceanic",
     label: "Oceanic",
-    description: "Allow global or near-global surface ocean coverage.",
+    description:
+      "Allows global or near-global ocean coverage, usually reducing land exposure in exchange for stronger ocean-world behavior.",
   },
 };
 
@@ -844,7 +879,7 @@ function buildMoonQuestions(archetype, context = {}) {
       kind: "choice",
       help:
         context.currentContextText ||
-        "Use the current star and parent as a hard constraint or as a best-effort fit.",
+        "Controls whether the current host is treated as fixed or adjustable. This mainly affects whether guided mode may propose host fixes to reach the target moon type.",
       defaultValue: defaults.parent_context_policy,
       options: PARENT_CONTEXT_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -860,7 +895,7 @@ function buildMoonQuestions(archetype, context = {}) {
       stepId: "goal-details",
       label: "Water State",
       kind: "choice",
-      help: "Choose whether this moon should stay dry, hide water below ice, or expose surface seas.",
+      help: "Sets the target water regime. Surface oceans are the hardest to defend; buried oceans are easier to support with the right heating and composition.",
       defaultValue: defaults.water_state,
       options: waterOptions,
     });
@@ -876,7 +911,7 @@ function buildMoonQuestions(archetype, context = {}) {
       stepId: "goal-details",
       label: "Atmosphere Target",
       kind: "choice",
-      help: "Bias the recommendation toward the kind of atmosphere you want to defend.",
+      help: "Sets the intended atmosphere strength. Heavier atmospheres usually need a better host context, stronger retention, or colder conditions.",
       defaultValue: defaults.atmosphere_target,
       options: atmosphereOptions,
     });
@@ -892,7 +927,7 @@ function buildMoonQuestions(archetype, context = {}) {
       stepId: "goal-details",
       label: "Activity Level",
       kind: "choice",
-      help: "Controls how strongly the guided result leans on tidal or internal activity.",
+      help: "Sets how strongly the result may lean on tidal or internal activity. Higher activity helps subsurface oceans and volcanism, but can work against quieter surface cases.",
       defaultValue: defaults.activity_target,
       options: activityOptions,
     });
@@ -908,7 +943,7 @@ function buildMoonQuestions(archetype, context = {}) {
       stepId: "goal-details",
       label: "Resonance Support",
       kind: "choice",
-      help: "Use this when the target moon type depends on sibling-moon resonance forcing.",
+      help: "Controls whether sibling-moon resonance support is optional or required. This mainly affects whether the result may need moon-system fixes.",
       defaultValue: defaults.resonance_support,
       options: resonanceOptions,
     });
@@ -924,7 +959,7 @@ function buildMoonQuestions(archetype, context = {}) {
       stepId: "goal-details",
       label: "Life Goal",
       kind: "choice",
-      help: "Choose how conservative or ambitious the exposed-biology target should be.",
+      help: "Sets how hard guided mode should lean toward exposed biology. Higher life goals demand stronger atmosphere, water, radiation, and climate alignment.",
       defaultValue: defaults.life_goal,
       options: lifeOptions,
     });
@@ -940,7 +975,7 @@ function buildMoonQuestions(archetype, context = {}) {
       stepId: "goal-details",
       label: "Land Exposure",
       kind: "choice",
-      help: "Tune how much exposed land you want on surface-ocean cases.",
+      help: "Sets how much land the surface-ocean result should try to keep. This only matters once the moon is already aiming for exposed seas.",
       defaultValue: defaults.land_exposure_pref,
       options: landOptions,
       visibleWhen(nextFlowState) {

@@ -1,9 +1,11 @@
 import { loadThreeCore } from "./threeBridge2d.js";
+import { buildHierarchyPresentation } from "../engine/homeSystem/companionPresentation.js";
 import {
   renderCelestialRecipeSnapshot,
   renderStarSnapshot,
   preWarmTextures,
 } from "./celestialVisualPreview.js";
+import { getSystemPosterTuning, planSystemPosterLabels } from "./systemPosterLayout.js";
 
 /* Pre-warm Three.js CDN import so it's ready before the first draw call */
 loadThreeCore().catch(() => {});
@@ -148,7 +150,7 @@ function cleanupPosterTextures() {
   POSTER_TEXTURES.clear();
 }
 
-function addCanvasSprite(runtime, srcCanvas, x, y, size, z = 0, opacity = 1) {
+function addCanvasSprite(runtime, srcCanvas, x, y, size, z = 0, opacity = 1, opts = {}) {
   if (!srcCanvas) return null;
   const tex = new runtime.THREE.CanvasTexture(srcCanvas);
   tex.minFilter = runtime.THREE.LinearFilter;
@@ -160,11 +162,13 @@ function addCanvasSprite(runtime, srcCanvas, x, y, size, z = 0, opacity = 1) {
     map: tex,
     transparent: true,
     opacity,
-    depthWrite: false,
+    depthWrite: opts.depthWrite ?? false,
+    depthTest: opts.depthTest ?? true,
   });
   const sprite = new runtime.THREE.Sprite(mat);
   sprite.position.set(x, y, z);
   sprite.scale.set(size, size, 1);
+  sprite.renderOrder = Number.isFinite(opts.renderOrder) ? opts.renderOrder : 0;
   runtime.group.add(sprite);
   return sprite;
 }
@@ -178,7 +182,8 @@ function addTextSprite(runtime, text, x, y, z = 5, opts = {}) {
     color: 0xffffff,
     transparent: true,
     opacity: Number.isFinite(opts.opacity) ? opts.opacity : 1,
-    depthWrite: false,
+    depthWrite: opts.depthWrite ?? false,
+    depthTest: opts.depthTest ?? true,
   });
   const sprite = new runtime.THREE.Sprite(mat);
   const w = Math.max(1, Number(img?.width) || 32);
@@ -188,6 +193,7 @@ function addTextSprite(runtime, text, x, y, z = 5, opts = {}) {
   else if (opts.align === "right") posX = x - w / 2;
   sprite.position.set(posX, y, z);
   sprite.scale.set(w, h, 1);
+  sprite.renderOrder = Number.isFinite(opts.renderOrder) ? opts.renderOrder : 0;
   runtime.group.add(sprite);
   return sprite;
 }
@@ -203,17 +209,19 @@ function addRotatedText(runtime, text, x, y, z, rotation, opts = {}) {
     map: tex,
     transparent: true,
     opacity: Number.isFinite(opts.opacity) ? opts.opacity : 1,
-    depthWrite: false,
+    depthWrite: opts.depthWrite ?? false,
+    depthTest: opts.depthTest ?? true,
     side: runtime.THREE.DoubleSide,
   });
   const mesh = new runtime.THREE.Mesh(geom, mat);
   mesh.position.set(x, y, z);
   mesh.rotation.z = rotation;
+  mesh.renderOrder = Number.isFinite(opts.renderOrder) ? opts.renderOrder : 0;
   runtime.group.add(mesh);
   return mesh;
 }
 
-function addLine(runtime, x1, y1, x2, y2, color, opacity = 1, z = 0) {
+function addLine(runtime, x1, y1, x2, y2, color, opacity = 1, z = 0, opts = {}) {
   const g = new runtime.THREE.BufferGeometry().setFromPoints([
     new runtime.THREE.Vector3(x1, y1, z),
     new runtime.THREE.Vector3(x2, y2, z),
@@ -222,9 +230,64 @@ function addLine(runtime, x1, y1, x2, y2, color, opacity = 1, z = 0) {
     color,
     transparent: opacity < 1,
     opacity,
-    depthWrite: false,
+    depthWrite: opts.depthWrite ?? false,
+    depthTest: opts.depthTest ?? true,
   });
-  runtime.group.add(new runtime.THREE.Line(g, m));
+  const line = new runtime.THREE.Line(g, m);
+  line.renderOrder = Number.isFinite(opts.renderOrder) ? opts.renderOrder : 0;
+  runtime.group.add(line);
+}
+
+function addFilledCircle(runtime, x, y, radius, color, opacity = 1, z = 0, opts = {}) {
+  const geometry = new runtime.THREE.CircleGeometry(Math.max(0.5, Number(radius) || 1), 20);
+  const material = new runtime.THREE.MeshBasicMaterial({
+    color,
+    transparent: opacity < 1,
+    opacity,
+    depthWrite: opts.depthWrite ?? false,
+    depthTest: opts.depthTest ?? true,
+  });
+  const mesh = new runtime.THREE.Mesh(geometry, material);
+  mesh.position.set(x, y, z);
+  mesh.renderOrder = Number.isFinite(opts.renderOrder) ? opts.renderOrder : 0;
+  runtime.group.add(mesh);
+  return mesh;
+}
+
+function addPanelPlane(runtime, x, y, width, height, color, opacity = 1, z = 0, opts = {}) {
+  if (!(Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0)) return null;
+  const geometry = new runtime.THREE.PlaneGeometry(width, height);
+  const alpha = Number.isFinite(opacity) ? opacity : 1;
+  const transparent = opts.transparent === true || alpha < 1;
+  const material = new runtime.THREE.MeshBasicMaterial({
+    color,
+    transparent,
+    opacity: alpha,
+    depthWrite: opts.depthWrite ?? !transparent,
+    depthTest: opts.depthTest ?? true,
+  });
+  const mesh = new runtime.THREE.Mesh(geometry, material);
+  mesh.position.set(x, y, z);
+  mesh.renderOrder = Number.isFinite(opts.renderOrder) ? opts.renderOrder : 0;
+  runtime.group.add(mesh);
+  return mesh;
+}
+
+function truncatePosterText(text, maxChars = 28) {
+  const value = String(text ?? "").trim();
+  if (!value) return "";
+  const limit = Math.max(4, Number(maxChars) || 28);
+  return value.length <= limit ? value : `${value.slice(0, limit - 1).trimEnd()}…`;
+}
+
+function addTextLines(runtime, lines, x, startY, lineHeight, z = 5, opts = {}) {
+  const entries = Array.isArray(lines)
+    ? lines.map((line) => String(line ?? "").trim()).filter(Boolean)
+    : [];
+  for (let index = 0; index < entries.length; index += 1) {
+    addTextSprite(runtime, entries[index], x, startY - index * lineHeight, z, opts);
+  }
+  return entries.length ? startY - entries.length * lineHeight : startY;
 }
 
 function addArcBand(
@@ -239,6 +302,7 @@ function addArcBand(
   opacity = 1,
   z = 0,
   segments = 180,
+  opts = {},
 ) {
   if (!(Number.isFinite(innerR) && Number.isFinite(outerR) && outerR > innerR)) return;
   const vCount = (segments + 1) * 2;
@@ -273,8 +337,11 @@ function addArcBand(
     opacity,
     side: runtime.THREE.DoubleSide,
     depthWrite: false,
+    depthTest: opts.depthTest ?? true,
   });
-  runtime.group.add(new runtime.THREE.Mesh(g, m));
+  const mesh = new runtime.THREE.Mesh(g, m);
+  mesh.renderOrder = Number.isFinite(opts.renderOrder) ? opts.renderOrder : 0;
+  runtime.group.add(mesh);
 }
 
 function addArcStroke(
@@ -291,6 +358,7 @@ function addArcStroke(
   dashSteps = 5,
   gapSteps = 5,
   segments = 260,
+  opts = {},
 ) {
   if (!(Number.isFinite(radius) && radius > 0)) return;
   const THREE = runtime.THREE;
@@ -307,8 +375,11 @@ function addArcStroke(
       transparent: opacity < 1,
       opacity,
       depthWrite: false,
+      depthTest: opts.depthTest ?? true,
     });
-    runtime.group.add(new THREE.Line(g, m));
+    const line = new THREE.Line(g, m);
+    line.renderOrder = Number.isFinite(opts.renderOrder) ? opts.renderOrder : 0;
+    runtime.group.add(line);
     return;
   }
   const pts = [];
@@ -331,8 +402,11 @@ function addArcStroke(
     transparent: opacity < 1,
     opacity,
     depthWrite: false,
+    depthTest: opts.depthTest ?? true,
   });
-  runtime.group.add(new THREE.LineSegments(g, m));
+  const lineSegments = new THREE.LineSegments(g, m);
+  lineSegments.renderOrder = Number.isFinite(opts.renderOrder) ? opts.renderOrder : 0;
+  runtime.group.add(lineSegments);
 }
 
 function addStarfield(runtime, W, H, count = 70, z = -40) {
@@ -520,7 +594,19 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
     canvas.isConnected &&
     gen === _drawGeneration;
 
-  const { star, system, planets, gasGiants, moons, debrisDisks } = data;
+  const {
+    star,
+    system,
+    planets,
+    gasGiants,
+    moons,
+    debrisDisks,
+    topologyKind = "single",
+    activeHostFrameLabel = star?.inputs?.name || "Star",
+    canvasMode = "single",
+    hostStars = [],
+    companionStars = [],
+  } = data;
   const showLabels = opts.labels !== false;
   const showMoons = opts.moons !== false;
   const showHz = opts.hz !== false;
@@ -528,13 +614,35 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
   const showDebris = opts.debris !== false;
   const showGuides = opts.guides !== false;
   const showStarfield = opts.starfield !== false;
+  const showMultistarInfo = opts.multistarInfo !== false;
   const scaleMode = opts.scale || "log";
+  const pairHostView = canvasMode === "binary-p-type" && hostStars.length > 1;
+  const hierarchySummary = buildHierarchyPresentation({
+    topologyKind,
+    hostFrame: {
+      id: null,
+      label: activeHostFrameLabel,
+      frameKind: pairHostView ? "pair" : "star",
+    },
+    hostStars,
+    companionStars,
+    fallbackLocalLabel: activeHostFrameLabel,
+  });
+  const localStars = hierarchySummary.localStars;
+  const outerBranches = hierarchySummary.outerBranches;
 
   const rect = canvas.parentElement?.getBoundingClientRect?.();
   if (!rect || rect.width < 10 || rect.height < 10) return false;
   const dpr = clampDpr(window.devicePixelRatio || 1);
   const W = rect.width;
   const H = rect.height;
+  const posterTuning = getSystemPosterTuning({
+    width: W,
+    height: H,
+    pairHostView,
+    localStarsCount: localStars.length,
+    outerBranchesCount: outerBranches.length,
+  });
   runtime.renderer.setSize(
     Math.max(1, Math.round(W * dpr)),
     Math.max(1, Math.round(H * dpr)),
@@ -593,9 +701,17 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
     allAu.push(system.habitableZoneAu.inner, system.habitableZoneAu.outer);
   if (Number.isFinite(system?.frostLineAu)) allAu.push(system.frostLineAu);
   for (const d of debrisDisks || []) allAu.push(d.innerAu, d.outerAu);
+  if (pairHostView) {
+    for (const starEntry of hostStars || []) {
+      const barycentricOrbitAu = Number(starEntry?.barycentricOrbitAu);
+      if (Number.isFinite(barycentricOrbitAu) && barycentricOrbitAu > 0) {
+        allAu.push(barycentricOrbitAu);
+      }
+    }
+  }
   const validAu = allAu.filter((n) => Number.isFinite(n) && n > 0);
   if (!validAu.length) {
-    const starSize = Math.max(46, H * 0.55);
+    const starSize = posterTuning.starSize;
     const starCoreR = starSize * 0.5;
     const starCanvas = ensureStarCanvas(star);
     addCanvasSprite(runtime, starCanvas, 0, H * 0.44, starCoreR / STAR_FILL, -2);
@@ -621,10 +737,13 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
   }
 
   const orbitY = H * 0.44;
-  const starSize = Math.max(46, H * 0.55);
+  const starSize = posterTuning.starSize;
   const starCoreR = starSize * 0.5;
   const starSpriteR = (starCoreR / STAR_FILL) * 0.5;
-  const bodyLeft = Math.max(W * 0.13, starSpriteR * 0.9);
+  const bodyLeft = Math.max(
+    W * posterTuning.bodyLeftRatio,
+    starSpriteR * posterTuning.bodyLeftStarScale,
+  );
   const bodyRight = W * 0.96;
   const rangeW = bodyRight - bodyLeft;
   const starEdgeX = starCoreR + 4;
@@ -652,6 +771,132 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
 
   const starCanvas = ensureStarCanvas(star);
   const zoneLabels = [];
+  const renderPairHostCluster = ({
+    barycenterX,
+    centerY,
+    baseRadius,
+    zBase = -2,
+    title = "",
+  } = {}) => {
+    if (!pairHostView) return { guideStartX: barycenterX, envelopeRadius: baseRadius };
+    const hostRadiusScales = hostStars.map((entry) =>
+      Math.max(0.18, Number(entry.radiusRsol) || Number(entry.massMsol) || 1),
+    );
+    const maxHostRadiusScale = Math.max(...hostRadiusScales, 1);
+    const pairStarNodes = hostStars.map((entry, index) => {
+      const radiusScale = Math.sqrt(hostRadiusScales[index] / maxHostRadiusScale);
+      const visualRadius = Math.max(
+        baseRadius * posterTuning.pairVisualMinScale,
+        Math.min(
+          baseRadius * 0.72,
+          baseRadius *
+            (posterTuning.pairVisualBaseScale + posterTuning.pairVisualVarianceScale * radiusScale),
+        ),
+      );
+      const mappedOrbitPx = Math.max(
+        0,
+        auToX(Math.max(0, Number(entry.barycentricOrbitAu) || 0)) - barycenterX,
+      );
+      let offsetPx = mappedOrbitPx;
+      if (!(offsetPx > 0)) offsetPx = 0;
+      const direction = index % 2 === 0 ? -1 : 1;
+      return {
+        ...entry,
+        mappedOrbitPx,
+        visualRadius,
+        x: barycenterX + direction * offsetPx,
+      };
+    });
+    if (pairStarNodes.length >= 2) {
+      const left = pairStarNodes[0];
+      const right = pairStarNodes[1];
+      const gap = Math.abs(right.x - left.x);
+      const minGap = left.visualRadius + right.visualRadius + posterTuning.pairGapPaddingPx;
+      if (gap < minGap) {
+        const extra = (minGap - gap) * 0.5;
+        left.x -= extra;
+        right.x += extra;
+      }
+    }
+    const envelopeRadius = pairStarNodes.reduce(
+      (maxRadius, entry) =>
+        Math.max(maxRadius, Math.abs(entry.x - barycenterX) + entry.visualRadius),
+      baseRadius,
+    );
+    const pairOrbitRadiiPx = [
+      ...new Set(
+        pairStarNodes
+          .map((entry) => Number(entry.mappedOrbitPx))
+          .filter((radius) => Number.isFinite(radius) && radius > 3)
+          .map((radius) => Number(radius.toFixed(3))),
+      ),
+    ];
+    for (const radiusPx of pairOrbitRadiiPx) {
+      addArcStroke(
+        runtime,
+        barycenterX,
+        centerY,
+        radiusPx,
+        -Math.PI * 0.82,
+        Math.PI * 0.82,
+        0x7284a2,
+        0.15,
+        zBase + 0.2,
+        true,
+        5,
+        5,
+        180,
+      );
+    }
+    addLine(
+      runtime,
+      barycenterX - Math.max(4, envelopeRadius * 0.12),
+      centerY,
+      barycenterX + Math.max(4, envelopeRadius * 0.12),
+      centerY,
+      0x627593,
+      0.16,
+      zBase + 0.5,
+    );
+    const barycenterDot = new runtime.THREE.Mesh(
+      new runtime.THREE.CircleGeometry(Math.max(0.9, baseRadius * 0.08), 18),
+      new runtime.THREE.MeshBasicMaterial({
+        color: 0xdbe8ff,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false,
+      }),
+    );
+    barycenterDot.position.set(barycenterX, centerY, zBase + 0.8);
+    runtime.group.add(barycenterDot);
+    if (title) {
+      addTextSprite(runtime, title, barycenterX, centerY + baseRadius + 18, 5.4, {
+        font: "italic 10px system-ui, sans-serif",
+        color: "rgba(192,205,232,0.74)",
+      });
+    }
+    for (const entry of pairStarNodes) {
+      const companionCanvas = ensureStarCanvas({
+        starColourHex: entry.starColourHex,
+        tempK: entry.tempK,
+        massMsol: entry.massMsol,
+        ageGyr: entry.ageGyr,
+      });
+      addCanvasSprite(
+        runtime,
+        companionCanvas,
+        entry.x,
+        centerY,
+        (entry.visualRadius * 2) / STAR_FILL,
+        zBase,
+        0.98,
+      );
+    }
+    return {
+      guideStartX: barycenterX + envelopeRadius,
+      envelopeRadius,
+    };
+  };
 
   if (showHz && system?.habitableZoneAu) {
     const x1 = auToX(system.habitableZoneAu.inner);
@@ -674,7 +919,10 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
           y: hzLbl.y,
           rotation: hzLbl.rotation,
           yOffset: 0,
-          text: "Habitable Zone",
+          text:
+            topologyKind !== "single" && activeHostFrameLabel
+              ? `${activeHostFrameLabel} HZ`
+              : "Habitable Zone",
           color: "rgba(80,200,100,0.35)",
         });
       }
@@ -708,13 +956,18 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
         y: fLbl.y,
         rotation: fLbl.rotation,
         yOffset: 0,
-        text: "Frost line",
+        text:
+          topologyKind !== "single" && activeHostFrameLabel
+            ? `${activeHostFrameLabel} Frost line`
+            : "Frost line",
         color: "rgba(120,170,220,0.35)",
       });
     }
   }
 
   if (showDebris) {
+    const debrisBandRenderOrder = 24;
+    const debrisParticleRenderOrder = 26;
     for (const d of debrisDisks || []) {
       const x1 = auToX(d.innerAu);
       const x2 = auToX(d.outerAu);
@@ -727,7 +980,10 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
       const aEnd = Math.min(a1Top, a2Top);
       if (!(aEnd > aStart)) continue;
 
-      addArcBand(runtime, orbitCenterX, orbitY, r1, r2, aStart, aEnd, 0xa0825a, 0.1, -10, 180);
+      addArcBand(runtime, orbitCenterX, orbitY, r1, r2, aStart, aEnd, 0xa0825a, 0.1, -10, 180, {
+        depthTest: false,
+        renderOrder: debrisBandRenderOrder,
+      });
 
       // Wobbled asteroid point texture (matches visualizer).
       const texSize = 64;
@@ -799,10 +1055,13 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
           transparent: true,
           opacity: opacities[bi],
           depthWrite: false,
+          depthTest: false,
           map: debrisTex,
           alphaTest: 0.01,
         });
-        runtime.group.add(new runtime.THREE.Points(geom, mat));
+        const points = new runtime.THREE.Points(geom, mat);
+        points.renderOrder = debrisParticleRenderOrder;
+        runtime.group.add(points);
       }
 
       if (showLabels && d?.name) {
@@ -840,12 +1099,431 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
     }
   }
 
-  addCanvasSprite(runtime, starCanvas, 0, orbitY, starCoreR / STAR_FILL, -2);
+  const pairCluster = pairHostView
+    ? renderPairHostCluster({
+        barycenterX: Math.max(starCoreR * 0.36, W * 0.09),
+        centerY: orbitY,
+        baseRadius: starCoreR * posterTuning.pairClusterBaseScale,
+        title: `${activeHostFrameLabel} barycenter host`,
+      })
+    : null;
+  const guideStartX = pairHostView
+    ? Math.max(starEdgeX, (pairCluster?.guideStartX || starEdgeX) + 6)
+    : starEdgeX;
+  if (!pairHostView) {
+    addCanvasSprite(runtime, starCanvas, 0, orbitY, starCoreR / STAR_FILL, -2);
+  }
+
+  if (showMultistarInfo && (localStars.length || outerBranches.length)) {
+    const panelW = posterTuning.infoPanelWidth;
+    const panelMargin = 14;
+    const panelX = Math.min(
+      Math.max(panelMargin, W * posterTuning.infoPanelXRatio),
+      Math.max(panelMargin, W - panelW - panelMargin),
+    );
+    const panelLeft = panelX + 14;
+    const hasHierarchyInset =
+      hierarchySummary.isHierarchical && hierarchySummary.hierarchyNodes.length > 1;
+    const hierarchyInsetH = hasHierarchyInset ? 44 : 0;
+    const localSectionH = localStars.length
+      ? 20 + localStars.length * posterTuning.infoPanelLocalRowHeight
+      : 0;
+    const outerSectionH = outerBranches.length
+      ? 20 + outerBranches.length * posterTuning.infoPanelOuterRowHeight
+      : 0;
+    const desiredPanelH = Math.max(
+      104,
+      posterTuning.infoPanelBaseHeight +
+        hierarchyInsetH +
+        localSectionH +
+        outerSectionH +
+        (hierarchySummary.notToScale ? 18 : 0),
+    );
+    const panelTop = H - 14;
+    const panelBottom = 14;
+    const panelH = Math.min(desiredPanelH, Math.max(1, panelTop - panelBottom));
+    const panelY = panelTop - panelH * 0.5;
+    const panelCenterX = panelX + panelW * 0.5;
+    const headerH = hierarchySummary.isHierarchical ? 62 : 54;
+    const borderColor = 0x758db2;
+    const panelBaseZ = 20.2;
+    const panelSectionZ = 20.24;
+    const panelBorderZ = 20.28;
+    const panelContentZ = 21.2;
+    const panelAccentZ = 21.05;
+    const panelContentRenderOrder = 260;
+    const panelAccentRenderOrder = 255;
+    const titleLines =
+      canvasMode === "binary-p-type"
+        ? topologyKind === "binary"
+          ? ["Binary P-type"]
+          : ["Hierarchical pair-host"]
+        : topologyKind === "binary"
+          ? ["Binary S-type"]
+          : ["Hierarchical S-type"];
+    const hostFrameLine = truncatePosterText(
+      pairHostView ? `${activeHostFrameLabel} barycenter` : `${activeHostFrameLabel} local frame`,
+      28,
+    );
+    const summaryLines = pairHostView
+      ? outerBranches.length
+        ? ["Local pair climate view.", "Outer branch shown for context."]
+        : ["Combined pair light", "drives the local climate."]
+      : outerBranches.length
+        ? ["Outer branch shown", "for hierarchy context."]
+        : ["Companion context", "negligible in this frame."];
+    addPanelPlane(
+      runtime,
+      panelCenterX + 3,
+      panelY - 3,
+      panelW + 10,
+      panelH + 10,
+      0x01040b,
+      posterTuning.infoPanelShadowOpacity,
+      panelBaseZ - 0.15,
+      { transparent: true, depthWrite: false, depthTest: false, renderOrder: 180 },
+    );
+    addPanelPlane(
+      runtime,
+      panelCenterX,
+      panelY,
+      panelW,
+      panelH,
+      0x091321,
+      posterTuning.infoPanelOpacity,
+      panelBaseZ,
+      { depthWrite: true, depthTest: true, renderOrder: 200 },
+    );
+    addPanelPlane(
+      runtime,
+      panelCenterX,
+      panelTop - headerH * 0.5,
+      panelW,
+      headerH,
+      0x0f1b30,
+      posterTuning.infoPanelHeaderOpacity,
+      panelSectionZ,
+      { depthWrite: true, depthTest: true, renderOrder: 201 },
+    );
+    addPanelPlane(
+      runtime,
+      panelCenterX,
+      panelTop - headerH,
+      panelW,
+      1.5,
+      borderColor,
+      posterTuning.infoPanelBorderOpacity,
+      panelBorderZ,
+      { transparent: true, depthWrite: false, depthTest: false, renderOrder: 220 },
+    );
+    addPanelPlane(
+      runtime,
+      panelCenterX,
+      panelY + panelH * 0.5 - 0.75,
+      panelW,
+      1.5,
+      borderColor,
+      posterTuning.infoPanelBorderOpacity,
+      panelBorderZ,
+      { transparent: true, depthWrite: false, depthTest: false, renderOrder: 220 },
+    );
+    addPanelPlane(
+      runtime,
+      panelCenterX,
+      panelY - panelH * 0.5 + 0.75,
+      panelW,
+      1.5,
+      borderColor,
+      posterTuning.infoPanelBorderOpacity,
+      panelBorderZ,
+      { transparent: true, depthWrite: false, depthTest: false, renderOrder: 220 },
+    );
+    addPanelPlane(
+      runtime,
+      panelX + 0.75,
+      panelY,
+      1.5,
+      panelH,
+      borderColor,
+      posterTuning.infoPanelBorderOpacity,
+      panelBorderZ,
+      { transparent: true, depthWrite: false, depthTest: false, renderOrder: 220 },
+    );
+    addPanelPlane(
+      runtime,
+      panelX + panelW - 0.75,
+      panelY,
+      1.5,
+      panelH,
+      borderColor,
+      posterTuning.infoPanelBorderOpacity,
+      panelBorderZ,
+      { transparent: true, depthWrite: false, depthTest: false, renderOrder: 220 },
+    );
+    let cursorY = panelTop - 16;
+    cursorY = addTextLines(runtime, titleLines, panelLeft, cursorY, 12, panelContentZ, {
+      font: "11px system-ui, sans-serif",
+      color: "rgba(240,246,255,0.95)",
+      align: "left",
+      depthTest: false,
+      renderOrder: panelContentRenderOrder,
+    });
+    cursorY = addTextLines(runtime, [hostFrameLine], panelLeft, cursorY - 1, 11, panelContentZ, {
+      font: "10px system-ui, sans-serif",
+      color: "rgba(188,204,228,0.82)",
+      align: "left",
+      depthTest: false,
+      renderOrder: panelContentRenderOrder,
+    });
+    cursorY = addTextLines(runtime, summaryLines, panelLeft, cursorY - 2, 10, panelContentZ, {
+      font: "8px system-ui, sans-serif",
+      color: "rgba(176,190,214,0.8)",
+      align: "left",
+      depthTest: false,
+      renderOrder: panelContentRenderOrder,
+    });
+    cursorY -= 4;
+
+    if (hasHierarchyInset) {
+      const insetLeft = panelX + 18;
+      const insetRight = panelX + panelW - 18;
+      const centerY = cursorY - 8;
+      const nodes = hierarchySummary.hierarchyNodes;
+      addPanelPlane(
+        runtime,
+        panelCenterX,
+        cursorY - 2,
+        panelW - 18,
+        38,
+        0x0d182b,
+        posterTuning.infoPanelSectionOpacity,
+        panelSectionZ,
+        { depthWrite: true, depthTest: true, renderOrder: 202 },
+      );
+      addTextSprite(runtime, "Hierarchy inset", insetLeft, cursorY + 8, panelContentZ, {
+        font: "9px system-ui, sans-serif",
+        color: "rgba(176,190,214,0.76)",
+        align: "left",
+        depthTest: false,
+        renderOrder: panelContentRenderOrder,
+      });
+      const step = nodes.length > 1 ? (insetRight - insetLeft) / (nodes.length - 1) : 0;
+      for (let index = 0; index < nodes.length - 1; index += 1) {
+        addLine(
+          runtime,
+          insetLeft + step * index,
+          centerY,
+          insetLeft + step * (index + 1),
+          centerY,
+          0x6b7da0,
+          0.34,
+          panelAccentZ,
+          { depthTest: false, renderOrder: panelAccentRenderOrder },
+        );
+      }
+      nodes.forEach((node, index) => {
+        const x =
+          nodes.length > 1 ? insetLeft + step * index : insetLeft + (insetRight - insetLeft) * 0.5;
+        const tint = node.kind === "local" ? 0x91d6ff : 0xffd69a;
+        addFilledCircle(
+          runtime,
+          x,
+          centerY,
+          node.kind === "local" ? 5.4 : 4.6,
+          tint,
+          0.95,
+          panelContentZ,
+          { depthTest: false, renderOrder: panelContentRenderOrder },
+        );
+        addTextSprite(
+          runtime,
+          truncatePosterText(String(node.label || ""), 14),
+          x,
+          centerY - 14,
+          panelContentZ,
+          {
+            font: "8px system-ui, sans-serif",
+            color: "rgba(220,228,244,0.8)",
+            depthTest: false,
+            renderOrder: panelContentRenderOrder,
+          },
+        );
+      });
+      cursorY -= 44;
+    }
+
+    if (localStars.length) {
+      const localSectionH = 22 + localStars.length * posterTuning.infoPanelLocalRowHeight;
+      addPanelPlane(
+        runtime,
+        panelCenterX,
+        cursorY - localSectionH * 0.5 + 4,
+        panelW - 16,
+        localSectionH,
+        0x0d1a2d,
+        posterTuning.infoPanelSectionOpacity,
+        panelSectionZ,
+        { depthWrite: true, depthTest: true, renderOrder: 202 },
+      );
+      addTextSprite(
+        runtime,
+        localStars.length > 1 ? "Local host frame" : "Local host star",
+        panelLeft,
+        cursorY,
+        panelContentZ,
+        {
+          font: "9px system-ui, sans-serif",
+          color: "rgba(180,211,255,0.92)",
+          align: "left",
+          depthTest: false,
+          renderOrder: panelContentRenderOrder,
+        },
+      );
+      cursorY -= 16;
+      for (let i = 0; i < localStars.length; i += 1) {
+        const localStar = localStars[i];
+        const rowY = cursorY - i * posterTuning.infoPanelLocalRowHeight;
+        const localCanvas = ensureStarCanvas({
+          starColourHex: localStar.starColourHex,
+          tempK: localStar.tempK,
+          massMsol: localStar.massMsol,
+          ageGyr: localStar.ageGyr,
+        });
+        addCanvasSprite(
+          runtime,
+          localCanvas,
+          panelX + 22,
+          rowY,
+          posterTuning.infoPanelStarVisualSize / STAR_FILL,
+          panelAccentZ,
+          0.98,
+          { depthTest: false, renderOrder: panelAccentRenderOrder },
+        );
+        addTextSprite(
+          runtime,
+          truncatePosterText(localStar.name || `Host star ${i + 1}`, 18),
+          panelX + 38,
+          rowY + 6,
+          panelContentZ,
+          {
+            font: "10px system-ui, sans-serif",
+            color: "rgba(232,238,248,0.92)",
+            align: "left",
+            depthTest: false,
+            renderOrder: panelContentRenderOrder,
+          },
+        );
+        addTextSprite(
+          runtime,
+          Number.isFinite(localStar.barycentricOrbitAu) && localStar.barycentricOrbitAu > 0
+            ? `${Number(localStar.barycentricOrbitAu).toFixed(2)} AU from barycenter`
+            : "local climate driver",
+          panelX + 38,
+          rowY - 8,
+          panelContentZ,
+          {
+            font: "8px monospace",
+            color: "rgba(176,190,214,0.72)",
+            align: "left",
+            depthTest: false,
+            renderOrder: panelContentRenderOrder,
+          },
+        );
+      }
+      cursorY -= localStars.length * posterTuning.infoPanelLocalRowHeight + 4;
+    }
+
+    if (outerBranches.length) {
+      const outerSectionH = 22 + outerBranches.length * posterTuning.infoPanelOuterRowHeight;
+      addPanelPlane(
+        runtime,
+        panelCenterX,
+        cursorY - outerSectionH * 0.5 + 4,
+        panelW - 16,
+        outerSectionH,
+        0x141821,
+        posterTuning.infoPanelSectionOpacity,
+        panelSectionZ,
+        { depthWrite: true, depthTest: true, renderOrder: 202 },
+      );
+      addTextSprite(
+        runtime,
+        outerBranches.length > 1 ? "Outer companion branches" : "Outer companion branch",
+        panelLeft,
+        cursorY,
+        panelContentZ,
+        {
+          font: "9px system-ui, sans-serif",
+          color: "rgba(255,214,162,0.92)",
+          align: "left",
+          depthTest: false,
+          renderOrder: panelContentRenderOrder,
+        },
+      );
+      cursorY -= 16;
+      for (let i = 0; i < outerBranches.length; i += 1) {
+        const branch = outerBranches[i];
+        const companion = branch.representativeStar || branch.stars?.[0] || {};
+        const rowY = cursorY - i * posterTuning.infoPanelOuterRowHeight;
+        const companionCanvas = ensureStarCanvas({
+          starColourHex: companion.starColourHex,
+          tempK: companion.tempK,
+          massMsol: companion.massMsol,
+          ageGyr: companion.ageGyr,
+        });
+        addCanvasSprite(
+          runtime,
+          companionCanvas,
+          panelX + 22,
+          rowY,
+          posterTuning.infoPanelStarVisualSize / STAR_FILL,
+          panelAccentZ,
+          0.98,
+          { depthTest: false, renderOrder: panelAccentRenderOrder },
+        );
+        addTextSprite(
+          runtime,
+          truncatePosterText(branch.label || `Companion ${i + 1}`, 18),
+          panelX + 38,
+          rowY + 6,
+          panelContentZ,
+          {
+            font: "10px system-ui, sans-serif",
+            color: "rgba(232,238,248,0.92)",
+            align: "left",
+            depthTest: false,
+            renderOrder: panelContentRenderOrder,
+          },
+        );
+        const detailText = Number.isFinite(Number(branch.separationAu))
+          ? `${Number(branch.separationAu).toFixed(1)} AU${branch.hierarchyLevel > 1 ? " outer" : ""} sep.`
+          : "outer branch";
+        addTextSprite(runtime, detailText, panelX + 38, rowY - 8, panelContentZ, {
+          font: "8px monospace",
+          color: "rgba(176,190,214,0.72)",
+          align: "left",
+          depthTest: false,
+          renderOrder: panelContentRenderOrder,
+        });
+      }
+      cursorY -= outerBranches.length * 38 + 2;
+    }
+
+    if (hierarchySummary.notToScale) {
+      addTextSprite(runtime, "Not to scale", panelLeft, panelBottom + 10, panelContentZ, {
+        font: "italic 8px system-ui, sans-serif",
+        color: "rgba(150,166,190,0.78)",
+        align: "left",
+        depthTest: false,
+        renderOrder: panelContentRenderOrder,
+      });
+    }
+  }
 
   if (showGuides) {
     for (const body of allBodies) {
       const x = auToX(body.au);
-      addLine(runtime, starEdgeX, orbitY, x, orbitY, 0x8695b3, 0.11, -3);
+      addLine(runtime, guideStartX, orbitY, x, orbitY, 0x8695b3, 0.11, -3);
     }
   }
 
@@ -904,52 +1582,30 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
       x: auToX(body.au),
       name: body.name || "Body",
       auLabel: `${Number(body.au).toFixed(2)} AU`,
-      yOffset: 0,
       pxR: bodyPxR(body.radiusKm),
     });
   }
-  if (labelEntries.length > 1) {
-    let depth = 0;
-    for (let i = 1; i < labelEntries.length; i++) {
-      if (labelEntries[i].x - labelEntries[i - 1].x < 48) {
-        depth++;
-        labelEntries[i].yOffset = -depth * 14;
-      } else {
-        depth = 0;
-      }
-    }
-    /* Centre the stagger band around zero so bodies spread equally above/below orbit */
-    let minOff = 0;
-    let maxOff = 0;
-    for (const e of labelEntries) {
-      if (e.yOffset < minOff) minOff = e.yOffset;
-      if (e.yOffset > maxOff) maxOff = e.yOffset;
-    }
-    const shift = (minOff + maxOff) / 2;
-    for (const e of labelEntries) {
-      if (e.yOffset !== 0) e.yOffset -= shift;
-    }
-  }
+  const plannedLabelEntries = planSystemPosterLabels(labelEntries, {
+    denseLabelThresholdPx: posterTuning.denseLabelThresholdPx,
+    compactLabelClusterSize: posterTuning.compactLabelClusterSize,
+    staggerStepPx: posterTuning.staggerStepPx,
+  });
   if (showLabels) {
-    /* Mark cluster starts: if the NEXT entry overlaps this one, this one is clustered too */
-    const inCluster = new Set();
-    for (let i = 0; i < labelEntries.length; i++) {
-      if (labelEntries[i].yOffset !== 0) {
-        inCluster.add(i);
-        if (i > 0 && !inCluster.has(i - 1)) inCluster.add(i - 1);
-      }
-    }
-    for (const lbl of labelEntries) {
-      if (inCluster.has(labelEntries.indexOf(lbl))) {
-        /* Rotated 45° single-line label, right edge anchored at (lbl.x, H-6) */
-        const labelStr = `${lbl.name}  ${lbl.auLabel}`;
+    for (const lbl of plannedLabelEntries) {
+      if (lbl.labelMode === "rotated" || lbl.labelMode === "compact") {
+        const labelStr = lbl.labelMode === "compact" ? lbl.name : `${lbl.name}  ${lbl.auLabel}`;
         const rot = Math.PI / 4;
-        const labelOpts = { font: "9px system-ui, sans-serif", color: "rgba(220,225,240,0.9)" };
+        const labelOpts = {
+          font:
+            lbl.labelMode === "compact"
+              ? posterTuning.compactLabelFont
+              : "9px system-ui, sans-serif",
+          color: lbl.labelMode === "compact" ? "rgba(208,214,232,0.82)" : "rgba(220,225,240,0.9)",
+        };
         const ltex = getTextTexture(runtime, labelStr, labelOpts);
         const lw = Math.max(1, Number(ltex?.image?.width) || 32);
         const c = Math.cos(rot);
         const s = Math.sin(rot);
-        /* Mesh centre so that right-edge midpoint lands at (lbl.x, H-6) */
         addRotatedText(
           runtime,
           labelStr,
@@ -1015,7 +1671,7 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
     const body = allBodies[i];
     if (gen !== _drawGeneration) return true;
     const x = auToX(body.au);
-    const bodyStagger = (labelEntries[i]?.yOffset || 0) * 1.8;
+    const bodyStagger = (plannedLabelEntries[i]?.yOffset || 0) * 1.8;
     const y = orbitY + bodyStagger;
     const bodyCanvas = await ensureBodyCanvas(body, isCurrentRun);
     if (!bodyCanvas || !isCurrentRun()) {
@@ -1030,7 +1686,7 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
     addCanvasSprite(runtime, bodyCanvas, x, y, size, 1, 1);
     doneItems++;
     setBar((doneItems / totalItems) * 100);
-    if (showMoons && bodyStagger === 0) {
+    if (showMoons) {
       const set = moonsByParent.get(body.id) || [];
       const baseSize = bodyPxR(body.radiusKm) * 2.1;
       const mSize = Math.max(4, Math.min(14, baseSize * 0.22));
@@ -1046,12 +1702,17 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
           if (ACTIVE_POSTER_RUNS.get(canvas) === run) ACTIVE_POSTER_RUNS.delete(canvas);
           return false;
         }
-        addCanvasSprite(runtime, mCanvas, x + 6, moonY, mSize, 2.5, 0.95);
+        addCanvasSprite(runtime, mCanvas, x + 6, moonY, mSize, 2.5, 0.95, {
+          depthTest: false,
+          renderOrder: 40,
+        });
         if (showLabels && m?.name) {
           addTextSprite(runtime, m.name, x + 6 + mSize * 0.5 + 4, moonY, 3.5, {
             font: "8px system-ui, sans-serif",
             color: "rgba(180,185,210,0.72)",
             align: "left",
+            depthTest: false,
+            renderOrder: 41,
           });
         }
         moonY += rowH;

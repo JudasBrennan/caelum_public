@@ -257,11 +257,65 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     tags: ["system", "metallicity", "giants"],
   },
   {
+    id: "host_frame_topology",
+    label: "Host Frame Topology",
+    kind: "model",
+    sectionId: "system",
+    row: 2,
+    summary:
+      "WorldSmith resolves orbit families from a stellar hierarchy tree. Star nodes create circumstellar S-type frames; pair nodes create barycentric P-type frames.",
+    formula: "host frame = star node -> S-type, pair node -> P-type",
+    engineRefs: [
+      "engine/homeSystem/topology.js",
+      "engine/homeSystem/frames.js",
+      "ui/store/stellarSystemModel.js",
+    ],
+    docs: [
+      { label: "Science - System Architecture", href: "#/science" },
+      { label: "Lesson 07 - Planetary Systems", href: "#/lessons" },
+      { label: "Lesson 19 - The Local Cluster", href: "#/lessons" },
+    ],
+    tags: ["system", "multistar", "host-frame", "s-type", "p-type"],
+  },
+  {
+    id: "companion_flux",
+    label: "Companion Flux Shift",
+    kind: "derived",
+    sectionId: "system",
+    row: 3,
+    summary:
+      "Outer companion stars add visible and XUV forcing to the active host frame. WorldSmith samples that companion flux across the hierarchy and uses it to shift habitable-zone context.",
+    formula: "S_comp = sum(L_i / d_i^2), d_HZ' = sqrt(L_host / (S_eff - S_comp))",
+    engineRefs: ["engine/homeSystem/flux.js", "engine/homeSystem/frames.js"],
+    docs: [
+      { label: "Science - System Architecture", href: "#/science" },
+      { label: "Lesson 07 - Planetary Systems", href: "#/lessons" },
+    ],
+    tags: ["system", "multistar", "flux", "habitable-zone"],
+  },
+  {
+    id: "multistar_stability",
+    label: "Multistar Stability Limits",
+    kind: "derived",
+    sectionId: "system",
+    row: 4,
+    summary:
+      "Binary and hierarchical host frames are bounded by Holman-Wiegert critical radii, disk truncation, and outer-pair guardrails so planets stay in long-lived orbit families.",
+    formula: "a_c,S and a_c,P from Holman-Wiegert; a_out,min from hierarchical guardrail fits",
+    engineRefs: ["engine/homeSystem/stability.js", "engine/homeSystem/frames.js"],
+    docs: [
+      { label: "Science - System Architecture", href: "#/science" },
+      { label: "Lesson 07 - Planetary Systems", href: "#/lessons" },
+      { label: "Lesson 19 - The Local Cluster", href: "#/lessons" },
+    ],
+    tags: ["system", "multistar", "stability", "binary", "hierarchy"],
+  },
+  {
     id: "planet_orbit",
     label: "Planet Orbit",
     kind: "input",
     sectionId: "system",
-    row: 2,
+    row: 5,
     summary:
       "Semi-major axis and orbital geometry place the planet within the system, setting insolation, period, seasonal context, and tidal-lock timescales.",
     formula: "P^2 = a^3 / M_* in years and AU for Keplerian orbits.",
@@ -277,7 +331,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     label: "Planet Rotation",
     kind: "input",
     sectionId: "system",
-    row: 3,
+    row: 6,
     summary:
       "Rotation period controls circulation-cell count and contributes to tidal-lock behaviour and magnetic-field morphology.",
     formula: "WorldSmith bins circulation into 1, 3, 5, or 7-cell regimes from rotation period.",
@@ -293,7 +347,7 @@ export const SCIENCE_GRAPH_NODES = Object.freeze([
     label: "Planet Insolation",
     kind: "derived",
     sectionId: "system",
-    row: 4,
+    row: 7,
     summary:
       "Incident stellar power at the planet's orbit. It is the cleanest bridge between the stellar model and planetary temperature.",
     formula: "S = L / a^2 in Earth-normalised units.",
@@ -1216,6 +1270,33 @@ export const SCIENCE_GRAPH_EDGES = Object.freeze([
     engineRefs: ["engine/star.js"],
   },
   {
+    sourceId: "host_frame_topology",
+    targetId: "companion_flux",
+    evidence: "runtime",
+    relationship: "frames",
+    summary:
+      "The selected star or pair node determines which stars count as the local host and which are treated as outer companions.",
+    engineRefs: ["engine/homeSystem/topology.js", "engine/homeSystem/flux.js"],
+  },
+  {
+    sourceId: "stellar_luminosity",
+    targetId: "companion_flux",
+    evidence: "runtime",
+    relationship: "drives",
+    summary:
+      "Companion forcing scales with the luminosity of the non-local stars in the hierarchy.",
+    engineRefs: ["engine/homeSystem/flux.js"],
+  },
+  {
+    sourceId: "companion_flux",
+    targetId: "habitable_zone",
+    evidence: "runtime",
+    relationship: "shifts",
+    summary:
+      "Mean companion heating pushes the effective habitable-zone solution outward for the active host frame.",
+    engineRefs: ["engine/homeSystem/flux.js", "engine/homeSystem/frames.js"],
+  },
+  {
     sourceId: "stellar_luminosity",
     targetId: "planet_insolation",
     evidence: "runtime",
@@ -1230,6 +1311,33 @@ export const SCIENCE_GRAPH_EDGES = Object.freeze([
     relationship: "drives",
     summary: "Orbital distance sets the inverse-square dilution of stellar flux.",
     engineRefs: ["engine/planet.js"],
+  },
+  {
+    sourceId: "host_frame_topology",
+    targetId: "planet_orbit",
+    evidence: "runtime",
+    relationship: "scopes",
+    summary:
+      "Semi-major axis is interpreted inside the currently selected S-type or P-type host frame rather than against the whole stellar hierarchy at once.",
+    engineRefs: ["engine/homeSystem/frames.js", "engine/worldSnapshot.js"],
+  },
+  {
+    sourceId: "multistar_stability",
+    targetId: "planet_orbit",
+    evidence: "runtime",
+    relationship: "bounds",
+    summary:
+      "Holman-Wiegert critical radii, truncation limits, and hierarchical guardrails bound which orbits remain viable in a multistar host frame.",
+    engineRefs: ["engine/homeSystem/stability.js", "engine/planet.js"],
+  },
+  {
+    sourceId: "companion_flux",
+    targetId: "planet_insolation",
+    evidence: "runtime",
+    relationship: "adds",
+    summary:
+      "Companion stars contribute extra visible-light forcing on top of the local host luminosity in multistar worlds.",
+    engineRefs: ["engine/homeSystem/flux.js", "engine/planet.js"],
   },
   {
     sourceId: "planet_orbit",

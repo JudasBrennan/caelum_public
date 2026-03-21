@@ -225,10 +225,10 @@ export function renderUnassignedMoons(container, moons, { planetsById = null } =
 
 export function renderOrbitSlots(
   container,
-  { starMassMsol, orbitItems, planets, sysModel, renderCtx },
+  { hostSummary = "", hostTitle = "Host frame", orbitItems, planets, sysModel, renderCtx },
 ) {
   const rows = [
-    createSlotRow("Star", createHint(`${fmt(starMassMsol, 4)} Msol primary`), {
+    createSlotRow(hostTitle, createHint(hostSummary || "Current host-frame context."), {
       dropzoneStyle: "cursor:default",
     }),
   ];

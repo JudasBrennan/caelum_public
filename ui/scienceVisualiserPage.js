@@ -14,7 +14,36 @@ const TIP_LABEL = {
   Concept: "Search by concept name, tag, or short description.",
   "Hop depth":
     "Trace mode shows concepts within the selected number of links around the active concept.",
+  View: "Switch between Path trace and Atlas layouts.\n\nPath trace focuses on the currently selected concept and its nearby dependencies. Atlas shows all enabled sections at once.",
+  Evidence:
+    "Filter edges by how strongly the codebase ties them to runtime behaviour.\n\nRuntime edges are used directly by the app, documented edges are described in comments or docs, and curated edges are explanatory links maintained for learning and navigation.",
+  Sections:
+    "Show or hide major science sections in the graph so you can focus on a narrower slice of the model.",
+  "Visible Nodes":
+    "Number of concepts currently visible after applying the active view mode, section filters, and search focus.",
+  "Visible Links":
+    "Number of graph edges currently visible between the displayed concepts.\n\nThis includes both runtime-backed and explanatory curated links that survive the current filters.",
+  Upstream:
+    "Direct prerequisite concepts that feed into the selected node. In dependency terms, these are the immediate inputs.",
+  Downstream:
+    "Direct dependent concepts that the selected node influences. In dependency terms, these are the immediate outputs.",
 };
+
+const SCIENCE_DOC_LABEL_ALIASES = Object.freeze({
+  "Science - Metallicity Gradient": "Science - Local Cluster",
+  "Science - Planetary Interiors": "Science - Interior Composition",
+  "Science - Density and Radius": "Science - Planetary Physics",
+  "Science - Magnetospheres": "Science - Interior Composition",
+  "Science - Atmospheres": "Science - Atmosphere & Colour",
+  "Science - Surface Temperature": "Science - Planetary Physics",
+  "Science - Tides": "Science - Orbital Mechanics",
+  "Science - Water and Climate": "Science - Climate Classification",
+  "Science - Plate Tectonics": "Science - Tectonic & Geomorphic Science",
+  "Science - Population": "Science - Population Dynamics",
+  "Science - Apparent Sky": "Science - Photometry & Magnitudes",
+  "Science - Moons": "Science - Orbital Mechanics",
+  "Science - Gas Giants": "Science - Gas Giant Physics",
+});
 
 const GRAPH_METRICS = Object.freeze({
   marginX: 28,
@@ -178,6 +207,15 @@ function scoreNode(node, query) {
   if (summary.includes(query)) return 20;
 
   return 0;
+}
+
+function normalizeReferenceDoc(doc = {}) {
+  const label = String(doc.label || "");
+  if (String(doc.href || "") !== "#/science") return doc;
+  return {
+    ...doc,
+    label: SCIENCE_DOC_LABEL_ALIASES[label] || label,
+  };
 }
 
 function getSearchResults(query, enabledSections) {
@@ -380,7 +418,11 @@ function renderScienceVizKpis(container, model) {
     ].map((item) =>
       createElement("div", { className: "kpi-wrap" }, [
         createElement("div", { className: "kpi" }, [
-          createElement("div", { className: "kpi__label", text: item.label }),
+          createElement("div", { className: "kpi__label" }, [
+            item.label,
+            " ",
+            tipIconNode(TIP_LABEL[item.label] || ""),
+          ]),
           createElement("div", { className: "kpi__value", text: item.value }),
           createElement("div", { className: "kpi__meta", text: item.meta }),
         ]),
@@ -643,13 +685,14 @@ function renderScienceVizInspector(container, model) {
         "div",
         { className: "science-viz__chip-row" },
         (node.docs || []).length
-          ? (node.docs || []).map((doc) =>
-              createElement("a", {
+          ? (node.docs || []).map((rawDoc) => {
+              const doc = normalizeReferenceDoc(rawDoc);
+              return createElement("a", {
                 className: "science-viz__link-chip",
                 attrs: { href: doc.href },
                 text: doc.label,
-              }),
-            )
+              });
+            })
           : emptyVizNode("No documentation links listed."),
       ),
       createElement("div", { className: "science-viz__label", text: "Tags" }),
@@ -719,7 +762,7 @@ export function initScienceVisualiserPage(mountEl) {
             </div>
             <div class="science-viz-controls-dropdown__row science-viz-controls-dropdown__row--dual">
               <div class="science-viz__dropdown-block">
-                <div class="science-viz__dropdown-label">View</div>
+                <div class="science-viz__dropdown-label">View ${tipIcon(TIP_LABEL["View"] || "")}</div>
                 <div class="physics-duo-toggle science-viz__mode-toggle" id="scienceVizModeToggle">
                   <input type="radio" name="scienceVizViewMode" id="scienceVizTrace" value="trace" checked />
                   <label for="scienceVizTrace">Path trace</label>
@@ -740,7 +783,7 @@ export function initScienceVisualiserPage(mountEl) {
             </div>
             <div class="science-viz-controls-dropdown__row">
               <div class="science-viz__dropdown-block">
-                <div class="science-viz__dropdown-label">Evidence</div>
+                <div class="science-viz__dropdown-label">Evidence ${tipIcon(TIP_LABEL["Evidence"] || "")}</div>
                 <div id="scienceVizEvidenceFilters" class="science-viz__checklist">
                   ${buildEvidenceFilterMarkup(state.enabledEvidence)}
                 </div>
@@ -748,7 +791,7 @@ export function initScienceVisualiserPage(mountEl) {
             </div>
             <div class="science-viz-controls-dropdown__row">
               <div class="science-viz__dropdown-block">
-                <div class="science-viz__dropdown-label">Sections</div>
+                <div class="science-viz__dropdown-label">Sections ${tipIcon(TIP_LABEL["Sections"] || "")}</div>
                 <div id="scienceVizSectionFilters" class="science-viz__checklist">
                   ${buildSectionFilterMarkup(state.enabledSections)}
                 </div>
@@ -759,7 +802,7 @@ export function initScienceVisualiserPage(mountEl) {
           <div class="science-viz__status">
             <div>
               <p class="science-viz__lede">
-                Trace how WorldSmith concepts feed into each other, from stellar metallicity and orbital layout through interiors, atmospheres, moon systems, cool-star surface-moon calibration, 3:2 spin states, radiation and shielding, surface-vs-subsurface moon outcomes, climates, gas giants, debris belts, rings, and population.
+                Trace how WorldSmith concepts feed into each other, from stellar metallicity and multistar host frames through companion flux, orbital layout, interiors, atmospheres, moon systems, cool-star surface-moon calibration, 3:2 spin states, radiation and shielding, surface-vs-subsurface moon outcomes, climates, gas giants, debris belts, rings, and population.
               </p>
               <p id="scienceVizSummary" class="hint science-viz__summary-line"></p>
             </div>

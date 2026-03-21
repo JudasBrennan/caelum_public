@@ -1,17 +1,10 @@
 import { calcClimateZones } from "../engine/climate.js";
-import { calcPlanetExact } from "../engine/planet.js";
 import { fmt } from "../engine/utils.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { createElement, replaceChildren, replaceSelectOptions } from "./domHelpers.js";
-import {
-  getSelectedPlanet,
-  getStarOverrides,
-  listPlanets,
-  loadWorld,
-  selectPlanet,
-  updateWorld,
-} from "./store.js";
+import { solvePlanetExactForWorld } from "./bodySolveHelpers.js";
+import { getSelectedPlanet, listPlanets, loadWorld, selectPlanet, updateWorld } from "./store.js";
 import { createTutorial } from "./tutorial.js";
 
 // ── Tooltips ────────────────────────────────────────────────
@@ -100,17 +93,7 @@ function getClimateContext(world) {
   const planet = getSelectedPlanet(world);
   if (!planet) return fallback;
 
-  const sov = getStarOverrides(world?.star);
-  const model = calcPlanetExact({
-    starMassMsol: Number(world?.star?.massMsol) || 1,
-    starAgeGyr: Number(world?.star?.ageGyr) || 4.6,
-    starMetallicityFeH: Number(world?.star?.metallicityFeH) || 0,
-    starRadiusRsolOverride: sov.r,
-    starLuminosityLsolOverride: sov.l,
-    starTempKOverride: sov.t,
-    starEvolutionMode: sov.ev,
-    planet: planet.inputs || {},
-  });
+  const { model } = solvePlanetExactForWorld(world, planet);
 
   if (!model?.derived) return fallback;
 

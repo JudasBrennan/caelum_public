@@ -151,22 +151,26 @@ const GOAL_PRIORITY_OPTIONS = Object.freeze([
   {
     value: "maximize-realism",
     label: "Maximize realism",
-    description: "Favor the most conservative physically defensible fit.",
+    description:
+      "Keeps the fit conservative and penalizes large orbit or climate changes that are only weakly justified.",
   },
   {
     value: "maximize-habitability",
     label: "Maximize habitability",
-    description: "Push harder toward surface-water and life-friendly states.",
+    description:
+      "Accepts bigger retunes if they improve surface water, climate stability, and life-facing outputs.",
   },
   {
     value: "preserve-current-system",
     label: "Preserve current system",
-    description: "Stay closer to the current star and orbit context where possible.",
+    description:
+      "Keeps the result closer to the current star and system framing even if the requested world is a weaker match.",
   },
   {
     value: "preserve-current-orbit-context",
     label: "Preserve current orbit",
-    description: "Prefer smaller orbital changes even if the fit is weaker.",
+    description:
+      "Strongly resists orbit moves, so climate or water goals may only be partially reached.",
   },
 ]);
 
@@ -174,17 +178,20 @@ const GOAL_ALLOWED_EDIT_OPTIONS = Object.freeze([
   {
     value: "edit-object-only",
     label: "Planet only",
-    description: "Search only within the current rocky-world inputs.",
+    description:
+      "Only this rocky world's inputs move, so results stay local but may miss orbit-dependent goals.",
   },
   {
     value: "edit-object-plus-host",
     label: "Planet + host context",
-    description: "Allow orbit refits relative to the current stellar context.",
+    description:
+      "Allows orbit refits around the current star, making climate and habitable-zone goals easier to reach.",
   },
   {
     value: "edit-object-plus-local-system",
     label: "Planet + local system",
-    description: "Allow the broadest seeded search in this pilot flow.",
+    description:
+      "Allows the broadest seeded search, improving fit quality at the cost of larger context changes.",
   },
 ]);
 
@@ -192,17 +199,20 @@ const GOAL_SEARCH_BUDGET_OPTIONS = Object.freeze([
   {
     value: "fast",
     label: "Fast",
-    description: "Try a small seeded search for a quick answer.",
+    description:
+      "Tries only a few seeded candidates, so it returns quickly but can miss a better rocky-world fit.",
   },
   {
     value: "balanced",
     label: "Balanced",
-    description: "Try more seeded candidates before choosing the best fit.",
+    description:
+      "Tries a moderate number of seeded candidates and is the default speed-versus-fit trade-off.",
   },
   {
     value: "deep",
     label: "Deep",
-    description: "Try the broadest seeded search available in this pilot flow.",
+    description:
+      "Tries the broadest seeded search, taking longer but increasing the chance of a closer match.",
   },
 ]);
 
@@ -276,33 +286,41 @@ const ORBIT_POLICY_OPTIONS = Object.freeze([
   {
     value: "keep-current",
     label: "Keep current orbit",
-    description: "Preserves the current semi-major axis and uses the archetype as a local refit.",
+    description:
+      "Keeps the current semi-major axis, so insolation and year length stay close to the current world.",
   },
   {
     value: "fit-habitable-zone",
     label: "Fit habitable zone",
     description:
-      "Moves temperate targets toward the current star's habitable-zone midpoint when available.",
+      "Moves temperate targets toward the current star's habitable-zone midpoint, which can strongly change temperature and climate.",
   },
   {
     value: "use-archetype",
     label: "Use archetype orbit",
     description:
-      "Uses the recipe orbit when the archetype depends on a specific insolation regime.",
+      "Uses the archetype's preferred insolation regime, which can move the planet furthest from its current orbit.",
   },
 ]);
 
 const WATER_TARGET_OPTIONS = Object.freeze([
-  { value: "dry", label: "Dry", description: "Pushes the world toward minimal surface water." },
+  {
+    value: "dry",
+    label: "Dry",
+    description:
+      "Pushes the world toward little exposed water, usually favoring deserts, airless states, or colder dry regimes.",
+  },
   {
     value: "mixed",
     label: "Mixed land and sea",
-    description: "Targets exposed land plus stable surface water.",
+    description:
+      "Targets a land-ocean balance, which usually supports the broadest temperate rocky-world outcomes.",
   },
   {
     value: "ocean",
     label: "Ocean-forward",
-    description: "Pushes the world toward extensive or global oceans.",
+    description:
+      "Pushes toward extensive or global oceans, often reducing exposed land and increasing water-world behavior.",
   },
 ]);
 
@@ -310,36 +328,47 @@ const ATMOSPHERE_TARGET_OPTIONS = Object.freeze([
   {
     value: "thin",
     label: "Thin",
-    description: "Favors low-pressure or marginally retained atmospheres.",
+    description:
+      "Favors low-pressure or marginal atmospheres, usually making the world colder, drier, or harder to protect.",
   },
   {
     value: "breathable",
     label: "Breathable",
-    description: "Targets moderate pressure and Earth-like oxygen-bearing air.",
+    description:
+      "Targets moderate pressure and oxygen-bearing air, which is the most direct route toward temperate surface-biosphere cases.",
   },
   {
     value: "dense",
     label: "Dense",
-    description: "Favors a heavier atmosphere without necessarily forcing a runaway greenhouse.",
+    description:
+      "Favors a heavier atmosphere that strengthens heat retention and pressure without necessarily forcing runaway conditions.",
   },
   {
     value: "greenhouse",
     label: "Greenhouse-heavy",
-    description: "Targets stronger greenhouse loading and hotter surface conditions.",
+    description:
+      "Targets stronger greenhouse loading, pushing the world toward hotter, more Venus-like or humid states.",
   },
 ]);
 
 const LIFE_GOAL_OPTIONS = Object.freeze([
-  { value: "sterile", label: "Sterile", description: "Do not optimize for a surface biosphere." },
+  {
+    value: "sterile",
+    label: "Sterile",
+    description:
+      "Does not spend search effort on surface biology, allowing harsher or simpler rocky outcomes to win.",
+  },
   {
     value: "simple-biosphere",
     label: "Simple biosphere",
-    description: "Aim for a broadly habitable but not strongly Earthlike surface state.",
+    description:
+      "Aims for broad surface habitability without demanding the strongest Earth-like climate and atmosphere fit.",
   },
   {
     value: "rich-biosphere",
     label: "Rich biosphere",
-    description: "Push toward the strongest temperate surface-life target this model can support.",
+    description:
+      "Pushes toward the strongest temperate surface-life target the model can support, even if it needs a larger retune.",
   },
 ]);
 
@@ -447,28 +476,32 @@ function buildRockyGoalDraftQuestionOptions(traitId) {
     {
       value: "off",
       label: "Off",
-      description: "Do not explicitly optimize for or avoid this trait.",
+      description:
+        "Leaves this trait neutral, so it does not help or hurt a candidate unless other choices imply it.",
     },
   ];
   if (allowedRoles.includes("required")) {
     options.push({
       value: "required",
       label: "Must have",
-      description: "Treat this as a hard constraint in the search.",
+      description:
+        "Treats this as a hard requirement, so candidates missing it usually fall out of contention.",
     });
   }
   if (allowedRoles.includes("preferred")) {
     options.push({
       value: "preferred",
       label: "Prefer",
-      description: "Improve the score when this trait is reached.",
+      description:
+        "Raises the score when this trait is reached, but still allows trade-off results that miss it.",
     });
   }
   if (allowedRoles.includes("avoid")) {
     options.push({
       value: "avoid",
       label: "Avoid",
-      description: "Penalize results that trigger this trait.",
+      description:
+        "Pushes the search away from this trait without making it completely impossible.",
     });
   }
   return options;
@@ -487,7 +520,7 @@ function buildRockyGoalQuestions(flowState, context = {}) {
       label: "Priority",
       help:
         context.currentContextText ||
-        "Choose whether this search should favor realism, habitability, or preserving the current orbit context.",
+        "Sets the scoring bias for the search. Realism stays conservative, habitability accepts stronger climate retunes, and preserve-current resists large orbit changes.",
       defaultValue: draft.priority,
       options: GOAL_PRIORITY_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -496,7 +529,7 @@ function buildRockyGoalQuestions(flowState, context = {}) {
       stepId: "orbit-context",
       kind: "choice",
       label: "Allowed edits",
-      help: "Decide whether the search may only retune this rocky world or make broader local changes.",
+      help: "Sets how far the search may move. Narrow scope keeps changes on this world; broader scope allows orbit refits that can reshape climate and water outcomes.",
       defaultValue: draft.allowedEdits,
       options: GOAL_ALLOWED_EDIT_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -505,7 +538,7 @@ function buildRockyGoalQuestions(flowState, context = {}) {
       stepId: "orbit-context",
       kind: "choice",
       label: "Search budget",
-      help: "Controls how many seeded candidate paths this pilot goal search will try.",
+      help: "Sets how many seeded candidate paths the search tries. Deeper searches take longer but are more likely to find a closer rocky-world fit.",
       defaultValue: draft.searchBudget,
       options: GOAL_SEARCH_BUDGET_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -707,7 +740,7 @@ function buildRockyQuestions(archetype, context = {}) {
       label: "Orbit Fit",
       help:
         context.currentContextText ||
-        "Decide whether to keep the current orbit or let guided mode refit it.",
+        "Controls how aggressively guided mode can move the orbit. Orbit shifts have the biggest knock-on effect on temperature, climate state, and water stability.",
       options: ORBIT_POLICY_OPTIONS,
       defaultValue: defaults.orbit_policy,
     },
@@ -716,7 +749,7 @@ function buildRockyQuestions(archetype, context = {}) {
       stepId: "goal-details",
       kind: "choice",
       label: "Water Target",
-      help: "How much exposed surface water should this world aim for?",
+      help: "Sets the intended surface-water regime. This strongly changes climate behavior, ocean coverage, and how much exposed land the result tries to keep.",
       options: WATER_TARGET_OPTIONS,
       defaultValue: defaults.water_target,
     },
@@ -725,7 +758,7 @@ function buildRockyQuestions(archetype, context = {}) {
       stepId: "goal-details",
       kind: "choice",
       label: "Atmosphere Target",
-      help: "Choose the general pressure and greenhouse profile you want to aim for.",
+      help: "Sets the target pressure and greenhouse style. This is one of the main controls on surface temperature and atmospheric comfort.",
       options: ATMOSPHERE_TARGET_OPTIONS,
       defaultValue: defaults.atmosphere_target,
     },
@@ -734,7 +767,7 @@ function buildRockyQuestions(archetype, context = {}) {
       stepId: "goal-details",
       kind: "choice",
       label: "Life Goal",
-      help: "Use this as a target strength, not a guarantee of biology.",
+      help: "Sets how hard the search should lean toward surface-life conditions. Higher life goals demand stronger climate, water, and atmosphere alignment.",
       options: LIFE_GOAL_OPTIONS,
       defaultValue: defaults.life_goal,
     },

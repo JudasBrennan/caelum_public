@@ -1,5 +1,5 @@
 import { calcStar } from "../../../engine/star.js";
-import { computeStellarActivityModel } from "../../../engine/stellarActivity.js";
+import { buildTopologyGuardrailSummary } from "../../../engine/homeSystem/stability.js";
 import { clamp, fmt } from "../../../engine/utils.js";
 import { compileGuidedGoal } from "../goalCompiler.js";
 import { getGoalTemplate, getGoalTrait, listGoalTemplates } from "../goalTraits.js";
@@ -104,17 +104,20 @@ const EVOLUTION_TARGET_OPTIONS = Object.freeze([
   {
     value: "keep-current",
     label: "Keep current phase",
-    description: "Preserve the current evolution mode and only refit the star within it.",
+    description:
+      "Keeps luminosity, radius, and spectral behavior close to the current stellar phase while retuning within that regime.",
   },
   {
     value: "main-sequence",
     label: "Main sequence",
-    description: "Bias toward a stable hydrogen-burning star.",
+    description:
+      "Pushes toward steadier hydrogen-burning outputs, usually with a calmer long-lived habitable-zone baseline.",
   },
   {
     value: "evolving",
     label: "Evolving star",
-    description: "Bias toward a brighter post-main-sequence state when plausible.",
+    description:
+      "Pushes toward brighter, larger, shorter-lived post-main-sequence behavior and a moving habitable zone.",
   },
 ]);
 
@@ -122,17 +125,20 @@ const ACTIVITY_TARGET_OPTIONS = Object.freeze([
   {
     value: "quiet",
     label: "Quiet",
-    description: "Prefer older, lower-activity stellar states where possible.",
+    description:
+      "Biases toward lower flare and CME activity, usually by favoring older or calmer stellar states.",
   },
   {
     value: "balanced",
     label: "Balanced",
-    description: "Stay near the archetype's default activity level.",
+    description:
+      "Keeps activity near the archetype baseline so the recommendation does not lean too hard toward either extreme.",
   },
   {
     value: "active",
     label: "Active",
-    description: "Bias toward younger or more flare-rich stellar states.",
+    description:
+      "Biases toward younger or flare-richer states, raising the chance of strong activity and harsher radiation outputs.",
   },
 ]);
 
@@ -140,17 +146,20 @@ const METALLICITY_TARGET_OPTIONS = Object.freeze([
   {
     value: "metal-poor",
     label: "Metal-poor",
-    description: "Bias the star toward lower heavy-element abundance.",
+    description:
+      "Pushes the star toward a lower heavy-element content, usually reducing giant-planet bias and disk richness.",
   },
   {
     value: "solar",
     label: "Solar-ish",
-    description: "Keep the star near solar metallicity.",
+    description:
+      "Keeps composition near solar, which usually preserves a familiar disk-star baseline and giant-planet odds.",
   },
   {
     value: "metal-rich",
     label: "Metal-rich",
-    description: "Bias the star toward a heavier-element-rich disk-star profile.",
+    description:
+      "Pushes toward a heavier-element-rich disk-star profile, usually increasing giant-planet probability.",
   },
 ]);
 
@@ -158,17 +167,65 @@ const SYSTEM_GOAL_OPTIONS = Object.freeze([
   {
     value: "earthlike-window",
     label: "Earth-like window",
-    description: "Prefer stars whose outputs better support an Earth-like habitability window.",
+    description:
+      "Favors stars with calmer, more temperate outputs that better support an Earth-like habitable-zone window.",
   },
   {
     value: "long-lived-stability",
     label: "Long-lived",
-    description: "Prefer stars with long stable lifetimes and calmer evolution.",
+    description:
+      "Favors lower-drift, longer-lived stellar states even if they are dimmer or less dramatic.",
   },
   {
     value: "bright-short-lived",
     label: "Bright and short-lived",
-    description: "Prefer luminous young-star outputs over long-term stability.",
+    description:
+      "Accepts hotter, more luminous short-lived outputs even when they weaken long-term habitability.",
+  },
+]);
+
+const SYSTEM_ARCHITECTURE_OPTIONS = Object.freeze([
+  {
+    value: "keep-current",
+    label: "Keep current layout",
+    description:
+      "Preserves the current home-system topology, so the star retune happens inside the existing host-frame and canvas structure.",
+  },
+  {
+    value: "single-star",
+    label: "Single star",
+    description:
+      "Collapses to one host star, removing companion flux and extra host frames for the simplest downstream orbit and visualizer behavior.",
+  },
+  {
+    value: "wide-binary",
+    label: "Wide S-type binary",
+    description:
+      "Adds a wide companion and keeps new worlds around one star by default, which usually preserves readable host-frame views and mild companion forcing.",
+  },
+  {
+    value: "close-circumbinary",
+    label: "Close circumbinary",
+    description:
+      "Builds a tight binary with Pair A+B as the default host, so new planets orbit the barycenter and the sky/poster can show two primary suns.",
+  },
+  {
+    value: "hierarchical-triple",
+    label: "Hierarchical triple",
+    description:
+      "Builds the constrained ((A+B)+C) layout, adding an outer star, more host-frame choices, and tertiary flux/stability context.",
+  },
+  {
+    value: "hierarchical-quad",
+    label: "Hierarchical quad",
+    description:
+      "Builds the constrained (((A+B)+C)+D) layout, maximizing host-frame count and overview-canvas complexity while staying tree-shaped.",
+  },
+  {
+    value: "paired-quad",
+    label: "Paired quad",
+    description:
+      "Builds the constrained (A+B)+(C+D) layout, keeping two inner binaries under a shared outer barycentre so overview and host-frame choices stay explicit.",
   },
 ]);
 
@@ -176,22 +233,26 @@ const GOAL_PRIORITY_OPTIONS = Object.freeze([
   {
     value: "maximize-realism",
     label: "Maximize realism",
-    description: "Favor the most conservative stellar fit.",
+    description:
+      "Keeps the fit conservative and penalizes aggressive shifts away from the current stellar context.",
   },
   {
     value: "maximize-habitability",
     label: "Maximize habitability",
-    description: "Push harder toward calmer life-friendly stellar outputs.",
+    description:
+      "Accepts bigger retunes if they produce calmer activity and a friendlier habitable-zone window.",
   },
   {
     value: "preserve-current-system",
     label: "Preserve current system",
-    description: "Stay closer to the current stellar context where possible.",
+    description:
+      "Keeps mass, age, and metallicity closer to the current star even if the goal match is weaker.",
   },
   {
     value: "preserve-current-orbit-context",
     label: "Preserve current phase",
-    description: "Prefer smaller changes to the current stellar state.",
+    description:
+      "Strongly resists changes that would move the star into a different evolution regime.",
   },
 ]);
 
@@ -199,17 +260,20 @@ const GOAL_ALLOWED_EDIT_OPTIONS = Object.freeze([
   {
     value: "edit-object-only",
     label: "Star only",
-    description: "Search only within the star inputs.",
+    description:
+      "Only star inputs move, so results stay local but may miss goals that need broader retuning.",
   },
   {
     value: "edit-object-plus-host",
     label: "Star + host context",
-    description: "Allow broader fit changes while keeping the current system framing.",
+    description:
+      "Allows wider stellar retunes while still treating the current system framing as the baseline.",
   },
   {
     value: "edit-object-plus-local-system",
     label: "Star + local system",
-    description: "Allow the broadest seeded search in this pilot flow.",
+    description:
+      "Allows the broadest seeded search, increasing the chance of a closer fit at the cost of larger changes.",
   },
 ]);
 
@@ -217,17 +281,20 @@ const GOAL_SEARCH_BUDGET_OPTIONS = Object.freeze([
   {
     value: "fast",
     label: "Fast",
-    description: "Try a small seeded search for a quick answer.",
+    description:
+      "Tries only a few seeded candidates, so it returns quickly but can miss a better stellar fit.",
   },
   {
     value: "balanced",
     label: "Balanced",
-    description: "Try more seeded candidates before choosing the best fit.",
+    description:
+      "Tries a moderate number of seeded candidates and is the default trade-off between speed and fit quality.",
   },
   {
     value: "deep",
     label: "Deep",
-    description: "Try the broadest seeded search available in this pilot flow.",
+    description:
+      "Tries the broadest seeded search, which takes longer but is more likely to find a closer match.",
   },
 ]);
 
@@ -306,9 +373,356 @@ function normalizeText(value) {
     .toLowerCase();
 }
 
-function includesAny(value, patterns = []) {
-  const text = normalizeText(value);
-  return patterns.some((pattern) => text.includes(pattern));
+function normalizeSystemArchitecture(value) {
+  switch (normalizeText(value)) {
+    case "single-star":
+      return "single-star";
+    case "wide-binary":
+      return "wide-binary";
+    case "close-circumbinary":
+      return "close-circumbinary";
+    case "hierarchical-triple":
+      return "hierarchical-triple";
+    case "hierarchical-quad":
+      return "hierarchical-quad";
+    case "paired-hierarchical-quad":
+    case "paired-quad":
+      return "paired-quad";
+    case "keep-current":
+    default:
+      return "keep-current";
+  }
+}
+
+function currentTopologyLabel(topologyKind = "") {
+  switch (String(topologyKind || "").trim()) {
+    case "binary":
+      return "Binary";
+    case "triple":
+      return "Triple";
+    case "quad":
+      return "Quad";
+    case "single":
+    default:
+      return "Single";
+  }
+}
+
+function hostFrameLabel(hostFrameId = "") {
+  switch (String(hostFrameId || "").trim()) {
+    case "star_b":
+      return "Star B";
+    case "star_c":
+      return "Star C";
+    case "star_d":
+      return "Star D";
+    case "pair_ab":
+      return "Pair A+B";
+    case "pair_cd":
+      return "Pair C+D";
+    case "pair_abc":
+      return "Pair (A+B)+C";
+    case "pair_abcd":
+      return "Pair ((A+B)+C)+D";
+    case "pair_root":
+      return "Pair (A+B)+(C+D)";
+    case "star_a":
+    default:
+      return "Star A";
+  }
+}
+
+function systemArchitectureLabel(selection = "", context = {}) {
+  switch (normalizeSystemArchitecture(selection)) {
+    case "single-star":
+      return "Single star";
+    case "wide-binary":
+      return "Wide S-type binary";
+    case "close-circumbinary":
+      return "Close circumbinary pair";
+    case "hierarchical-triple":
+      return "Hierarchical triple";
+    case "hierarchical-quad":
+      return "Hierarchical quad";
+    case "paired-quad":
+      return "Paired quad";
+    case "keep-current":
+    default:
+      return context?.currentTopologyKind
+        ? `Keep current (${currentTopologyLabel(context.currentTopologyKind)})`
+        : "Keep current layout";
+  }
+}
+
+function systemArchitectureImpact(selection = "") {
+  switch (normalizeSystemArchitecture(selection)) {
+    case "single-star":
+      return "Likely impact: removes companion forcing, collapses back to one host frame, and keeps the visualizer in the simplest single-star layout.";
+    case "wide-binary":
+      return "Likely impact: new planets default to one star, companion light is usually secondary, and the large canvases stay in readable host-frame mode.";
+    case "close-circumbinary":
+      return "Likely impact: new planets default to Pair A+B, the circumbinary stability floor moves outward, and sky/poster views show two primary suns.";
+    case "hierarchical-triple":
+      return "Likely impact: adds a tertiary star, extra host frames, and outer-star flux/stability context without leaving the constrained hierarchy.";
+    case "hierarchical-quad":
+      return "Likely impact: adds the full constrained four-star hierarchy, which gives the richest overview views but also the busiest topology.";
+    case "paired-quad":
+      return "Likely impact: builds two inner binaries under a shared root pair, adding peer circumbinary frames and a clearer whole-system overview for four-star layouts.";
+    case "keep-current":
+    default:
+      return "Likely impact: preserves the current topology and host-frame structure while retuning the primary star.";
+  }
+}
+
+function normalizeBaseStarStem(name = "") {
+  const raw = String(name || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return "Star";
+  return raw.replace(/\s+[ABCD]$/i, "").trim() || raw;
+}
+
+function namedCompanion(baseName = "", suffix = "B") {
+  const stem = normalizeBaseStarStem(baseName);
+  return `${stem} ${suffix}`.trim();
+}
+
+function resolveSystemArchitectureSelection(flowState = {}, answers = {}) {
+  const directAnswer = normalizeText(answers?.system_architecture);
+  if (directAnswer) return normalizeSystemArchitecture(directAnswer);
+  const goalDraftAnswer = normalizeText(flowState?.goalDraft?.systemArchitecture);
+  if (goalDraftAnswer) return normalizeSystemArchitecture(goalDraftAnswer);
+  return "keep-current";
+}
+
+function buildStarSystemPreset(selection = "", context = {}, applyInputs = {}) {
+  const normalized = normalizeSystemArchitecture(selection);
+  const primaryMass = clamp(
+    Number(applyInputs?.massMsol ?? context?.currentInputs?.massMsol ?? 1),
+    0.08,
+    100,
+  );
+  const baseName = String(applyInputs?.name || context?.currentStarName || "Star");
+  const previewFor = (label, defaultHostFrameId, companionSummary, impact, systemInputs = null) => {
+    const hierarchyHealth =
+      systemInputs && typeof systemInputs === "object"
+        ? buildTopologyGuardrailSummary({
+            topologyKind: systemInputs.topologyKind,
+            quadLayoutKind: systemInputs.quadLayoutKind,
+            primaryMassMsol: primaryMass,
+            companionMassMsol: systemInputs.companionMassMsol,
+            binarySemiMajorAxisAu: systemInputs.binarySemiMajorAxisAu,
+            binaryEccentricity: systemInputs.binaryEccentricity,
+            binaryInclinationDeg: systemInputs.binaryInclinationDeg,
+            tertiaryMassMsol: systemInputs.tertiaryMassMsol,
+            tripleOuterSemiMajorAxisAu: systemInputs.tripleOuterSemiMajorAxisAu,
+            tripleOuterEccentricity: systemInputs.tripleOuterEccentricity,
+            tripleOuterInclinationDeg: systemInputs.tripleOuterInclinationDeg,
+            quaternaryMassMsol: systemInputs.quaternaryMassMsol,
+            quadOuterSemiMajorAxisAu: systemInputs.quadOuterSemiMajorAxisAu,
+            quadOuterEccentricity: systemInputs.quadOuterEccentricity,
+            quadOuterInclinationDeg: systemInputs.quadOuterInclinationDeg,
+            quadSecondarySemiMajorAxisAu: systemInputs.tripleOuterSemiMajorAxisAu,
+            quadSecondaryEccentricity: systemInputs.tripleOuterEccentricity,
+            quadSecondaryInclinationDeg: systemInputs.tripleOuterInclinationDeg,
+          })
+        : null;
+    const impactText =
+      hierarchyHealth?.layers?.length > 0
+        ? `${impact} ${hierarchyHealth.headline}: ${hierarchyHealth.summary}`
+        : impact;
+    return {
+      systemInputs,
+      systemPreview: {
+        label,
+        defaultHostFrameLabel: hostFrameLabel(defaultHostFrameId),
+        companionSummary,
+        impact: impactText,
+        hierarchyHealthLabel: hierarchyHealth?.headline || "",
+        hierarchyHealthSummary: hierarchyHealth?.summary || "",
+      },
+    };
+  };
+
+  if (normalized === "keep-current") {
+    const currentHostFrameId = String(context?.currentDefaultHostFrameId || "star_a");
+    const currentTopology = currentTopologyLabel(context?.currentTopologyKind);
+    const companionSummary =
+      String(context?.currentTopologyKind || "single") === "single"
+        ? "No new companions added."
+        : "Existing companion and hierarchy settings are preserved.";
+    return previewFor(
+      `Keep current (${currentTopology})`,
+      currentHostFrameId,
+      companionSummary,
+      "Likely impact: the current host-frame layout stays intact while only the stellar solve is retuned.",
+      null,
+    );
+  }
+
+  if (normalized === "single-star") {
+    return previewFor(
+      "Single star",
+      "star_a",
+      "No companion stars.",
+      systemArchitectureImpact(normalized),
+      {
+        topologyKind: "single",
+        defaultHostFrameId: "star_a",
+      },
+    );
+  }
+
+  if (normalized === "wide-binary") {
+    const companionMassMsol = clamp(primaryMass * 0.74, 0.08, Math.max(primaryMass * 0.96, 0.12));
+    const binarySemiMajorAxisAu = 28;
+    const systemInputs = {
+      topologyKind: "binary",
+      defaultHostFrameId: "star_a",
+      companionName: namedCompanion(baseName, "B"),
+      companionMassMsol,
+      binarySemiMajorAxisAu,
+      binaryEccentricity: 0.16,
+      binaryInclinationDeg: 0,
+      binaryArgPeriapsisDeg: 38,
+      binaryMeanAnomalyDeg: 112,
+    };
+    return previewFor(
+      "Wide S-type binary",
+      systemInputs.defaultHostFrameId,
+      `${systemInputs.companionName} at ${fmt(binarySemiMajorAxisAu, 1)} AU | ${fmt(companionMassMsol, 2)} Msol`,
+      systemArchitectureImpact(normalized),
+      systemInputs,
+    );
+  }
+
+  if (normalized === "close-circumbinary") {
+    const companionMassMsol = clamp(primaryMass * 0.86, 0.08, Math.max(primaryMass * 1.08, 0.12));
+    const binarySemiMajorAxisAu = 0.28;
+    const systemInputs = {
+      topologyKind: "binary",
+      defaultHostFrameId: "pair_ab",
+      companionName: namedCompanion(baseName, "B"),
+      companionMassMsol,
+      binarySemiMajorAxisAu,
+      binaryEccentricity: 0.07,
+      binaryInclinationDeg: 0,
+      binaryArgPeriapsisDeg: 24,
+      binaryMeanAnomalyDeg: 86,
+    };
+    return previewFor(
+      "Close circumbinary pair",
+      systemInputs.defaultHostFrameId,
+      `${systemInputs.companionName} at ${fmt(binarySemiMajorAxisAu, 2)} AU | ${fmt(companionMassMsol, 2)} Msol`,
+      systemArchitectureImpact(normalized),
+      systemInputs,
+    );
+  }
+
+  if (normalized === "hierarchical-triple") {
+    const companionMassMsol = clamp(primaryMass * 0.72, 0.08, Math.max(primaryMass * 0.94, 0.12));
+    const tertiaryMassMsol = clamp(primaryMass * 0.46, 0.08, Math.max(primaryMass * 0.68, 0.12));
+    const systemInputs = {
+      topologyKind: "triple",
+      defaultHostFrameId: "star_a",
+      companionName: namedCompanion(baseName, "B"),
+      companionMassMsol,
+      binarySemiMajorAxisAu: 24,
+      binaryEccentricity: 0.15,
+      binaryInclinationDeg: 0,
+      binaryArgPeriapsisDeg: 34,
+      binaryMeanAnomalyDeg: 104,
+      tertiaryName: namedCompanion(baseName, "C"),
+      tertiaryMassMsol,
+      tripleOuterSemiMajorAxisAu: 210,
+      tripleOuterEccentricity: 0.19,
+      tripleOuterInclinationDeg: 0,
+      tripleOuterArgPeriapsisDeg: 58,
+      tripleOuterMeanAnomalyDeg: 188,
+    };
+    return previewFor(
+      "Hierarchical triple",
+      systemInputs.defaultHostFrameId,
+      `${systemInputs.companionName} at ${fmt(systemInputs.binarySemiMajorAxisAu, 0)} AU | ${systemInputs.tertiaryName} at ${fmt(systemInputs.tripleOuterSemiMajorAxisAu, 0)} AU`,
+      systemArchitectureImpact(normalized),
+      systemInputs,
+    );
+  }
+
+  if (normalized === "paired-quad") {
+    const companionMassMsol = clamp(primaryMass * 0.72, 0.08, Math.max(primaryMass * 0.94, 0.12));
+    const tertiaryMassMsol = clamp(primaryMass * 0.64, 0.08, Math.max(primaryMass * 0.86, 0.12));
+    const quaternaryMassMsol = clamp(primaryMass * 0.48, 0.08, Math.max(primaryMass * 0.72, 0.12));
+    const systemInputs = {
+      topologyKind: "quad",
+      quadLayoutKind: "paired",
+      defaultHostFrameId: "pair_root",
+      companionName: namedCompanion(baseName, "B"),
+      companionMassMsol,
+      binarySemiMajorAxisAu: 16,
+      binaryEccentricity: 0.08,
+      binaryInclinationDeg: 0,
+      binaryArgPeriapsisDeg: 22,
+      binaryMeanAnomalyDeg: 90,
+      tertiaryName: namedCompanion(baseName, "C"),
+      tertiaryMassMsol,
+      tripleOuterSemiMajorAxisAu: 140,
+      tripleOuterEccentricity: 0.06,
+      tripleOuterInclinationDeg: 0,
+      tripleOuterArgPeriapsisDeg: 44,
+      tripleOuterMeanAnomalyDeg: 156,
+      quaternaryName: namedCompanion(baseName, "D"),
+      quaternaryMassMsol,
+      quadOuterSemiMajorAxisAu: 960,
+      quadOuterEccentricity: 0.14,
+      quadOuterInclinationDeg: 0,
+      quadOuterArgPeriapsisDeg: 74,
+      quadOuterMeanAnomalyDeg: 238,
+    };
+    return previewFor(
+      "Paired quad",
+      systemInputs.defaultHostFrameId,
+      `Pair A+B at ${fmt(systemInputs.binarySemiMajorAxisAu, 0)} AU | Pair C+D at ${fmt(systemInputs.tripleOuterSemiMajorAxisAu, 0)} AU | root pair at ${fmt(systemInputs.quadOuterSemiMajorAxisAu, 0)} AU`,
+      systemArchitectureImpact(normalized),
+      systemInputs,
+    );
+  }
+
+  const companionMassMsol = clamp(primaryMass * 0.7, 0.08, Math.max(primaryMass * 0.92, 0.12));
+  const tertiaryMassMsol = clamp(primaryMass * 0.42, 0.08, Math.max(primaryMass * 0.62, 0.12));
+  const quaternaryMassMsol = clamp(primaryMass * 0.28, 0.08, Math.max(primaryMass * 0.48, 0.12));
+  const systemInputs = {
+    topologyKind: "quad",
+    defaultHostFrameId: "star_a",
+    companionName: namedCompanion(baseName, "B"),
+    companionMassMsol,
+    binarySemiMajorAxisAu: 18,
+    binaryEccentricity: 0.12,
+    binaryInclinationDeg: 0,
+    binaryArgPeriapsisDeg: 28,
+    binaryMeanAnomalyDeg: 98,
+    tertiaryName: namedCompanion(baseName, "C"),
+    tertiaryMassMsol,
+    tripleOuterSemiMajorAxisAu: 160,
+    tripleOuterEccentricity: 0.18,
+    tripleOuterInclinationDeg: 0,
+    tripleOuterArgPeriapsisDeg: 54,
+    tripleOuterMeanAnomalyDeg: 176,
+    quaternaryName: namedCompanion(baseName, "D"),
+    quaternaryMassMsol,
+    quadOuterSemiMajorAxisAu: 780,
+    quadOuterEccentricity: 0.22,
+    quadOuterInclinationDeg: 0,
+    quadOuterArgPeriapsisDeg: 72,
+    quadOuterMeanAnomalyDeg: 244,
+  };
+  return previewFor(
+    "Hierarchical quad",
+    systemInputs.defaultHostFrameId,
+    `${systemInputs.companionName}, ${systemInputs.tertiaryName}, and ${systemInputs.quaternaryName} extend the hierarchy outward.`,
+    systemArchitectureImpact(normalized),
+    systemInputs,
+  );
 }
 
 function goalTraitSelected(compiledGoal = {}, traitId = "") {
@@ -371,6 +785,7 @@ function defaultStarGoalDraft(goalTemplateId = "") {
     priority: template?.defaultPriority || "maximize-realism",
     allowedEdits: template?.defaultAllowedEdits || "edit-object-only",
     searchBudget: template?.defaultSearchBudget || "balanced",
+    systemArchitecture: "keep-current",
     traitRoles,
   };
 }
@@ -393,6 +808,9 @@ function normalizeStarGoalDraft(flowState = {}) {
     priority: goalDraft.priority || base.priority,
     allowedEdits: goalDraft.allowedEdits || base.allowedEdits,
     searchBudget: goalDraft.searchBudget || base.searchBudget,
+    systemArchitecture: normalizeSystemArchitecture(
+      goalDraft.systemArchitecture || base.systemArchitecture,
+    ),
     traitRoles: nextTraitRoles,
   };
 }
@@ -404,28 +822,32 @@ function buildStarGoalDraftQuestionOptions(traitId) {
     {
       value: "off",
       label: "Off",
-      description: "Do not explicitly optimize for or avoid this trait.",
+      description:
+        "Leaves this trait neutral, so it does not help or hurt a candidate unless other choices imply it.",
     },
   ];
   if (allowedRoles.includes("required")) {
     options.push({
       value: "required",
       label: "Must have",
-      description: "Treat this as a hard constraint in the search.",
+      description:
+        "Treats this as a hard requirement, so candidates missing it usually fall out of contention.",
     });
   }
   if (allowedRoles.includes("preferred")) {
     options.push({
       value: "preferred",
       label: "Prefer",
-      description: "Improve the score when this trait is reached.",
+      description:
+        "Raises the score when this trait is reached, but still allows trade-off results that miss it.",
     });
   }
   if (allowedRoles.includes("avoid")) {
     options.push({
       value: "avoid",
       label: "Avoid",
-      description: "Penalize results that trigger this trait.",
+      description:
+        "Pushes the search away from this trait without making it completely impossible.",
     });
   }
   return options;
@@ -444,7 +866,7 @@ function buildStarGoalQuestions(flowState, context = {}) {
       label: "Priority",
       help:
         context.currentContextText ||
-        "Choose whether this search should favor realism, habitability, or staying closer to the current stellar state.",
+        "Sets the scoring bias for the search. Realism stays conservative, habitability accepts bigger retunes for calmer star outputs, and preserve-current stays nearer the current star.",
       defaultValue: draft.priority,
       options: GOAL_PRIORITY_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -453,7 +875,7 @@ function buildStarGoalQuestions(flowState, context = {}) {
       stepId: "stellar-context",
       kind: "choice",
       label: "Allowed edits",
-      help: "Decide whether the search may only retune this star or make broader local changes.",
+      help: "Sets how far the search may move. Narrow scope mostly retunes this star; broader scope allows larger local-system shifts to hit the goal.",
       defaultValue: draft.allowedEdits,
       options: GOAL_ALLOWED_EDIT_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -462,9 +884,18 @@ function buildStarGoalQuestions(flowState, context = {}) {
       stepId: "stellar-context",
       kind: "choice",
       label: "Search budget",
-      help: "Controls how many seeded candidate paths this pilot goal search will try.",
+      help: "Sets how many seeded candidate paths the search tries. Deeper searches take longer but are more likely to find a closer fit.",
       defaultValue: draft.searchBudget,
       options: GOAL_SEARCH_BUDGET_OPTIONS.map((entry) => ({ ...entry })),
+    },
+    {
+      id: "system_architecture",
+      stepId: "stellar-context",
+      kind: "choice",
+      label: "System architecture",
+      help: "Sets the target home-system layout. Keeping the current layout preserves the existing host-frame tree; switching layouts can also change which host frame new worlds default to and how the major canvases read.",
+      defaultValue: draft.systemArchitecture,
+      options: SYSTEM_ARCHITECTURE_OPTIONS.map((entry) => ({ ...entry })),
     },
     ...focusTraits
       .map((traitId) => getGoalTrait(traitId))
@@ -499,6 +930,7 @@ function buildStarGoalCompileInput(flowState = {}) {
     priority: draft.priority,
     allowedEdits: draft.allowedEdits,
     searchBudget: draft.searchBudget,
+    systemArchitecture: draft.systemArchitecture,
     requiredTraits,
     preferredTraits,
     avoidTraits,
@@ -537,6 +969,7 @@ function getStarGuidedDefaults(archetypeId) {
         activity_target: "active",
         metallicity_target: "solar",
         system_goal: "long-lived-stability",
+        system_architecture: "keep-current",
       };
     case "quiet-red-dwarf-star":
       return {
@@ -544,6 +977,7 @@ function getStarGuidedDefaults(archetypeId) {
         activity_target: "quiet",
         metallicity_target: "solar",
         system_goal: "long-lived-stability",
+        system_architecture: "keep-current",
       };
     case "orange-k-dwarf-star":
       return {
@@ -551,6 +985,7 @@ function getStarGuidedDefaults(archetypeId) {
         activity_target: "quiet",
         metallicity_target: "solar",
         system_goal: "earthlike-window",
+        system_architecture: "keep-current",
       };
     case "sunlike-g-star":
       return {
@@ -558,6 +993,7 @@ function getStarGuidedDefaults(archetypeId) {
         activity_target: "balanced",
         metallicity_target: "solar",
         system_goal: "earthlike-window",
+        system_architecture: "keep-current",
       };
     case "warm-f-star":
       return {
@@ -565,6 +1001,7 @@ function getStarGuidedDefaults(archetypeId) {
         activity_target: "balanced",
         metallicity_target: "solar",
         system_goal: "earthlike-window",
+        system_architecture: "keep-current",
       };
     case "bright-a-star":
       return {
@@ -572,6 +1009,7 @@ function getStarGuidedDefaults(archetypeId) {
         activity_target: "active",
         metallicity_target: "solar",
         system_goal: "bright-short-lived",
+        system_architecture: "keep-current",
       };
     case "aging-subgiant-star":
       return {
@@ -579,6 +1017,7 @@ function getStarGuidedDefaults(archetypeId) {
         activity_target: "quiet",
         metallicity_target: "solar",
         system_goal: "bright-short-lived",
+        system_architecture: "keep-current",
       };
     default:
       return {
@@ -586,6 +1025,7 @@ function getStarGuidedDefaults(archetypeId) {
         activity_target: "balanced",
         metallicity_target: "solar",
         system_goal: "earthlike-window",
+        system_architecture: "keep-current",
       };
   }
 }
@@ -607,7 +1047,7 @@ function buildStarQuestions(archetype, context = {}) {
       label: "Evolution Target",
       help:
         context.currentContextText ||
-        "Decide whether to preserve the current phase or bias the star toward a main-sequence or evolving state.",
+        "Controls the broad stellar phase. Keeping the current phase preserves the present regime; evolving pushes toward brighter, shorter-lived outputs.",
       options: EVOLUTION_TARGET_OPTIONS,
       defaultValue: defaults.evolution_target,
     },
@@ -616,16 +1056,25 @@ function buildStarQuestions(archetype, context = {}) {
       stepId: "goal-details",
       kind: "choice",
       label: "Activity Target",
-      help: "Decide whether you want a quieter, balanced, or more flare-active star.",
+      help: "Steers flare and CME activity. Quiet usually favors older calmer stars, while Active pushes toward harsher radiation behavior.",
       options: ACTIVITY_TARGET_OPTIONS,
       defaultValue: defaults.activity_target,
+    },
+    {
+      id: "system_architecture",
+      stepId: "stellar-context",
+      kind: "choice",
+      label: "System Architecture",
+      help: "Sets the broader home-system layout. Keeping the current layout preserves the existing topology; the binary and hierarchical options preconfigure host frames and change how later canvases are likely to read.",
+      options: SYSTEM_ARCHITECTURE_OPTIONS,
+      defaultValue: defaults.system_architecture,
     },
     {
       id: "metallicity_target",
       stepId: "goal-details",
       kind: "choice",
       label: "Metallicity Target",
-      help: "Bias the star toward metal-poor, solar-ish, or metal-rich composition.",
+      help: "Steers heavy-element abundance, which changes how disk-like the star feels and how strongly giant-planet probability is boosted.",
       options: METALLICITY_TARGET_OPTIONS,
       defaultValue: defaults.metallicity_target,
     },
@@ -634,7 +1083,7 @@ function buildStarQuestions(archetype, context = {}) {
       stepId: "goal-details",
       kind: "choice",
       label: "System Goal",
-      help: "State whether you care most about Earth-like, long-lived, or bright young-star conditions.",
+      help: "Tells guided mode which system-level trade-off matters most: calmer habitable windows, long stable lifetimes, or brighter younger-star outputs.",
       options: SYSTEM_GOAL_OPTIONS,
       defaultValue: defaults.system_goal,
     },
@@ -731,6 +1180,7 @@ function buildStarSummary(archetype, solved, answers = {}, uxMode = "quick") {
   targets.push(`${answers.activity_target || "balanced"} activity target`);
   targets.push(`${answers.metallicity_target || "solar"} metallicity target`);
   targets.push(`${answers.system_goal || "earthlike-window"} system goal`);
+  targets.push(systemArchitectureLabel(answers.system_architecture));
 
   const currentResult = [
     model.spectralClass || "",
@@ -763,6 +1213,13 @@ function buildStarRationale(archetype, answers = {}, context = {}) {
       "The diagnostics check whether the resulting star still supports an Earth-like habitability window.",
     );
   }
+  if (normalizeSystemArchitecture(answers.system_architecture) !== "keep-current") {
+    rationale.push(systemArchitectureImpact(answers.system_architecture));
+  } else if (String(context?.currentTopologyKind || "single") !== "single") {
+    rationale.push(
+      `The current ${currentTopologyLabel(context.currentTopologyKind).toLowerCase()} topology is preserved instead of collapsing back to a single-star layout.`,
+    );
+  }
   if (archetype.id === "bright-a-star" || archetype.id === "aging-subgiant-star") {
     rationale.push(
       "This is a more specialised stellar target than the quieter K/G-dwarf archetypes.",
@@ -777,6 +1234,10 @@ function buildStarDiagnostics(archetype, solved, answers = {}, flowState = {}) {
   const activity = solved?.activityModel?.activity || {};
   const energeticFlareRatePerDay = Number(activity.energeticFlareRatePerDay);
   const giantPlanetProbability = Number(model.giantPlanetProbability);
+  const architectureLabel = systemArchitectureLabel(
+    answers.system_architecture,
+    flowState?.context,
+  );
 
   pushDiagnostic(
     diagnostics,
@@ -784,6 +1245,15 @@ function buildStarDiagnostics(archetype, solved, answers = {}, flowState = {}) {
     "archetype-source",
     "Archetype-backed starting point",
     `This ${flowState?.uxMode === "guided" ? "guided flow" : "quick type"} maps to the ${archetype.label} stellar archetype.`,
+    [],
+  );
+
+  pushDiagnostic(
+    diagnostics,
+    "info",
+    "system-architecture",
+    "System architecture target",
+    `${flowState?.uxMode === "guided" ? "Guided search" : "Quick apply"} will use the ${architectureLabel} layout.`,
     [],
   );
 
@@ -888,11 +1358,16 @@ function solveStarRecommendationFromArchetype(
 ) {
   if (!archetype) return null;
 
-  const answers = answersOverride || resolveStarGuidedAnswers(archetype, flowState);
+  const seedAnswers = answersOverride || resolveStarGuidedAnswers(archetype, flowState);
+  const answers = {
+    ...seedAnswers,
+    system_architecture: resolveSystemArchitectureSelection(flowState, seedAnswers),
+  };
   const applyInputs =
     flowState?.uxMode === "guided"
       ? tuneStarApplyInputs(archetype, answers, context)
       : tuneStarApplyInputs(archetype, getStarGuidedDefaults(archetype.id), context);
+  const systemPreset = buildStarSystemPreset(answers.system_architecture, context, applyInputs);
 
   let solved = null;
   if (typeof context.solveStarInputs === "function") {
@@ -914,6 +1389,7 @@ function solveStarRecommendationFromArchetype(
     scienceModeRecommendation: {},
     applyPayload: {
       objectInputs: applyInputs,
+      systemInputs: systemPreset.systemInputs,
       parentPatch: null,
       siblingPatch: null,
     },
@@ -924,9 +1400,15 @@ function solveStarRecommendationFromArchetype(
             name: context.currentStarName || applyInputs.name || archetype.label,
             starCalc: solved.model,
             activityModel: solved.activityModel || null,
+            systemPreview: systemPreset.systemPreview,
           }
-        : null,
-    diagnostics: buildStarDiagnostics(archetype, solved, answers, flowState),
+        : {
+            systemPreview: systemPreset.systemPreview,
+          },
+    diagnostics: buildStarDiagnostics(archetype, solved, answers, {
+      ...flowState,
+      context,
+    }),
     rationale: buildStarRationale(archetype, answers, context),
     nextActions: [...(archetype.nextActions || [])],
   };
@@ -1250,7 +1732,21 @@ export const starGuidedAdapter = {
       return buildStarGoalQuestions(flowState, context);
     }
     const archetype = getStarArchetype(flowState?.selectedArchetypeId);
-    if (!archetype || flowState?.uxMode !== "guided") return [];
+    if (!archetype) return [];
+    if (flowState?.uxMode === "quick") {
+      return [
+        {
+          id: "system_architecture",
+          stepId: "stellar-context",
+          kind: "choice",
+          label: "System Architecture",
+          help: "Optional quick layout target. This changes the home-system topology and default host frame without turning quick mode into a full guided search.",
+          options: SYSTEM_ARCHITECTURE_OPTIONS.map((entry) => ({ ...entry })),
+          defaultValue: resolveSystemArchitectureSelection(flowState, flowState?.answers),
+        },
+      ];
+    }
+    if (flowState?.uxMode !== "guided") return [];
     return buildStarQuestions(archetype, context);
   },
 

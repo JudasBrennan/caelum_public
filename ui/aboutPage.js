@@ -1,3 +1,15 @@
+import {
+  SCIENCE_GRAPH_EDGES,
+  SCIENCE_GRAPH_NODES,
+  SCIENCE_GRAPH_SECTIONS,
+} from "./scienceGraphData.js";
+
+const LIVE_SCIENCE_VISUALISER_COUNTS = Object.freeze({
+  sections: SCIENCE_GRAPH_SECTIONS.length,
+  nodes: SCIENCE_GRAPH_NODES.length,
+  edges: SCIENCE_GRAPH_EDGES.length,
+});
+
 export function initAboutPage(mountEl) {
   const el = document.createElement("div");
   el.className = "page";
@@ -9,11 +21,11 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 1.26.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 1.27.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, planetary systems, rocky worlds, gas giants, moons, and debris disks with
           real astrophysics. Model tectonics, climate zones, atmospheres, populations, and calendars.
           Explore your creations in an interactive 3D visualiser with procedural textures, or study
-          the underlying science through 160+ documented equations and a 20-lesson curriculum.
+          the underlying science through a living Science &amp; Maths reference and a 20-lesson curriculum.
         </p>
 
         <p>
@@ -287,6 +299,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Discovered the first radio pulsars and helped reveal how faint repeating signals can expose hidden structure in stellar systems, turning subtle patterns into usable astronomy.",
   },
+  "1.27.0": {
+    name: "Andrea Ghez",
+    born: 1965,
+    died: null,
+    country: "United States",
+    summary:
+      "Tracked the orbits of stars around the Milky Way's center, showing how precise motion mapping can reveal hidden mass and system structure.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -326,6 +346,18 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "1.27.0",
+      "(from 1.26.0)",
+      [
+        "<b>Multistar Systems Are Release-Ready</b> &mdash; Binary, triple, and quad home systems now work as a normalized first-class feature instead of an experimental branch. WorldSmith now supports paired quads, host-frame-aware editing across system pages, and a true `System Overview` mode in the Visualiser.",
+        "<b>Random System Generator</b> &mdash; The System page can now draft full seeded star systems instead of only individual bodies. You can generate stars, planets, moons, and debris with curated random names, AU-safe orbit ladders, and preserve/reroll strategies like `keep stars, reroll planets`.",
+        "<b>Star Page Redesign</b> &mdash; Multistar authoring now uses layout cards, an interactive topology map, and a single-focus inspector instead of one long stacked form. Every selected star now gets the same advanced physics controls, and the outputs area keeps every star visible and labeled.",
+        "<b>Science Surfaces Synced</b> &mdash; The Science &amp; Maths page, Lesson 07, and the Science Visualiser now explain the current multistar host-frame model, companion flux, stability limits, and hierarchy guardrails instead of lagging behind the live engine.",
+        "<b>Tooltip Audit Completed</b> &mdash; The remaining unlabeled controls on Apparent, Calendar, Import/Export, Local Cluster, Moon, Science Visualiser, and Visualiser pages now carry proper explanatory tooltips, including science context where it helps.",
+      ],
+      { open: true },
+    ),
+    release(
       "1.26.0",
       "(from 1.25.0 BETA)",
       [
@@ -340,7 +372,7 @@ function changelogHTML() {
         "<b>Rocky Planet Oblateness And J2</b> &mdash; Rocky planets now report rotational flattening, equatorial versus polar radius, and `J2`. Fast rotators no longer present as perfectly spherical bodies in the science outputs.",
         "<b>Science Reference Sync</b> &mdash; The Science &amp; Maths page, Lessons, and Science Visualiser now match the newer moon, radiation, and stellar-XUV models more closely, so the educational surfaces explain the same logic the live engine is using.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "1.25.0 BETA",
@@ -445,7 +477,7 @@ function changelogHTML() {
       "<b>Bug Fixes</b> &mdash; Fixed infinite loop on Moon and Star pages when dragging sliders, fixed Science page crash from malformed data table call, fixed calendar rounding toggle responsiveness.",
     ]),
     release("1.17.1", "(from 1.17.0)", [
-      "<b>Science Visualiser</b> &mdash; New interactive dependency graph page mapping 58 scientific concepts across 12 sections with 112 typed edges. Three view modes (full graph, section filter, trace mode), search, and detail panels with formulas and engine references.",
+      `<b>Science Visualiser</b> &mdash; New interactive dependency graph page. The launch release shipped with 58 scientific concepts across 12 sections and 112 typed edges; the live graph has since grown to ${LIVE_SCIENCE_VISUALISER_COUNTS.nodes} concepts across ${LIVE_SCIENCE_VISUALISER_COUNTS.sections} sections with ${LIVE_SCIENCE_VISUALISER_COUNTS.edges} typed edges. Three view modes (full graph, section filter, trace mode), search, and detail panels with formulas and engine references.`,
       "<b>Climate State Classification</b> &mdash; Planets are now classified as Stable, Snowball, Moist greenhouse, or Runaway greenhouse based on surface temperature and absorbed stellar flux. New KPI card on the planet page, climate advisory warnings, and a science visualiser node with five edges.",
       "<b>Climate State NASA Validation</b> &mdash; 19 tests validating absorbed flux and climate state against Solar System data (Mercury, Venus, Earth, Mars, Ceres) in dry and wet configurations.",
       "<b>Calendar Rounding Override</b> &mdash; New &ldquo;Round derived data&rdquo; toggle on the Calendar page with a 0&ndash;6 decimal places slider. When enabled, rounds orbital periods before they enter the calendar model, affecting month lengths and leap cycles. Persists per profile.",
@@ -476,7 +508,7 @@ function changelogHTML() {
       "<b>Tectonics</b> &mdash; New interactive tectonics page with mountain ranges, shield volcanoes, rift valleys, seafloor spreading, isostasy modes, continental margins, and a full plate canvas with Voronoi tessellation, Euler pole rotation, and boundary classification.",
       "<b>Climate Zones</b> &mdash; Latitude-based K&ouml;ppen climate classification with aridity indices, tidally-locked zone modelling, and colour-coded zone cards.",
       "<b>Population</b> &mdash; Carrying capacity, logistic growth curves, land-use cascades, and Zipf rank-size regional distribution across configurable tech eras.",
-      "<b>Science &amp; Maths Expansion</b> &mdash; Six new formula sections (Stellar Evolution, Gas Giant Physics, Lagrange Points, Climate, Population, Debris Disks) and four expanded sections, bringing coverage to ~160 equations across 18 sections.",
+      "<b>Science &amp; Maths Expansion</b> &mdash; Six new formula sections (Stellar Evolution, Gas Giant Physics, Lagrange Points, Climate, Population, Debris Disks) and four expanded sections, bringing the reference to its then-current ~160 equations across 18 sections.",
       "<b>Tooltip Audit</b> &mdash; Added ~80 new tooltips across Tectonics, Climate, and Population pages. Rewrote existing tooltips for style guide compliance with declarative tone, Unicode units, and correct naming.",
       "<b>Preset Updates</b> &mdash; Sol, Realmspace, and Arrakis presets updated to the current schema with all new planet, moon, and gas giant fields. Fixed a data corruption bug affecting Venus and Toril preset values.",
       "<b>Import/Export</b> &mdash; Import preview now shows all nine world sections including tectonics, population, climate, and calendar summaries.",

@@ -1,5 +1,6 @@
 import { createElement, replaceChildren } from "../../domHelpers.js";
 import { guidedSearchStatusLabel } from "../types.js";
+import { getGuidedActionTooltip, getGuidedStepTooltip } from "../tooltips.js";
 import { createArchetypeGrid } from "./archetypeGrid.js";
 import { createDiagnosticList } from "./diagnosticList.js";
 import { createGuidedQuestionStep } from "./questionStep.js";
@@ -31,7 +32,10 @@ function createStepRail({ steps = [], currentStepId = "", onStepSelect = null } 
         {
           className:
             `guided-panel__step ${isCurrent ? "is-current" : ""} ${isCompleted ? "is-completed" : ""}`.trim(),
-          attrs: { type: "button" },
+          attrs: {
+            type: "button",
+            "data-tip": step?.tooltip || getGuidedStepTooltip(stepId),
+          },
           dataset: { stepId },
         },
         [
@@ -137,7 +141,10 @@ export function createGuidedPanel({
     (Array.isArray(actions) ? actions : []).map((action) => {
       const button = createElement("button", {
         className: `guided-panel__action ${action?.className || ""}`.trim(),
-        attrs: { type: "button" },
+        attrs: {
+          type: "button",
+          "data-tip": action?.tooltip || getGuidedActionTooltip(action?.id),
+        },
         dataset: { actionId: action?.id || "" },
         text: action?.label || action?.id || "Action",
       });

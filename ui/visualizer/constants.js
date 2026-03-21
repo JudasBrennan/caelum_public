@@ -1,4 +1,14 @@
 export const VISUALIZER_TIP_LABEL = {
+  "View mode":
+    "Switch between the detailed Local Frame renderer and the schematic System Overview.\n\nLocal Frame shows one active host frame with its planets and orbit geometry. System Overview shows the whole stellar hierarchy and lets you jump between frames.",
+  "Body scale":
+    "Scale factor for representative body marker sizes in the system visualiser.\n\nThis does not change orbital distances; it only changes how large planets, moons, and giants appear on screen.",
+  "Host frame":
+    "Active stellar host frame for the current detailed system view. In multistar systems this can be a single star (S-type) or a pair barycentre (P-type).",
+  "Selected frame":
+    "Currently selected star or pair node in System Overview mode. Use this to inspect a branch, then switch back to Local Frame if you want the detailed orbit scene.",
+  "Controls help":
+    "Open the controls reference overlay for mouse, touch, keyboard, and focus interactions.",
   Labels: "Show or hide text labels for star, planets, moons, gas giants, and debris disks.",
   "Label leader lines": "Show or hide connector lines from labels to the body they describe.",
   Moons: "Show or hide moon markers around planets and gas giants.",
@@ -28,6 +38,8 @@ export const VISUALIZER_TIP_LABEL = {
     "Click interaction for planets and gas giants. Single-click centres the body; double-click zooms to fit.",
   "Click zoom star":
     "Click interaction for the host star. Single-click centres; double-click zooms in.",
+  "Multistar info":
+    "Show or hide the multistar summary overlay on supported binary, pair-host, and hierarchical visualizer views.",
   Debug: "Enable console debug logging for visualiser internals.",
   Speed: "Animation speed in simulated Earth-days per second.",
   Centre: "Resets camera orientation and zoom to the default centred view.",

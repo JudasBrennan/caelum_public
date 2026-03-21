@@ -1,6 +1,12 @@
 import { loadThreeCore } from "./threeBridge2d.js";
 import { renderCelestialRecipeSnapshot, renderStarSnapshot } from "./celestialVisualPreview.js";
 import { computeRockyVisualProfile } from "./rockyPlanetStyles.js";
+import {
+  computeBinaryPairOrbitalState,
+  findBestBinaryPairStartTimeDays,
+} from "./visualizer/multistarOrbit.js";
+import { solveKeplerEquation } from "./visualizer/projectionMath.js";
+import { clamp } from "../engine/utils.js";
 
 const RUNTIME = new WeakMap();
 const PENDING = new WeakMap();
@@ -24,6 +30,17 @@ function hexToNumber(hex) {
     .trim();
   if (!/^[0-9a-fA-F]{6}$/.test(h)) return 0xffffff;
   return Number.parseInt(h, 16);
+}
+
+function stopSkyAnimation(runtime) {
+  if (!runtime) return;
+  const frameId = Number(runtime.animationFrameId || 0);
+  if (frameId > 0) {
+    try {
+      cancelAnimationFrame(frameId);
+    } catch {}
+  }
+  runtime.animationFrameId = 0;
 }
 
 async function ensureRuntime(canvas) {
@@ -51,7 +68,7 @@ async function ensureRuntime(canvas) {
       const key = new THREE.DirectionalLight(0xffffff, 0.75);
       key.position.set(-3, 1.8, 2.5);
       scene.add(key);
-      const rt = { THREE, renderer, scene, camera, group };
+      const rt = { THREE, renderer, scene, camera, group, animationFrameId: 0 };
       renderer.render(scene, camera);
       RUNTIME.set(canvas, rt);
       PENDING.delete(canvas);
@@ -272,7 +289,7 @@ function getTextTexture(runtime, text, opts = {}) {
 
 function addText(runtime, text, x, y, z = 6, opts = {}) {
   const tex = getTextTexture(runtime, text, opts);
-  if (!tex) return;
+  if (!tex) return null;
   const img = tex.image;
   const mat = new runtime.THREE.SpriteMaterial({
     map: tex,
@@ -285,6 +302,7 @@ function addText(runtime, text, x, y, z = 6, opts = {}) {
   s.position.set(x, y, z);
   s.scale.set(Math.max(1, Number(img?.width) || 16), Math.max(1, Number(img?.height) || 10), 1);
   runtime.group.add(s);
+  return s;
 }
 
 /* ── Dotted reference ring (mimics old Canvas2D style) ──────── */
@@ -349,11 +367,39 @@ function logScaleSize(arcsec, scale, maxArcsec) {
   return _MIN_PX + ((_BOOST_THRESH - _MIN_PX) * Math.log1p(arcsec)) / Math.log1p(ma);
 }
 
+function identityMapAuToPx(au) {
+  return Number(au) || 0;
+}
+
+function orbitOffsetIdentity(ox, oz, cx, cy, oy = 0) {
+  return {
+    x: cx + Number(ox || 0),
+    y: cy - Number(oy || 0),
+    depth: Number(oz || 0),
+  };
+}
+
+function canAnimatePrimaryPair(pairHostStars) {
+  return (
+    Array.isArray(pairHostStars) &&
+    pairHostStars.length === 2 &&
+    pairHostStars.every(
+      (entry) =>
+        Number.isFinite(Number(entry?.homeOrbitAu)) &&
+        Number(entry.homeOrbitAu) > 0 &&
+        Number.isFinite(Number(entry?.pairSemiMajorAxisAu)) &&
+        Number(entry.pairSemiMajorAxisAu) > 0 &&
+        Number.isFinite(Number(entry?.barycentricOrbitAu)),
+    )
+  );
+}
+
 /* ── Main draw ───────────────────────────────────────────────── */
 
 export function disposeSkyCanvasNative(canvas) {
   const rt = RUNTIME.get(canvas);
   if (!rt) return;
+  stopSkyAnimation(rt);
   clearGroup(rt.group);
   rt.renderer.dispose();
   RUNTIME.delete(canvas);
@@ -367,12 +413,16 @@ export async function drawSkyCanvasNative(
   moonPhaseDeg,
   skyColours,
   starData = {},
+  extraStars = [],
+  options = {},
   onReady = null,
 ) {
   const gen = ++_drawGen;
   const runtime = await ensureRuntime(canvas);
   if (!runtime) return false;
   if (gen !== _drawGen) return false;
+  stopSkyAnimation(runtime);
+  const { animatePrimaryPair = false } = options || {};
 
   const parent = canvas.parentElement;
   const rect = parent?.getBoundingClientRect?.();
@@ -457,6 +507,15 @@ export async function drawSkyCanvasNative(
 
   const homeStar = model.starByOrbit[0];
   const starArcsec = homeStar?.angularDiameterArcsec || 0;
+  const visibleExtraStars = (extraStars || []).filter(
+    (entry) => Number.isFinite(entry?.angularDiameterArcsec) && entry.angularDiameterArcsec > 0,
+  );
+  const pairHostStars = visibleExtraStars.filter((entry) => entry?.skyRole === "pair-host");
+  const companionStars = visibleExtraStars.filter((entry) => entry?.skyRole !== "pair-host");
+  const livePrimaryPair = canAnimatePrimaryPair(pairHostStars);
+  const primaryStarArcsec = pairHostStars.length
+    ? Math.max(...pairHostStars.map((entry) => Number(entry.angularDiameterArcsec) || 0), 0)
+    : starArcsec;
   const moons = model.moons.filter(
     (m) => Number.isFinite(m.angularDiameterArcsec) && m.angularDiameterArcsec > 0,
   );
@@ -469,25 +528,29 @@ export async function drawSkyCanvasNative(
   const maxMoon = moons.reduce((m, o) => Math.max(m, o.angularDiameterArcsec), 0);
   const maxBody = bodies.reduce((m, o) => Math.max(m, o.angularDiameterArcsec), 0);
   const maxNonStar = Math.max(maxMoon, maxBody);
-  const split = starArcsec > 0 && maxNonStar > 0 && starArcsec > 10 * maxNonStar;
+  const split = primaryStarArcsec > 0 && maxNonStar > 0 && primaryStarArcsec > 10 * maxNonStar;
   const maxDiskR = H * 0.26;
   let starScale = 0;
   let rightScale = 0;
   let starX = W * 0.16;
   let rightStart = W * 0.35;
   if (split) {
-    const starRegion = W * 0.3;
-    starScale = Math.min(maxDiskR / (starArcsec / 2), (starRegion * 0.8) / starArcsec);
+    const starRegion = pairHostStars.length ? W * 0.38 : W * 0.3;
+    starScale = Math.min(
+      maxDiskR / Math.max(primaryStarArcsec / 2, 1),
+      (starRegion * 0.8) / Math.max(primaryStarArcsec, 1),
+    );
     const ref = Math.max(maxNonStar, solSun, solMoon);
     rightScale = maxDiskR / (ref / 2);
-  } else if (starArcsec > 0) {
-    const maxAll = Math.max(starArcsec, maxNonStar, solSun, solMoon);
-    const slots = Math.max(2, 1 + moons.length + bodies.length);
+    if (pairHostStars.length) rightStart = W * 0.46;
+  } else if (primaryStarArcsec > 0) {
+    const maxAll = Math.max(primaryStarArcsec, maxNonStar, solSun, solMoon);
+    const slots = Math.max(2 + (pairHostStars.length ? 1 : 0), 1 + moons.length + bodies.length);
     const slotSpacing = W / (slots + 1);
     starScale = Math.min(maxDiskR / (maxAll / 2), (slotSpacing * 0.8) / maxAll);
     rightScale = starScale;
     starX = slotSpacing;
-    rightStart = slotSpacing * 2;
+    rightStart = slotSpacing * (pairHostStars.length ? 3 : 2);
   } else {
     const ref = Math.max(1, maxNonStar);
     rightScale = maxDiskR / (ref / 2);
@@ -503,9 +566,228 @@ export async function drawSkyCanvasNative(
   const labelCol = isNight ? "#c8cbe8" : "#ffffff";
   const subCol = isNight ? "#8088aa" : "rgba(255,255,255,0.7)";
   const shadowCol = isNight ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.7)";
+  let startLivePrimaryPairAnimation = null;
 
   /* ── Star ────────────────────────────────────────────────── */
-  if (starArcsec > 0 && starScale > 0) {
+  if (pairHostStars.length && starScale > 0) {
+    const pairAreaLeft = split ? W * 0.08 : Math.max(32, starX - 16);
+    const pairAreaRight = Math.max(pairAreaLeft + 90, rightStart - 20);
+    const pairSpacing = (pairAreaRight - pairAreaLeft) / Math.max(1, pairHostStars.length);
+    const pairScale = split ? starScale : Math.max(starScale * 0.85, rightScale * 0.9);
+    const pairCenterX = (pairAreaLeft + pairAreaRight) * 0.5;
+    const livePairLaneHalfWidth = Math.max(30, (pairAreaRight - pairAreaLeft) * 0.3);
+    const livePairLaneHalfHeight = Math.max(20, Math.min(H * 0.12, livePairLaneHalfWidth * 0.72));
+    const livePairHomeOrbitAu = Math.max(0.0001, Number(pairHostStars[0]?.homeOrbitAu) || 1);
+    const livePairConfig = {
+      semiMajorAxisAu: Math.max(
+        0.0001,
+        Number(pairHostStars[0]?.pairSemiMajorAxisAu || pairHostStars[0]?.pairSeparationAu) || 0.1,
+      ),
+      eccentricity: Number(pairHostStars[0]?.eccentricity) || 0,
+      inclinationDeg: Number(pairHostStars[0]?.inclinationDeg) || 0,
+      argPeriapsisDeg: Number(pairHostStars[0]?.argPeriapsisDeg) || 0,
+      meanAnomalyDeg: Number(pairHostStars[0]?.meanAnomalyDeg) || 0,
+    };
+    addText(runtime, "Primary suns", (pairAreaLeft + pairAreaRight) * 0.5, H * 0.22 + 64, 7.2, {
+      font: "11px system-ui, sans-serif",
+      color: labelCol,
+      shadow: shadowCol,
+    });
+    const buildLivePairState = (simTimeDays = 0) =>
+      computeBinaryPairOrbitalState({
+        hostStars: pairHostStars,
+        pair: livePairConfig,
+        simTime: simTimeDays,
+        cx: 0,
+        cy: 0,
+        minAu: 0.0001,
+        maxAu: Math.max(livePairConfig.semiMajorAxisAu * 1.2, livePairHomeOrbitAu, 1),
+        maxR: Math.max(livePairConfig.semiMajorAxisAu * 1.2, livePairHomeOrbitAu, 1),
+        logScale: false,
+        mapAuToPx: identityMapAuToPx,
+        orbitOffsetToScreen: orbitOffsetIdentity,
+        solveKeplerEquation,
+      });
+    const buildLivePrimaryPairPositions = (simTimeDays = 0) => {
+      if (!livePrimaryPair) return [];
+      const pairState = buildLivePairState(simTimeDays);
+      const maxAngularOffsetRad = Math.max(
+        ...pairHostStars.map((entry) => {
+          const barycentricOrbitAu = Math.max(0, Number(entry?.barycentricOrbitAu) || 0);
+          return Math.atan2(
+            barycentricOrbitAu,
+            Math.max(0.0001, livePairHomeOrbitAu - barycentricOrbitAu),
+          );
+        }),
+        0.015,
+      );
+      const pxPerRad = Math.min(
+        livePairLaneHalfWidth / Math.max(maxAngularOffsetRad, 0.015),
+        livePairLaneHalfHeight / Math.max(maxAngularOffsetRad, 0.015),
+      );
+      return (
+        pairState?.starNodes?.map((entry) => {
+          const distanceToObserverAu = Math.max(
+            0.0001,
+            livePairHomeOrbitAu - Number(entry?.orbitalX || 0),
+          );
+          const horizontalAngleRad = Math.atan2(Number(entry?.orbitalZ || 0), distanceToObserverAu);
+          const verticalAngleRad = Math.atan2(Number(entry?.orbitalY || 0), distanceToObserverAu);
+          const normalizedDepth = clamp(
+            (livePairHomeOrbitAu - distanceToObserverAu) /
+              Math.max(0.0001, livePairConfig.semiMajorAxisAu),
+            -1,
+            1,
+          );
+          return {
+            x: pairCenterX + horizontalAngleRad * pxPerRad,
+            y: diskCy - verticalAngleRad * pxPerRad,
+            observerDistanceAu: distanceToObserverAu,
+            renderZ: -2 + normalizedDepth * 0.42,
+            glowZ: -2.2 + normalizedDepth * 0.42,
+            scaleFactor: clamp(livePairHomeOrbitAu / distanceToObserverAu, 0.9, 1.12),
+            renderOrder: 20 + normalizedDepth * 10,
+          };
+        }) || []
+      );
+    };
+    const basePairState = livePrimaryPair ? buildLivePairState(0) : null;
+    const orbitPeriodDays = Number(basePairState?.periodDays || 0);
+    const livePairStartTimeDays = livePrimaryPair
+      ? findBestBinaryPairStartTimeDays({
+          periodDays: orbitPeriodDays,
+          buildPositionsAtTime: buildLivePrimaryPairPositions,
+        })
+      : 0;
+    const initialLivePositions = buildLivePrimaryPairPositions(livePairStartTimeDays);
+    const livePrimaryPairNodes = [];
+    for (let i = 0; i < pairHostStars.length; i += 1) {
+      const pairStar = pairHostStars[i];
+      const initialPosition =
+        livePrimaryPair && initialLivePositions[i]
+          ? initialLivePositions[i]
+          : {
+              x: pairAreaLeft + pairSpacing * (i + 0.5),
+              y: diskCy,
+              renderZ: -2,
+              glowZ: -2.2,
+              scaleFactor: 1,
+              renderOrder: 20,
+            };
+      const radius = Math.max(
+        2,
+        logScaleSize(pairStar.angularDiameterArcsec, pairScale, primaryStarArcsec) * 0.5,
+      );
+      const scaleFactor = Number(initialPosition.scaleFactor || 1);
+      const glowSize = Math.max(6, radius * 3) * scaleFactor;
+      const spriteSize = (radius / STAR_FILL) * scaleFactor;
+      const pairCanvas = ensureStarSnap(pairStar.starColourHex, {
+        starTempK: pairStar.tempK,
+        starMassMsol: pairStar.massMsol,
+        starAgeGyr: pairStar.ageGyr,
+      });
+      const glow = addGlow(
+        runtime,
+        initialPosition.x,
+        initialPosition.y,
+        radius * scaleFactor,
+        Number(initialPosition.glowZ ?? -2.2),
+        pairStar.starColourHex || "#ffffff",
+        0.24,
+      );
+      glow.renderOrder = Number(initialPosition.renderOrder ?? 20) - 1;
+      glow.scale.set(glowSize, glowSize, 1);
+      const sprite = addCanvasSprite(
+        runtime,
+        pairCanvas,
+        initialPosition.x,
+        initialPosition.y,
+        spriteSize,
+        Number(initialPosition.renderZ ?? -2),
+      );
+      sprite.renderOrder = Number(initialPosition.renderOrder ?? 20);
+      const nameLabel = addText(
+        runtime,
+        pairStar.name || `Sun ${i + 1}`,
+        initialPosition.x,
+        labelY,
+        6.7,
+        {
+          font: "11px system-ui, sans-serif",
+          color: labelCol,
+          shadow: shadowCol,
+        },
+      );
+      const sizeLabel = addText(
+        runtime,
+        pairStar.angularDiameterArcsec >= 60
+          ? `${(pairStar.angularDiameterArcsec / 60).toFixed(1)}′`
+          : `${pairStar.angularDiameterArcsec.toFixed(1)}″`,
+        initialPosition.x,
+        sizeY,
+        6.7,
+        {
+          font: "10px monospace",
+          color: subCol,
+          shadow: shadowCol,
+        },
+      );
+      if (livePrimaryPair) {
+        livePrimaryPairNodes.push({
+          glow,
+          sprite,
+          nameLabel,
+          sizeLabel,
+          baseGlowSize: Math.max(6, radius * 3),
+          baseSpriteSize: radius / STAR_FILL,
+        });
+      }
+    }
+    if (livePrimaryPair && livePrimaryPairNodes.length === pairHostStars.length) {
+      const simulatedDaysPerMs = orbitPeriodDays > 0 ? orbitPeriodDays / 18000 : 0;
+      const animationStartMs = performance.now();
+      let lastDrawMs = -Infinity;
+      const tick = (nowMs) => {
+        if (gen !== _drawGen) {
+          stopSkyAnimation(runtime);
+          return;
+        }
+        if (nowMs - lastDrawMs >= 66) {
+          const simTimeDays =
+            simulatedDaysPerMs > 0
+              ? livePairStartTimeDays + (nowMs - animationStartMs) * simulatedDaysPerMs
+              : livePairStartTimeDays;
+          const nextPositions = buildLivePrimaryPairPositions(simTimeDays);
+          nextPositions.forEach((position, index) => {
+            const node = livePrimaryPairNodes[index];
+            if (!node || !position) return;
+            node.sprite?.position?.set(position.x, position.y, Number(position.renderZ ?? -2));
+            node.glow?.position?.set(position.x, position.y, Number(position.glowZ ?? -2.2));
+            if (node.sprite) {
+              const spriteSize =
+                Number(node.baseSpriteSize || 1) * Number(position.scaleFactor || 1);
+              node.sprite.scale.set(spriteSize, spriteSize, 1);
+              node.sprite.renderOrder = Number(position.renderOrder ?? 20);
+            }
+            if (node.glow) {
+              const glowSize = Number(node.baseGlowSize || 6) * Number(position.scaleFactor || 1);
+              node.glow.scale.set(glowSize, glowSize, 1);
+              node.glow.renderOrder = Number(position.renderOrder ?? 20) - 1;
+            }
+            if (node.nameLabel) node.nameLabel.position.set(position.x, labelY, 6.7);
+            if (node.sizeLabel) node.sizeLabel.position.set(position.x, sizeY, 6.7);
+          });
+          runtime.renderer.render(runtime.scene, runtime.camera);
+          lastDrawMs = nowMs;
+        }
+        runtime.animationFrameId = requestAnimationFrame(tick);
+      };
+      startLivePrimaryPairAnimation = () => {
+        stopSkyAnimation(runtime);
+        runtime.animationFrameId = requestAnimationFrame(tick);
+      };
+    }
+  } else if (starArcsec > 0 && starScale > 0) {
     const r = Math.max(2, (starArcsec / 2) * starScale);
     const starCanvas = ensureStarSnap(starColourHex, starData);
     addCanvasSprite(runtime, starCanvas, starX, diskCy, r / STAR_FILL, -2);
@@ -531,6 +813,65 @@ export async function drawSkyCanvasNative(
     );
     const solR = (solSun / 2) * starScale;
     if (solR >= 2) addDottedRing(runtime, starX, diskCy, solR, "Sol", isNight, solR < r);
+  }
+
+  if (companionStars.length) {
+    const companionMaxArcsec = Math.max(
+      ...companionStars.map((entry) => Number(entry.angularDiameterArcsec) || 0),
+      1,
+    );
+    const companionScale = split ? rightScale : Math.max(starScale * 0.7, rightScale * 0.8);
+    const companionAreaLeft = split ? W * 0.42 : W * 0.58;
+    const companionSpacing = Math.min(
+      150,
+      Math.max(90, (W - companionAreaLeft - 28) / companionStars.length),
+    );
+    const companionY = H * 0.22;
+    addText(
+      runtime,
+      "Companion suns",
+      companionAreaLeft + companionSpacing * 0.5,
+      companionY + 64,
+      7.2,
+      {
+        font: "11px system-ui, sans-serif",
+        color: labelCol,
+        shadow: shadowCol,
+      },
+    );
+    for (let i = 0; i < companionStars.length; i += 1) {
+      const companion = companionStars[i];
+      const cx = companionAreaLeft + companionSpacing * i + companionSpacing * 0.5;
+      const radius = Math.max(
+        2,
+        logScaleSize(companion.angularDiameterArcsec, companionScale, companionMaxArcsec) * 0.5,
+      );
+      const companionCanvas = ensureStarSnap(companion.starColourHex, {
+        starTempK: companion.tempK,
+        starMassMsol: companion.massMsol,
+        starAgeGyr: companion.ageGyr,
+      });
+      addCanvasSprite(runtime, companionCanvas, cx, companionY, radius / STAR_FILL, -1.8);
+      addText(runtime, companion.name || `Companion ${i + 1}`, cx, companionY - 34, 7.2, {
+        font: "10px system-ui, sans-serif",
+        color: labelCol,
+        shadow: shadowCol,
+      });
+      addText(
+        runtime,
+        companion.angularDiameterArcsec >= 60
+          ? `${(companion.angularDiameterArcsec / 60).toFixed(1)}′`
+          : `${companion.angularDiameterArcsec.toFixed(1)}″`,
+        cx,
+        companionY - 48,
+        7.2,
+        {
+          font: "9px monospace",
+          color: subCol,
+          shadow: shadowCol,
+        },
+      );
+    }
   }
 
   /* ── Bodies & Moons ──────────────────────────────────────── */
@@ -620,6 +961,9 @@ export async function drawSkyCanvasNative(
   }
 
   runtime.renderer.render(runtime.scene, runtime.camera);
+  if (animatePrimaryPair) {
+    startLivePrimaryPairAnimation?.();
+  }
   try {
     onReady?.();
   } catch {}

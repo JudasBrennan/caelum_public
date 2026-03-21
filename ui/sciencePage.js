@@ -2638,6 +2638,14 @@ function buildSystemArchitecture() {
     ),
 
     formula(
+      "Host Frames (S-Type and P-Type)",
+      `<div class="sci-formula__eq">${eq("\\text{host frame} \\in \\{\\text{star} \\Rightarrow \\text{S-type},\\; \\text{pair} \\Rightarrow \\text{P-type}\\}")}</div>
+      <p>WorldSmith resolves planetary architectures from a stellar hierarchy tree. A <b>star node</b> creates a circumstellar <b>S-type</b> host frame around one star. A <b>pair node</b> creates a circumbinary or barycentric <b>P-type</b> host frame around a bound stellar pair.</p>
+      <p>Each host frame gets its own orbit ladder, habitable zone, frost line, visible companion forcing, and stability envelope. In triples and quads, the active frame is taken from the selected star or pair node inside the hierarchical topology.</p>
+      <p>This is why the same planetary semi-major axis can be viable in one host frame and unstable in another: the selected frame changes which stars count as the local host and which count as outer companions.</p>`,
+    ),
+
+    formula(
       "Frost Line",
       `<div class="sci-formula__eq">${eq("d_{\\text{frost}} = 4.85 \\sqrt{L} \\text{ AU}")}</div>
       <p>Distance at which water ice is stable, derived from the equilibrium temperature condition (~170 K).</p>`,
@@ -2648,6 +2656,54 @@ function buildSystemArchitecture() {
       `<div class="sci-formula__eq">${eq("d_{\\text{inner}} = \\frac{2.455 \\cdot R_\\star \\cdot (\\rho_\\star / 5400)^{1/3}}{1 \\text{ AU}}")}</div>
       <p>Fluid Roche limit for the closest orbit a body can occupy without tidal disruption. Reference density 5,400 kg/m&sup3;.</p>
       <p>WorldSmith also reuses Roche-limit logic inside the ring-science pipeline. In rocky-world auto mode, rings only appear when an assigned moon&rsquo;s current periapsis crosses the rocky Roche limit, turning the disrupted-moon case into a visible ring source rather than a stable moon orbit.</p>`,
+    ),
+
+    formula(
+      "Binary Stability Limits (Holman-Wiegert)",
+      `<p>For binary systems, WorldSmith uses Holman &amp; Wiegert (1999) style empirical critical radii to decide whether an orbit stays comfortably stable in an S-type or P-type frame.</p>
+      <div class="sci-formula__eq">${eq("a_{\\text{c,S}} = \\bigl(0.464 - 0.380\\mu - 0.631e + 0.586\\mu e + 0.150e^2 - 0.198\\mu e^2\\bigr)\\,a_{\\text{bin}}")}</div>
+      <div class="sci-formula__eq">${eq("a_{\\text{c,P}} = \\bigl(1.60 + 5.10e - 2.22e^2 + 4.12\\mu - 4.27\\mu e - 5.09\\mu^2 + 4.61\\mu^2 e^2\\bigr)\\,a_{\\text{bin}}")}</div>
+      ${vars([
+        ["a_{\\text{c,S}}", "outer stability edge for circumstellar S-type planets"],
+        ["a_{\\text{c,P}}", "inner stability edge for circumbinary P-type planets"],
+        ["a_{\\text{bin}}", "binary semi-major axis"],
+        ["e", "binary eccentricity"],
+        ["\\mu", "companion mass fraction = M_2 / (M_1 + M_2)"],
+      ])}
+      <p>WorldSmith also carries simple disk-edge companions to these limits: circumstellar disk truncation ${iq("a_{\\text{disk,S}} \\approx 0.3\\,a_{\\text{bin}}(1-e)")} and circumbinary inner clearing ${iq("a_{\\text{disk,P}} \\approx 2\\,a_{\\text{bin}}(1+e)")}. These are used to explain why some host frames have narrow or heavily truncated orbit families.</p>
+      ${cite("Holman &amp; Wiegert (1999), AJ 117, 621; Artymowicz &amp; Lubow (1994), ApJ 421, 651")}`,
+    ),
+
+    formula(
+      "Companion Flux and Habitable-Zone Shift",
+      `<p>Outer companion stars are sampled across their hierarchy orbits and their mean visible-light forcing is added to the active host frame as an extra heating term:</p>
+      <div class="sci-formula__eq">${eq("S_{\\text{comp}} = \\sum_i \\frac{L_i}{d_i^2}")}</div>
+      <p>WorldSmith then shifts the host frame&rsquo;s habitable-zone bounds by subtracting that companion flux from the required stellar-flux threshold:</p>
+      <div class="sci-formula__eq">${eq("d' = \\sqrt{\\frac{L_{\\text{host}}}{S_{\\text{eff}} - S_{\\text{comp}}}}}")}</div>
+      ${vars([
+        ["S_{\\text{comp}}", "mean companion visible flux in Earth-flux units"],
+        ["L_i", "luminosity of companion star i (solar units)"],
+        ["d_i", "sampled distance from the active host frame to companion star i (AU)"],
+        ["L_{\\text{host}}", "luminosity carried by the active local host frame"],
+        ["S_{\\text{eff}}", "required habitable-zone effective flux threshold"],
+      ])}
+      <p>Numerically, the same companion flux also shifts the effective frost-line context because the selected host frame sees more total radiative power than the local star or pair alone.</p>
+      ${cite("WorldSmith hierarchical host-frame flux model in engine/homeSystem/flux.js")}`,
+    ),
+
+    formula(
+      "Hierarchical Guardrail for Triples and Quads",
+      `<p>For nested triples and quads, WorldSmith uses a Mardling-Aarseth style separation floor so outer branches do not crowd inner pairs:</p>
+      <div class="sci-formula__eq">${eq("a_{\\text{out,min}} \\approx a_{\\text{in}} \\cdot \\frac{2.8\\,(1+q_{\\text{out}})^{2/5}(1+e_{\\text{out}})^{2/5}}{(1-e_{\\text{out}})^{6/5}} \\cdot f_i")}</div>
+      ${vars([
+        ["a_{\\text{in}}", "inner pair semi-major axis"],
+        ["a_{\\text{out,min}}", "recommended minimum outer semi-major axis"],
+        ["q_{\\text{out}}", "outer companion-to-inner-system mass ratio"],
+        ["e_{\\text{out}}", "outer eccentricity"],
+        ["f_i", "inclination factor used by WorldSmith (0.7&ndash;1.0)"],
+      ])}
+      <p>The Star page guardrail summary labels layouts as <b>Good</b>, <b>Caution</b>, <b>Unstable</b>, or <b>Blocked</b> by comparing the chosen outer orbit against this threshold and against the simpler periapsis-versus-apocentre overlap test.</p>
+      ${cite("Mardling &amp; Aarseth (2001), MNRAS 321, 398; WorldSmith hierarchy guardrails in engine/homeSystem/stability.js")}`,
     ),
   ].join("");
 }
@@ -2953,7 +3009,7 @@ const SECTIONS = [
   { id: "calendar", title: "Calendar Systems", count: 5, builder: buildCalendarSystems },
   { id: "cluster", title: "Local Cluster", count: 7, builder: buildLocalCluster },
   { id: "population", title: "Population Dynamics", count: 5, builder: buildPopulationDynamics },
-  { id: "system", title: "System Architecture", count: 3, builder: buildSystemArchitecture },
+  { id: "system", title: "System Architecture", count: 7, builder: buildSystemArchitecture },
   { id: "debris", title: "Debris Disks", count: 9, builder: buildDebrisDisks },
   {
     id: "divergences",

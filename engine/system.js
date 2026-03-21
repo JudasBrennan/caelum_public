@@ -61,25 +61,60 @@ export function calcSystem({
   orbit1Au,
   luminosityLsolOverride,
   radiusRsolOverride,
+  tempKOverride,
 }) {
   const m = clamp(starMassMsol, 0.075, 100);
   const s = clamp(spacingFactor, 0, 10); // spacing is a "knob"; allow wide but sane
   const o1 = clamp(orbit1Au, 0, 1e6);
 
   // --- Star properties (Eker et al. 2018 relations from star.js) ---
-  const luminosityLsol =
-    Number.isFinite(luminosityLsolOverride) && luminosityLsolOverride > 0
-      ? luminosityLsolOverride
-      : massToLuminosity(m);
-  const radiusRsol =
-    Number.isFinite(radiusRsolOverride) && radiusRsolOverride > 0
-      ? radiusRsolOverride
-      : massToRadius(m);
+  const luminosityAuto = massToLuminosity(m);
+  const radiusAuto = massToRadius(m);
+  const rOv = Number(radiusRsolOverride);
+  const lOv = Number(luminosityLsolOverride);
+  const tOv = Number(tempKOverride);
+  const hasR = Number.isFinite(rOv) && rOv > 0;
+  const hasL = Number.isFinite(lOv) && lOv > 0;
+  const hasT = Number.isFinite(tOv) && tOv > 0;
+
+  let luminosityLsol;
+  let radiusRsol;
+  let tempK;
+
+  if (hasR && hasL) {
+    radiusRsol = rOv;
+    luminosityLsol = lOv;
+    tempK = (luminosityLsol / radiusRsol ** 2) ** 0.25 * 5776;
+  } else if (hasR && hasT) {
+    radiusRsol = rOv;
+    tempK = tOv;
+    luminosityLsol = radiusRsol ** 2 * (tempK / 5776) ** 4;
+  } else if (hasL && hasT) {
+    luminosityLsol = lOv;
+    tempK = tOv;
+    radiusRsol = Math.sqrt(luminosityLsol) * (5776 / tempK) ** 2;
+  } else if (hasT) {
+    radiusRsol = radiusAuto;
+    tempK = tOv;
+    luminosityLsol = radiusRsol ** 2 * (tempK / 5776) ** 4;
+  } else if (hasR) {
+    radiusRsol = rOv;
+    luminosityLsol = luminosityAuto;
+    tempK = (luminosityLsol / radiusRsol ** 2) ** 0.25 * 5776;
+  } else if (hasL) {
+    radiusRsol = radiusAuto;
+    luminosityLsol = lOv;
+    tempK = (luminosityLsol / radiusRsol ** 2) ** 0.25 * 5776;
+  } else {
+    radiusRsol = radiusAuto;
+    luminosityLsol = luminosityAuto;
+    tempK = (luminosityLsol / radiusRsol ** 2) ** 0.25 * 5776;
+  }
 
   const densityDsol = m / radiusRsol ** 3;
   const densityGcm3 = 1.408 * densityDsol;
 
-  const hzTeffK = estimateHabitableTeffKFromMass(m);
+  const hzTeffK = hasT ? tempK : estimateHabitableTeffKFromMass(m);
   const hz = calcHabitableZoneAu({ luminosityLsol, teffK: hzTeffK });
   const hzInnerAu = hz.innerAu;
   const hzOuterAu = hz.outerAu;
@@ -115,7 +150,7 @@ export function calcSystem({
       radiusRsol,
       densityDsol,
       densityGcm3,
-      tempK: (luminosityLsol / radiusRsol ** 2) ** 0.25 * 5776,
+      tempK,
     },
 
     habitableZoneAu: { inner: hzInnerAu, outer: hzOuterAu },

@@ -4,6 +4,191 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 1.27.0 - 2026-03-21
+
+### Multistar Release Readiness
+
+**Normalized the multistar model around `stellarSystem`, completed paired-quad authoring, and finished whole-system overview support across the visualizer**
+(engine/homeSystem/\*.js, engine/worldSnapshot.js, engine/worldAdapters.js,
+ui/store/stellarSystemModel.js, ui/store/worldMigration.js,
+ui/store/worldSchema.js, ui/store.js, ui/bodySolveHelpers.js,
+ui/starPage.js, ui/systemPage.js, ui/outerObjectsPage.js,
+ui/apparentPage.js, ui/visualizerPage.js,
+ui/visualizer/snapshotModel.js, ui/visualizer/inputBindings.js,
+ui/visualizer/focusSummary.js, ui/canvasExport.js,
+tests/worldSnapshot.test.js, tests/worldAdapters.test.js,
+tests/storeHomeSystemHelpers.test.js,
+tests/homeSystemContextTopologyGraph.test.js,
+tests/visualizerSnapshotModel.test.js,
+tests/visualizerInputBindings.test.js,
+tests/visualizerFocusSummary.test.js, tests/browser/smoke.spec.js)
+
+The multistar branch is now a first-class working product surface rather
+than an experimental side path. `stellarSystem` is the practical source
+of truth across migration, storage, snapshots, adapters, and
+host-frame-aware page logic, while the old `world.star` object is kept
+as a compatibility projection instead of a competing model.
+
+Star authoring now supports the paired-quad hierarchy `(A+B)+(C+D)` in
+both direct UI and guided-star flows, preserves that topology on
+load/save, and validates it with hierarchy guardrails instead of
+collapsing it back to the chained quad shape. Planet, moon, calendar,
+climate, population, tectonics, debris, and import/export paths now
+resolve from the active multistar host frame rather than assuming the
+primary star.
+
+The visualizer now ships a real `System Overview` mode with shared
+host-frame selection, `View locally`, whole-system PNG export, and
+overview availability across single, binary, triple, and quad systems.
+Binary, triple, chained-quad, and paired-quad worlds all remain
+reachable end to end across the Star, System, Apparent, Debris, and
+Visualizer routes.
+
+**Tests** (tests/worldSnapshot.test.js, tests/worldAdapters.test.js,
+tests/storeHomeSystemHelpers.test.js,
+tests/homeSystemContextTopologyGraph.test.js,
+tests/visualizerSnapshotModel.test.js,
+tests/visualizerInputBindings.test.js,
+tests/visualizerFocusSummary.test.js, tests/browser/smoke.spec.js)
+
+- Added normalization, migration-authority, host-frame, paired-quad,
+  overview, export, and route-smoke regression coverage for the full
+  multistar release path.
+
+### Guided Random System Generation
+
+**Added seeded random-system drafting with host-frame-safe AU allocation, curated naming pools, and preserve/reroll strategies**
+(engine/systemGeneration/\*.js, ui/guidedCreation/adapters/system.js,
+ui/guidedCreation/adapters/star.js, ui/systemRandomGeneration.js,
+ui/systemPage.js, ui/store.js, tests/randomSystemGeneration.test.js,
+tests/systemGenerationFoundation.test.js,
+tests/systemGuidedAdapter.test.js,
+tests/systemRandomGeneration.ui.test.js, tests/browser/smoke.spec.js)
+
+WorldSmith can now generate full random home-system drafts instead of
+only individual stars or planets. The new generator builds single-star
+and multistar topologies from a seed, tunes orbit ladders, allocates
+planets and gas giants onto validated host-frame slot catalogs, creates
+moon families after parent worlds are fixed, and applies curated random
+names for stars, planets, and moons from preloaded catalogs.
+
+The System page now exposes a guided `Generate Random System` flow that
+produces draft worlds before apply, then commits them atomically so
+topology, stars, planets, moons, debris, and downstream derived state
+stay in sync. The release path ships with ambitious follow-up behavior
+too: `reroll names only`, `keep stars, reroll planets`, `keep planets,
+reroll moons`, richer goal templates, and preserve-selected-homeworld
+logic where the regenerated slot layout remains scientifically workable.
+
+As part of this work, the guided Star adapter now treats paired quads as
+a first-class topology target, so the random-system stack and the
+standalone guided-star flow share the same multistar architecture set.
+
+**Tests** (tests/randomSystemGeneration.test.js,
+tests/systemGenerationFoundation.test.js,
+tests/systemGuidedAdapter.test.js,
+tests/systemRandomGeneration.ui.test.js, tests/browser/smoke.spec.js)
+
+- Added deterministic-generation, paired-quad, preserve/reroll, UI-flow,
+  and browser-smoke coverage for seeded random-system drafting and apply.
+
+### Star Page Multistar UX Redesign
+
+**Rebuilt the multistar Star page into a single-focus inspector with layout cards, an interactive topology map, and per-star advanced physics**
+(ui/starPage.js, styles.css, tests/starTopologyAuthoring.ui.test.js,
+tests/starGuidedCreation.ui.test.js, tests/inputDraftStability.ui.test.js,
+tests/browser/smoke.spec.js)
+
+The Star page no longer presents multistar authoring as one long stacked
+form. Shared age, metallicity, and evolution controls now live in a
+`Shared System Context` block; topology and quad layout are chosen
+through `Home System Layout` cards; and the new topology map teaches the
+hierarchy directly with clickable star/pair nodes, guardrail state, and
+default-host highlighting.
+
+Focused editing now uses a single visible target across the map,
+inspector pills, and editor pane. Users switch between `Stars` and
+`Pairs`, edit one target at a time, and see the same selection echoed in
+the focused summary and output preview. All stars selected through the
+inspector now support the same `Physics mode` controls as the old
+primary-star-only advanced editor, including derivation modes and
+radius/luminosity/temperature overrides.
+
+The outputs block was also made multistar-aware. The old single-target
+visualizer KPI is now a labeled `Focused Star Preview` backed by a
+`System Stars` strip, so every star remains visible, named, and
+switchable from the outputs area without losing inspector focus.
+
+This pass also fixed several redesign-edge bugs, including stale
+paired-to-chained host-frame transitions and the literal `null` text
+that could leak into star pills when an optional status badge was not
+present.
+
+**Tests** (tests/starTopologyAuthoring.ui.test.js,
+tests/starGuidedCreation.ui.test.js,
+tests/inputDraftStability.ui.test.js, tests/browser/smoke.spec.js)
+
+- Added staged safety-net coverage for topology cards, quad layouts,
+  topology-map selection, single-focus inspector behavior, advanced
+  companion physics editing, output-strip sync, and route persistence.
+
+### Science, Lessons, And Science Visualiser Sync
+
+**Brought the educational surfaces up to date with the current multistar host-frame model and modern science references**
+(ui/sciencePage.js, ui/lessons/L07_planetarySystems.js,
+ui/scienceGraphData.js, ui/scienceVisualiserPage.js,
+tests/sciencePageReference.ui.test.js, tests/lessonsContent.test.js,
+tests/scienceGraphData.test.js, tests/scienceVisualiser.ui.test.js)
+
+The `Science & Maths` page, Lesson 07, and the Science Visualiser now
+explain the same multistar logic that the live engine uses. The Science
+page gained explicit coverage for S-type and P-type host frames,
+companion-flux habitable-zone shifts, Holman-Wiegert binary stability
+limits, disk truncation, and hierarchical triple/quad guardrails, so
+the educational references no longer describe system architecture as if
+everything were single-star only.
+
+The Science Visualiser graph now includes matching system-level concepts
+for host-frame topology, companion flux, and multistar stability, plus
+new runtime edges that show how those concepts feed into habitable-zone
+context and interpreted planetary orbits. Reference-chip labels are also
+normalized to the current Science-page section names so the visualizer
+does not surface stale section titles when linking back to the
+reference page.
+
+**Tests** (tests/sciencePageReference.ui.test.js,
+tests/lessonsContent.test.js, tests/scienceGraphData.test.js,
+tests/scienceVisualiser.ui.test.js)
+
+- Added educational-surface regressions for the refreshed system
+  architecture content, new graph nodes and edges, and updated
+  Science-Visualiser render copy.
+
+### Tooltip Completion And Coverage Audit
+
+**Finished the remaining tooltip gaps across science-facing, import/export, cluster, and visualizer pages**
+(ui/apparentPage.js, ui/localClusterPage.js, ui/localCluster/domRender.js,
+ui/importExportPage.js, ui/scienceVisualiserPage.js,
+ui/calendarPage.js, ui/moonPage.js, ui/visualizerPage.js,
+ui/visualizer/constants.js, tests/tooltipCoverage.ui.test.js)
+
+The remaining tooltip drift after the broader style-guide pass has now
+been closed. Apparent-sky tables, Local Cluster controls and census
+headers, Import/Export actions and textareas, Science Visualiser KPI
+labels and filter headings, Calendar `Decimal places`, Moon `Surface
+Ices`, and the remaining Visualizer controls all now carry explicit
+tooltips that explain what each input or output means and, where
+relevant, the underlying science or modeling assumption.
+
+This audit also added a dedicated tooltip-coverage regression file so
+future UI passes do not silently reintroduce unlabeled controls on these
+pages.
+
+**Tests** (tests/tooltipCoverage.ui.test.js)
+
+- Added focused UI coverage for the remaining tooltip-sensitive pages and
+  their newly documented controls.
+
 ## 1.26.0 - 2026-03-15
 
 ### Star XUV Evolution

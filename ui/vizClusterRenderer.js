@@ -4,12 +4,18 @@
 
 import { calcLocalCluster } from "../engine/localCluster.js";
 import { normalizeClusterObjectKey } from "./clusterObjectVisuals.js";
-import { getClusterAdjustments, getClusterInputs, loadWorld } from "./store.js";
+import {
+  getClusterAdjustments,
+  getClusterInputs,
+  getProjectedPrimaryStar,
+  loadWorld,
+} from "./store.js";
 
 /* ── Snapshot builder ────────────────────────────────────────── */
 
 export function buildClusterSnapshot() {
   const world = loadWorld();
+  const primaryStar = getProjectedPrimaryStar(world);
   const model = calcLocalCluster(getClusterInputs(world));
   const adjustments = getClusterAdjustments(world);
   const baseSystems = applyClusterAdjustments(model.systems, adjustments);
@@ -18,8 +24,8 @@ export function buildClusterSnapshot() {
       ? world.clusterSystemNames
       : {};
   const homeSystemName =
-    typeof world?.star?.name === "string" && world.star.name.trim()
-      ? world.star.name.trim()
+    typeof primaryStar?.name === "string" && primaryStar.name.trim()
+      ? primaryStar.name.trim()
       : "home star system";
   const systems = baseSystems.map((system) => ({
     ...system,

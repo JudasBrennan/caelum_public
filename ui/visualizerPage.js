@@ -1,6 +1,6 @@
 ﻿import { loadWorld } from "./store.js";
 import { calcLagrangePoints } from "../engine/lagrange.js";
-import { attachTooltips, tipIcon } from "./tooltip.js";
+import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
 import { makeTimestampToken } from "./canvasExport.js";
 import { buildClusterSnapshot } from "./vizClusterRenderer.js";
 import { getClusterObjectVisual } from "./clusterObjectVisuals.js";
@@ -42,6 +42,7 @@ import {
 } from "./visualizer/focusCamera.js";
 import { createNativeLabelLayer } from "./visualizer/nativeLabelLayer.js";
 import { createNativeSystemLayer } from "./visualizer/nativeSystemLayer.js";
+import { computeBinaryPairOrbitalState } from "./visualizer/multistarOrbit.js";
 import {
   getStarSurfaceSeed,
   hexToRgba,
@@ -53,7 +54,7 @@ import {
   getFrameMetrics as getSnapshotFrameMetrics,
   mapAuToPx as mapSnapshotAuToPx,
 } from "./visualizer/snapshotModel.js";
-import { getFocusedBodySummary } from "./visualizer/focusSummary.js";
+import { getFocusedBodySummary, getOverviewSelectionSummary } from "./visualizer/focusSummary.js";
 import { createStarActivityRuntime, flareEnergyNorm } from "./visualizer/starActivityRuntime.js";
 import { createBodyMeshService, vizBodyCacheKey } from "./visualizer/bodyMeshService.js";
 import { bindVisualizerInputBindings } from "./visualizer/inputBindings.js";
@@ -95,7 +96,7 @@ export function initVisualiserPage(root, options = {}) {
               <button id="btn-fullscreen" type="button" class="small">${tipIcon(TIP_LABEL["Fullscreen"] || "")} Fullscreen</button>
               <button id="btn-export-image" type="button" class="small">${tipIcon(TIP_LABEL["Download image"] || "")} Download image</button>
               <button id="btn-export-gif" type="button" class="small" disabled>${tipIcon(TIP_LABEL["Download GIF"] || "")} Download GIF</button>
-              <button id="btn-help-overlay" type="button" class="small" aria-label="Controls help">?</button>
+              <button id="btn-help-overlay" type="button" class="small" aria-label="Controls help" ${tipAttr(TIP_LABEL["Controls help"] || "")}>?</button>
             </div>
           </div>
 
@@ -112,12 +113,37 @@ export function initVisualiserPage(root, options = {}) {
               </div>
             </div>
 
+            <div id="view-mode-row" class="viz-controls-dropdown__row" style="display:none">
+              <div class="pill-toggle-wrap" style="width:100%; margin-bottom:0">
+                <div class="viz-view-mode">
+                  <span class="viz-speed__label">View mode ${tipIcon(TIP_LABEL["View mode"] || "")}</span>
+                  <div class="physics-duo-toggle" data-toggle="view-mode">
+                    <input type="radio" name="vizViewMode" id="vizViewLocal" value="local" checked />
+                    <label for="vizViewLocal">Local Frame</label>
+                    <input type="radio" name="vizViewMode" id="vizViewOverview" value="overview" />
+                    <label for="vizViewOverview">System Overview</label>
+                    <span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div id="body-scale-row" class="viz-controls-dropdown__row">
               <div class="viz-speed">
-                <span class="viz-speed__label">Body scale</span>
+                <span class="viz-speed__label">Body scale ${tipIcon(TIP_LABEL["Body scale"] || "")}</span>
                 <input id="rng-body-scale" type="range" min="25" max="100" step="1" value="40" />
                 <span id="txt-body-scale" class="viz-speed__value">40%</span>
               </div>
+            </div>
+
+            <div id="host-frame-row" class="viz-controls-dropdown__row" style="display:none">
+              <div class="viz-speed" style="width:100%">
+                <span class="viz-speed__label"><span id="viz-host-frame-label">Host frame</span> <span id="viz-host-frame-tip">${tipIcon(TIP_LABEL["Host frame"] || "")}</span></span>
+                <select id="viz-host-frame" aria-label="Visualizer host frame"></select>
+              </div>
+            </div>
+            <div id="host-frame-hint-row" class="viz-controls-dropdown__row" style="display:none">
+              <div id="viz-host-frame-hint" class="hint"></div>
             </div>
 
             <div class="viz-controls-dropdown__row viz-controls-dropdown__toggles">
@@ -159,6 +185,7 @@ export function initVisualiserPage(root, options = {}) {
               <label class="viz-check"><input id="chk-grid" type="checkbox" /><span>AU grid ${tipIcon(TIP_LABEL["AU grid"] || "")}</span></label>
               <label class="viz-check"><input id="chk-rotation" type="checkbox" checked /><span>Rotation ${tipIcon(TIP_LABEL["Rotation"] || "")}</span></label>
               <label class="viz-check"><input id="chk-axial-tilt" type="checkbox" checked /><span>Axial tilt helpers ${tipIcon(TIP_LABEL["Axial tilt helpers"] || "")}</span></label>
+              <label class="viz-check"><input id="chk-multistar-info" type="checkbox" checked /><span>Multistar info ${tipIcon(TIP_LABEL["Multistar info"] || "")}</span></label>
               <label class="viz-check"><input id="chk-click-focus-bodies" type="checkbox" checked /><span>Click zoom bodies ${tipIcon(TIP_LABEL["Click zoom bodies"] || "")}</span></label>
               <label class="viz-check"><input id="chk-click-focus-star" type="checkbox" checked /><span>Click zoom star ${tipIcon(TIP_LABEL["Click zoom star"] || "")}</span></label>
               <label class="viz-check"><input id="chk-debug" type="checkbox" /><span>Debug ${tipIcon(TIP_LABEL["Debug"] || "")}</span></label>
@@ -281,6 +308,7 @@ export function initVisualiserPage(root, options = {}) {
   const chkLabelLeaders = root.querySelector("#chk-label-leaders");
   const chkMoons = root.querySelector("#chk-moons");
   const chkOrbits = root.querySelector("#chk-orbits");
+  const vizDistLinear = root.querySelector("#vizDistLinear");
   const vizDistLog = root.querySelector("#vizDistLog");
   const vizSizePhysical = root.querySelector("#vizSizePhysical");
   const chkHz = root.querySelector("#chk-hz");
@@ -294,6 +322,7 @@ export function initVisualiserPage(root, options = {}) {
   const chkGrid = root.querySelector("#chk-grid");
   const chkRotation = root.querySelector("#chk-rotation");
   const chkAxialTilt = root.querySelector("#chk-axial-tilt");
+  const chkMultistarInfo = root.querySelector("#chk-multistar-info");
   const chkClickFocusBodies = root.querySelector("#chk-click-focus-bodies");
   const chkClickFocusStar = root.querySelector("#chk-click-focus-star");
   const chkDebug = root.querySelector("#chk-debug");
@@ -338,6 +367,39 @@ export function initVisualiserPage(root, options = {}) {
   const btnHelp = root.querySelector("#btn-help-overlay");
   const btnHelpClose = root.querySelector("#viz-help-close");
   const bodyScaleRow = root.querySelector("#body-scale-row");
+  const viewModeRow = root.querySelector("#view-mode-row");
+  const vizViewLocal = root.querySelector("#vizViewLocal");
+  const vizViewOverview = root.querySelector("#vizViewOverview");
+  const hostFrameRow = root.querySelector("#host-frame-row");
+  const hostFrameHintRow = root.querySelector("#host-frame-hint-row");
+  const hostFrameSelect = root.querySelector("#viz-host-frame");
+  const hostFrameLabelEl = root.querySelector("#viz-host-frame-label");
+  const hostFrameTipEl = root.querySelector("#viz-host-frame-tip .tip-icon");
+  const hostFrameHintEl = root.querySelector("#viz-host-frame-hint");
+  const speedControlEl = rngSpeed?.closest(".viz-speed");
+  const distanceToggleWrap = vizDistLinear?.closest(".pill-toggle-wrap");
+  const sizeToggleWrap = vizSizePhysical?.closest(".pill-toggle-wrap");
+  const systemCheckToggles = {
+    labels: chkLabels?.closest(".viz-check"),
+    leaderLines: chkLabelLeaders?.closest(".viz-check"),
+    moons: chkMoons?.closest(".viz-check"),
+    orbits: chkOrbits?.closest(".viz-check"),
+    hz: chkHz?.closest(".viz-check"),
+    debris: chkDebris?.closest(".viz-check"),
+    eccentric: chkEccentric?.closest(".viz-check"),
+    peAp: chkPeAp?.closest(".viz-check"),
+    hill: chkHill?.closest(".viz-check"),
+    lagrange: chkLagrange?.closest(".viz-check"),
+    frost: chkFrost?.closest(".viz-check"),
+    distances: chkDistances?.closest(".viz-check"),
+    grid: chkGrid?.closest(".viz-check"),
+    rotation: chkRotation?.closest(".viz-check"),
+    axialTilt: chkAxialTilt?.closest(".viz-check"),
+    multistarInfo: chkMultistarInfo?.closest(".viz-check"),
+    clickBodies: chkClickFocusBodies?.closest(".viz-check"),
+    clickStar: chkClickFocusStar?.closest(".viz-check"),
+    debug: chkDebug?.closest(".viz-check"),
+  };
 
   const DEFAULT_ZOOM = 1.18;
   const ZOOM_MIN = 0.1;
@@ -382,11 +444,53 @@ export function initVisualiserPage(root, options = {}) {
   function isPhysicalScale() {
     return vizSizePhysical?.checked === true;
   }
+  function canUseSystemOverview(snapshot) {
+    return state.mode === "system" && !!snapshot?.overviewModel;
+  }
+  function isSystemOverviewMode(snapshot) {
+    return state.systemViewMode === "overview" && canUseSystemOverview(snapshot);
+  }
   function getZoomMax() {
     return ZOOM_MAX;
   }
   function getFocusMaxZoom() {
     return FOCUS_MAX_ZOOM;
+  }
+
+  function stopSystemPlayback() {
+    if (!state.isPlaying) return;
+    state.isPlaying = false;
+    state.lastTick = 0;
+    if (btnPlay) btnPlay.textContent = "Play";
+    stopTickLoop();
+    syncExportButtons();
+  }
+
+  function applySystemViewMode(nextMode, snapshotArg = null) {
+    const snapshot = snapshotArg || getSnapshot();
+    const resolvedMode =
+      nextMode === "overview" && canUseSystemOverview(snapshot) ? "overview" : "local";
+    if (state.systemViewMode === resolvedMode) return resolvedMode;
+    state.systemViewMode = resolvedMode;
+    if (resolvedMode === "overview") {
+      stopSystemPlayback();
+      stopCameraLoop();
+      killInertia();
+      clearFocusTarget();
+    }
+    syncSystemViewModeControls(snapshot);
+    syncHostFrameControls(snapshot);
+    return resolvedMode;
+  }
+
+  function selectOverviewHostFrame(hostFrameId, { switchToLocal = false } = {}) {
+    const resolvedHostFrameId = String(hostFrameId || "").trim();
+    if (!resolvedHostFrameId) return;
+    state.activeHostFrameId = resolvedHostFrameId;
+    invalidateSnapshot();
+    if (switchToLocal) applySystemViewMode("local");
+    clearFocusTarget();
+    draw();
   }
 
   const state = {
@@ -398,6 +502,8 @@ export function initVisualiserPage(root, options = {}) {
     isPlaying: false,
     simTime: 0, // simulated days
     activityTime: 0, // simulated days for stellar activity (partially decoupled from orbit speed)
+    activeHostFrameId: null,
+    systemViewMode: "local",
 
     lastTick: 0,
     speed: 1,
@@ -455,8 +561,16 @@ export function initVisualiserPage(root, options = {}) {
 
   function syncExportButtons() {
     const playing = state.mode === "cluster" ? state.clusterIsPlaying : state.isPlaying;
-    const canCaptureGif = playing && !state.exportingGif;
+    const overviewMode = state.mode === "system" && state.systemViewMode === "overview";
+    const canCaptureGif = playing && !state.exportingGif && !overviewMode;
     if (btnExportGif) btnExportGif.disabled = !canCaptureGif;
+    if (btnExportGif) {
+      const gifHint = overviewMode
+        ? "GIF export is unavailable in System Overview."
+        : TIP_LABEL["Download GIF"] || "";
+      btnExportGif.setAttribute("data-tip", gifHint);
+      btnExportGif.title = overviewMode ? "GIF export is unavailable in System Overview." : "";
+    }
     if (btnExportImage) btnExportImage.disabled = state.exportingGif;
     if (btnPlay) btnPlay.disabled = state.exportingGif;
     if (btnClusterPlay) btnClusterPlay.disabled = state.exportingGif;
@@ -904,10 +1018,489 @@ export function initVisualiserPage(root, options = {}) {
     );
   }
 
+  function trimOverviewLabel(value, max = 18) {
+    const text = String(value || "").trim();
+    return text.length > max ? `${text.slice(0, Math.max(0, max - 1))}...` : text;
+  }
+
+  function formatOverviewBodyBadge(bodyCounts) {
+    if (!bodyCounts || typeof bodyCounts !== "object" || Number(bodyCounts.total) <= 0) return "";
+    const parts = [];
+    if (Number(bodyCounts.rockyPlanets) > 0) {
+      parts.push(`${Number(bodyCounts.rockyPlanets)} rocky`);
+    }
+    if (Number(bodyCounts.gasGiants) > 0) {
+      parts.push(`${Number(bodyCounts.gasGiants)} giant`);
+    }
+    if (Number(bodyCounts.debrisDisks) > 0) {
+      parts.push(`${Number(bodyCounts.debrisDisks)} debris`);
+    }
+    return parts.join(" | ");
+  }
+
+  function traceRoundedRect(ctx, x, y, width, height, radius) {
+    const r = Math.max(0, Math.min(radius, width * 0.5, height * 0.5));
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function drawOverviewChip(ctx, x, y, text, options = {}) {
+    if (!ctx || !text) return 0;
+    const {
+      fillStyle = "rgba(12, 20, 43, 0.88)",
+      strokeStyle = "rgba(122, 156, 214, 0.36)",
+      textStyle = "rgba(235, 242, 255, 0.94)",
+    } = options;
+    ctx.save();
+    ctx.font = "10px system-ui, sans-serif";
+    const width = Math.ceil(ctx.measureText(text).width) + 20;
+    const height = 22;
+    traceRoundedRect(ctx, x, y, width, height, 11);
+    ctx.fillStyle = fillStyle;
+    ctx.fill();
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = textStyle;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x + 10, y + height * 0.5 + 0.5);
+    ctx.restore();
+    return width;
+  }
+
+  function drawSystemOverview(snapshot) {
+    if (!nativeThree || !overlayCtx || !overlayCanvas) return false;
+    const overview = snapshot?.overviewModel;
+    if (!overview) return false;
+
+    hideOffscaleZoneNotice();
+    syncOverlaySize();
+
+    nativeThree.systemGroup.visible = false;
+    nativeThree.clusterGroup.visible = false;
+    if (nativeThree.bodyGroup) nativeThree.bodyGroup.visible = false;
+    clearThreeGroup(nativeThree.systemGroup);
+    state.bodyHitRegions = [];
+    state.labelHitRegions = [];
+
+    const dpr = state.canvasDpr || window.devicePixelRatio || 1;
+    const W = overlayCanvas.width / dpr;
+    const H = overlayCanvas.height / dpr;
+    if (W < 1 || H < 1) return false;
+
+    nativeThree.renderer.setSize(
+      Math.max(1, Math.round(W * dpr)),
+      Math.max(1, Math.round(H * dpr)),
+      false,
+    );
+    nativeThree.renderer.setPixelRatio(1);
+    nativeThree.renderer.setClearColor(0x040714, 1);
+    nativeThree.renderer.render(nativeThree.scene, nativeThree.cameraSystem);
+    if (btnResetView) btnResetView.disabled = true;
+
+    renderFocusSummary(getOverviewSelectionSummary(snapshot), {
+      onAction(actionId) {
+        if (actionId === "view-locally") {
+          applySystemViewMode("local", snapshot);
+          draw(snapshot);
+        }
+      },
+    });
+
+    overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    overlayCtx.clearRect(0, 0, W, H);
+
+    const topInset = getOffscaleNoticeTopPx();
+    const left = Math.max(36, W * 0.08);
+    const right = Math.min(W - 36, W * 0.92);
+    const top = Math.max(topInset + 44, 76);
+    const bottom = Math.max(top + 120, H - 48);
+    const laneRows = Array.isArray(overview.nodeIdsByDepth)
+      ? overview.nodeIdsByDepth.filter((lane) => Array.isArray(lane) && lane.length > 0)
+      : [];
+    const positionsByNodeId = Object.create(null);
+    const laneCount = Math.max(1, laneRows.length);
+    const laneYFractions =
+      laneCount <= 1
+        ? [0.5]
+        : laneCount === 2
+          ? [0.3, 0.72]
+          : laneCount === 3
+            ? [0.2, 0.5, 0.8]
+            : null;
+
+    laneRows.forEach((lane, depthIndex) => {
+      const y = Array.isArray(laneYFractions)
+        ? top + (bottom - top) * laneYFractions[Math.min(depthIndex, laneYFractions.length - 1)]
+        : laneCount > 1
+          ? top + (depthIndex * (bottom - top)) / (laneCount - 1)
+          : (top + bottom) * 0.5;
+      if (lane.length === 1) {
+        positionsByNodeId[lane[0]] = { x: (left + right) * 0.5, y };
+        return;
+      }
+      const step = (right - left) / Math.max(1, lane.length - 1);
+      lane.forEach((nodeId, laneIndex) => {
+        positionsByNodeId[nodeId] = {
+          x: left + step * laneIndex,
+          y,
+        };
+      });
+    });
+
+    const chipTop = Math.max(14, topInset - 30);
+    let chipCursorX = 18;
+    chipCursorX += drawOverviewChip(overlayCtx, chipCursorX, chipTop, "System Overview") + 8;
+    chipCursorX +=
+      drawOverviewChip(overlayCtx, chipCursorX, chipTop, "Not to scale", {
+        fillStyle: "rgba(37, 31, 15, 0.88)",
+        strokeStyle: "rgba(220, 190, 120, 0.34)",
+        textStyle: "rgba(255, 229, 176, 0.94)",
+      }) + 8;
+    drawOverviewChip(
+      overlayCtx,
+      chipCursorX,
+      chipTop,
+      `Selected: ${trimOverviewLabel(overview?.legend?.selectedLabel || snapshot?.activeHostFrameLabel || "Host frame", 26)}`,
+      {
+        fillStyle: "rgba(16, 38, 61, 0.9)",
+        strokeStyle: "rgba(112, 182, 255, 0.34)",
+      },
+    );
+
+    overlayCtx.save();
+    overlayCtx.lineCap = "round";
+    overview.edges.forEach((edge) => {
+      const parentPos = positionsByNodeId[edge.parentId];
+      const childPos = positionsByNodeId[edge.childId];
+      if (!parentPos || !childPos) return;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(parentPos.x, parentPos.y);
+      overlayCtx.lineTo(childPos.x, childPos.y);
+      overlayCtx.lineWidth = edge.isOnActivePath ? 3 : 1.35;
+      overlayCtx.strokeStyle = edge.isOnActivePath
+        ? "rgba(134, 205, 255, 0.86)"
+        : "rgba(96, 116, 154, 0.52)";
+      overlayCtx.stroke();
+    });
+
+    const labelsEnabled = chkLabels?.checked !== false;
+    const showBadges = chkMultistarInfo?.checked !== false;
+    overview.nodes.forEach((node) => {
+      const pos = positionsByNodeId[node.id];
+      if (!pos) return;
+      const baseRadius = node.kind === "pair" ? 15 : 12;
+      const glowRadius = node.kind === "pair" ? 26 : 22;
+      const fillColor = node.displayColorHex || "#dbe7ff";
+      overlayCtx.beginPath();
+      overlayCtx.fillStyle = hexToRgba(
+        fillColor,
+        node.isActive ? 0.24 : node.isOnActivePath ? 0.16 : 0.08,
+      );
+      overlayCtx.arc(pos.x, pos.y, glowRadius, 0, Math.PI * 2);
+      overlayCtx.fill();
+
+      if (node.kind === "pair") {
+        overlayCtx.beginPath();
+        overlayCtx.strokeStyle = node.isActive
+          ? "rgba(144, 217, 255, 0.96)"
+          : node.isOnActivePath
+            ? "rgba(180, 214, 255, 0.84)"
+            : "rgba(156, 176, 214, 0.62)";
+        overlayCtx.lineWidth = node.isActive ? 3 : 2;
+        overlayCtx.arc(pos.x, pos.y, baseRadius, 0, Math.PI * 2);
+        overlayCtx.stroke();
+        overlayCtx.beginPath();
+        overlayCtx.fillStyle = hexToRgba(fillColor, node.isActive ? 0.95 : 0.82);
+        overlayCtx.arc(pos.x, pos.y, 4.5, 0, Math.PI * 2);
+        overlayCtx.fill();
+      } else {
+        overlayCtx.beginPath();
+        overlayCtx.fillStyle = hexToRgba(fillColor, node.isActive ? 0.98 : 0.9);
+        overlayCtx.arc(pos.x, pos.y, baseRadius, 0, Math.PI * 2);
+        overlayCtx.fill();
+        overlayCtx.beginPath();
+        overlayCtx.strokeStyle = node.isActive
+          ? "rgba(255,255,255,0.95)"
+          : "rgba(210, 223, 246, 0.74)";
+        overlayCtx.lineWidth = node.isActive ? 2.4 : 1.4;
+        overlayCtx.arc(pos.x, pos.y, baseRadius, 0, Math.PI * 2);
+        overlayCtx.stroke();
+      }
+
+      state.bodyHitRegions.push({
+        kind: "overview-host-frame",
+        id: node.id,
+        hostFrameId: node.id,
+        x: pos.x,
+        y: pos.y,
+        r: glowRadius,
+      });
+
+      if (labelsEnabled) {
+        overlayCtx.textAlign = "center";
+        overlayCtx.textBaseline = "top";
+        overlayCtx.fillStyle = "rgba(238, 244, 255, 0.95)";
+        overlayCtx.font =
+          node.kind === "pair" ? "600 10px system-ui, sans-serif" : "10px system-ui, sans-serif";
+        overlayCtx.fillText(
+          trimOverviewLabel(node.shortLabel || node.label, node.kind === "pair" ? 22 : 16),
+          pos.x,
+          pos.y + glowRadius + 2,
+        );
+      }
+
+      if (showBadges) {
+        const badgeText = formatOverviewBodyBadge(node.bodyCounts);
+        if (badgeText) {
+          overlayCtx.textAlign = "center";
+          overlayCtx.textBaseline = "top";
+          overlayCtx.fillStyle = "rgba(176, 190, 214, 0.86)";
+          overlayCtx.font = "8px monospace";
+          overlayCtx.fillText(badgeText, pos.x, pos.y + glowRadius + (labelsEnabled ? 16 : 4));
+        } else if (Number.isFinite(node.separationAu) && node.separationAu > 0) {
+          overlayCtx.textAlign = "center";
+          overlayCtx.textBaseline = "top";
+          overlayCtx.fillStyle = "rgba(160, 174, 200, 0.82)";
+          overlayCtx.font = "8px monospace";
+          overlayCtx.fillText(
+            `${Number(node.separationAu).toFixed(1)} AU`,
+            pos.x,
+            pos.y + glowRadius + (labelsEnabled ? 16 : 4),
+          );
+        }
+      }
+    });
+    overlayCtx.restore();
+    return true;
+  }
+
+  function drawBinarySystemOverlay(snapshot) {
+    if (!overlayCtx || !overlayCanvas) return;
+    if (chkMultistarInfo?.checked === false) return;
+    if ((snapshot?.topologyKind || "single") === "single") return;
+    const topologyKind = snapshot?.topologyKind || "single";
+    const hierarchySummary =
+      snapshot?.hierarchySummary && typeof snapshot.hierarchySummary === "object"
+        ? snapshot.hierarchySummary
+        : null;
+    const isHierarchical =
+      hierarchySummary?.isHierarchical || topologyKind === "triple" || topologyKind === "quad";
+    const canvasMode = snapshot?.canvasMode || "single";
+    const companions = Array.isArray(snapshot?.companionStars) ? snapshot.companionStars : [];
+    const hostStars = Array.isArray(snapshot?.hostStars) ? snapshot.hostStars : [];
+    const localStars = (hierarchySummary?.localStars || hostStars || []).filter(Boolean);
+    const outerBranches =
+      hierarchySummary?.outerBranches?.length > 0
+        ? hierarchySummary.outerBranches
+        : companions.map((entry, index) => ({
+            id: entry?.companionNodeId || entry?.id || `companion_${index + 1}`,
+            label: entry?.companionLabel || entry?.name || `Companion ${index + 1}`,
+            hierarchyLevel: Number(entry?.hierarchyLevel || 1),
+            separationAu:
+              Number.isFinite(Number(entry?.separationAu)) && Number(entry?.separationAu) > 0
+                ? Number(entry.separationAu)
+                : null,
+            stars: [entry].filter(Boolean),
+            starNames: [entry?.name].filter(Boolean),
+            representativeStar: entry || null,
+          }));
+    if (!localStars.length && !outerBranches.length) return;
+
+    const trimLabel = (value, max = 18) => {
+      const text = String(value || "").trim();
+      return text.length > max ? `${text.slice(0, Math.max(0, max - 1))}...` : text;
+    };
+    const localSectionLabel = localStars.length > 1 ? "Local host frame" : "Local host star";
+    const outerSectionLabel =
+      outerBranches.length > 1 ? "Outer companion branches" : "Outer companion branch";
+    const dpr = state.canvasDpr || window.devicePixelRatio || 1;
+    const W = overlayCanvas.width / dpr;
+    overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const showHierarchyInset =
+      isHierarchical && (hierarchySummary?.hierarchyNodes?.length || 0) > 1;
+    const panelW = Math.min(312, W * 0.31);
+    const panelH = Math.min(
+      Math.max(
+        122,
+        102 + localStars.length * 34 + outerBranches.length * 38 + (showHierarchyInset ? 54 : 0),
+      ),
+      Math.max(122, overlayCanvas.height / dpr - 36),
+    );
+    const panelX = W - panelW - 18;
+    const panelY = 18;
+    const panelBottom = panelY + panelH;
+    overlayCtx.fillStyle = "rgba(10, 18, 34, 0.82)";
+    overlayCtx.strokeStyle = "rgba(126, 150, 188, 0.28)";
+    overlayCtx.lineWidth = 1;
+    overlayCtx.fillRect(panelX, panelY, panelW, panelH);
+    overlayCtx.strokeRect(panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1);
+    overlayCtx.fillStyle = "rgba(241, 246, 255, 0.94)";
+    overlayCtx.font = "12px system-ui, sans-serif";
+    overlayCtx.fillText(
+      canvasMode === "binary-p-type"
+        ? isHierarchical
+          ? "Hierarchical pair-host view"
+          : "Binary P-type view"
+        : isHierarchical
+          ? "Hierarchical S-type view"
+          : "Binary S-type view",
+      panelX + 14,
+      panelY + 20,
+    );
+    overlayCtx.fillStyle = "rgba(188, 204, 228, 0.84)";
+    overlayCtx.font = "10px system-ui, sans-serif";
+    overlayCtx.fillText(
+      canvasMode === "binary-p-type"
+        ? `${snapshot?.activeHostFrameLabel || "Pair"} barycenter host`
+        : `${snapshot?.activeHostFrameLabel || "Host"} local host frame`,
+      panelX + 14,
+      panelY + 36,
+    );
+    const companionFluxEarth = Number(snapshot?.companionFluxEarth || 0);
+    overlayCtx.fillText(
+      canvasMode === "binary-p-type"
+        ? outerBranches.length
+          ? "Local pair sets climate; outer branch keeps context."
+          : "Combined pair light sets the local climate."
+        : outerBranches.length && companionFluxEarth > 0.0005
+          ? `Outer branch adds ~${companionFluxEarth.toFixed(3)}x Earth flux.`
+          : outerBranches.length
+            ? "Outer branch tracks stability more than heating."
+            : "Companion flux negligible.",
+      panelX + 14,
+      panelY + 50,
+    );
+    let cursorY = panelY + 72;
+    if (showHierarchyInset) {
+      const nodes = hierarchySummary?.hierarchyNodes || [];
+      const insetLeft = panelX + 16;
+      const insetRight = panelX + panelW - 16;
+      const insetWidth = insetRight - insetLeft;
+      const centerY = cursorY + 12;
+      overlayCtx.fillStyle = "rgba(176, 190, 214, 0.78)";
+      overlayCtx.font = "9px system-ui, sans-serif";
+      overlayCtx.fillText("Hierarchy inset", insetLeft, cursorY - 2);
+      overlayCtx.strokeStyle = "rgba(110, 132, 168, 0.46)";
+      overlayCtx.lineWidth = 1;
+      const step = nodes.length > 1 ? insetWidth / (nodes.length - 1) : 0;
+      for (let index = 0; index < nodes.length - 1; index += 1) {
+        const x1 = insetLeft + step * index;
+        const x2 = insetLeft + step * (index + 1);
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(x1, centerY);
+        overlayCtx.lineTo(x2, centerY);
+        overlayCtx.stroke();
+      }
+      nodes.forEach((node, index) => {
+        const x = nodes.length > 1 ? insetLeft + step * index : insetLeft + insetWidth * 0.5;
+        const fill =
+          node?.kind === "local" ? "rgba(144, 214, 255, 0.92)" : "rgba(255, 214, 148, 0.9)";
+        overlayCtx.beginPath();
+        overlayCtx.fillStyle = fill;
+        overlayCtx.arc(x, centerY, node?.kind === "local" ? 6 : 5, 0, Math.PI * 2);
+        overlayCtx.fill();
+        overlayCtx.fillStyle = "rgba(220, 228, 244, 0.82)";
+        overlayCtx.font = "8px system-ui, sans-serif";
+        overlayCtx.textAlign = "center";
+        overlayCtx.fillText(trimLabel(node?.label, 16), x, centerY + 16);
+        overlayCtx.textAlign = "left";
+      });
+      cursorY += 52;
+    }
+
+    if (localStars.length) {
+      overlayCtx.fillStyle = "rgba(180, 211, 255, 0.9)";
+      overlayCtx.font = "9px system-ui, sans-serif";
+      overlayCtx.fillText(localSectionLabel, panelX + 14, cursorY);
+      cursorY += 16;
+      localStars.forEach((entry, index) => {
+        const y = cursorY + index * 32;
+        overlayCtx.beginPath();
+        overlayCtx.fillStyle = hexToRgba(entry.starColourHex || "#ffe9c0", 0.95);
+        overlayCtx.arc(panelX + 18, y - 4, 6, 0, Math.PI * 2);
+        overlayCtx.fill();
+        overlayCtx.beginPath();
+        overlayCtx.fillStyle = hexToRgba(entry.starColourHex || "#ffe9c0", 0.18);
+        overlayCtx.arc(panelX + 18, y - 4, 12, 0, Math.PI * 2);
+        overlayCtx.fill();
+        overlayCtx.fillStyle = "rgba(233, 238, 248, 0.92)";
+        overlayCtx.font = "10px system-ui, sans-serif";
+        overlayCtx.fillText(entry.name || `Host star ${index + 1}`, panelX + 34, y);
+        overlayCtx.fillStyle = "rgba(176, 190, 214, 0.72)";
+        overlayCtx.font = "8px monospace";
+        overlayCtx.fillText(
+          Number.isFinite(entry.barycentricOrbitAu) && entry.barycentricOrbitAu > 0
+            ? `${Number(entry.barycentricOrbitAu).toFixed(2)} AU from barycenter`
+            : "local climate driver",
+          panelX + 34,
+          y + 12,
+        );
+      });
+      cursorY += localStars.length * 32 + 6;
+    }
+
+    if (outerBranches.length) {
+      overlayCtx.fillStyle = "rgba(255, 214, 162, 0.9)";
+      overlayCtx.font = "9px system-ui, sans-serif";
+      overlayCtx.fillText(outerSectionLabel, panelX + 14, cursorY);
+      cursorY += 16;
+      outerBranches.forEach((branch, index) => {
+        const y = cursorY + index * 36;
+        const starTint =
+          branch?.representativeStar?.starColourHex ||
+          branch?.stars?.[0]?.starColourHex ||
+          "#ffe9c0";
+        overlayCtx.beginPath();
+        overlayCtx.fillStyle = hexToRgba(starTint, 0.92);
+        overlayCtx.arc(panelX + 18, y - 4, 5.5, 0, Math.PI * 2);
+        overlayCtx.fill();
+        overlayCtx.beginPath();
+        overlayCtx.fillStyle = hexToRgba(starTint, 0.16);
+        overlayCtx.arc(panelX + 18, y - 4, 11, 0, Math.PI * 2);
+        overlayCtx.fill();
+        overlayCtx.fillStyle = "rgba(233, 238, 248, 0.92)";
+        overlayCtx.font = "10px system-ui, sans-serif";
+        overlayCtx.fillText(branch?.label || `Companion ${index + 1}`, panelX + 34, y);
+        overlayCtx.fillStyle = "rgba(176, 190, 214, 0.72)";
+        overlayCtx.font = "8px monospace";
+        const branchDetailParts = [];
+        if (Array.isArray(branch?.starNames) && branch.starNames.length > 0) {
+          branchDetailParts.push(branch.starNames.join(", "));
+        }
+        if (Number.isFinite(Number(branch?.separationAu))) {
+          branchDetailParts.push(
+            `${Number(branch.separationAu).toFixed(1)} AU ${branch?.hierarchyLevel > 1 ? "outer " : ""}separation`,
+          );
+        }
+        overlayCtx.fillText(branchDetailParts.join(" | ") || "outer branch", panelX + 34, y + 12);
+      });
+      cursorY += outerBranches.length * 36 + 4;
+    }
+
+    if (hierarchySummary?.notToScale) {
+      overlayCtx.fillStyle = "rgba(150, 166, 190, 0.78)";
+      overlayCtx.font = "italic 8px system-ui, sans-serif";
+      overlayCtx.fillText("Not to scale", panelX + 14, Math.min(panelBottom - 10, cursorY + 10));
+    }
+  }
+
   function drawNativeSystemMode(snapshotArg) {
     if (!nativeThree) return false;
     /* Clear cluster 2D overlay when in system mode */
+    syncOverlaySize();
     if (overlayCtx && overlayCanvas) {
+      overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
       overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
     }
     nativeThree.systemGroup.visible = true;
@@ -920,6 +1513,11 @@ export function initVisualiserPage(root, options = {}) {
       Array.isArray(snapshotArg.planetNodes)
         ? snapshotArg
         : getSnapshot();
+    syncSystemViewModeControls(snapshot);
+    syncHostFrameControls(snapshot);
+    if (isSystemOverviewMode(snapshot)) {
+      return drawSystemOverview(snapshot);
+    }
     renderFocusSummary(getFocusedBodySummary(snapshot, state.focusTargetKind, state.focusTargetId));
     const { sys, planetNodes, debrisDisks, gasGiants } = snapshot;
     const debugOn = flareDebugEnabled();
@@ -1143,7 +1741,10 @@ export function initVisualiserPage(root, options = {}) {
         );
         addDraggableLabelNative({
           key: "zone:hz",
-          line1: "Habitable zone",
+          line1:
+            snapshot.topologyKind !== "single" && snapshot.activeHostFrameLabel
+              ? `${snapshot.activeHostFrameLabel} HZ`
+              : "Habitable zone",
           line2: chkDistances?.checked
             ? `${Number(sys.habitableZoneAu.inner).toFixed(2)}-${Number(sys.habitableZoneAu.outer).toFixed(2)} AU`
             : "",
@@ -1178,7 +1779,10 @@ export function initVisualiserPage(root, options = {}) {
         );
         addDraggableLabelNative({
           key: "zone:frost",
-          line1: "H2O Frost Line",
+          line1:
+            snapshot.topologyKind !== "single" && snapshot.activeHostFrameLabel
+              ? `${snapshot.activeHostFrameLabel} Frost Line`
+              : "H2O Frost Line",
           line2: chkDistances?.checked ? `${Number(sys.frostLineAu).toFixed(2)} AU` : "",
           anchorX: p.x,
           anchorY: p.y,
@@ -1376,6 +1980,11 @@ export function initVisualiserPage(root, options = {}) {
       }
     }
 
+    const pairHostStars =
+      snapshot?.canvasMode === "binary-p-type" && Array.isArray(snapshot?.hostStars)
+        ? snapshot.hostStars.filter((entry) => entry && entry.starColourHex)
+        : [];
+    const pairHostView = pairHostStars.length > 1;
     const starTint = parseHexColorNumber(snapshot.starColourHex, 0xfff4dc);
     const starCoreHex = mixHex(snapshot.starColourHex, "#ffffff", 0.34);
     const starCoreTint = parseHexColorNumber(starCoreHex, starTint);
@@ -1519,6 +2128,8 @@ export function initVisualiserPage(root, options = {}) {
       radius,
       opacity,
       z,
+      x = center.x,
+      y = center.y,
       color = 0xffffff,
       blending = THREE.NormalBlending,
       rotation = 0,
@@ -1536,7 +2147,7 @@ export function initVisualiserPage(root, options = {}) {
       mat.rotation = rotation;
       const sprite = new THREE.Sprite(mat);
       const rr = Math.max(1, radius);
-      sprite.position.set(center.x, center.y, z);
+      sprite.position.set(x, y, z);
       sprite.scale.set(rr * 2, rr * 2, 1);
       nativeThree.systemGroup.add(sprite);
     };
@@ -1664,7 +2275,7 @@ export function initVisualiserPage(root, options = {}) {
     addStarSprite({
       tex: starGlowTex,
       radius: Math.max(10, starR * (3.45 + 0.22 * glowPulse)),
-      opacity: 0.19,
+      opacity: pairHostView ? 0 : 0.19,
       z: -1.35,
       color: starTint,
       blending: THREE.AdditiveBlending,
@@ -1672,7 +2283,7 @@ export function initVisualiserPage(root, options = {}) {
     addStarSprite({
       tex: starGlowTex,
       radius: Math.max(7, starR * (2.25 + 0.14 * glowPulse)),
-      opacity: 0.28,
+      opacity: pairHostView ? 0 : 0.28,
       z: -1.18,
       color: starTint,
       blending: THREE.AdditiveBlending,
@@ -1680,7 +2291,7 @@ export function initVisualiserPage(root, options = {}) {
     addStarSprite({
       tex: starSurfaceTex,
       radius: Math.max(2, starR * 1.03),
-      opacity: 0.99,
+      opacity: pairHostView ? 0 : 0.99,
       z: -0.98,
       color: 0xffffff,
       blending: THREE.NormalBlending,
@@ -1689,7 +2300,7 @@ export function initVisualiserPage(root, options = {}) {
     addStarSprite({
       tex: starGlowTex,
       radius: Math.max(2.5, starR * 1.1),
-      opacity: 0.35,
+      opacity: pairHostView ? 0 : 0.35,
       z: -0.94,
       color: starRimTint,
       blending: THREE.AdditiveBlending,
@@ -1697,13 +2308,248 @@ export function initVisualiserPage(root, options = {}) {
     addStarSprite({
       tex: starGlowTex,
       radius: Math.max(1.2, starR * 0.55),
-      opacity: 0.42,
+      opacity: pairHostView ? 0 : 0.42,
       z: -0.91,
       color: starCoreTint,
       blending: THREE.AdditiveBlending,
     });
-    registerHit("star", "home", cx, cy, Math.max(14, starR * 1.08));
-    const canRenderBursts = state.isPlaying || state.exportingGif;
+    let starHitRadius = Math.max(14, starR * 1.08);
+    if (pairHostView) {
+      const livePairOrbit =
+        pairHostStars.length === 2 && snapshot?.activeHostFrame?.pair
+          ? computeBinaryPairOrbitalState({
+              hostStars: pairHostStars,
+              pair: snapshot.activeHostFrame.pair,
+              simTime: state.simTime,
+              cx,
+              cy,
+              minAu,
+              maxAu,
+              maxR,
+              logScale: isLogScale(),
+              mapAuToPx,
+              orbitOffsetToScreen,
+              solveKeplerEquation,
+            })
+          : null;
+      const hostRadiusScales = pairHostStars.map((entry) =>
+        Math.max(0.18, Number(entry.radiusRsol) || Number(entry.massMsol) || 1),
+      );
+      const maxHostRadiusScale = Math.max(...hostRadiusScales, 1);
+      const pairStarNodes = pairHostStars.map((entry, index) => {
+        const radiusScale = Math.sqrt(hostRadiusScales[index] / maxHostRadiusScale);
+        const visualRadius = clamp(
+          starR * (0.56 + 0.28 * radiusScale),
+          Math.max(4, starR * 0.42),
+          Math.max(8, starR * 0.9),
+        );
+        const liveNode = livePairOrbit?.starNodes?.[index] || null;
+        const mappedOrbitPx =
+          Number.isFinite(Number(liveNode?.orbitSemiMajorPx)) &&
+          Number(liveNode.orbitSemiMajorPx) > 0
+            ? Number(liveNode.orbitSemiMajorPx)
+            : mapAuToPx(Math.max(0, Number(entry.barycentricOrbitAu) || 0), minAu, maxAu, maxR, {
+                logScale: isLogScale(),
+              });
+        let offsetPx = mappedOrbitPx;
+        if (!(offsetPx > 0)) offsetPx = 0;
+        const direction = index % 2 === 0 ? -1 : 1;
+        return {
+          ...entry,
+          direction,
+          mappedOrbitPx,
+          offsetPx,
+          screenX:
+            Number.isFinite(Number(liveNode?.screenX)) && livePairOrbit
+              ? Number(liveNode.screenX)
+              : cx + direction * offsetPx,
+          screenY:
+            Number.isFinite(Number(liveNode?.screenY)) && livePairOrbit
+              ? Number(liveNode.screenY)
+              : cy,
+          depth:
+            Number.isFinite(Number(liveNode?.depth)) && livePairOrbit ? Number(liveNode.depth) : 0,
+          orbitEccentricity:
+            Number.isFinite(Number(liveNode?.orbitEccentricity)) && livePairOrbit
+              ? Number(liveNode.orbitEccentricity)
+              : 0,
+          orbitInclinationDeg:
+            Number.isFinite(Number(liveNode?.orbitInclinationDeg)) && livePairOrbit
+              ? Number(liveNode.orbitInclinationDeg)
+              : 0,
+          orbitArgPeriapsisDeg:
+            Number.isFinite(Number(liveNode?.orbitArgPeriapsisDeg)) && livePairOrbit
+              ? Number(liveNode.orbitArgPeriapsisDeg)
+              : 0,
+          visualRadius,
+        };
+      });
+      if (!livePairOrbit && pairStarNodes.length >= 2) {
+        const left = pairStarNodes[0];
+        const right = pairStarNodes[1];
+        const gap = Math.abs(right.screenX - left.screenX);
+        const minGap = left.visualRadius + right.visualRadius + 22;
+        if (gap < minGap) {
+          const extra = (minGap - gap) * 0.5;
+          left.screenX -= extra;
+          right.screenX += extra;
+        }
+      }
+      const pairEnvelopeRadius = pairStarNodes.reduce(
+        (maxRadius, entry) =>
+          Math.max(
+            maxRadius,
+            Math.hypot(entry.screenX - cx, Number(entry.screenY || cy) - cy) + entry.visualRadius,
+          ),
+        starR,
+      );
+      starHitRadius = Math.max(starHitRadius, pairEnvelopeRadius);
+      if (livePairOrbit) {
+        for (const entry of pairStarNodes) {
+          if (!(Number(entry.mappedOrbitPx) > 3)) continue;
+          nativeThree.systemGroup.add(
+            projectedEllipseOrbitLine(
+              entry.mappedOrbitPx,
+              entry.orbitEccentricity,
+              entry.orbitArgPeriapsisDeg,
+              entry.orbitInclinationDeg,
+              0x7284a2,
+              0.12,
+              180,
+              -1.26,
+            ),
+          );
+        }
+      } else {
+        const pairOrbitRadiiPx = [
+          ...new Set(
+            pairStarNodes
+              .map((entry) => Number(entry.mappedOrbitPx))
+              .filter((radius) => Number.isFinite(radius) && radius > 3)
+              .map((radius) => Number(radius.toFixed(3))),
+          ),
+        ];
+        for (const radiusPx of pairOrbitRadiiPx) {
+          nativeThree.systemGroup.add(projectedOrbitLine(radiusPx, 0x7284a2, 0.12, 180, 0, -1.26));
+        }
+      }
+      if (pairStarNodes.length >= 2) {
+        addScreenLine(
+          pairStarNodes[0].screenX,
+          Number(pairStarNodes[0].screenY || cy),
+          pairStarNodes[1].screenX,
+          Number(pairStarNodes[1].screenY || cy),
+          0x627593,
+          0.16,
+          -1.21,
+        );
+      }
+      const barycenterCore = new THREE.Mesh(
+        new THREE.CircleGeometry(Math.max(0.7, starR * 0.06), 20),
+        new THREE.MeshBasicMaterial({
+          color: 0xdbe8ff,
+          transparent: true,
+          opacity: 0.44,
+          depthWrite: false,
+          depthTest: false,
+        }),
+      );
+      barycenterCore.position.set(center.x, center.y, -0.88);
+      nativeThree.systemGroup.add(barycenterCore);
+      const renderPairStarNodes = livePairOrbit
+        ? [...pairStarNodes].sort(
+            (left, right) => Number(left.depth || 0) - Number(right.depth || 0),
+          )
+        : pairStarNodes;
+      for (const entry of renderPairStarNodes) {
+        const entryTint = parseHexColorNumber(entry.starColourHex, starTint);
+        const entryRimTint = parseHexColorNumber(
+          mixHex(entry.starColourHex, "#ffd9ad", 0.4),
+          entryTint,
+        );
+        const entryCoreTint = parseHexColorNumber(
+          mixHex(entry.starColourHex, "#fff7e7", 0.58),
+          entryTint,
+        );
+        const entrySurfaceSeed = getStarSurfaceSeed({
+          starSeed:
+            entry.seed ||
+            `${entry.name || "Star"}:${Number(entry.tempK || 5776).toFixed(0)}:${Number(entry.ageGyr || 4.6).toFixed(2)}`,
+          starName: entry.name,
+          starTempK: entry.tempK,
+          starAgeGyr: entry.ageGyr,
+        });
+        const entrySurfaceTex = getNativeProceduralTexture(
+          `star-surface:v3:${entry.starColourHex}:${entrySurfaceSeed}:${Math.round(Number(entry.tempK) || 5776)}:${Math.round(starActivity * 100)}`,
+          (cctx, size) => {
+            paintStarSurfaceTexture(cctx, size, {
+              baseHex: entry.starColourHex,
+              seed: entrySurfaceSeed,
+              tempK: entry.tempK,
+              activity: starActivity,
+            });
+          },
+          384,
+        );
+        const entryCenter = toThreeXY(metrics, entry.screenX, Number(entry.screenY || cy));
+        addStarSprite({
+          tex: starGlowTex,
+          radius: Math.max(8, entry.visualRadius * (2.35 + 0.16 * glowPulse)),
+          opacity: 0.16,
+          z: -1.34,
+          x: entryCenter.x,
+          y: entryCenter.y,
+          color: entryTint,
+          blending: THREE.AdditiveBlending,
+        });
+        addStarSprite({
+          tex: starGlowTex,
+          radius: Math.max(5.5, entry.visualRadius * (1.7 + 0.12 * glowPulse)),
+          opacity: 0.23,
+          z: -1.16,
+          x: entryCenter.x,
+          y: entryCenter.y,
+          color: entryTint,
+          blending: THREE.AdditiveBlending,
+        });
+        addStarSprite({
+          tex: entrySurfaceTex,
+          radius: Math.max(2, entry.visualRadius * 1.02),
+          opacity: 0.99,
+          z: -0.98,
+          x: entryCenter.x,
+          y: entryCenter.y,
+          color: 0xffffff,
+          blending: THREE.NormalBlending,
+          rotation:
+            state.simTime * 0.0042 +
+            entry.direction * 0.05 +
+            hashUnit(`${entrySurfaceSeed}:surface-rotation`) * Math.PI * 2,
+        });
+        addStarSprite({
+          tex: starGlowTex,
+          radius: Math.max(2.5, entry.visualRadius * 1.1),
+          opacity: 0.3,
+          z: -0.94,
+          x: entryCenter.x,
+          y: entryCenter.y,
+          color: entryRimTint,
+          blending: THREE.AdditiveBlending,
+        });
+        addStarSprite({
+          tex: starGlowTex,
+          radius: Math.max(1.2, entry.visualRadius * 0.52),
+          opacity: 0.36,
+          z: -0.91,
+          x: entryCenter.x,
+          y: entryCenter.y,
+          color: entryCoreTint,
+          blending: THREE.AdditiveBlending,
+        });
+      }
+    }
+    registerHit("star", "home", cx, cy, starHitRadius);
+    const canRenderBursts = !pairHostView && (state.isPlaying || state.exportingGif);
     const activeBurstCount = Array.isArray(state.starBursts) ? state.starBursts.length : 0;
     let nativeVisibleBurstCount = 0;
     let nativeVisibleCmeCount = 0;
@@ -2080,13 +2926,15 @@ export function initVisualiserPage(root, options = {}) {
     if (chkLabels?.checked) {
       addDraggableLabelNative({
         key: "star:home",
-        line1: snapshot.starName || "Star",
+        line1: pairHostView
+          ? `${snapshot.activeHostFrameLabel || snapshot.starName || "Pair"} barycenter`
+          : snapshot.starName || "Star",
         anchorX: cx,
         anchorY: cy,
-        defaultX: cx + Math.max(16, starR * 1.35) - 6,
+        defaultX: cx + Math.max(16, starHitRadius * 1.08) - 6,
         defaultY: cy - 14 - 10,
         z: 8,
-        leaderRadius: starR,
+        leaderRadius: Math.max(starR, starHitRadius),
         color1: hexToRgba(mixHex(snapshot.starColourHex, "#fff5d7", 0.5), 0.92),
         priority: 100,
       });
@@ -2785,6 +3633,7 @@ export function initVisualiserPage(root, options = {}) {
 
     nativeThree.renderer.setClearColor(0x050916, 1);
     nativeThree.renderer.render(nativeThree.scene, nativeThree.cameraSystem);
+    drawBinarySystemOverlay(snapshot);
     return true;
   }
   function syncOverlaySize() {
@@ -3202,6 +4051,129 @@ export function initVisualiserPage(root, options = {}) {
     disposeBodyMeshCache();
   }
 
+  function syncHostFrameControls(snapshot) {
+    if (!hostFrameRow || !hostFrameSelect || !hostFrameHintEl || !hostFrameHintRow) return;
+    const options = Array.isArray(snapshot?.hostFrameOptions) ? snapshot.hostFrameOptions : [];
+    const show = (snapshot?.topologyKind || "single") !== "single" && options.length > 1;
+    const overviewMode = isSystemOverviewMode(snapshot);
+    hostFrameRow.style.display = show ? "" : "none";
+    hostFrameHintRow.style.display = show ? "" : "none";
+    if (hostFrameLabelEl)
+      hostFrameLabelEl.textContent = overviewMode ? "Selected frame" : "Host frame";
+    if (hostFrameTipEl) {
+      hostFrameTipEl.setAttribute(
+        "data-tip",
+        overviewMode ? TIP_LABEL["Selected frame"] || "" : TIP_LABEL["Host frame"] || "",
+      );
+    }
+    if (!show) return;
+    if (hostFrameSelect.options.length !== options.length) {
+      hostFrameSelect.replaceChildren(
+        ...options.map((option) => {
+          const node = document.createElement("option");
+          node.value = option.id;
+          node.textContent = option.label;
+          return node;
+        }),
+      );
+    }
+    const resolvedHostFrameId = snapshot?.activeHostFrameId || options[0]?.id || "";
+    if (hostFrameSelect.value !== resolvedHostFrameId) hostFrameSelect.value = resolvedHostFrameId;
+    if (overviewMode) {
+      const activePathLabels = (snapshot?.overviewModel?.activePathNodeIds || [])
+        .map((nodeId) => snapshot?.overviewModel?.nodesById?.[nodeId]?.shortLabel || nodeId)
+        .filter(Boolean);
+      hostFrameHintEl.textContent = [
+        "System overview is schematic, not to scale.",
+        `${snapshot?.activeHostFrameLabel || "Selected frame"} is currently selected.`,
+        activePathLabels.length > 0 ? `Hierarchy path: ${activePathLabels.join(" -> ")}.` : "",
+        "Click a star or pair node to inspect that host frame, then use View locally for detailed orbits.",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return;
+    }
+    const isPairHost = snapshot?.activeHostFrame?.frameKind === "pair";
+    const isHierarchical = snapshot?.topologyKind === "triple" || snapshot?.topologyKind === "quad";
+    const hintParts = isPairHost
+      ? [
+          `${snapshot?.activeHostFrameLabel || "Host frame"} barycenter view.`,
+          isHierarchical
+            ? "Combined pair light sets the local climate in this frame while outer stars still add hierarchy-level flux and stability context."
+            : "Combined pair light sets the climate in this frame.",
+        ]
+      : [
+          `${snapshot?.activeHostFrameLabel || "Host frame"} view.`,
+          Number(snapshot?.companionFluxEarth || 0) > 0.0005
+            ? `${isHierarchical ? "Other stars add" : "Companion adds"} ~${Number(snapshot.companionFluxEarth).toFixed(3)}x Earth flux.`
+            : isHierarchical
+              ? "Outer-star heating is negligible in this host frame."
+              : "Companion heating is negligible.",
+        ];
+    if (isPairHost && Number(snapshot?.activeHostFrame?.stability?.criticalInnerAu || 0) > 0) {
+      hintParts.push(
+        `Circumbinary stability floor near ${Number(snapshot.activeHostFrame.stability.criticalInnerAu).toFixed(2)} AU.`,
+      );
+    }
+    if (snapshot?.hierarchySummary?.outerBranches?.length > 0) {
+      hintParts.push(
+        `Outer companion ${snapshot.hierarchySummary.outerBranches.length > 1 ? "branches" : "branch"}: ${snapshot.hierarchySummary.outerBranches
+          .map((branch) => branch.label)
+          .join(" | ")}.`,
+      );
+    }
+    if (Number(snapshot?.fluxVariabilityFraction || 0) > 0.001) {
+      hintParts.push(
+        `Flux varies by about ${(Number(snapshot.fluxVariabilityFraction) * 100).toFixed(1)}% across the ${isHierarchical ? "host-star hierarchy" : "binary orbit"}.`,
+      );
+    }
+    hostFrameHintEl.textContent = hintParts.join(" ");
+  }
+
+  function syncSystemViewModeControls(snapshot) {
+    if (!viewModeRow || !vizViewLocal || !vizViewOverview) return;
+    const supportsOverview = canUseSystemOverview(snapshot);
+    if (!supportsOverview && state.systemViewMode !== "local") {
+      state.systemViewMode = "local";
+    }
+    const overviewMode = isSystemOverviewMode(snapshot);
+    viewModeRow.style.display = supportsOverview ? "" : "none";
+    vizViewLocal.checked = !overviewMode;
+    vizViewOverview.checked = overviewMode;
+
+    if (btnPlay) btnPlay.style.display = overviewMode ? "none" : "";
+    if (speedControlEl) speedControlEl.style.display = overviewMode ? "none" : "";
+    if (distanceToggleWrap) distanceToggleWrap.style.display = overviewMode ? "none" : "";
+    if (sizeToggleWrap) sizeToggleWrap.style.display = overviewMode ? "none" : "";
+    if (bodyScaleRow) bodyScaleRow.style.display = overviewMode || isPhysicalScale() ? "none" : "";
+
+    const showMap = {
+      labels: true,
+      leaderLines: !overviewMode,
+      moons: !overviewMode,
+      orbits: !overviewMode,
+      hz: !overviewMode,
+      debris: !overviewMode,
+      eccentric: !overviewMode,
+      peAp: !overviewMode,
+      hill: !overviewMode,
+      lagrange: !overviewMode,
+      frost: !overviewMode,
+      distances: !overviewMode,
+      grid: !overviewMode,
+      rotation: !overviewMode,
+      axialTilt: !overviewMode,
+      multistarInfo: true,
+      clickBodies: !overviewMode,
+      clickStar: !overviewMode,
+      debug: true,
+    };
+    Object.entries(systemCheckToggles).forEach(([key, node]) => {
+      if (!node) return;
+      node.style.display = showMap[key] ? "" : "none";
+    });
+  }
+
   function getSnapshot({ force = false } = {}) {
     if (!force && state.snapshotCache) return state.snapshotCache;
     const snapshot = buildVisualizerSnapshot(loadWorld(), {
@@ -3210,8 +4182,12 @@ export function initVisualiserPage(root, options = {}) {
         log: dbg,
         logThrottled: dbgThrottled,
       },
+      hostFrameId: state.activeHostFrameId,
       hashUnit,
     });
+    state.activeHostFrameId = snapshot.activeHostFrameId || null;
+    syncSystemViewModeControls(snapshot);
+    syncHostFrameControls(snapshot);
     state.snapshotCache = snapshot;
     warmBodyMeshes(snapshot);
     return snapshot;
@@ -3494,7 +4470,8 @@ export function initVisualiserPage(root, options = {}) {
     return starActivityRuntime.updateStarBursts(dtSec, snapshot, nowActivitySec);
   }
 
-  function renderFocusSummary(summary) {
+  function renderFocusSummary(summary, options = {}) {
+    const { onAction = null } = options;
     if (!focusSummaryEl) return;
     if (!summary) {
       focusSummaryEl.style.display = "none";
@@ -3538,6 +4515,25 @@ export function initVisualiserPage(root, options = {}) {
           text: summary.note,
         }),
       );
+    }
+
+    if (Array.isArray(summary.actions) && summary.actions.length > 0) {
+      const actionsWrap = createElement("div", { className: "viz-focus-summary__actions" });
+      for (const action of summary.actions) {
+        const button = createElement("button", {
+          className: "small",
+          attrs: {
+            type: "button",
+            "data-summary-action": action.id,
+          },
+          text: action.label || action.id || "Action",
+        });
+        if (typeof onAction === "function") {
+          button.addEventListener("click", () => onAction(action.id, summary));
+        }
+        actionsWrap.appendChild(button);
+      }
+      children.push(actionsWrap);
     }
 
     focusSummaryEl.style.display = "";
@@ -3691,6 +4687,21 @@ export function initVisualiserPage(root, options = {}) {
     requestAnimationFrame(expandTick);
   }
 
+  hostFrameSelect?.addEventListener("change", () => {
+    state.activeHostFrameId = String(hostFrameSelect.value || "").trim() || null;
+    invalidateSnapshot();
+    clearFocusTarget();
+    draw();
+  });
+
+  root.querySelectorAll('[name="vizViewMode"]').forEach((element) => {
+    addDisposableListener(element, "change", () => {
+      const requestedMode = vizViewOverview?.checked ? "overview" : "local";
+      applySystemViewMode(requestedMode);
+      draw();
+    });
+  });
+
   inputBindings = bindVisualizerInputBindings({
     addCleanup,
     addDisposableListener,
@@ -3716,6 +4727,7 @@ export function initVisualiserPage(root, options = {}) {
       chkGrid,
       chkRotation,
       chkAxialTilt,
+      chkMultistarInfo,
       chkClickFocusBodies,
       chkClickFocusStar,
       chkDebug,

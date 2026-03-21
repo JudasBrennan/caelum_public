@@ -2,6 +2,7 @@ import { calcMoon } from "../engine/moon.js";
 import { calcPlanetExact } from "../engine/planet.js";
 import { calcGasGiant } from "../engine/gasGiant.js";
 import { calcStar } from "../engine/star.js";
+import { resolveHostFrameContext } from "../engine/homeSystem/context.js";
 import {
   buildGasGiantMoonParentOverride,
   buildRockyMoonParentOverride,
@@ -26,6 +27,7 @@ import {
   loadGuidedSession,
   saveGuidedSession,
 } from "./guidedCreation/sessionState.js";
+import { getGuidedEntryModeTooltip } from "./guidedCreation/tooltips.js";
 import {
   buildMoonRecipeApplyInputs,
   ensureMoonGuidedAdapterRegistered,
@@ -59,8 +61,10 @@ import {
   updateMoon,
   assignMoonToPlanet,
   applyMoonSiblingPatch,
+  buildWorldHomeSystemContext,
+  getProjectedPrimaryStar,
 } from "./store.js";
-import { attachTooltips, tipIcon } from "./tooltip.js";
+import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
 import { createTutorial } from "./tutorial.js";
 
 const TIP_LABEL = {
@@ -122,10 +126,11 @@ const TIP_LABEL = {
   "Moon locked to Planet?":
     'Checks whether the moon is tidally locked to the planet.\n\nA body is tidally locked when it takes the same amount of time to spin about its axis as it does to orbit its companion. Tidally locked objects always present the same face to their companion.\n\nMajor moons should always be tidally locked to the planet, i.e., the expected output is "Yes".',
   "Planet locked to Moon?":
-    "Checks whether the planet is tidally locked to the moon.\n\nThe calculations used here are rough approximations, so the output is necessarily imprecise. Outputs that display in red indicate a likely problematic configuration. Adjust the moon's semi-major axis to change the result.",
+    "Checks whether the planet is tidally locked to the moon.\n\nThis is shown as a rough lock-timescale category rather than a strict Yes/No result, so the output is necessarily imprecise. 'Very Likely Locked' means the estimated planet-to-moon lock time is extremely short; the longer 'Maybe' categories indicate progressively weaker or less plausible locking. Adjust the moon's semi-major axis to change the result.",
   "Planet locked to Star?":
     'Checks whether the planet is expected to be tidally locked to its star.\n\nWorldSmith Web uses a user-friendly rule: this shows "Yes" when the computed Planet\u2192Star lock time is less than or equal to the current star age.\n\nFor an Earth-like setup, this should usually remain "No".',
-  "Derived Data": "Read-only star and planet context used for moon calculations.",
+  "Derived Data":
+    "Read-only parent and host-frame context used for moon calculations. In binary systems this includes which star-centered frame the parent world belongs to, plus any extra companion heating or stability pressure inherited from that frame.",
   "Moon selection": "Saved moon currently being edited.",
   "Editing moon": "Moon selector with create and delete controls.",
   "Belongs to planet": "Parent planet this moon orbits. May be left unassigned.",
@@ -138,12 +143,16 @@ const TIP_LABEL = {
   "Composition Override":
     "Override the density-derived composition class with a specific interior state. Density is a good proxy for cold, solid moons, but it underestimates tidal heating by 10\u2013100\u00D7 for moons with extreme interiors.\n\nAuto (from density): Default. Best for geologically quiet moons.\n\nVery icy: Cometary or outer solar system bodies dominated by volatile ices. Low density (<1 g/cm\u00B3).\n\nIcy: Mostly water ice with some rock. Ganymede, Callisto, Rhea. Density 1\u20132 g/cm\u00B3.\n\nSubsurface ocean: A global liquid ocean beneath a thin ice shell dramatically softens the body and amplifies tidal dissipation. Use for moons showing signs of geological activity despite low density (cryovolcanism, plumes, young surface). Calibrated to Enceladus: predicted heating matches Cassini observations within 10%. WARNING: over-predicts for large moons like Titan (\u223C37\u00D7 too high) \u2014 use Icy for those.\n\nMixed rock/ice: Roughly half rock, half ice. Europa\u2019s density (3.0 g/cm\u00B3) places it here. Good default for moons of giant planets with intermediate density.\n\nRocky: Solid silicate mantle, like Earth\u2019s Moon (3.34 g/cm\u00B3). Appropriate for tidally quiet rocky moons.\n\nPartially molten: Extreme tidal heating has melted the interior, creating a magma ocean or mushy mantle. This makes the body much softer than solid rock, dramatically increasing dissipation. Use for moons in strong orbital resonances with high volcanic activity. Calibrated to Io: predicted heating matches observed 10\u00B9\u2074 W within 1%.\n\nIron-rich: Dense metallic body (>5 g/cm\u00B3). Very stiff, dissipates little energy. Mercury-like composition.",
   Dynamics: "Optional inputs that affect tidal evolution timescales.",
+  "Moon Science Modes":
+    "Top-level complexity controls for the moon solver.\n\nUse these to switch the Hydrosphere, Atmosphere, and Orbital Coupling blocks between compact heuristic handling and the deeper Full / Manual paths.",
   "Hydrosphere Mode":
     "Core keeps the existing density-driven moon water heuristics.\n\nFull adds explicit water inventory, salinity, ammonia, and interior-state controls.\n\nManual lets you set physical moon water/interior inputs directly, but the engine still computes the resulting ocean and ice structure.",
   "Atmosphere Mode":
     "Core uses the retained-volatile moon atmosphere path.\n\nFull adds stability diagnostics, source/loss reasoning, and haze/cloud outputs.\n\nManual lets you set pressure and gas mix inputs; the solver then checks whether that atmosphere is stable or transient.",
   "Orbital Coupling":
     "Core treats the moon independently.\n\nFull adds sibling-moon resonance detection, forced eccentricity floors, Laplace-chain flags, and a tidal-habitable-zone readout.\n\nManual exposes resonance-group inputs and manual forcing controls.",
+  "Bulk & Interior":
+    "Physical moon water and interior controls used by the Full and Manual hydrosphere paths.\n\nThese inputs shape whether the moon ends up dry, ocean-bearing, frozen over, differentiated, or internally warm enough to keep buried liquid water.",
   "Water Mass Fraction":
     "Explicit moon water inventory as percent of total mass. Core mode ignores this and infers water from composition. Full and Manual modes use it to solve exposed ocean depth, buried ocean depth, and ice-shell structure.",
   Salinity:
@@ -154,13 +163,57 @@ const TIP_LABEL = {
     "Flags whether the moon is internally differentiated into a rocky core and volatile-rich outer shell. Differentiation makes long-lived internal oceans more plausible.",
   "Moon Radioisotopes":
     "Moon internal heat mode. Simple uses a single abundance multiplier. Advanced exposes the individual U-238, U-235, Th-232, and K-40 controls, mirroring rocky planets.",
+  "Radioisotope Abundance":
+    "Simple moon radioisotope abundance multiplier relative to Earth.\n\nRaise this to model a more radionuclide-rich moon with stronger long-lived internal heating, or lower it for an older or less enriched rocky interior.",
+  "Internal Heat":
+    "Simple moon radioisotope abundance multiplier relative to Earth.\n\nRaise this to model a more radionuclide-rich moon with stronger long-lived internal heating, or lower it for an older or less enriched rocky interior.",
+  "U-238":
+    "Moon uranium-238 abundance relative to Earth's reference inventory.\n\nU-238 is the dominant long-lived radiogenic heat source on multi-gigayear timescales.",
+  "U-235":
+    "Moon uranium-235 abundance relative to Earth's reference inventory.\n\nU-235 contributes more strongly in young systems because of its shorter half-life.",
+  "Th-232":
+    "Moon thorium-232 abundance relative to Earth's reference inventory.\n\nTh-232 is a long-lived radiogenic heat source that helps sustain late-time internal heating.",
+  "K-40":
+    "Moon potassium-40 abundance relative to Earth's reference inventory.\n\nK-40 is a shorter-lived radiogenic contributor that can matter more in younger rocky interiors.",
+  "Atmosphere Controls":
+    "Manual atmosphere inputs for the Moon Atmosphere Manual mode.\n\nSet a target surface pressure and gas mix here, then let the moon solver judge whether that atmosphere is stable, transient, or physically strained under the current escape and source conditions.",
   "Manual Surface Pressure": "Manual surface pressure used only in Moon Atmosphere Manual mode.",
+  "Nitrogen (N2)":
+    "Manual nitrogen fraction for the moon atmosphere in percent.\n\nIn Manual mode this acts as the background bulk gas. If you leave it at 0, the remaining percentage can be inferred after the other gases are applied.",
+  "Oxygen (O2)":
+    "Manual oxygen fraction for the moon atmosphere in percent.\n\nUseful for deliberately Earth-like or oxidizing atmospheres, but the solver still checks whether the overall atmosphere is stable or transient.",
+  "Carbon Dioxide (CO2)":
+    "Manual carbon-dioxide fraction for the moon atmosphere in percent.\n\nHigher CO2 generally strengthens greenhouse warming and can dominate thin cold atmospheres.",
+  "Argon (Ar)":
+    "Manual argon fraction for the moon atmosphere in percent.\n\nArgon is chemically inert and mostly acts as a heavy tracer or ballast gas in the current moon atmosphere model.",
+  "Water Vapor (H2O)":
+    "Manual water-vapour fraction for the moon atmosphere in percent.\n\nThis can strengthen greenhouse warming, but warm moist atmospheres may also be short-lived on low-gravity moons.",
+  "Methane (CH4)":
+    "Manual methane fraction for the moon atmosphere in percent.\n\nUseful for Titan-like or reducing atmospheres. In the current model methane can contribute both greenhouse warming and haze-prone chemistry.",
+  "Carbon Monoxide (CO)":
+    "Manual carbon-monoxide fraction for the moon atmosphere in percent.\n\nCO is treated as a volatile atmospheric constituent rather than a full photochemical equilibrium species.",
+  "Hydrogen (H2)":
+    "Manual hydrogen fraction for the moon atmosphere in percent.\n\nHydrogen gives a low molecular weight and large scale height, but it is also the easiest gas for small moons to lose.",
+  "Helium (He)":
+    "Manual helium fraction for the moon atmosphere in percent.\n\nHelium is chemically inert but usually hard for low-gravity moons to retain over long timescales.",
+  "Sulfur Dioxide (SO2)":
+    "Manual sulfur-dioxide fraction for the moon atmosphere in percent.\n\nUseful for volcanic or Io-like moon scenarios where outgassing can temporarily supply a harsh sulfur-rich atmosphere.",
+  "Ammonia (NH3)":
+    "Manual ammonia fraction for the moon atmosphere in percent.\n\nUseful for cold reducing atmospheres, but ammonia is usually chemically fragile and difficult to keep at the surface over long timescales.",
   "Forced Eccentricity":
     "Minimum eccentricity maintained by resonant forcing. In Full mode the solver can derive this from sibling resonances; in Manual mode you can set the floor directly.",
   "Resonance Group":
     "Manual resonance-chain identifier for moons that should be treated as part of the same forced-eccentricity group.",
+  "Resonance & Rotation":
+    "Manual orbital-coupling and primordial-spin controls.\n\nUse these when you want to override the default independent-moon assumption and steer resonant forcing, chain membership, or the initial spin state more directly.",
+  "Resonance Order":
+    "Manual ordering index for moons placed in the same resonance group.\n\nLower numbers are treated as the inner members of the chain, which helps the manual coupling solver interpret the sequence you intend.",
+  "Resonance Ratio":
+    "Manual target period ratio used for a resonance group.\n\nUse 2 for a 2:1-style chain, 1.5 for 3:2, and similar low-order ratios for other hand-built coupled systems.",
   "Initial Rotation Period":
     "Primordial spin period of the moon before tidal braking. Faster spin (shorter period) means more angular momentum to dissipate and a longer time to reach tidal lock.\n\nDefault: 12 hours (model assumption from accretion dynamics). Range varies widely \u2014 fast-spinning bodies can be as short as 2\u20133 hours (near breakup), while captured moons may spin much slower.\n\nThis value feeds directly into the tidal locking timescale calculation.",
+  "Surface & Habitability":
+    "Compact summary block for the moon's environment and life-facing implications.\n\nThis section is intentionally light on direct inputs; use it as a reminder that the habitability outputs below depend on the water, atmosphere, radiation, and orbital-coupling controls above.",
   "Tidal Heating":
     "Surface heat flux from tidal deformation of the moon by its parent body. Uses the Wisdom (2008) formula with higher-order eccentricity corrections that remain accurate up to e \u2248 0.8.\n\nHigher eccentricity and closer orbits produce more heating. Io: ~0.3\u20132 W/m\u00B2 (highest in the Solar System). Earth's geothermal flux: 0.09 W/m\u00B2.\n\nTidal-thermal feedback: for rocky moons (\u03C1 \u2265 3.2), when tidal flux exceeds ~0.02 W/m\u00B2 the model automatically lowers Q and \u03BC toward partially-molten values, modelling the positive feedback loop that drives Io-like volcanism in orbital resonances.",
   "Tidal Heating (\u00D7 Earth)":
@@ -203,6 +256,9 @@ const TIP_LABEL = {
   "Climate Zones":
     "Moon climate-zone summary from the parent-coupled moon climate model.\n\n" +
     "The current implementation reuses the Koppen-style zone classifier with moon-specific mean temperature, water state, pressure, and effective seasonal forcing.",
+  "Surface Ices":
+    "High-level description of exposed surface-ice stability on the moon.\n\n" +
+    "This rolls together surface temperature, volatile inventory, and atmosphere into a quick read such as stable frost, seasonal ice, or ice-free terrain. Use it as the compact visual companion to the deeper hydrosphere outputs.",
   Seasonality:
     "Qualitative description of the moon's climate variability.\n\n" +
     "This combines seasonal forcing, eclipse duty cycle, and parentshine contrast to indicate whether the moon behaves as a low-, moderate-, strong-, or extreme-seasonality world.",
@@ -389,15 +445,89 @@ const TUTORIAL_STEPS = [
   },
 ];
 
+function normalizeHostFrameId(value, fallbackId = null) {
+  const id = String(value ?? "").trim();
+  return id || fallbackId || null;
+}
+
+function buildMoonHomeSystemContext(world) {
+  return buildWorldHomeSystemContext(world);
+}
+
+function buildFallbackMoonHostFrameContext(world, homeSystemContext) {
+  const primaryStar = getProjectedPrimaryStar(world);
+  const starOverrides = getStarOverrides(primaryStar || {});
+  const starConfig = {
+    massMsol: Number(primaryStar?.massMsol) || 1,
+    ageGyr: Number(primaryStar?.ageGyr) || 4.6,
+    metallicityFeH: Number(primaryStar?.metallicityFeH) || 0,
+    radiusRsolOverride: starOverrides.r,
+    luminosityLsolOverride: starOverrides.l,
+    tempKOverride: starOverrides.t,
+    evolutionMode: starOverrides.ev,
+  };
+  const starModel = calcStar({
+    massMsol: starConfig.massMsol,
+    ageGyr: starConfig.ageGyr,
+    metallicityFeH: starConfig.metallicityFeH,
+    radiusRsolOverride: starConfig.radiusRsolOverride,
+    luminosityLsolOverride: starConfig.luminosityLsolOverride,
+    tempKOverride: starConfig.tempKOverride,
+    evolutionMode: starConfig.evolutionMode,
+  });
+  const defaultHostFrameId =
+    homeSystemContext?.defaultHostFrameId || homeSystemContext?.primaryStarId || "star_a";
+  return {
+    hostFrameId: defaultHostFrameId,
+    hostFrame: {
+      id: defaultHostFrameId,
+      label: primaryStar?.name || "Star",
+      frameKind: "star",
+      orbitFamilyKind: "single",
+      zones: { habitableZoneAu: starModel.habitableZoneAu },
+      fluxModel: {
+        meanCompanionFluxEarth: 0,
+        fluxVariabilityFraction: 0,
+        meanCompanionXuvFluxEarth: 0,
+      },
+      stability: {
+        criticalOuterAu: null,
+        diskTruncationAu: null,
+        warnings: [],
+      },
+    },
+    starId: homeSystemContext?.primaryStarId || defaultHostFrameId,
+    starConfig,
+    starModel,
+    companionFluxEarth: 0,
+    companionXuvFluxEarth: 0,
+    fluxVariabilityFraction: 0,
+    dominantContributorId: homeSystemContext?.primaryStarId || defaultHostFrameId,
+  };
+}
+
+function resolveMoonPageHostFrameContext(world, parentLike, homeSystemContext = null) {
+  const resolvedHomeSystemContext = homeSystemContext || buildMoonHomeSystemContext(world);
+  const requestedHostFrameId = normalizeHostFrameId(
+    parentLike?.hostFrameId,
+    resolvedHomeSystemContext?.defaultHostFrameId || resolvedHomeSystemContext?.primaryStarId,
+  );
+  return (
+    resolveHostFrameContext(resolvedHomeSystemContext, requestedHostFrameId) ||
+    buildFallbackMoonHostFrameContext(world, resolvedHomeSystemContext)
+  );
+}
+
 export function initMoonPage(mountEl, options = {}) {
   const guidedRoute = options?.routeContext?.guided || null;
   const world = loadWorld();
+  const primaryStar = getProjectedPrimaryStar(world);
 
-  const sov0 = getStarOverrides(world.star);
+  const sov0 = getStarOverrides(primaryStar);
   const state = {
-    starMassMsol: Number(world.star.massMsol),
-    starAgeGyr: Number(world.star.ageGyr),
-    starMetallicityFeH: Number(world.star.metallicityFeH) || 0,
+    starMassMsol: Number(primaryStar.massMsol),
+    starAgeGyr: Number(primaryStar.ageGyr),
+    starMetallicityFeH: Number(primaryStar.metallicityFeH) || 0,
     starRadiusRsolOverride: sov0.r,
     starLuminosityLsolOverride: sov0.l,
     starTempKOverride: sov0.t,
@@ -465,16 +595,16 @@ export function initMoonPage(mountEl, options = {}) {
               starting point: Recipes will override the current moon inputs.
             </div>
             <div class="guided-entry-strip__modes">
-              <button id="moonCreateQuickBtn" type="button" class="guided-entry-strip__mode">
+              <button id="moonCreateQuickBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("quick"))}>
                 Quick
               </button>
-              <button id="moonCreateGuidedBtn" type="button" class="guided-entry-strip__mode">
+              <button id="moonCreateGuidedBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("guided"))}>
                 Guided
               </button>
-              <button id="moonCreateRecipesBtn" type="button" class="guided-entry-strip__mode">
+              <button id="moonCreateRecipesBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("recipes"))}>
                 Recipes
               </button>
-              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page">
+              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page" ${tipAttr(getGuidedEntryModeTooltip("advanced"))}>
                 Advanced
               </span>
             </div>
@@ -482,7 +612,7 @@ export function initMoonPage(mountEl, options = {}) {
 
           <div style="height:10px"></div>
 
-          <div class="label">Moon Science Modes</div>
+          <div class="label">Moon Science Modes ${tipIcon(TIP_LABEL["Moon Science Modes"] || "")}</div>
           ${modeToggleRow(
             "hydModePills",
             "hydMode",
@@ -566,7 +696,7 @@ export function initMoonPage(mountEl, options = {}) {
           ${numWithSlider("initRot", "Initial Rotation Period", "hours", "", 2, 1000, 0.1, "Initial Rotation Period")}
 
           <div style="height:8px"></div>
-          <div class="label">Bulk & Interior</div>
+          <div class="label">Bulk & Interior ${tipIcon(TIP_LABEL["Bulk & Interior"] || "")}</div>
           <div id="moonHydrosphereSection">
             ${numWithSlider("wmf", "Water Mass Fraction", "%", "", 0, 60, 0.1, "Water Mass Fraction")}
             ${numWithSlider("salinity", "Salinity", "%", "", 0, 35, 0.1, "Salinity")}
@@ -607,7 +737,7 @@ export function initMoonPage(mountEl, options = {}) {
           </div>
 
           <div style="height:8px"></div>
-          <div class="label">Atmosphere</div>
+          <div class="label">Atmosphere ${tipIcon(TIP_LABEL["Atmosphere Controls"] || "")}</div>
           <div id="moonAtmosphereSection">
             ${numWithSlider("manualPressure", "Manual Surface Pressure", "atm", "", 0, 10, 0.01, "Manual Surface Pressure")}
             ${simpleNumberRow("n2Pct", "Nitrogen (N2)", "%", "Derived to fill the remainder when left at 0 in manual mode.")}
@@ -624,7 +754,7 @@ export function initMoonPage(mountEl, options = {}) {
           </div>
 
           <div style="height:8px"></div>
-          <div class="label">Resonance & Rotation</div>
+          <div class="label">Resonance & Rotation ${tipIcon(TIP_LABEL["Resonance & Rotation"] || "")}</div>
           <div id="moonOrbitalSection">
             ${numWithSlider("forcedEcc", "Forced Eccentricity", "", "", 0, 0.2, 0.0001, "Forced Eccentricity")}
             <div class="form-row">
@@ -639,7 +769,7 @@ export function initMoonPage(mountEl, options = {}) {
           </div>
 
           <div style="height:8px"></div>
-          <div class="label">Surface & Habitability</div>
+          <div class="label">Surface & Habitability ${tipIcon(TIP_LABEL["Surface & Habitability"] || "")}</div>
           <div class="hint">Core mode keeps the page compact. Full and Manual reveal the deeper moon-environment controls above.</div>
 
           <div class="button-row">
@@ -804,10 +934,11 @@ export function initMoonPage(mountEl, options = {}) {
 
   function syncFromWorld() {
     const w = loadWorld();
-    state.starMassMsol = Number(w.star.massMsol);
-    state.starAgeGyr = Number(w.star.ageGyr);
-    state.starMetallicityFeH = Number(w.star.metallicityFeH) || 0;
-    const sovW = getStarOverrides(w.star);
+    const primaryStar = getProjectedPrimaryStar(w);
+    state.starMassMsol = Number(primaryStar?.massMsol);
+    state.starAgeGyr = Number(primaryStar?.ageGyr);
+    state.starMetallicityFeH = Number(primaryStar?.metallicityFeH) || 0;
+    const sovW = getStarOverrides(primaryStar);
     state.starRadiusRsolOverride = sovW.r;
     state.starLuminosityLsolOverride = sovW.l;
     state.starTempKOverride = sovW.t;
@@ -1082,15 +1213,6 @@ export function initMoonPage(mountEl, options = {}) {
     const requestedPlanetId =
       parentPatch?.assignMoonToParentId != null ? parentPatch.assignMoonToParentId : planetId;
     const resolvedBase = resolvePlanetInputs(world, requestedPlanetId);
-    const starModel = calcStar({
-      massMsol: state.starMassMsol,
-      ageGyr: state.starAgeGyr,
-      metallicityFeH: state.starMetallicityFeH,
-      radiusRsolOverride: state.starRadiusRsolOverride,
-      luminosityLsolOverride: state.starLuminosityLsolOverride,
-      tempKOverride: state.starTempKOverride,
-      evolutionMode: state.starEvolutionMode,
-    });
     const siblingEntries = listMoons(world)
       .filter((entry) => (entry.planetId ?? null) === (requestedPlanetId ?? null))
       .map((entry) => ({
@@ -1124,30 +1246,64 @@ export function initMoonPage(mountEl, options = {}) {
             }
           : resolvedBase;
 
+    const homeSystemContext = buildMoonHomeSystemContext(world);
+    const parentLike =
+      resolved.type === "gasGiant" && resolved.gasGiant
+        ? resolved.gasGiant
+        : {
+            id: requestedPlanetId ?? null,
+            hostFrameId: world.planets?.byId?.[requestedPlanetId]?.hostFrameId || null,
+          };
+    const hostFrameContext = resolveMoonPageHostFrameContext(world, parentLike, homeSystemContext);
+    const starConfig = hostFrameContext?.starConfig || {};
+    const starModel = hostFrameContext?.starModel;
+    const starHabitableZoneAu =
+      hostFrameContext?.hostFrame?.zones?.habitableZoneAu || starModel?.habitableZoneAu || null;
+    const hostFrameId = normalizeHostFrameId(
+      hostFrameContext?.hostFrameId,
+      homeSystemContext?.defaultHostFrameId,
+    );
+    const companionFluxEarth = Number(hostFrameContext?.companionFluxEarth || 0);
+    const companionXuvFluxEarth = Number(hostFrameContext?.companionXuvFluxEarth || 0);
+    const fluxVariabilityFraction = Number(hostFrameContext?.fluxVariabilityFraction || 0);
+
     if (resolved.type === "gasGiant" && resolved.gasGiant) {
       const gasParentModel = calcGasGiant({
         ...resolved.gasGiant,
         orbitAu: Number(resolved.gasGiant.au) || 5,
-        starMassMsol: state.starMassMsol,
-        starLuminosityLsol: starModel.luminosityLsol,
-        starAgeGyr: state.starAgeGyr,
-        starRadiusRsol: starModel.radiusRsol,
-        stellarMetallicityFeH: state.starMetallicityFeH,
+        starMassMsol: Number(starConfig.massMsol) || 1,
+        starLuminosityLsol: Number(starModel?.luminosityLsol) || 1,
+        starAgeGyr: Number(starConfig.ageGyr) || 4.6,
+        starRadiusRsol: Number(starModel?.radiusRsol) || 1,
+        hostFrameId,
+        hostFrame: hostFrameContext?.hostFrame || null,
+        companionFluxEarth,
+        companionXuvFluxEarth,
+        fluxVariabilityFraction,
+        stellarMetallicityFeH: Number(starConfig.metallicityFeH) || 0,
         otherGiants: listSystemGasGiants(world).filter(
-          (giant) => giant.id !== resolved.gasGiant.id,
+          (giant) =>
+            giant.id !== resolved.gasGiant.id &&
+            normalizeHostFrameId(giant?.hostFrameId, homeSystemContext?.defaultHostFrameId) ===
+              hostFrameId,
         ),
         moons: patchedSiblingEntries.map((entry) => entry.inputs || {}),
       });
       const parentOverride = buildGasGiantMoonParentOverride(gasParentModel);
       const solved = solveMoonSystem({
-        starMassMsol: state.starMassMsol,
-        starAgeGyr: state.starAgeGyr,
-        starMetallicityFeH: state.starMetallicityFeH,
-        starRadiusRsolOverride: state.starRadiusRsolOverride,
-        starLuminosityLsolOverride: state.starLuminosityLsolOverride,
-        starTempKOverride: state.starTempKOverride,
-        starEvolutionMode: state.starEvolutionMode,
-        starHabitableZoneAu: starModel.habitableZoneAu,
+        starMassMsol: Number(starConfig.massMsol) || 1,
+        starAgeGyr: Number(starConfig.ageGyr) || 4.6,
+        starMetallicityFeH: Number(starConfig.metallicityFeH) || 0,
+        starRadiusRsolOverride: starConfig.radiusRsolOverride ?? null,
+        starLuminosityLsolOverride: starConfig.luminosityLsolOverride ?? null,
+        starTempKOverride: starConfig.tempKOverride ?? null,
+        starEvolutionMode: starConfig.evolutionMode || "zams",
+        starHabitableZoneAu,
+        hostFrameId,
+        hostFrame: hostFrameContext?.hostFrame || null,
+        companionFluxEarth,
+        companionXuvFluxEarth,
+        fluxVariabilityFraction,
         parentKind: "gasGiant",
         parentOverride,
         moonEntries: patchedSiblingEntries.length
@@ -1169,24 +1325,32 @@ export function initMoonPage(mountEl, options = {}) {
           massMjup: Number(resolved.gasGiant.massMjup) || null,
           rotationPeriodHours: Number(resolved.gasGiant.rotationPeriodHours) || null,
           siblingCount: Math.max(patchedSiblingEntries.length - (moonId ? 1 : 0), 0),
-          starHabitableZoneAu: starModel.habitableZoneAu || null,
+          starHabitableZoneAu: starHabitableZoneAu || null,
+          hostFrameId,
         },
         contextText:
-          `Star Mass: ${fmt(state.starMassMsol, 4)} Msol\n` +
+          `Host frame: ${hostFrameContext?.hostFrame?.label || "Primary star"}\n` +
           `Parent: ${resolved.gasGiant.name || resolved.gasGiant.id} (gas giant)\n` +
-          `Parent orbit: ${fmt(parentOverride.inputs.semiMajorAxisAu, 3)} AU`,
+          `Parent orbit: ${fmt(parentOverride.inputs.semiMajorAxisAu, 3)} AU\n` +
+          `${companionFluxEarth > 0.0005 ? `Companion flux: ${fmt(companionFluxEarth, 3)}x Earth\n` : ""}` +
+          `${fluxVariabilityFraction > 0.001 ? `Flux variability: ${fmt(fluxVariabilityFraction * 100, 1)}%` : "Flux variability: low"}`,
         model:
           solved.find((entry) => entry.raw.id === moonId)?.model ||
           solved.find((entry) => entry.raw.inputs === moonInputs)?.model ||
           solved[0]?.model ||
           calcMoon({
-            starMassMsol: state.starMassMsol,
-            starAgeGyr: state.starAgeGyr,
-            starMetallicityFeH: state.starMetallicityFeH,
-            starRadiusRsolOverride: state.starRadiusRsolOverride,
-            starLuminosityLsolOverride: state.starLuminosityLsolOverride,
-            starTempKOverride: state.starTempKOverride,
-            starEvolutionMode: state.starEvolutionMode,
+            starMassMsol: Number(starConfig.massMsol) || 1,
+            starAgeGyr: Number(starConfig.ageGyr) || 4.6,
+            starMetallicityFeH: Number(starConfig.metallicityFeH) || 0,
+            starRadiusRsolOverride: starConfig.radiusRsolOverride ?? null,
+            starLuminosityLsolOverride: starConfig.luminosityLsolOverride ?? null,
+            starTempKOverride: starConfig.tempKOverride ?? null,
+            starEvolutionMode: starConfig.evolutionMode || "zams",
+            hostFrameId,
+            hostFrame: hostFrameContext?.hostFrame || null,
+            companionFluxEarth,
+            companionXuvFluxEarth,
+            fluxVariabilityFraction,
             moon: moonInputs,
             parentOverride,
           }),
@@ -1195,27 +1359,43 @@ export function initMoonPage(mountEl, options = {}) {
 
     const parentInputs = resolved.inputs || { ...world.planet };
     const rockyParentModel = calcPlanetExact({
-      starMassMsol: state.starMassMsol,
-      starAgeGyr: state.starAgeGyr,
-      starMetallicityFeH: state.starMetallicityFeH,
-      starRadiusRsolOverride: state.starRadiusRsolOverride,
-      starLuminosityLsolOverride: state.starLuminosityLsolOverride,
-      starTempKOverride: state.starTempKOverride,
-      starEvolutionMode: state.starEvolutionMode,
+      starMassMsol: Number(starConfig.massMsol) || 1,
+      starAgeGyr: Number(starConfig.ageGyr) || 4.6,
+      starMetallicityFeH: Number(starConfig.metallicityFeH) || 0,
+      starRadiusRsolOverride: starConfig.radiusRsolOverride ?? null,
+      starLuminosityLsolOverride: starConfig.luminosityLsolOverride ?? null,
+      starTempKOverride: starConfig.tempKOverride ?? null,
+      starEvolutionMode: starConfig.evolutionMode || "zams",
+      hostFrameId,
+      hostFrame: hostFrameContext?.hostFrame || null,
+      companionFluxEarth,
+      companionXuvFluxEarth,
+      fluxVariabilityFraction,
       planet: parentInputs,
       moons: patchedSiblingEntries.map((entry) => entry.inputs || {}),
-      gasGiants: listSystemGasGiants(world),
+      gasGiants: listSystemGasGiants(world)
+        .filter(
+          (giant) =>
+            normalizeHostFrameId(giant?.hostFrameId, homeSystemContext?.defaultHostFrameId) ===
+            hostFrameId,
+        )
+        .map((giant) => ({ name: giant.name, au: giant.au })),
     });
     const parentOverride = buildRockyMoonParentOverride(rockyParentModel);
     const solved = solveMoonSystem({
-      starMassMsol: state.starMassMsol,
-      starAgeGyr: state.starAgeGyr,
-      starMetallicityFeH: state.starMetallicityFeH,
-      starRadiusRsolOverride: state.starRadiusRsolOverride,
-      starLuminosityLsolOverride: state.starLuminosityLsolOverride,
-      starTempKOverride: state.starTempKOverride,
-      starEvolutionMode: state.starEvolutionMode,
-      starHabitableZoneAu: starModel.habitableZoneAu,
+      starMassMsol: Number(starConfig.massMsol) || 1,
+      starAgeGyr: Number(starConfig.ageGyr) || 4.6,
+      starMetallicityFeH: Number(starConfig.metallicityFeH) || 0,
+      starRadiusRsolOverride: starConfig.radiusRsolOverride ?? null,
+      starLuminosityLsolOverride: starConfig.luminosityLsolOverride ?? null,
+      starTempKOverride: starConfig.tempKOverride ?? null,
+      starEvolutionMode: starConfig.evolutionMode || "zams",
+      starHabitableZoneAu,
+      hostFrameId,
+      hostFrame: hostFrameContext?.hostFrame || null,
+      companionFluxEarth,
+      companionXuvFluxEarth,
+      fluxVariabilityFraction,
       parentKind: "planet",
       parentOverride,
       moonEntries: patchedSiblingEntries.length
@@ -1242,24 +1422,32 @@ export function initMoonPage(mountEl, options = {}) {
         massMjup: null,
         rotationPeriodHours: Number(parentInputs.rotationPeriodHours) || null,
         siblingCount: Math.max(patchedSiblingEntries.length - (moonId ? 1 : 0), 0),
-        starHabitableZoneAu: starModel.habitableZoneAu || null,
+        starHabitableZoneAu: starHabitableZoneAu || null,
+        hostFrameId,
       },
       contextText:
-        `Star Mass: ${fmt(state.starMassMsol, 4)} Msol\n` +
+        `Host frame: ${hostFrameContext?.hostFrame?.label || "Primary star"}\n` +
         `Planet Mass: ${fmt(parentInputs.massEarth, 3)} MEarth\n` +
-        `Planet orbit: ${fmt(parentInputs.semiMajorAxisAu, 3)} AU`,
+        `Planet orbit: ${fmt(parentInputs.semiMajorAxisAu, 3)} AU\n` +
+        `${companionFluxEarth > 0.0005 ? `Companion flux: ${fmt(companionFluxEarth, 3)}x Earth\n` : ""}` +
+        `${fluxVariabilityFraction > 0.001 ? `Flux variability: ${fmt(fluxVariabilityFraction * 100, 1)}%` : "Flux variability: low"}`,
       model:
         solved.find((entry) => entry.raw.id === moonId)?.model ||
         solved.find((entry) => entry.raw.inputs === moonInputs)?.model ||
         solved[0]?.model ||
         calcMoon({
-          starMassMsol: state.starMassMsol,
-          starAgeGyr: state.starAgeGyr,
-          starMetallicityFeH: state.starMetallicityFeH,
-          starRadiusRsolOverride: state.starRadiusRsolOverride,
-          starLuminosityLsolOverride: state.starLuminosityLsolOverride,
-          starTempKOverride: state.starTempKOverride,
-          starEvolutionMode: state.starEvolutionMode,
+          starMassMsol: Number(starConfig.massMsol) || 1,
+          starAgeGyr: Number(starConfig.ageGyr) || 4.6,
+          starMetallicityFeH: Number(starConfig.metallicityFeH) || 0,
+          starRadiusRsolOverride: starConfig.radiusRsolOverride ?? null,
+          starLuminosityLsolOverride: starConfig.luminosityLsolOverride ?? null,
+          starTempKOverride: starConfig.tempKOverride ?? null,
+          starEvolutionMode: starConfig.evolutionMode || "zams",
+          hostFrameId,
+          hostFrame: hostFrameContext?.hostFrame || null,
+          companionFluxEarth,
+          companionXuvFluxEarth,
+          fluxVariabilityFraction,
           planet: parentInputs,
           moon: moonInputs,
         }),
@@ -2855,12 +3043,12 @@ function modeToggleRow(id, name, label, tipKey, options, hintId) {
   </div>`;
 }
 
-function simpleNumberRow(id, label, unit = "", hint = "") {
+function simpleNumberRow(id, label, unit = "", hint = "", tipLabelKey = "") {
   const unitHtml = unit ? ` <span class="unit">${unit}</span>` : "";
   return `
   <div class="form-row">
     <div>
-      <div class="label">${label}${unitHtml}</div>
+      <div class="label">${label}${unitHtml} ${tipIcon(TIP_LABEL[tipLabelKey] || TIP_LABEL[label] || "")}</div>
       <div class="hint">${hint}</div>
     </div>
     <input id="${id}" type="number" step="0.01" />

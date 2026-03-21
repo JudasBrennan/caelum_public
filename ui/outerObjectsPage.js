@@ -1,14 +1,12 @@
-import { calcStar } from "../engine/star.js";
-import { calcSystem } from "../engine/system.js";
 import { calcDebrisDisk, calcDebrisDiskSuggestions } from "../engine/debrisDisk.js";
+import { buildHomeSystemContext, resolveHostFrameContext } from "../engine/homeSystem/context.js";
 import { fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { createElement, replaceChildren } from "./domHelpers.js";
-import { attachTooltips } from "./tooltip.js";
+import { attachTooltips, tipIcon } from "./tooltip.js";
 import { createTutorial } from "./tutorial.js";
 import {
   loadWorld,
-  getStarOverrides,
   listSystemGasGiants,
   listSystemDebrisDisks,
   saveSystemDebrisDisks,
@@ -17,7 +15,11 @@ import {
 const TIP_LABEL = {
   // ── Debris disk inputs ──
   "Debris disks":
-    "Debris regions (asteroid/Kuiper-belt-like zones) of planetesimals, dust, and ice. In mature systems these are sculpted by gravitational resonances with gas giants, similar to the asteroid belt and Kuiper belt.",
+    "Debris regions (asteroid/Kuiper-belt-like zones) of planetesimals, dust, and ice. This page edits the disks for the selected host frame only, so multistar systems can keep separate belt families around different stars or pairs.\n\nSwitch Host Frame to work on another orbit family without overwriting its belts.",
+  "Host Frame":
+    "Select which stellar host frame these debris disks belong to.\n\nIn multistar systems, each host frame has its own gas giants, frost line, stable belt region, and radiative environment. Suggestions, thermals, and stability checks all follow the selected host frame.",
+  "Selected Host":
+    "Read-only summary of the active host frame.\n\nThis tells you which star or pair is supplying the dominant light, where its habitable zone and frost line sit, and whether the current page is editing an S-type or P-type debris architecture.",
   "Disk name": "Name of this debris disk zone.",
   "Inner edge":
     "Inner boundary of the debris disk in AU. In resonance-sculpted disks, this is set by interior mean-motion resonances (e.g. 4:1, 2:1) with the nearest gas giant.",
@@ -28,7 +30,7 @@ const TIP_LABEL = {
   "Disk width":
     "Radial width (depth) of the debris disk in AU. The inner edge is center \u2212 width/2, the outer edge is center + width/2.",
   Suggest:
-    "Possible debris disk zones ranked by priority:\n\nP1 \u2014 Outer disk: outermost giant\u2019s 3:2 \u2192 2:1 exterior MMR (Kuiper belt analog).\nP2 \u2014 Inner disk: innermost giant\u2019s 4:1 \u2192 2:1 interior MMR (asteroid belt analog).\nP3 \u2014 Gap disk: inter-giant gap between adjacent giants\u2019 2:1 resonances. Only viable when giants are ~4\u00d7 apart in AU.\nP4 \u2014 Extended outer disk: outermost giant\u2019s 2:1 \u2192 5:2 exterior MMR (scattered disk analog). Shares boundary with P1.\nP5 \u2014 Warm inner disk: innermost giant\u2019s 8:1 \u2192 4:1 interior MMR (exozodiacal dust analog). Shares boundary with P2.\n\nP4/P5 are not recommended by default because they are contiguous with P1/P2, forming a single mega-belt. With no gas giants, zones are scaled from the frost line instead.",
+    "Possible debris disk zones ranked by priority for the selected host frame.\n\nP1 \u2014 Outer disk: outermost giant\u2019s 3:2 \u2192 2:1 exterior mean-motion resonance (MMR) (Kuiper belt analog).\nP2 \u2014 Inner disk: innermost giant\u2019s 4:1 \u2192 2:1 interior MMR (asteroid belt analog).\nP3 \u2014 Gap disk: inter-giant gap between adjacent giants\u2019 2:1 resonances. Only viable when giants are ~4\u00d7 apart in AU.\nP4 \u2014 Extended outer disk: outermost giant\u2019s 2:1 \u2192 5:2 exterior MMR (scattered disk analog). Shares boundary with P1.\nP5 \u2014 Warm inner disk: innermost giant\u2019s 8:1 \u2192 4:1 interior MMR (exozodiacal dust analog). Shares boundary with P2.\n\nP4/P5 are not recommended by default because they are contiguous with P1/P2, forming a single mega-belt. With no gas giants in the selected host frame, zones are scaled from that frame\u2019s frost line instead.",
 
   // ── Debris disk outputs ──
   "Disk Range":
@@ -73,7 +75,7 @@ const TIP_LABEL = {
     "Species present at each disk location based on the Lodders (2003) condensation sequence. A species condenses (is solid) when the local temperature is below its condensation temperature.",
 
   // ── Summary KPIs ──
-  "Debris disks count": "Total number of debris disk zones in this system.",
+  "Debris disks count": "Total number of debris disk zones in the selected host frame.",
 };
 
 const TUTORIAL_STEPS = [
@@ -106,6 +108,86 @@ const TUTORIAL_STEPS = [
   },
 ];
 
+function normalizeHostFrameId(value, fallbackId = null) {
+  const id = String(value ?? "").trim();
+  return id || fallbackId || null;
+}
+
+function filterBodiesForHostFrame(entries, hostFrameId, fallbackHostFrameId) {
+  const targetHostFrameId = normalizeHostFrameId(hostFrameId, fallbackHostFrameId);
+  return (entries || []).filter(
+    (entry) => normalizeHostFrameId(entry?.hostFrameId, fallbackHostFrameId) === targetHostFrameId,
+  );
+}
+
+function formatHostFrameScopeLabel(hostFrame) {
+  if (!hostFrame) return "Host frame";
+  if (hostFrame.frameKind === "pair") return "P-type circumbinary";
+  if (hostFrame.orbitFamilyKind === "single") return "Single-star";
+  return "S-type circumstellar";
+}
+
+function formatHostFrameOptionLabel(hostFrame) {
+  return `${hostFrame?.label || hostFrame?.id || "Host frame"} (${formatHostFrameScopeLabel(hostFrame)})`;
+}
+
+function buildHostFrameOptions(homeSystemContext, selectedHostFrameId = null) {
+  const hostFrames = Object.values(homeSystemContext?.hostFramesById || {});
+  const fallbackHostFrameId =
+    homeSystemContext?.defaultHostFrameId || homeSystemContext?.primaryStarId || "star_a";
+  const normalizedSelectedId = normalizeHostFrameId(selectedHostFrameId, fallbackHostFrameId);
+  return hostFrames.map((hostFrame) => ({
+    value: hostFrame.id,
+    label: formatHostFrameOptionLabel(hostFrame),
+    selected: hostFrame.id === normalizedSelectedId,
+  }));
+}
+
+function buildSelectedHostReadout(solveContext) {
+  if (!solveContext?.hostFrame || !solveContext?.starModel) {
+    return "Host-frame context unavailable.";
+  }
+  const hostFrame = solveContext.hostFrame;
+  const companionFluxEarth = Number(solveContext.companionFluxEarth || 0);
+  const variability = Number(solveContext.fluxVariabilityFraction || 0);
+  const hzInner = Number(hostFrame.zones?.habitableZoneAu?.inner);
+  const hzOuter = Number(hostFrame.zones?.habitableZoneAu?.outer);
+  const frostLineAu = Number(hostFrame.zones?.frostLineAu);
+  const details = [
+    `${hostFrame.label} (${formatHostFrameScopeLabel(hostFrame)})`,
+    `Host light: ${fmt(Number(solveContext.starModel.luminosityLsol) || 0, 3)} Lsol`,
+    Number.isFinite(hzInner) && Number.isFinite(hzOuter)
+      ? `HZ ${fmt(hzInner, 3)} - ${fmt(hzOuter, 3)} AU`
+      : "HZ unavailable",
+    Number.isFinite(frostLineAu) ? `Frost line ${fmt(frostLineAu, 3)} AU` : null,
+  ].filter(Boolean);
+  if (hostFrame.frameKind === "pair") {
+    details.push("Disk geometry is measured from the host pair barycenter.");
+  } else if (companionFluxEarth > 0.0005) {
+    details.push(`Companion adds about ${fmt(companionFluxEarth, 3)}x Earth flux on average.`);
+  } else {
+    details.push("Companion heating is negligible in this frame.");
+  }
+  if (variability > 0.001) {
+    details.push(`Flux swing is about ${fmt(variability * 100, 1)}%.`);
+  }
+  return details.join(" | ");
+}
+
+function replaceDebrisDisksForHostFrame(world, nextHostDisks, hostFrameId, fallbackHostFrameId) {
+  const targetHostFrameId = normalizeHostFrameId(hostFrameId, fallbackHostFrameId);
+  const otherDisks = listSystemDebrisDisks(world, { fallbackHostFrameId }).filter(
+    (disk) => normalizeHostFrameId(disk?.hostFrameId, fallbackHostFrameId) !== targetHostFrameId,
+  );
+  return [
+    ...otherDisks,
+    ...(nextHostDisks || []).map((disk) => ({
+      ...disk,
+      hostFrameId: targetHostFrameId,
+    })),
+  ];
+}
+
 export function initOuterObjectsPage(mountEl) {
   const wrap = document.createElement("div");
   wrap.className = "page";
@@ -116,7 +198,7 @@ export function initOuterObjectsPage(mountEl) {
         <button id="outerTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        <div class="hint">Configure debris disks and other non-planetary system components. Derived physical properties are computed from orbit and host-star data.</div>
+        <div class="hint">Configure debris disks and other non-planetary system components. Derived physical properties are computed from the selected host frame, so multistar systems can keep separate belt architectures.</div>
       </div>
     </div>
 
@@ -124,6 +206,24 @@ export function initOuterObjectsPage(mountEl) {
       <div class="panel">
         <div class="panel__header"><h2>Inputs</h2></div>
         <div class="panel__body">
+          <div class="form-row" id="outerHostFrameRow">
+            <div>
+              <div class="label">Host Frame ${tipIcon(TIP_LABEL["Host Frame"] || "")}</div>
+              <div class="hint">Choose which star or pair this page is editing.</div>
+            </div>
+            <div class="input-pair">
+              <select id="outerHostFrameSelect" aria-label="Host frame"></select>
+              <div class="hint" id="outerHostFrameHint"></div>
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="label">Selected Host ${tipIcon(TIP_LABEL["Selected Host"] || "")}</div>
+          <div class="derived-readout" id="outerHostReadout"></div>
+
+          <div style="height:10px"></div>
+
           <div id="debrisDisksEditor"></div>
         </div>
       </div>
@@ -147,6 +247,15 @@ export function initOuterObjectsPage(mountEl) {
 
   const summaryEl = wrap.querySelector("#outerSummary");
   const debrisEditorEl = wrap.querySelector("#debrisDisksEditor");
+  const hostFrameSelectEl = wrap.querySelector("#outerHostFrameSelect");
+  const hostFrameHintEl = wrap.querySelector("#outerHostFrameHint");
+  const hostReadoutEl = wrap.querySelector("#outerHostReadout");
+  const state = {
+    activeHostFrameId: normalizeHostFrameId(
+      loadWorld()?.stellarSystem?.defaultHostFrameId,
+      "star_a",
+    ),
+  };
 
   let isRendering = false;
   let renderQueued = false;
@@ -160,12 +269,19 @@ export function initOuterObjectsPage(mountEl) {
     }, 0);
   }
 
-  function getGasGiants(world) {
-    return listSystemGasGiants(world).sort((a, b) => Number(a.au) - Number(b.au));
+  function getGasGiants(world, { hostFrameId = null, fallbackHostFrameId = null } = {}) {
+    return filterBodiesForHostFrame(
+      listSystemGasGiants(world),
+      hostFrameId,
+      fallbackHostFrameId,
+    ).sort((a, b) => Number(a.au) - Number(b.au));
   }
 
-  function getDebrisDisks(world) {
-    return listSystemDebrisDisks(world);
+  function getDebrisDisks(world, { hostFrameId = null, fallbackHostFrameId = null } = {}) {
+    return listSystemDebrisDisks(world, {
+      hostFrameId,
+      fallbackHostFrameId,
+    });
   }
 
   /* ── Debris Disks Editor ────────────────────────────────────────── */
@@ -499,11 +615,18 @@ export function initOuterObjectsPage(mountEl) {
     ]);
   }
 
-  function renderDebrisDisksEditor(world, model) {
-    const disks = getDebrisDisks(world);
+  function renderDebrisDisksEditor(world, model, context) {
+    const { activeHostFrame, activeHostFrameId, fallbackHostFrameId } = context;
+    const disks = getDebrisDisks(world, {
+      hostFrameId: activeHostFrameId,
+      fallbackHostFrameId,
+    });
 
     // Compute suggestions for the preview
-    const gasGiants = getGasGiants(world);
+    const gasGiants = getGasGiants(world, {
+      hostFrameId: activeHostFrameId,
+      fallbackHostFrameId,
+    });
     const zones = calcDebrisDiskSuggestions({
       gasGiants: gasGiants.map((g) => ({ name: g.name, au: g.au })),
       starLuminosityLsol: model.star.luminosityLsol,
@@ -517,7 +640,7 @@ export function initOuterObjectsPage(mountEl) {
         ]),
         createElement("div", {
           className: "hint",
-          text: "Debris disk positions can be auto-suggested from gas giant resonances (or frost line if no giants), or set manually.",
+          text: `Debris disk positions for ${activeHostFrame?.label || "this host frame"} can be auto-suggested from gas giant resonances (or this frame's frost line if no giants), or set manually.`,
         }),
         createElement("div", { className: "dd-suggest-preview" }, [
           zones.length
@@ -531,7 +654,9 @@ export function initOuterObjectsPage(mountEl) {
             ? createElement("div", {
                 className: "hint",
                 text: `Select zones to add. Based on ${
-                  gasGiants.length ? "gas giant resonances" : "frost line estimate"
+                  gasGiants.length
+                    ? "gas giant resonances in this host frame"
+                    : "this host frame's frost line estimate"
                 }. Recommended zones are pre-selected.`,
               })
             : createElement("div", {
@@ -635,6 +760,7 @@ export function initOuterObjectsPage(mountEl) {
         result.push({
           id,
           name,
+          hostFrameId: activeHostFrameId,
           innerAu,
           outerAu,
           suggested: false,
@@ -643,7 +769,9 @@ export function initOuterObjectsPage(mountEl) {
           totalMassMearth: massVal !== "" ? Number(massVal) : null,
         });
       }
-      saveSystemDebrisDisks(result);
+      saveSystemDebrisDisks(
+        replaceDebrisDisksForHostFrame(world, result, activeHostFrameId, fallbackHostFrameId),
+      );
       scheduleRender();
     }
 
@@ -762,9 +890,15 @@ export function initOuterObjectsPage(mountEl) {
 
       row.querySelector(".dd-name").addEventListener("change", saveFromEditor);
       row.querySelector(".dd-remove").addEventListener("click", () => {
-        const now = getDebrisDisks(loadWorld()).filter((d) => d.id !== id);
+        const currentWorld = loadWorld();
+        const now = getDebrisDisks(currentWorld, {
+          hostFrameId: activeHostFrameId,
+          fallbackHostFrameId,
+        }).filter((d) => d.id !== id);
         ddInputModes.delete(id);
-        saveSystemDebrisDisks(now);
+        saveSystemDebrisDisks(
+          replaceDebrisDisksForHostFrame(currentWorld, now, activeHostFrameId, fallbackHostFrameId),
+        );
         scheduleRender();
       });
     }
@@ -779,7 +913,10 @@ export function initOuterObjectsPage(mountEl) {
       if (!checked.length) return;
 
       const w = loadWorld();
-      const existing = getDebrisDisks(w);
+      const existing = getDebrisDisks(w, {
+        hostFrameId: activeHostFrameId,
+        fallbackHostFrameId,
+      });
       const newDisks = [...existing];
       for (const cb of checked) {
         const idx = Number(cb.dataset.zoneIdx);
@@ -788,45 +925,62 @@ export function initOuterObjectsPage(mountEl) {
         newDisks.push({
           id: `dd${Math.random().toString(36).slice(2, 9)}`,
           name: z.label,
+          hostFrameId: activeHostFrameId,
           innerAu: z.innerAu,
           outerAu: z.outerAu,
           suggested: true,
         });
       }
-      saveSystemDebrisDisks(newDisks);
+      saveSystemDebrisDisks(
+        replaceDebrisDisksForHostFrame(w, newDisks, activeHostFrameId, fallbackHostFrameId),
+      );
       scheduleRender();
     });
 
     // Add button
     debrisEditorEl.querySelector("#btn-dd-add")?.addEventListener("click", () => {
-      const now = getDebrisDisks(loadWorld());
+      const currentWorld = loadWorld();
+      const now = getDebrisDisks(currentWorld, {
+        hostFrameId: activeHostFrameId,
+        fallbackHostFrameId,
+      });
       // Default placement: beyond frost line, scaled to this system
-      const frostAu = model.frostLineAu || 5;
+      const frostAu = model.frostLineAu || activeHostFrame?.zones?.frostLineAu || 5;
       const defaultInner = Math.round(frostAu * 3 * 100) / 100;
       const defaultOuter = Math.round(frostAu * 5 * 100) / 100;
       now.push({
         id: `dd${Math.random().toString(36).slice(2, 9)}`,
         name: `Debris disk ${now.length + 1}`,
+        hostFrameId: activeHostFrameId,
         innerAu: defaultInner,
         outerAu: defaultOuter,
       });
-      saveSystemDebrisDisks(now);
+      saveSystemDebrisDisks(
+        replaceDebrisDisksForHostFrame(currentWorld, now, activeHostFrameId, fallbackHostFrameId),
+      );
       scheduleRender();
     });
   }
 
   /* ── Output Summary ─────────────────────────────────────────────── */
 
-  function renderSummary(world, model) {
-    const disks = getDebrisDisks(world);
-    const gasGiants = getGasGiants(world);
+  function renderSummary(world, model, context) {
+    const { activeHostFrame, activeHostFrameId, activeSolveContext, fallbackHostFrameId } = context;
+    const disks = getDebrisDisks(world, {
+      hostFrameId: activeHostFrameId,
+      fallbackHostFrameId,
+    });
+    const gasGiants = getGasGiants(world, {
+      hostFrameId: activeHostFrameId,
+      fallbackHostFrameId,
+    });
     const starTeffK = model.star.tempK || 0;
     const starData = {
-      starMassMsol: Number(world.star.massMsol) || 1,
+      starMassMsol: Number(activeSolveContext?.starConfig?.massMsol) || 1,
       starLuminosityLsol: model.star.luminosityLsol,
-      starAgeGyr: Number(world.star.ageGyr) || 4.6,
+      starAgeGyr: Number(activeSolveContext?.starConfig?.ageGyr) || 4.6,
       starRadiusRsol: model.star.radiusRsol,
-      starMetallicityFeH: Number(world.star.metallicityFeH) || 0,
+      starMetallicityFeH: Number(activeSolveContext?.starConfig?.metallicityFeH) || 0,
     };
     const giantsForEngine = gasGiants.map((g) => ({
       name: g.name,
@@ -850,7 +1004,12 @@ export function initOuterObjectsPage(mountEl) {
 
     replaceChildren(summaryEl, [
       createElement("div", { className: "kpi-grid" }, [
-        createOuterKpiCard("Debris disks", disks.length, "", TIP_LABEL["Debris disks count"]),
+        createOuterKpiCard(
+          "Debris disks",
+          disks.length,
+          activeHostFrame?.label || "",
+          TIP_LABEL["Debris disks count"],
+        ),
       ]),
       disks.map((disk, index) => {
         const diskModel = ddModels[index];
@@ -994,31 +1153,55 @@ export function initOuterObjectsPage(mountEl) {
     isRendering = true;
     try {
       let world = loadWorld();
-      const dSov = getStarOverrides(world.star);
-      const dStarCalc = calcStar({
-        massMsol: Number(world.star.massMsol),
-        ageGyr: Number(world.star.ageGyr) || 4.6,
-        radiusRsolOverride: dSov.r,
-        luminosityLsolOverride: dSov.l,
-        tempKOverride: dSov.t,
-        evolutionMode: dSov.ev,
-      });
-      const model = calcSystem({
-        starMassMsol: Number(world.star.massMsol),
-        spacingFactor: Number(world.system.spacingFactor),
-        orbit1Au: Number(world.system.orbit1Au),
-        luminosityLsolOverride: dStarCalc.luminosityLsol,
-        radiusRsolOverride: dStarCalc.radiusRsol,
-      });
+      let homeSystemContext = buildHomeSystemContext(world);
+      const fallbackHostFrameId =
+        homeSystemContext?.defaultHostFrameId || homeSystemContext?.primaryStarId || "star_a";
+      let activeSolveContext =
+        resolveHostFrameContext(
+          homeSystemContext,
+          normalizeHostFrameId(state.activeHostFrameId, fallbackHostFrameId),
+        ) || resolveHostFrameContext(homeSystemContext, fallbackHostFrameId);
+      let activeHostFrameId = normalizeHostFrameId(
+        activeSolveContext?.hostFrameId,
+        fallbackHostFrameId,
+      );
+      let activeHostFrame =
+        activeSolveContext?.hostFrame || homeSystemContext?.hostFramesById?.[activeHostFrameId];
+      state.activeHostFrameId = activeHostFrameId;
+      const model = activeHostFrame?.system || homeSystemContext?.primarySystem;
+
+      const hostFrameOptions = buildHostFrameOptions(homeSystemContext, activeHostFrameId);
+      replaceChildren(
+        hostFrameSelectEl,
+        hostFrameOptions.map((option) =>
+          createElement("option", {
+            attrs: { value: option.value },
+            text: option.label,
+            selected: option.selected,
+          }),
+        ),
+      );
+      hostFrameSelectEl.value = activeHostFrameId || "";
+      hostFrameHintEl.textContent =
+        activeHostFrame?.frameKind === "pair"
+          ? "Suggestions and temperatures use the host pair's combined light."
+          : "Suggestions and temperatures use the selected star's local orbit family.";
+      hostReadoutEl.textContent = buildSelectedHostReadout(activeSolveContext);
 
       // Auto-sync: when gas giants change, update any suggested debris disks
-      const gg = getGasGiants(world);
+      const gg = getGasGiants(world, {
+        hostFrameId: activeHostFrameId,
+        fallbackHostFrameId,
+      });
       const allZones = calcDebrisDiskSuggestions({
         gasGiants: gg.map((g) => ({ name: g.name, au: g.au })),
         starLuminosityLsol: model.star.luminosityLsol,
       });
       const zones = allZones.filter((z) => z.recommended);
-      const existingDisks = getDebrisDisks(world);
+      const existingDisks = getDebrisDisks(world, {
+        hostFrameId: activeHostFrameId,
+        fallbackHostFrameId,
+      });
       const userEdited = existingDisks.filter((d) => !d.suggested);
       const pristine = existingDisks.filter((d) => d.suggested);
       if (
@@ -1033,21 +1216,46 @@ export function initOuterObjectsPage(mountEl) {
           synced.push({
             id: pristine[i]?.id || `dd${Math.random().toString(36).slice(2, 9)}`,
             name: zones[i].label,
+            hostFrameId: activeHostFrameId,
             innerAu: zones[i].innerAu,
             outerAu: zones[i].outerAu,
             suggested: true,
           });
         }
-        saveSystemDebrisDisks(synced);
+        saveSystemDebrisDisks(
+          replaceDebrisDisksForHostFrame(world, synced, activeHostFrameId, fallbackHostFrameId),
+        );
         world = loadWorld();
+        homeSystemContext = buildHomeSystemContext(world);
+        activeSolveContext =
+          resolveHostFrameContext(homeSystemContext, activeHostFrameId) ||
+          resolveHostFrameContext(homeSystemContext, fallbackHostFrameId);
+        activeHostFrame =
+          activeSolveContext?.hostFrame || homeSystemContext?.hostFramesById?.[activeHostFrameId];
       }
 
-      renderDebrisDisksEditor(world, model);
-      renderSummary(world, model);
+      const renderContext = {
+        homeSystemContext,
+        fallbackHostFrameId,
+        activeHostFrameId,
+        activeHostFrame,
+        activeSolveContext,
+      };
+
+      renderDebrisDisksEditor(world, model, renderContext);
+      renderSummary(world, model, renderContext);
     } finally {
       isRendering = false;
     }
   }
+
+  hostFrameSelectEl?.addEventListener("change", () => {
+    state.activeHostFrameId = normalizeHostFrameId(
+      hostFrameSelectEl.value,
+      state.activeHostFrameId || "star_a",
+    );
+    render();
+  });
 
   render();
 }

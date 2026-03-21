@@ -97,7 +97,6 @@ import { attachTooltips, tipIcon } from "./tooltip.js";
 import {
   getSelectedMoon,
   getSelectedPlanet,
-  getStarOverrides,
   listMoons,
   listPlanets,
   loadWorld,
@@ -338,7 +337,6 @@ const {
 } = createCalendarStateStoreBindings({
   getSelectedMoon,
   getSelectedPlanet,
-  getStarOverrides,
   listMoons,
   listPlanets,
   updateWorld,
@@ -2643,7 +2641,7 @@ export function initCalendarPage(mountEl) {
             <summary>Orbital data</summary>
             <div class="derived-readout" id="calDerivedData"></div>
             <div class="form-row"><div><div class="label">Round derived data ${tipIcon(TIPS["Decimal places"] || "")}</div></div><div class="calendar-holiday-attrs__list"><label class="calendar-holiday-attr"><input id="calDerivedRoundEnabled" type="checkbox" />Enable</label></div></div>
-            ${sliderField("calDerivedDecimalPlaces", "Decimal places", "", "", 0, 6, 1, "")}
+            ${sliderField("calDerivedDecimalPlaces", "Decimal places", "", "", 0, 6, 1, TIPS["Decimal places"] || "")}
           </details>
           ${sliderField("calMonthsPerYear", "Months per year", "", "Linked to lunar cycles by default.", 1, 60, 1, TIPS["Months per year"])}
           ${sliderField("calDaysPerMonth", "Days per month", "", "Linked to orbital data by default.", 1, 120, 1, TIPS["Days per month"])}

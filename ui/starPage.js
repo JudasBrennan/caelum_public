@@ -1,8 +1,10 @@
 ﻿import { calcStar } from "../engine/star.js";
+import { buildHomeSystemContext, resolveHostFrameContext } from "../engine/homeSystem/context.js";
+import { buildTopologyGuardrailSummary } from "../engine/homeSystem/stability.js";
 import { computeStellarActivityModel } from "../engine/stellarActivity.js";
 import { clamp, fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
-import { createElement } from "./domHelpers.js";
+import { appendChildren, createElement } from "./domHelpers.js";
 import { createCelestialVisualPreviewController } from "./celestialVisualPreview.js";
 import { renderDerivedDetails } from "./derivedDetails.js";
 import { renderKpiSections } from "./kpiSections.js";
@@ -12,6 +14,7 @@ import { createGoalTextAssist } from "./guidedCreation/components/goalTextAssist
 import { createGuidedCreationOverlay } from "./guidedCreation/components/overlay.js";
 import { ensureStarGuidedAdapterRegistered } from "./guidedCreation/adapters/star.js";
 import { getGoalTextAliasHelp } from "./guidedCreation/goalAliases.js";
+import { listStellarSystemHostFrames } from "./store/stellarSystemModel.js";
 import {
   applyGuidedGoalTextInterpretation,
   clearGuidedGoalTextInterpretation,
@@ -23,8 +26,14 @@ import {
   loadGuidedSession,
   saveGuidedSession,
 } from "./guidedCreation/sessionState.js";
-import { attachTooltips, tipIcon } from "./tooltip.js";
-import { loadWorld, updateWorld } from "./store.js";
+import { getGuidedEntryModeTooltip } from "./guidedCreation/tooltips.js";
+import { attachTooltips, tipAttr, tipIcon, tipIconNode } from "./tooltip.js";
+import {
+  getProjectedPrimaryStar,
+  getStellarSystem,
+  loadWorld,
+  saveStellarSystem,
+} from "./store.js";
 import { createTutorial } from "./tutorial.js";
 
 const TIP_LABEL = {
@@ -93,6 +102,36 @@ const TIP_LABEL = {
     "XUV flux a body would receive at 1 AU from this star.\n\nReported both as erg/cm²/s and relative to present-day Earth, then diluted by inverse-square distance for planets and moons.",
   "XUV Saturation Age":
     "Approximate duration of the star's saturated high-XUV phase.\n\nLower-mass cool stars keep elevated XUV output for much longer than Sun-like stars.",
+  "Home System Architecture":
+    "Defines whether the home system uses one star or a constrained hierarchical multi-star tree.\n\nSingle keeps the classic workflow. Binary adds one bound pair. Triple and Quad use nested stable templates so later planet, moon, and canvas views can stay readable.",
+  Topology:
+    "Choose the home-system layout.\n\nSingle keeps one host star. Binary uses (A+B). Triple uses ((A+B)+C). Quad supports either (((A+B)+C)+D) or (A+B)+(C+D). These templates intentionally reject arbitrary non-hierarchical graphs so the engine and canvases only solve stable tree-shaped systems.",
+  "Quad Layout":
+    "Choose how the four-star hierarchy is arranged.\n\nChain uses (((A+B)+C)+D), adding one outer companion at a time. Paired uses (A+B)+(C+D), where two inner binaries orbit a shared outer barycentre.",
+  "Hierarchy Health":
+    "Live guardrail summary for constrained triple and quad layouts.\n\nGood means the outer layer is comfortably wide. Caution means the hierarchy is fairly tight. Unstable means the nesting is technically possible but likely problematic. Blocked means the outer layer is inverted and will not be saved.",
+  "Default Orbit Host":
+    "Choose which host frame new planets and gas giants use by default.\n\nStar frames create circumstellar (S-type) bodies around one star. Pair frames create barycentric / P-type bodies around a shared pair. Existing bodies keep their current host frame until you reassign them on later pages.",
+  "Companion Star":
+    "The secondary stellar component in a binary system.\n\nIts mass and name shape the binary's topology, future host-frame context, and how the system will read in topology-aware snapshots and visualisers.",
+  "Tertiary Star":
+    "The third stellar component in the constrained triple / quad hierarchy.\n\nIt orbits outside the inner A+B pair, adds tertiary light and stability constraints, and becomes its own selectable host frame.",
+  "Quaternary Star":
+    "The fourth stellar component in the constrained quad hierarchy.\n\nIn Chain mode it orbits outside the inner ((A+B)+C) hierarchy. In Paired mode it completes the C+D inner binary before both inner pairs orbit a shared outer barycentre.",
+  "Binary Pair":
+    "The orbit of the two stars around their shared barycentre.\n\nWider separations make the system feel like a looser companion setup; tighter separations make the pair behave more like a strongly coupled binary.",
+  "Hierarchy Pair":
+    "The outer orbit that binds the next stellar layer to the existing inner hierarchy.\n\nWider values reduce tertiary or quaternary perturbations; tighter values make outer-star flux and stability effects more obvious in later host-frame views.",
+  "Binary Semi-Major Axis":
+    "Average separation of the binary pair in AU.\n\nIncreasing it pushes the stars farther apart and makes wide-binary layouts more likely in future visualiser and orbit-host views.",
+  "Binary Eccentricity":
+    "How stretched the binary orbit is.\n\nHigher eccentricity means the stars spend part of the orbit much closer together and part much farther apart, which will later affect stability and flux variation.",
+  "Binary Inclination":
+    "Tilt of the binary orbit plane in degrees.\n\nThis is persisted now for topology completeness and later visualiser/canvas orientation, even though the current engine still solves worlds from the primary-star compatibility view.",
+  "Binary Argument of Periapsis":
+    "Orientation of periapsis within the binary orbital plane.\n\nThis mainly matters for later visualisation and orbital-state rendering, rather than the current primary-star compatibility calculations.",
+  "Binary Mean Anomaly":
+    "Current orbital phase position of the binary pair.\n\nThis is stored now so later animated or phase-aware views can place the stars consistently.",
 };
 
 const TUTORIAL_STEPS = [
@@ -133,43 +172,1202 @@ const TUTORIAL_STEPS = [
   },
 ];
 
+function normalizeQuadLayoutKind(value, fallback = "chain") {
+  if (value === "paired" || value === "chain") return value;
+  return fallback === "paired" ? "paired" : "chain";
+}
+
+function inferQuadLayoutKind(stellarSystem) {
+  if (stellarSystem?.topologyKind !== "quad") return "chain";
+  const pairsById = stellarSystem?.pairs?.byId || {};
+  const rootPair = pairsById?.[stellarSystem?.rootNodeId] || null;
+  if (pairsById.pair_ab && pairsById.pair_cd && pairsById.pair_root) return "paired";
+  if (rootPair?.childA?.kind === "pair" && rootPair?.childB?.kind === "pair") return "paired";
+  return "chain";
+}
+
+function buildQuadLayoutCopy(quadLayoutKind = "chain") {
+  if (quadLayoutKind === "paired") {
+    return {
+      topologyLabel: "Quad (Paired)",
+      topologyHint:
+        "Quad uses the paired (A+B)+(C+D) hierarchy. Two inner binaries orbit a shared outer barycentre while keeping the topology readable in later canvases.",
+      layoutHint: "Paired: two inner binaries orbit a shared outer barycenter.",
+      tertiaryPairTitle: "Second Inner Pair C+D",
+      tertiaryPairAxisHint: "Average separation between Stars C and D.",
+      tertiaryPairEccentricityHint: "Controls how circular or stretched the C+D orbit is.",
+      quaternaryPairTitle: "Root Pair (A+B)+(C+D)",
+      quaternaryPairAxisHint: "Average separation between the A+B and C+D inner binaries.",
+      quaternaryPairEccentricityHint:
+        "Controls how strongly the two inner binaries modulate the shared outer hierarchy.",
+    };
+  }
+  return {
+    topologyLabel: "Quad (Chain)",
+    topologyHint:
+      "Quad uses the constrained (((A+B)+C)+D) hierarchy. Each outer layer adds more light and tighter outer stability constraints while keeping the topology readable in later canvases.",
+    layoutHint: "Chain: one outer companion is added at each layer.",
+    tertiaryPairTitle: "Outer Pair (A+B)+C",
+    tertiaryPairAxisHint: "Average separation between the inner pair and the tertiary star.",
+    tertiaryPairEccentricityHint:
+      "Controls how strongly the tertiary swings toward and away from the inner pair.",
+    quaternaryPairTitle: "Outer Pair ((A+B)+C)+D",
+    quaternaryPairAxisHint:
+      "Average separation between the inner triple hierarchy and the fourth star.",
+    quaternaryPairEccentricityHint:
+      "Controls how strongly the fourth star modulates the outermost hierarchy.",
+  };
+}
+
+function buildTopologyCardDescriptors(draftState) {
+  const quadLayoutCopy = buildQuadLayoutCopy(draftState?.quadLayoutKind);
+  return [
+    {
+      value: "single",
+      id: "topologyCardSingle",
+      title: "Single star",
+      formula: "A",
+      meaning: "One host star with the simplest orbit context.",
+      summary: "Best when you want the classic one-star workflow.",
+      detail:
+        "Single star keeps the classic one-star flow. Switch to a hierarchical topology when you want manually authored multiple stars.",
+    },
+    {
+      value: "binary",
+      id: "topologyCardBinary",
+      title: "Binary system",
+      formula: "(A+B)",
+      meaning: "Two stars with star-hosted and pair-hosted world options.",
+      summary: "Adds one companion star and one pair host frame.",
+      detail:
+        "Binary system keeps a shared age and metallicity, adds one companion star, and saves Pair A+B for topology-aware host-frame views.",
+    },
+    {
+      value: "triple",
+      id: "topologyCardTriple",
+      title: "Hierarchical triple",
+      formula: "((A+B)+C)",
+      meaning: "An inner binary plus one outer star in a stable hierarchy.",
+      summary: "Adds tertiary light and outer stability context.",
+      detail:
+        "Hierarchical triple uses the constrained ((A+B)+C) hierarchy. The tertiary star adds outer light and stability limits without opening the door to non-hierarchical graphs.",
+    },
+    {
+      value: "quad",
+      id: "topologyCardQuad",
+      title: "Hierarchical quad",
+      formula: "(((A+B)+C)+D) or (A+B)+(C+D)",
+      meaning: "Four stars in a constrained tree-shaped system.",
+      summary: "Choose a chained or paired quad layout below.",
+      detail: quadLayoutCopy.topologyHint,
+    },
+  ];
+}
+
+function buildQuadLayoutCardDescriptors() {
+  const chainCopy = buildQuadLayoutCopy("chain");
+  const pairedCopy = buildQuadLayoutCopy("paired");
+  return [
+    {
+      value: "chain",
+      id: "quadLayoutCardChain",
+      title: "Chained quad",
+      formula: "(((A+B)+C)+D)",
+      meaning: "One outer companion is added at each layer.",
+      summary: "Keeps one expanding hierarchy from the inner pair outward.",
+      hint: chainCopy.layoutHint,
+      detail: chainCopy.topologyHint,
+    },
+    {
+      value: "paired",
+      id: "quadLayoutCardPaired",
+      title: "Paired quad",
+      formula: "(A+B)+(C+D)",
+      meaning: "Two inner binaries orbit a shared outer barycentre.",
+      summary: "Keeps both inner pairs explicit and symmetric.",
+      hint: pairedCopy.layoutHint,
+      detail: pairedCopy.topologyHint,
+    },
+  ];
+}
+
+const TOPOLOGY_MAP_STATUS_RANK = Object.freeze({
+  good: 0,
+  caution: 1,
+  unstable: 2,
+  blocked: 3,
+});
+
+function buildTopologyMapLayoutKey(draftState = {}) {
+  const topologyKind = ["binary", "triple", "quad"].includes(draftState?.topologyKind)
+    ? draftState.topologyKind
+    : "single";
+  if (topologyKind !== "quad") return topologyKind;
+  return normalizeQuadLayoutKind(draftState?.quadLayoutKind) === "paired"
+    ? "quad-paired"
+    : "quad-chain";
+}
+
+function buildTopologyMapStarMeta(starId, draftState = {}) {
+  const shortLabelById = {
+    star_a: "A",
+    star_b: "B",
+    star_c: "C",
+    star_d: "D",
+  };
+  const nameById = {
+    star_a: String(draftState?.name || "Star").trim() || "Star",
+    star_b: String(draftState?.companionName || "Companion").trim() || "Companion",
+    star_c: String(draftState?.tertiaryName || "Tertiary").trim() || "Tertiary",
+    star_d: String(draftState?.quaternaryName || "Quaternary").trim() || "Quaternary",
+  };
+  return {
+    title: shortLabelById[starId] || String(starId || "Star"),
+    subtitle: nameById[starId] || "Star",
+    accessibleLabel: `Star ${shortLabelById[starId] || starId} (${nameById[starId] || "Star"})`,
+  };
+}
+
+function buildTopologyMapPairMeta(pairId, draftState = {}) {
+  if (pairId === "pair_ab") {
+    return {
+      title: "A+B",
+      subtitle: "Inner pair",
+      accessibleLabel: "Pair A+B",
+    };
+  }
+  if (pairId === "pair_abc") {
+    return {
+      title: "(A+B)+C",
+      subtitle: "Outer pair",
+      accessibleLabel: "Pair (A+B)+C",
+    };
+  }
+  if (pairId === "pair_abcd") {
+    return {
+      title: "((A+B)+C)+D",
+      subtitle: "Root pair",
+      accessibleLabel: "Pair ((A+B)+C)+D",
+    };
+  }
+  if (pairId === "pair_cd") {
+    return {
+      title: "C+D",
+      subtitle: "Second inner pair",
+      accessibleLabel: "Pair C+D",
+    };
+  }
+  if (pairId === "pair_root") {
+    return normalizeQuadLayoutKind(draftState?.quadLayoutKind) === "paired"
+      ? {
+          title: "Root",
+          subtitle: "(A+B)+(C+D)",
+          accessibleLabel: "Root pair (A+B)+(C+D)",
+        }
+      : {
+          title: "Root",
+          subtitle: "Outer hierarchy",
+          accessibleLabel: "Root pair",
+        };
+  }
+  return {
+    title: String(pairId || "Pair"),
+    subtitle: "Pair host",
+    accessibleLabel: String(pairId || "Pair"),
+  };
+}
+
+function buildTopologyMapLayoutDefinition(draftState = {}) {
+  const layoutKey = buildTopologyMapLayoutKey(draftState);
+  switch (layoutKey) {
+    case "binary":
+      return {
+        layoutKey,
+        minHeightPx: 230,
+        nodes: [
+          { id: "pair_ab", kind: "pair", x: 50, y: 28 },
+          { id: "star_a", kind: "star", x: 32, y: 74 },
+          { id: "star_b", kind: "star", x: 68, y: 74 },
+        ],
+        edges: [
+          { id: "pair_ab:star_a", from: "pair_ab", to: "star_a" },
+          { id: "pair_ab:star_b", from: "pair_ab", to: "star_b" },
+        ],
+      };
+    case "triple":
+      return {
+        layoutKey,
+        minHeightPx: 270,
+        nodes: [
+          { id: "pair_abc", kind: "pair", x: 52, y: 18 },
+          { id: "pair_ab", kind: "pair", x: 34, y: 50 },
+          { id: "star_c", kind: "star", x: 74, y: 50 },
+          { id: "star_a", kind: "star", x: 22, y: 82 },
+          { id: "star_b", kind: "star", x: 46, y: 82 },
+        ],
+        edges: [
+          { id: "pair_abc:pair_ab", from: "pair_abc", to: "pair_ab" },
+          { id: "pair_abc:star_c", from: "pair_abc", to: "star_c" },
+          { id: "pair_ab:star_a", from: "pair_ab", to: "star_a" },
+          { id: "pair_ab:star_b", from: "pair_ab", to: "star_b" },
+        ],
+      };
+    case "quad-chain":
+      return {
+        layoutKey,
+        minHeightPx: 300,
+        nodes: [
+          { id: "pair_abcd", kind: "pair", x: 52, y: 16 },
+          { id: "pair_abc", kind: "pair", x: 34, y: 42 },
+          { id: "star_d", kind: "star", x: 78, y: 42 },
+          { id: "pair_ab", kind: "pair", x: 24, y: 70 },
+          { id: "star_c", kind: "star", x: 48, y: 70 },
+          { id: "star_a", kind: "star", x: 16, y: 92 },
+          { id: "star_b", kind: "star", x: 32, y: 92 },
+        ],
+        edges: [
+          { id: "pair_abcd:pair_abc", from: "pair_abcd", to: "pair_abc" },
+          { id: "pair_abcd:star_d", from: "pair_abcd", to: "star_d" },
+          { id: "pair_abc:pair_ab", from: "pair_abc", to: "pair_ab" },
+          { id: "pair_abc:star_c", from: "pair_abc", to: "star_c" },
+          { id: "pair_ab:star_a", from: "pair_ab", to: "star_a" },
+          { id: "pair_ab:star_b", from: "pair_ab", to: "star_b" },
+        ],
+      };
+    case "quad-paired":
+      return {
+        layoutKey,
+        minHeightPx: 300,
+        nodes: [
+          { id: "pair_root", kind: "pair", x: 50, y: 18 },
+          { id: "pair_ab", kind: "pair", x: 30, y: 56 },
+          { id: "pair_cd", kind: "pair", x: 70, y: 56 },
+          { id: "star_a", kind: "star", x: 18, y: 90 },
+          { id: "star_b", kind: "star", x: 42, y: 90 },
+          { id: "star_c", kind: "star", x: 58, y: 90 },
+          { id: "star_d", kind: "star", x: 82, y: 90 },
+        ],
+        edges: [
+          { id: "pair_root:pair_ab", from: "pair_root", to: "pair_ab" },
+          { id: "pair_root:pair_cd", from: "pair_root", to: "pair_cd" },
+          { id: "pair_ab:star_a", from: "pair_ab", to: "star_a" },
+          { id: "pair_ab:star_b", from: "pair_ab", to: "star_b" },
+          { id: "pair_cd:star_c", from: "pair_cd", to: "star_c" },
+          { id: "pair_cd:star_d", from: "pair_cd", to: "star_d" },
+        ],
+      };
+    case "single":
+    default:
+      return {
+        layoutKey: "single",
+        minHeightPx: 190,
+        nodes: [{ id: "star_a", kind: "star", x: 50, y: 52 }],
+        edges: [],
+      };
+  }
+}
+
+function buildTopologyMapPairStatusLookup(draftState = {}, topologyHealth = {}) {
+  const layers = Array.isArray(topologyHealth?.layers) ? topologyHealth.layers : [];
+  const layerById = new Map(layers.map((layer) => [layer.id, layer]));
+  const pairStatusLookup = new Map();
+  const edgeStatusLookup = new Map();
+  const setPairStatus = (pairId, layer) => {
+    if (pairId && layer) pairStatusLookup.set(pairId, layer);
+  };
+  const setEdgeStatus = (edgeId, layer) => {
+    if (edgeId && layer) edgeStatusLookup.set(edgeId, layer);
+  };
+
+  if (draftState?.topologyKind === "triple") {
+    const layer = layerById.get("pair_abc");
+    setPairStatus("pair_abc", layer);
+    setEdgeStatus("pair_abc:pair_ab", layer);
+    setEdgeStatus("pair_abc:star_c", layer);
+  } else if (draftState?.topologyKind === "quad") {
+    if (normalizeQuadLayoutKind(draftState?.quadLayoutKind) === "paired") {
+      const layerAb = layerById.get("pair_root_ab");
+      const layerCd = layerById.get("pair_root_cd");
+      setPairStatus("pair_ab", layerAb);
+      setPairStatus("pair_cd", layerCd);
+      setEdgeStatus("pair_root:pair_ab", layerAb);
+      setEdgeStatus("pair_root:pair_cd", layerCd);
+      const rootLayer =
+        [layerAb, layerCd]
+          .filter(Boolean)
+          .sort(
+            (left, right) =>
+              (TOPOLOGY_MAP_STATUS_RANK[right?.status] ?? 0) -
+              (TOPOLOGY_MAP_STATUS_RANK[left?.status] ?? 0),
+          )[0] || null;
+      setPairStatus("pair_root", rootLayer);
+    } else {
+      const layerAbc = layerById.get("pair_abc");
+      const layerAbcd = layerById.get("pair_abcd");
+      setPairStatus("pair_abc", layerAbc);
+      setPairStatus("pair_abcd", layerAbcd);
+      setEdgeStatus("pair_abc:pair_ab", layerAbc);
+      setEdgeStatus("pair_abc:star_c", layerAbc);
+      setEdgeStatus("pair_abcd:pair_abc", layerAbcd);
+      setEdgeStatus("pair_abcd:star_d", layerAbcd);
+    }
+  }
+
+  return { pairStatusLookup, edgeStatusLookup };
+}
+
+function buildTopologyHealthChipLabel(layer, draftState = {}) {
+  if (!layer) return "Hierarchy";
+  if (
+    draftState?.topologyKind === "quad" &&
+    normalizeQuadLayoutKind(draftState?.quadLayoutKind) === "paired"
+  ) {
+    if (layer.id === "pair_root_ab") return "Root vs A+B";
+    if (layer.id === "pair_root_cd") return "Root vs C+D";
+  }
+  return layer.label || "Hierarchy layer";
+}
+
+function buildTopologyNodeBadgeRow({ selected = false, defaultHost = false } = {}) {
+  if (!selected && !defaultHost) return null;
+  return createElement("span", { className: "star-topology-node__badge-row" }, [
+    selected
+      ? createElement("span", {
+          className: "star-topology-node__editor-badge",
+          text: "Editing",
+        })
+      : null,
+    defaultHost
+      ? createElement("span", {
+          className: "star-topology-node__host-badge",
+          text: "Default host",
+        })
+      : null,
+  ]);
+}
+
+const TOPOLOGY_MAP_LEGEND_ROWS = [
+  {
+    id: "type",
+    label: "Node type",
+    tip: "Node type explains what the host frame is. Star nodes are S-type hosts around one star. Pair nodes are P-type hosts around a shared barycentre.",
+    items: [
+      {
+        id: "star",
+        label: "Star host",
+        detail: "S-type",
+        tokenKind: "star",
+        tokenText: "A",
+        tip: "Star host: a single-star host frame. If you choose Star A, B, C, or D as the default orbit host, newly added planets, gas giants, and debris will orbit that individual star.",
+      },
+      {
+        id: "pair",
+        label: "Pair host",
+        detail: "P-type",
+        tokenKind: "pair",
+        tokenText: "A+B",
+        tip: "Pair host: a barycentric host frame for a bound stellar pair. If you choose A+B, C+D, or the root pair as the default orbit host, newly added bodies orbit the pair's shared barycentre rather than a single star.",
+      },
+    ],
+  },
+  {
+    id: "state",
+    label: "State",
+    tip: "State markers show which target is currently active for editing and which host frame is used by default for new bodies. Only one node is marked as Editing at a time.",
+    items: [
+      {
+        id: "editing",
+        label: "Editing",
+        detail: "editor open below",
+        badgeKind: "editing",
+        tip: "Editing: the node's editor panel is currently visible below. Only one node is marked as the active editing focus at a time.",
+      },
+      {
+        id: "default",
+        label: "Outline",
+        detail: "default orbit host",
+        tokenKind: "star",
+        tokenText: "A",
+        defaultHost: true,
+        tip: "Outline: the default orbit host for newly added planets, gas giants, and debris. It highlights where new bodies start by default and does not move any existing bodies already in the system.",
+      },
+    ],
+  },
+];
+
+function createTopologyLegendToken(item) {
+  if (item.badgeKind === "editing") {
+    return createElement("span", { className: "star-topology-map__legend-badge" }, [
+      createElement("span", {
+        className: "star-topology-node__editor-badge",
+        text: "Editing",
+      }),
+    ]);
+  }
+
+  return createElement(
+    "span",
+    {
+      className: `star-topology-map__legend-token star-topology-map__legend-token--${item.tokenKind || "star"}`,
+      attrs: {
+        "aria-hidden": "true",
+        "data-default-host": item.defaultHost ? "true" : "false",
+      },
+    },
+    item.tokenText,
+  );
+}
+
+function createTopologyLegendItem(item) {
+  return createElement(
+    "span",
+    {
+      className: "star-topology-map__legend-item",
+      attrs: {
+        tabindex: "0",
+        role: "note",
+        "data-tip": item.tip,
+      },
+    },
+    [
+      createTopologyLegendToken(item),
+      createElement("span", { className: "star-topology-map__legend-copy" }, [
+        createElement("span", {
+          className: "star-topology-map__legend-label",
+          text: item.label,
+        }),
+        createElement("span", {
+          className: "star-topology-map__legend-detail",
+          text: item.detail,
+        }),
+      ]),
+    ],
+  );
+}
+
+function createTopologyLegendRow(row) {
+  return createElement("div", { className: "star-topology-map__legend-row" }, [
+    createElement("span", { className: "star-topology-map__legend-heading" }, [
+      createElement("span", { text: row.label }),
+      tipIconNode(row.tip),
+    ]),
+    createElement(
+      "div",
+      { className: "star-topology-map__legend-items" },
+      row.items.map((item) => createTopologyLegendItem(item)),
+    ),
+  ]);
+}
+
+function buildTopologyMapModel({
+  draftState = {},
+  topologyHealth = {},
+  selectedEditorTargetId = "star_a",
+  defaultHostFrameId = "star_a",
+} = {}) {
+  const layoutDefinition = buildTopologyMapLayoutDefinition(draftState);
+  const selectedNodeId = String(selectedEditorTargetId || "");
+  const { pairStatusLookup, edgeStatusLookup } = buildTopologyMapPairStatusLookup(
+    draftState,
+    topologyHealth,
+  );
+  const nodes = layoutDefinition.nodes.map((node) => {
+    const meta =
+      node.kind === "star"
+        ? buildTopologyMapStarMeta(node.id, draftState)
+        : buildTopologyMapPairMeta(node.id, draftState);
+    const pairLayer = node.kind === "pair" ? pairStatusLookup.get(node.id) || null : null;
+    const selected = selectedNodeId === node.id;
+    const defaultHost = defaultHostFrameId === node.id;
+    const extraBits = [
+      selected ? "currently selected for editing" : "",
+      defaultHost ? "current default orbit host" : "",
+      pairLayer?.statusLabel ? `guardrail ${pairLayer.statusLabel}` : "",
+    ].filter(Boolean);
+    return {
+      ...node,
+      ...meta,
+      selected,
+      defaultHost,
+      status: pairLayer?.status || "",
+      statusLabel: pairLayer?.statusLabel || "",
+      ariaLabel: `${meta.accessibleLabel}${extraBits.length ? `. ${extraBits.join(". ")}.` : ""}`,
+    };
+  });
+  const nodeIndex = new Map(nodes.map((node) => [node.id, node]));
+  const edges = layoutDefinition.edges.map((edge) => ({
+    ...edge,
+    fromNode: nodeIndex.get(edge.from),
+    toNode: nodeIndex.get(edge.to),
+    status: edgeStatusLookup.get(edge.id)?.status || "",
+  }));
+  const chips = [
+    {
+      id: "overall",
+      label: "Hierarchy",
+      value: topologyHealth?.statusLabel || "Good",
+      status: topologyHealth?.status || "good",
+      title: topologyHealth?.headline || "Hierarchy health",
+    },
+    ...(Array.isArray(topologyHealth?.layers) ? topologyHealth.layers : []).map((layer) => ({
+      id: layer.id,
+      label: buildTopologyHealthChipLabel(layer, draftState),
+      value: layer.statusLabel,
+      status: layer.status,
+      title: `${layer.headline}. ${layer.summary}`.trim(),
+    })),
+  ];
+  const currentTargetMeta = selectedNodeId
+    ? String(selectedNodeId).startsWith("pair_")
+      ? buildTopologyMapPairMeta(selectedNodeId, draftState)
+      : buildTopologyMapStarMeta(selectedNodeId, draftState)
+    : null;
+  const defaultHostMeta =
+    nodeIndex.get(defaultHostFrameId) ||
+    nodes.find((node) => node.id === defaultHostFrameId) ||
+    null;
+  const summaryText = [
+    `Topology map for ${buildTopologyMapLayoutKey(draftState).replace("-", " ")} layout.`,
+    currentTargetMeta ? `Current editor focus ${currentTargetMeta.accessibleLabel}.` : "",
+    defaultHostMeta ? `Default orbit host ${defaultHostMeta.accessibleLabel}.` : "",
+    "Only one node is marked as the current editing focus at a time.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    layoutKey: layoutDefinition.layoutKey,
+    minHeightPx: layoutDefinition.minHeightPx,
+    nodes,
+    edges,
+    chips,
+    summaryText,
+  };
+}
+
 export function initStarPage(mountEl, options = {}) {
   const defaults = { name: "Star", massMsol: 0.8653, ageGyr: 6.254 }; // workbook defaults
   const guidedRoute = options?.routeContext?.guided || null;
   const world = loadWorld();
+  const primaryStar = getProjectedPrimaryStar(world);
+  const stellarSystem = getStellarSystem(world);
+  const quadLayoutKind = inferQuadLayoutKind(stellarSystem);
+  const companionStar =
+    stellarSystem?.stars?.byId?.star_b ||
+    stellarSystem?.stars?.byId?.[stellarSystem?.stars?.order?.[1] || ""] ||
+    null;
+  const binaryPair =
+    stellarSystem?.pairs?.byId?.pair_ab ||
+    stellarSystem?.pairs?.byId?.[stellarSystem?.pairs?.order?.[0] || ""] ||
+    null;
+  const tertiaryStar =
+    stellarSystem?.stars?.byId?.star_c ||
+    stellarSystem?.stars?.byId?.[stellarSystem?.stars?.order?.[2] || ""] ||
+    null;
+  const quaternaryStar =
+    stellarSystem?.stars?.byId?.star_d ||
+    stellarSystem?.stars?.byId?.[stellarSystem?.stars?.order?.[3] || ""] ||
+    null;
+  const tertiaryPair =
+    (quadLayoutKind === "paired"
+      ? stellarSystem?.pairs?.byId?.pair_cd
+      : stellarSystem?.pairs?.byId?.pair_abc) ||
+    stellarSystem?.pairs?.byId?.[stellarSystem?.pairs?.order?.[1] || ""] ||
+    null;
+  const quaternaryPair =
+    (quadLayoutKind === "paired"
+      ? stellarSystem?.pairs?.byId?.pair_root
+      : stellarSystem?.pairs?.byId?.pair_abcd) ||
+    stellarSystem?.pairs?.byId?.[stellarSystem?.pairs?.order?.[2] || ""] ||
+    null;
   const state = {
     name:
-      typeof world?.star?.name === "string" && world.star.name.trim()
-        ? world.star.name.trim()
+      typeof primaryStar?.name === "string" && primaryStar.name.trim()
+        ? primaryStar.name.trim()
         : defaults.name,
-    massMsol: Number.isFinite(world?.star?.massMsol)
-      ? Number(world.star.massMsol)
+    massMsol: Number.isFinite(primaryStar?.massMsol)
+      ? Number(primaryStar.massMsol)
       : defaults.massMsol,
-    ageGyr: Number.isFinite(world?.star?.ageGyr) ? Number(world.star.ageGyr) : defaults.ageGyr,
-    metallicityFeH: Number.isFinite(world?.star?.metallicityFeH)
-      ? Number(world.star.metallicityFeH)
+    ageGyr: Number.isFinite(primaryStar?.ageGyr) ? Number(primaryStar.ageGyr) : defaults.ageGyr,
+    metallicityFeH: Number.isFinite(primaryStar?.metallicityFeH)
+      ? Number(primaryStar.metallicityFeH)
       : 0.0,
     radiusRsolOverride:
-      Number.isFinite(world?.star?.radiusRsolOverride) && world.star.radiusRsolOverride > 0
-        ? Number(world.star.radiusRsolOverride)
+      Number.isFinite(primaryStar?.radiusRsolOverride) && primaryStar.radiusRsolOverride > 0
+        ? Number(primaryStar.radiusRsolOverride)
         : null,
     luminosityLsolOverride:
-      Number.isFinite(world?.star?.luminosityLsolOverride) && world.star.luminosityLsolOverride > 0
-        ? Number(world.star.luminosityLsolOverride)
+      Number.isFinite(primaryStar?.luminosityLsolOverride) && primaryStar.luminosityLsolOverride > 0
+        ? Number(primaryStar.luminosityLsolOverride)
         : null,
     tempKOverride:
-      Number.isFinite(world?.star?.tempKOverride) && world.star.tempKOverride > 0
-        ? Number(world.star.tempKOverride)
+      Number.isFinite(primaryStar?.tempKOverride) && primaryStar.tempKOverride > 0
+        ? Number(primaryStar.tempKOverride)
         : null,
     physicsMode:
-      world?.star?.physicsMode === "advanced" || world?.star?.physicsMode === "simple"
-        ? world.star.physicsMode
+      primaryStar?.physicsMode === "advanced" || primaryStar?.physicsMode === "simple"
+        ? primaryStar.physicsMode
         : "simple",
-    advancedDerivationMode: ["rl", "rt", "lt"].includes(world?.star?.advancedDerivationMode)
-      ? world.star.advancedDerivationMode
+    advancedDerivationMode: ["rl", "rt", "lt"].includes(primaryStar?.advancedDerivationMode)
+      ? primaryStar.advancedDerivationMode
       : "rl",
-    evolutionMode: world?.star?.evolutionMode === "evolved" ? "evolved" : "zams",
-    activityModelVersion: world?.star?.activityModelVersion === "v1" ? "v1" : "v2",
+    evolutionMode: primaryStar?.evolutionMode === "evolved" ? "evolved" : "zams",
+    activityModelVersion: primaryStar?.activityModelVersion === "v1" ? "v1" : "v2",
+    topologyKind: ["binary", "triple", "quad"].includes(stellarSystem?.topologyKind)
+      ? stellarSystem.topologyKind
+      : "single",
+    quadLayoutKind,
+    defaultHostFrameId:
+      typeof stellarSystem?.defaultHostFrameId === "string" && stellarSystem.defaultHostFrameId
+        ? stellarSystem.defaultHostFrameId
+        : "star_a",
+    companionName:
+      typeof companionStar?.name === "string" && companionStar.name.trim()
+        ? companionStar.name.trim()
+        : "Companion",
+    companionMassMsol:
+      Number.isFinite(companionStar?.massMsol) && Number(companionStar.massMsol) > 0
+        ? Number(companionStar.massMsol)
+        : 0.72,
+    companionRadiusRsolOverride:
+      Number.isFinite(companionStar?.radiusRsolOverride) && companionStar.radiusRsolOverride > 0
+        ? Number(companionStar.radiusRsolOverride)
+        : null,
+    companionLuminosityLsolOverride:
+      Number.isFinite(companionStar?.luminosityLsolOverride) &&
+      companionStar.luminosityLsolOverride > 0
+        ? Number(companionStar.luminosityLsolOverride)
+        : null,
+    companionTempKOverride:
+      Number.isFinite(companionStar?.tempKOverride) && companionStar.tempKOverride > 0
+        ? Number(companionStar.tempKOverride)
+        : null,
+    companionPhysicsMode:
+      companionStar?.physicsMode === "advanced" || companionStar?.physicsMode === "simple"
+        ? companionStar.physicsMode
+        : "simple",
+    companionAdvancedDerivationMode: ["rl", "rt", "lt"].includes(
+      companionStar?.advancedDerivationMode,
+    )
+      ? companionStar.advancedDerivationMode
+      : "rl",
+    binarySemiMajorAxisAu:
+      Number.isFinite(binaryPair?.semiMajorAxisAu) && Number(binaryPair.semiMajorAxisAu) > 0
+        ? Number(binaryPair.semiMajorAxisAu)
+        : 24,
+    binaryEccentricity:
+      Number.isFinite(binaryPair?.eccentricity) && Number(binaryPair.eccentricity) >= 0
+        ? Number(binaryPair.eccentricity)
+        : 0.2,
+    binaryInclinationDeg: Number.isFinite(binaryPair?.inclinationDeg)
+      ? Number(binaryPair.inclinationDeg)
+      : 0,
+    binaryArgPeriapsisDeg: Number.isFinite(binaryPair?.argPeriapsisDeg)
+      ? Number(binaryPair.argPeriapsisDeg)
+      : 0,
+    binaryMeanAnomalyDeg: Number.isFinite(binaryPair?.meanAnomalyDeg)
+      ? Number(binaryPair.meanAnomalyDeg)
+      : 0,
+    tertiaryName:
+      typeof tertiaryStar?.name === "string" && tertiaryStar.name.trim()
+        ? tertiaryStar.name.trim()
+        : "Tertiary",
+    tertiaryMassMsol:
+      Number.isFinite(tertiaryStar?.massMsol) && Number(tertiaryStar.massMsol) > 0
+        ? Number(tertiaryStar.massMsol)
+        : 0.54,
+    tertiaryRadiusRsolOverride:
+      Number.isFinite(tertiaryStar?.radiusRsolOverride) && tertiaryStar.radiusRsolOverride > 0
+        ? Number(tertiaryStar.radiusRsolOverride)
+        : null,
+    tertiaryLuminosityLsolOverride:
+      Number.isFinite(tertiaryStar?.luminosityLsolOverride) &&
+      tertiaryStar.luminosityLsolOverride > 0
+        ? Number(tertiaryStar.luminosityLsolOverride)
+        : null,
+    tertiaryTempKOverride:
+      Number.isFinite(tertiaryStar?.tempKOverride) && tertiaryStar.tempKOverride > 0
+        ? Number(tertiaryStar.tempKOverride)
+        : null,
+    tertiaryPhysicsMode:
+      tertiaryStar?.physicsMode === "advanced" || tertiaryStar?.physicsMode === "simple"
+        ? tertiaryStar.physicsMode
+        : "simple",
+    tertiaryAdvancedDerivationMode: ["rl", "rt", "lt"].includes(
+      tertiaryStar?.advancedDerivationMode,
+    )
+      ? tertiaryStar.advancedDerivationMode
+      : "rl",
+    tripleOuterSemiMajorAxisAu:
+      Number.isFinite(tertiaryPair?.semiMajorAxisAu) && Number(tertiaryPair.semiMajorAxisAu) > 0
+        ? Number(tertiaryPair.semiMajorAxisAu)
+        : 180,
+    tripleOuterEccentricity:
+      Number.isFinite(tertiaryPair?.eccentricity) && Number(tertiaryPair.eccentricity) >= 0
+        ? Number(tertiaryPair.eccentricity)
+        : 0.18,
+    tripleOuterInclinationDeg: Number.isFinite(tertiaryPair?.inclinationDeg)
+      ? Number(tertiaryPair.inclinationDeg)
+      : 0,
+    tripleOuterArgPeriapsisDeg: Number.isFinite(tertiaryPair?.argPeriapsisDeg)
+      ? Number(tertiaryPair.argPeriapsisDeg)
+      : 0,
+    tripleOuterMeanAnomalyDeg: Number.isFinite(tertiaryPair?.meanAnomalyDeg)
+      ? Number(tertiaryPair.meanAnomalyDeg)
+      : 0,
+    quaternaryName:
+      typeof quaternaryStar?.name === "string" && quaternaryStar.name.trim()
+        ? quaternaryStar.name.trim()
+        : "Quaternary",
+    quaternaryMassMsol:
+      Number.isFinite(quaternaryStar?.massMsol) && Number(quaternaryStar.massMsol) > 0
+        ? Number(quaternaryStar.massMsol)
+        : 0.33,
+    quaternaryRadiusRsolOverride:
+      Number.isFinite(quaternaryStar?.radiusRsolOverride) && quaternaryStar.radiusRsolOverride > 0
+        ? Number(quaternaryStar.radiusRsolOverride)
+        : null,
+    quaternaryLuminosityLsolOverride:
+      Number.isFinite(quaternaryStar?.luminosityLsolOverride) &&
+      quaternaryStar.luminosityLsolOverride > 0
+        ? Number(quaternaryStar.luminosityLsolOverride)
+        : null,
+    quaternaryTempKOverride:
+      Number.isFinite(quaternaryStar?.tempKOverride) && quaternaryStar.tempKOverride > 0
+        ? Number(quaternaryStar.tempKOverride)
+        : null,
+    quaternaryPhysicsMode:
+      quaternaryStar?.physicsMode === "advanced" || quaternaryStar?.physicsMode === "simple"
+        ? quaternaryStar.physicsMode
+        : "simple",
+    quaternaryAdvancedDerivationMode: ["rl", "rt", "lt"].includes(
+      quaternaryStar?.advancedDerivationMode,
+    )
+      ? quaternaryStar.advancedDerivationMode
+      : "rl",
+    quadOuterSemiMajorAxisAu:
+      Number.isFinite(quaternaryPair?.semiMajorAxisAu) && Number(quaternaryPair.semiMajorAxisAu) > 0
+        ? Number(quaternaryPair.semiMajorAxisAu)
+        : 640,
+    quadOuterEccentricity:
+      Number.isFinite(quaternaryPair?.eccentricity) && Number(quaternaryPair.eccentricity) >= 0
+        ? Number(quaternaryPair.eccentricity)
+        : 0.24,
+    quadOuterInclinationDeg: Number.isFinite(quaternaryPair?.inclinationDeg)
+      ? Number(quaternaryPair.inclinationDeg)
+      : 0,
+    quadOuterArgPeriapsisDeg: Number.isFinite(quaternaryPair?.argPeriapsisDeg)
+      ? Number(quaternaryPair.argPeriapsisDeg)
+      : 0,
+    quadOuterMeanAnomalyDeg: Number.isFinite(quaternaryPair?.meanAnomalyDeg)
+      ? Number(quaternaryPair.meanAnomalyDeg)
+      : 0,
+  };
+
+  const STAR_EDITOR_FIELD_MAP = {
+    star_a: {
+      title: "Primary Star A",
+      role: "Primary star",
+      nameField: "name",
+      massField: "massMsol",
+      radiusField: "radiusRsolOverride",
+      luminosityField: "luminosityLsolOverride",
+      tempField: "tempKOverride",
+      physicsModeField: "physicsMode",
+      derivationField: "advancedDerivationMode",
+      defaultName: defaults.name,
+      defaultMass: defaults.massMsol,
+    },
+    star_b: {
+      title: "Star B",
+      role: "Companion star",
+      nameField: "companionName",
+      massField: "companionMassMsol",
+      radiusField: "companionRadiusRsolOverride",
+      luminosityField: "companionLuminosityLsolOverride",
+      tempField: "companionTempKOverride",
+      physicsModeField: "companionPhysicsMode",
+      derivationField: "companionAdvancedDerivationMode",
+      defaultName: "Companion",
+      defaultMass: 0.72,
+    },
+    star_c: {
+      title: "Star C",
+      role: "Tertiary star",
+      nameField: "tertiaryName",
+      massField: "tertiaryMassMsol",
+      radiusField: "tertiaryRadiusRsolOverride",
+      luminosityField: "tertiaryLuminosityLsolOverride",
+      tempField: "tertiaryTempKOverride",
+      physicsModeField: "tertiaryPhysicsMode",
+      derivationField: "tertiaryAdvancedDerivationMode",
+      defaultName: "Tertiary",
+      defaultMass: 0.54,
+    },
+    star_d: {
+      title: "Star D",
+      role: "Quaternary star",
+      nameField: "quaternaryName",
+      massField: "quaternaryMassMsol",
+      radiusField: "quaternaryRadiusRsolOverride",
+      luminosityField: "quaternaryLuminosityLsolOverride",
+      tempField: "quaternaryTempKOverride",
+      physicsModeField: "quaternaryPhysicsMode",
+      derivationField: "quaternaryAdvancedDerivationMode",
+      defaultName: "Quaternary",
+      defaultMass: 0.33,
+    },
+  };
+
+  function getStarEditorFieldConfig(starId = "star_a") {
+    return STAR_EDITOR_FIELD_MAP[starId] || STAR_EDITOR_FIELD_MAP.star_a;
+  }
+
+  function getStarDraftState(starId = "star_a", draftState = state) {
+    const config = getStarEditorFieldConfig(starId);
+    return {
+      id: starId,
+      title: config.title,
+      role: config.role,
+      name:
+        String(draftState?.[config.nameField] || config.defaultName).trim() || config.defaultName,
+      massMsol: Number(draftState?.[config.massField] ?? config.defaultMass),
+      physicsMode: draftState?.[config.physicsModeField] === "advanced" ? "advanced" : "simple",
+      advancedDerivationMode: ["rl", "rt", "lt"].includes(draftState?.[config.derivationField])
+        ? draftState[config.derivationField]
+        : "rl",
+      radiusRsolOverride:
+        Number.isFinite(draftState?.[config.radiusField]) &&
+        Number(draftState[config.radiusField]) > 0
+          ? Number(draftState[config.radiusField])
+          : null,
+      luminosityLsolOverride:
+        Number.isFinite(draftState?.[config.luminosityField]) &&
+        Number(draftState[config.luminosityField]) > 0
+          ? Number(draftState[config.luminosityField])
+          : null,
+      tempKOverride:
+        Number.isFinite(draftState?.[config.tempField]) && Number(draftState[config.tempField]) > 0
+          ? Number(draftState[config.tempField])
+          : null,
+      ageGyr: Number(draftState?.ageGyr ?? defaults.ageGyr),
+      metallicityFeH: Number(draftState?.metallicityFeH ?? 0) || 0,
+      evolutionMode: draftState?.evolutionMode === "evolved" ? "evolved" : "zams",
+      activityModelVersion: draftState?.activityModelVersion === "v1" ? "v1" : "v2",
+    };
+  }
+
+  function assignStarDraftState(starId = "star_a", patch = {}, draftState = state) {
+    const config = getStarEditorFieldConfig(starId);
+    if (Object.hasOwn(patch, "name")) draftState[config.nameField] = patch.name;
+    if (Object.hasOwn(patch, "massMsol")) draftState[config.massField] = patch.massMsol;
+    if (Object.hasOwn(patch, "physicsMode"))
+      draftState[config.physicsModeField] = patch.physicsMode;
+    if (Object.hasOwn(patch, "advancedDerivationMode"))
+      draftState[config.derivationField] = patch.advancedDerivationMode;
+    if (Object.hasOwn(patch, "radiusRsolOverride"))
+      draftState[config.radiusField] = patch.radiusRsolOverride;
+    if (Object.hasOwn(patch, "luminosityLsolOverride"))
+      draftState[config.luminosityField] = patch.luminosityLsolOverride;
+    if (Object.hasOwn(patch, "tempKOverride")) draftState[config.tempField] = patch.tempKOverride;
+    return draftState;
+  }
+
+  function getFocusedStarEditorId(draftState = state) {
+    return normalizeSelectedStarEditorId(editorUiState?.rememberedStarEditorId, draftState);
+  }
+
+  function normalizeTopologyHostFrameId(
+    value,
+    topologyKind = state.topologyKind,
+    quadLayoutKind = state.quadLayoutKind,
+  ) {
+    const normalizedQuadLayoutKind = normalizeQuadLayoutKind(quadLayoutKind);
+    const validHostFrameIds =
+      topologyKind === "quad"
+        ? normalizedQuadLayoutKind === "paired"
+          ? ["star_a", "star_b", "star_c", "star_d", "pair_ab", "pair_cd", "pair_root"]
+          : ["star_a", "star_b", "star_c", "star_d", "pair_ab", "pair_abc", "pair_abcd"]
+        : topologyKind === "triple"
+          ? ["star_a", "star_b", "star_c", "pair_ab", "pair_abc"]
+          : topologyKind === "binary"
+            ? ["star_a", "star_b", "pair_ab"]
+            : ["star_a"];
+    let normalizedValue = String(value || "");
+    if (topologyKind === "quad" && !validHostFrameIds.includes(normalizedValue)) {
+      if (normalizedQuadLayoutKind === "paired") {
+        if (normalizedValue === "pair_abcd" || normalizedValue === "pair_abc") {
+          normalizedValue = "pair_root";
+        }
+      } else if (normalizedValue === "pair_root" || normalizedValue === "pair_cd") {
+        normalizedValue = "pair_abcd";
+      }
+    }
+    return validHostFrameIds.includes(normalizedValue) ? normalizedValue : validHostFrameIds[0];
+  }
+
+  function listAvailableStarEditorIds(draftState = state) {
+    const ids = ["star_a"];
+    if (draftState.topologyKind !== "single") ids.push("star_b");
+    if (draftState.topologyKind === "triple" || draftState.topologyKind === "quad")
+      ids.push("star_c");
+    if (draftState.topologyKind === "quad") ids.push("star_d");
+    return ids;
+  }
+
+  function listAvailablePairEditorIds(draftState = state) {
+    if (draftState.topologyKind === "quad") {
+      return normalizeQuadLayoutKind(draftState.quadLayoutKind) === "paired"
+        ? ["pair_ab", "pair_cd", "pair_root"]
+        : ["pair_ab", "pair_abc", "pair_abcd"];
+    }
+    if (draftState.topologyKind === "triple") return ["pair_ab", "pair_abc"];
+    if (draftState.topologyKind === "binary") return ["pair_ab"];
+    return [];
+  }
+
+  function getEditorTargetKind(targetId) {
+    return String(targetId || "").startsWith("pair_") ? "pair" : "star";
+  }
+
+  function suggestStarEditorId(draftState = state) {
+    const available = listAvailableStarEditorIds(draftState);
+    return available[available.length - 1] || "star_a";
+  }
+
+  function suggestPairEditorId(draftState = state) {
+    const available = listAvailablePairEditorIds(draftState);
+    return available.length ? available[available.length - 1] : null;
+  }
+
+  function normalizeSelectedStarEditorId(
+    value,
+    draftState = state,
+    { preferSuggested = false } = {},
+  ) {
+    const available = listAvailableStarEditorIds(draftState);
+    if (!available.length) return "star_a";
+    const normalizedValue = String(value || "");
+    if (!preferSuggested && available.includes(normalizedValue)) return normalizedValue;
+    const suggested = suggestStarEditorId(draftState);
+    return available.includes(suggested) ? suggested : available[0];
+  }
+
+  function normalizeSelectedPairEditorId(
+    value,
+    draftState = state,
+    { preferSuggested = false } = {},
+  ) {
+    const available = listAvailablePairEditorIds(draftState);
+    if (!available.length) return null;
+    const normalizedValue = String(value || "");
+    if (!preferSuggested && available.includes(normalizedValue)) return normalizedValue;
+    const suggested = suggestPairEditorId(draftState);
+    return available.includes(suggested) ? suggested : available[0];
+  }
+
+  function buildEditorTopologySignature(draftState = state) {
+    return `${draftState.topologyKind}:${normalizeQuadLayoutKind(draftState.quadLayoutKind)}`;
+  }
+
+  function normalizeInspectorMode(value, draftState = state) {
+    return value === "pair" && listAvailablePairEditorIds(draftState).length ? "pair" : "star";
+  }
+
+  function pickEditorTargetForMode(
+    mode,
+    draftState = state,
+    { rememberedStarEditorId = null, rememberedPairEditorId = null, preferSuggested = false } = {},
+  ) {
+    const normalizedMode = normalizeInspectorMode(mode, draftState);
+    if (normalizedMode === "pair") {
+      return normalizeSelectedPairEditorId(rememberedPairEditorId, draftState, {
+        preferSuggested,
+      });
+    }
+    return normalizeSelectedStarEditorId(rememberedStarEditorId, draftState, {
+      preferSuggested,
+    });
+  }
+
+  function normalizeSelectedEditorTargetId(
+    value,
+    draftState = state,
+    {
+      preferredMode = "star",
+      rememberedStarEditorId = null,
+      rememberedPairEditorId = null,
+      preferSuggested = false,
+    } = {},
+  ) {
+    const normalizedValue = String(value || "");
+    const targetKind = getEditorTargetKind(normalizedValue);
+    const normalizedPreferredMode = normalizeInspectorMode(preferredMode, draftState);
+    const availableTargets =
+      targetKind === "pair"
+        ? listAvailablePairEditorIds(draftState)
+        : listAvailableStarEditorIds(draftState);
+    if (!preferSuggested && availableTargets.includes(normalizedValue)) {
+      if (
+        targetKind === normalizedPreferredMode ||
+        (normalizedPreferredMode === "pair" && !listAvailablePairEditorIds(draftState).length)
+      ) {
+        return normalizedValue;
+      }
+    }
+
+    const preferredTarget = pickEditorTargetForMode(normalizedPreferredMode, draftState, {
+      rememberedStarEditorId,
+      rememberedPairEditorId,
+      preferSuggested,
+    });
+    if (preferredTarget) return preferredTarget;
+
+    return (
+      normalizeSelectedStarEditorId(rememberedStarEditorId, draftState, { preferSuggested }) ||
+      normalizeSelectedPairEditorId(rememberedPairEditorId, draftState, { preferSuggested }) ||
+      "star_a"
+    );
+  }
+
+  function buildStarEditorLabel(starId, draftState = state) {
+    if (starId === "star_a") return `Star A (${draftState.name})`;
+    if (starId === "star_b") return `Star B (${draftState.companionName})`;
+    if (starId === "star_c") return `Star C (${draftState.tertiaryName})`;
+    if (starId === "star_d") return `Star D (${draftState.quaternaryName})`;
+    return String(starId || "Star");
+  }
+
+  function buildPairEditorLabel(pairId, draftState = state) {
+    if (pairId === "pair_ab") return "Pair A+B";
+    if (pairId === "pair_abc") return "Pair (A+B)+C";
+    if (pairId === "pair_abcd") return "Pair ((A+B)+C)+D";
+    if (pairId === "pair_cd") return "Pair C+D";
+    if (pairId === "pair_root") {
+      return normalizeQuadLayoutKind(draftState.quadLayoutKind) === "paired"
+        ? "Root Pair (A+B)+(C+D)"
+        : "Root Pair";
+    }
+    return String(pairId || "Pair");
+  }
+
+  function getPairOrbitDraftSummary(pairId, draftState = state) {
+    if (pairId === "pair_ab") {
+      return {
+        semiMajorAxisAu: Number(draftState.binarySemiMajorAxisAu),
+        eccentricity: Number(draftState.binaryEccentricity),
+      };
+    }
+    if (pairId === "pair_abc" || pairId === "pair_cd") {
+      return {
+        semiMajorAxisAu: Number(draftState.tripleOuterSemiMajorAxisAu),
+        eccentricity: Number(draftState.tripleOuterEccentricity),
+      };
+    }
+    if (pairId === "pair_abcd" || pairId === "pair_root") {
+      return {
+        semiMajorAxisAu: Number(draftState.quadOuterSemiMajorAxisAu),
+        eccentricity: Number(draftState.quadOuterEccentricity),
+      };
+    }
+    return {
+      semiMajorAxisAu: 0,
+      eccentricity: 0,
+    };
+  }
+
+  function getEffectiveOverridesForStar(starDraft = {}) {
+    if (starDraft?.physicsMode === "advanced") {
+      const derivationMode = starDraft?.advancedDerivationMode;
+      const r = starDraft?.radiusRsolOverride ?? null;
+      const l = starDraft?.luminosityLsolOverride ?? null;
+      const t = starDraft?.tempKOverride ?? null;
+      if (derivationMode === "rt") return { r, l: null, t };
+      if (derivationMode === "lt") return { r: null, l, t };
+      return { r, l, t: null };
+    }
+    return { r: null, l: null, t: null };
+  }
+
+  function solveStarSummaryModel(starId = "star_a", draftState = state) {
+    const starDraft = getStarDraftState(starId, draftState);
+    const overrides = getEffectiveOverridesForStar(starDraft);
+    try {
+      return calcStar({
+        massMsol: Number(starDraft.massMsol),
+        ageGyr: Number(starDraft.ageGyr),
+        metallicityFeH: Number(starDraft.metallicityFeH) || 0,
+        radiusRsolOverride: overrides.r,
+        luminosityLsolOverride: overrides.l,
+        tempKOverride: overrides.t,
+        evolutionMode: starDraft.evolutionMode === "evolved" ? "evolved" : "zams",
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  function buildEditorTargetDescriptors(draftState = state, topologyHealth = {}) {
+    const { pairStatusLookup } = buildTopologyMapPairStatusLookup(draftState, topologyHealth);
+    const starTargets = listAvailableStarEditorIds(draftState).map((starId) => {
+      const meta = buildTopologyMapStarMeta(starId, draftState);
+      const starDraft = getStarDraftState(starId, draftState);
+      const model = solveStarSummaryModel(starId, draftState);
+      const roleById = {
+        star_a: "Primary star",
+        star_b: "Companion star",
+        star_c: "Tertiary star",
+        star_d: "Quaternary star",
+      };
+      const hintById = {
+        star_a: "Edit the primary star. Shared age, metallicity, and stellar evolution stay above.",
+        star_b:
+          "Edit the companion star. Shared age, metallicity, and stellar evolution stay above.",
+        star_c:
+          "Edit the tertiary star. Shared age, metallicity, and stellar evolution stay above.",
+        star_d:
+          "Edit the quaternary star. Shared age, metallicity, and stellar evolution stay above.",
+      };
+      return {
+        id: starId,
+        kind: "star",
+        pillLabel: meta.title,
+        pillSummary: `${model?.spectralClass || "n/a"} · ${fmt(starDraft.massMsol, 4)} Msol`,
+        summaryTitle: buildStarEditorLabel(starId, draftState),
+        summaryMeta: `${roleById[starId] || "Star"} · ${model?.spectralClass || "n/a"} · ${fmt(starDraft.massMsol, 4)} Msol`,
+        summaryHint: hintById[starId] || "Edit this star. Shared system context stays above.",
+      };
+    });
+    const pairTargets = listAvailablePairEditorIds(draftState).map((pairId) => {
+      const meta = buildTopologyMapPairMeta(pairId, draftState);
+      const orbit = getPairOrbitDraftSummary(pairId, draftState);
+      const layer = pairStatusLookup.get(pairId) || null;
+      return {
+        id: pairId,
+        kind: "pair",
+        pillLabel: meta.title,
+        pillSummary: `${fmt(orbit.semiMajorAxisAu, 3)} AU · e ${fmt(orbit.eccentricity, 3)}`,
+        summaryTitle: buildPairEditorLabel(pairId, draftState),
+        summaryMeta: `${fmt(orbit.semiMajorAxisAu, 3)} AU · e ${fmt(orbit.eccentricity, 3)}${layer?.statusLabel ? ` · ${layer.statusLabel}` : ""}`,
+        summaryHint: `Edit the shared orbit for ${meta.accessibleLabel}. Shared age, metallicity, and stellar evolution stay above.`,
+        status: layer?.status || "",
+        statusLabel: layer?.statusLabel || "",
+      };
+    });
+    return {
+      starTargets,
+      pairTargets,
+      byId: new Map([...starTargets, ...pairTargets].map((target) => [target.id, target])),
+    };
+  }
+
+  const editorUiState = {
+    selectedEditorMode: "star",
+    selectedEditorTargetId: suggestStarEditorId(state),
+    rememberedStarEditorId: suggestStarEditorId(state),
+    rememberedPairEditorId: suggestPairEditorId(state),
+    topologySignature: buildEditorTopologySignature(state),
+    pendingTopologyMapFocusId: null,
   };
 
   const wrap = document.createElement("div");
@@ -181,7 +1379,7 @@ export function initStarPage(mountEl, options = {}) {
         <button id="starTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        <div class="hint">Set the star name, mass, and age here. These values drive linked system, planet, and moon calculations.</div>
+        <div class="hint">Set the home-system layout, then edit the shared stellar context and the selected star or pair. These values drive linked system, planet, and moon calculations.</div>
       </div>
     </div>
 
@@ -197,19 +1395,314 @@ export function initStarPage(mountEl, options = {}) {
               direct input helpers.
             </div>
             <div class="guided-entry-strip__modes">
-              <button id="starCreateQuickBtn" type="button" class="guided-entry-strip__mode">
+              <button id="starCreateQuickBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("quick"))}>
                 Quick
               </button>
-              <button id="starCreateGuidedBtn" type="button" class="guided-entry-strip__mode">
+              <button id="starCreateGuidedBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("guided"))}>
                 Guided
               </button>
-              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page">
+              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page" ${tipAttr(getGuidedEntryModeTooltip("advanced"))}>
                 Advanced
               </span>
             </div>
           </div>
 
-          <div class="form-row">
+          <div class="subsection">
+            <div class="subsection__title">Home System Layout ${tipIcon(TIP_LABEL["Home System Architecture"] || "")}</div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Topology ${tipIcon(TIP_LABEL["Topology"] || "")}</div>
+                <div class="hint" id="topologyHint">
+                  Single keeps the classic one-star flow. Binary adds a companion and a shared pair orbit.
+                </div>
+              </div>
+              <div>
+                <select id="topologyKind" aria-label="Home system topology">
+                  <option value="single">Single star</option>
+                  <option value="binary">Binary system</option>
+                  <option value="triple">Hierarchical triple</option>
+                  <option value="quad">Hierarchical quad</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row" id="quadLayoutRow" style="display:none">
+              <div>
+                <div class="label">Quad Layout ${tipIcon(TIP_LABEL["Quad Layout"] || "")}</div>
+                <div class="hint" id="quadLayoutHint">
+                  Chain: one outer companion is added at each layer.
+                </div>
+              </div>
+              <div class="physics-duo-toggle">
+                <input type="radio" name="quadLayoutKind" id="quadLayoutChain" value="chain" />
+                <label for="quadLayoutChain">Chain</label>
+                <input type="radio" name="quadLayoutKind" id="quadLayoutPaired" value="paired" />
+                <label for="quadLayoutPaired">Paired</label>
+                <span></span>
+              </div>
+            </div>
+
+            <div class="form-row" id="activeHostFrameRow" style="display:none">
+              <div>
+                <div class="label">Default Orbit Host ${tipIcon(TIP_LABEL["Default Orbit Host"] || "")}</div>
+                <div class="hint">New planets and gas giants start here by default. Existing bodies stay where they are until reassigned later.</div>
+              </div>
+              <div>
+                <select id="activeHostFrame" aria-label="Default orbit host"></select>
+              </div>
+            </div>
+            <div class="hint" id="activeHostFrameSummary" role="status" aria-live="polite" aria-atomic="true" style="display:none;margin-top:6px"></div>
+
+            <div id="topologyHealthPanel" class="subsection" style="display:none;margin-top:12px">
+              <div class="subsection__title">Hierarchy Health ${tipIcon(TIP_LABEL["Hierarchy Health"] || "")}</div>
+              <div class="hint" id="topologyHealthSummary" aria-live="polite"></div>
+              <div class="hint" id="topologyHealthMeta" style="margin-top:6px"></div>
+              <div id="topologyHealthLayers" style="margin-top:8px"></div>
+            </div>
+          </div>
+
+          <div id="binaryAuthoringSection" class="subsection" style="display:none">
+            <div class="subsection__title">Secondary Star ${tipIcon(TIP_LABEL["Companion Star"] || "")}</div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Companion Name ${tipIcon(TIP_LABEL["Name"] || "")}</div>
+                <div class="hint">Appears in topology-aware host-frame labels and future visualiser views.</div>
+              </div>
+              <div>
+                <input id="companionName" type="text" maxlength="80" aria-label="Companion star name" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Companion Mass <span class="unit">Msol</span> ${tipIcon(TIP_LABEL["Mass"] || "")}</div>
+                <div class="hint">Shapes the companion luminosity, class, and future binary context.</div>
+              </div>
+              <div>
+                <input id="companionMass" type="number" step="0.0001" min="0.075" max="100" aria-label="Companion mass" />
+              </div>
+            </div>
+
+            <div class="hint" id="companionSummaryHint" style="margin-top:6px"></div>
+
+            <div id="binaryPairTitle" class="subsection__title" style="margin-top:14px">Inner Pair A+B ${tipIcon(TIP_LABEL["Binary Pair"] || "")}</div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Semi-Major Axis <span class="unit">AU</span> ${tipIcon(TIP_LABEL["Binary Semi-Major Axis"] || "")}</div>
+                <div class="hint">Average star-to-star separation. Wider pairs read as looser companions.</div>
+              </div>
+              <div>
+                <input id="binarySemiMajorAxis" type="number" step="0.001" min="0.001" max="100000" aria-label="Binary semi-major axis" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Eccentricity ${tipIcon(TIP_LABEL["Binary Eccentricity"] || "")}</div>
+                <div class="hint">Controls how circular or stretched the binary orbit is.</div>
+              </div>
+              <div>
+                <input id="binaryEccentricity" type="number" step="0.001" min="0" max="0.95" aria-label="Binary eccentricity" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Inclination <span class="unit">deg</span> ${tipIcon(TIP_LABEL["Binary Inclination"] || "")}</div>
+                <div class="hint">Stored for future orbit rendering and phase-aware views.</div>
+              </div>
+              <div>
+                <input id="binaryInclination" type="number" step="0.1" min="0" max="180" aria-label="Binary inclination" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Arg. Periapsis <span class="unit">deg</span> ${tipIcon(TIP_LABEL["Binary Argument of Periapsis"] || "")}</div>
+                <div class="hint">Orientation of closest approach inside the orbital plane.</div>
+              </div>
+              <div>
+                <input id="binaryArgPeriapsis" type="number" step="0.1" min="0" max="360" aria-label="Binary argument of periapsis" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Mean Anomaly <span class="unit">deg</span> ${tipIcon(TIP_LABEL["Binary Mean Anomaly"] || "")}</div>
+                <div class="hint">Saved orbital phase position for future animated layouts.</div>
+              </div>
+              <div>
+                <input id="binaryMeanAnomaly" type="number" step="0.1" min="0" max="360" aria-label="Binary mean anomaly" />
+              </div>
+            </div>
+
+            <div class="hint" id="binaryPairGuardrailHint" style="margin-top:8px"></div>
+          </div>
+
+          <div id="tertiaryAuthoringSection" class="subsection" style="display:none">
+            <div class="subsection__title">Tertiary Star ${tipIcon(TIP_LABEL["Tertiary Star"] || "")}</div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Tertiary Name ${tipIcon(TIP_LABEL["Name"] || "")}</div>
+                <div class="hint">Appears in outer hierarchical host-frame labels and multi-star canvases.</div>
+              </div>
+              <div>
+                <input id="tertiaryName" type="text" maxlength="80" aria-label="Tertiary star name" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Tertiary Mass <span class="unit">Msol</span> ${tipIcon(TIP_LABEL["Mass"] || "")}</div>
+                <div class="hint">Shapes the tertiary light contribution and the outer stability boundary.</div>
+              </div>
+              <div>
+                <input id="tertiaryMass" type="number" step="0.0001" min="0.075" max="100" aria-label="Tertiary mass" />
+              </div>
+            </div>
+
+            <div class="hint" id="tertiarySummaryHint" style="margin-top:6px"></div>
+
+            <div id="tertiaryPairTitle" class="subsection__title" style="margin-top:14px">Outer Pair (A+B)+C ${tipIcon(TIP_LABEL["Hierarchy Pair"] || "")}</div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Semi-Major Axis <span class="unit">AU</span> ${tipIcon(TIP_LABEL["Binary Semi-Major Axis"] || "")}</div>
+                <div class="hint" id="tertiaryPairAxisHint">Average separation between the inner pair and the tertiary star.</div>
+              </div>
+              <div>
+                <input id="tripleOuterSemiMajorAxis" type="number" step="0.001" min="0.001" max="100000" aria-label="Triple outer semi-major axis" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Eccentricity ${tipIcon(TIP_LABEL["Binary Eccentricity"] || "")}</div>
+                <div class="hint" id="tertiaryPairEccentricityHint">Controls how strongly the tertiary swings toward and away from the inner pair.</div>
+              </div>
+              <div>
+                <input id="tripleOuterEccentricity" type="number" step="0.001" min="0" max="0.95" aria-label="Triple outer eccentricity" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Inclination <span class="unit">deg</span> ${tipIcon(TIP_LABEL["Binary Inclination"] || "")}</div>
+                <div class="hint">Stored for future topology-aware orbit rendering.</div>
+              </div>
+              <div>
+                <input id="tripleOuterInclination" type="number" step="0.1" min="0" max="180" aria-label="Triple outer inclination" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Arg. Periapsis <span class="unit">deg</span> ${tipIcon(TIP_LABEL["Binary Argument of Periapsis"] || "")}</div>
+                <div class="hint">Orientation of the tertiary orbit inside its plane.</div>
+              </div>
+              <div>
+                <input id="tripleOuterArgPeriapsis" type="number" step="0.1" min="0" max="360" aria-label="Triple outer argument of periapsis" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Mean Anomaly <span class="unit">deg</span> ${tipIcon(TIP_LABEL["Binary Mean Anomaly"] || "")}</div>
+                <div class="hint">Saved orbital phase position for future animated multi-star layouts.</div>
+              </div>
+              <div>
+                <input id="tripleOuterMeanAnomaly" type="number" step="0.1" min="0" max="360" aria-label="Triple outer mean anomaly" />
+              </div>
+            </div>
+
+            <div class="hint" id="triplePairGuardrailHint" style="margin-top:8px"></div>
+          </div>
+
+          <div id="quaternaryAuthoringSection" class="subsection" style="display:none">
+            <div class="subsection__title">Quaternary Star ${tipIcon(TIP_LABEL["Quaternary Star"] || "")}</div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Quaternary Name ${tipIcon(TIP_LABEL["Name"] || "")}</div>
+                <div class="hint">Appears in the outermost hierarchical host-frame labels and overview canvases.</div>
+              </div>
+              <div>
+                <input id="quaternaryName" type="text" maxlength="80" aria-label="Quaternary star name" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Quaternary Mass <span class="unit">Msol</span> ${tipIcon(TIP_LABEL["Mass"] || "")}</div>
+                <div class="hint">Extends the outermost light contribution and top-level stability envelope.</div>
+              </div>
+              <div>
+                <input id="quaternaryMass" type="number" step="0.0001" min="0.075" max="100" aria-label="Quaternary mass" />
+              </div>
+            </div>
+
+            <div class="hint" id="quaternarySummaryHint" style="margin-top:6px"></div>
+
+            <div id="quaternaryPairTitle" class="subsection__title" style="margin-top:14px">Outer Pair ((A+B)+C)+D ${tipIcon(TIP_LABEL["Hierarchy Pair"] || "")}</div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Semi-Major Axis <span class="unit">AU</span> ${tipIcon(TIP_LABEL["Binary Semi-Major Axis"] || "")}</div>
+                <div class="hint" id="quaternaryPairAxisHint">Average separation between the inner triple hierarchy and the fourth star.</div>
+              </div>
+              <div>
+                <input id="quadOuterSemiMajorAxis" type="number" step="0.001" min="0.001" max="100000" aria-label="Quad outer semi-major axis" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Eccentricity ${tipIcon(TIP_LABEL["Binary Eccentricity"] || "")}</div>
+                <div class="hint" id="quaternaryPairEccentricityHint">Controls how strongly the fourth star modulates the outermost hierarchy.</div>
+              </div>
+              <div>
+                <input id="quadOuterEccentricity" type="number" step="0.001" min="0" max="0.95" aria-label="Quad outer eccentricity" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Inclination <span class="unit">deg</span> ${tipIcon(TIP_LABEL["Binary Inclination"] || "")}</div>
+                <div class="hint">Stored for future topology-aware orbit rendering.</div>
+              </div>
+              <div>
+                <input id="quadOuterInclination" type="number" step="0.1" min="0" max="180" aria-label="Quad outer inclination" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Arg. Periapsis <span class="unit">deg</span> ${tipIcon(TIP_LABEL["Binary Argument of Periapsis"] || "")}</div>
+                <div class="hint">Orientation of the outermost orbit inside its plane.</div>
+              </div>
+              <div>
+                <input id="quadOuterArgPeriapsis" type="number" step="0.1" min="0" max="360" aria-label="Quad outer argument of periapsis" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Mean Anomaly <span class="unit">deg</span> ${tipIcon(TIP_LABEL["Binary Mean Anomaly"] || "")}</div>
+                <div class="hint">Saved orbital phase position for future animated multi-star layouts.</div>
+              </div>
+              <div>
+                <input id="quadOuterMeanAnomaly" type="number" step="0.1" min="0" max="360" aria-label="Quad outer mean anomaly" />
+              </div>
+            </div>
+
+            <div class="hint" id="quadPairGuardrailHint" style="margin-top:8px"></div>
+          </div>
+
+          <div class="form-row" id="primaryStarNameRow">
             <div>
               <div class="label">Name ${tipIcon(TIP_LABEL["Name"] || "")}</div>
               <div class="hint">Used across pages and in the visualiser labels.</div>
@@ -219,7 +1712,7 @@ export function initStarPage(mountEl, options = {}) {
             </div>
           </div>
 
-          <div class="form-row">
+          <div class="form-row" id="primaryStarMassRow">
             <div>
               <div class="label">Mass <span class="unit">Msol</span> ${tipIcon(TIP_LABEL["Mass"] || "")}</div>
               <div class="hint">Valid range in sheet: 0.075 to 100.</div>
@@ -231,10 +1724,10 @@ export function initStarPage(mountEl, options = {}) {
           </div>
           </div>
 
-          <div class="form-row">
+          <div class="form-row" id="sharedAgeRow">
             <div>
               <div class="label">Current Age <span class="unit">Gyr</span> ${tipIcon(TIP_LABEL["Current Age"] || "")}</div>
-              <div class="hint">Used to check if Earth-like life is plausible.</div>
+              <div class="hint">Used to check if Earth-like life is plausible. Shared across the home system in binary mode.</div>
             </div>
             <div class="input-pair">
             <input id="age" type="number" step="0.001" min="0" max="20" aria-label="Current Age" />
@@ -243,21 +1736,23 @@ export function initStarPage(mountEl, options = {}) {
           </div>
           </div>
 
-          <div style="height:8px"></div>
-          <div class="label">Stellar Evolution ${tipIcon(TIP_LABEL["Stellar Evolution"] || "")}</div>
-          <div class="physics-duo-toggle" style="margin:4px 0 6px">
-            <input type="radio" name="evolutionMode" id="evolutionOff" value="zams" />
-            <label for="evolutionOff">Off</label>
-            <input type="radio" name="evolutionMode" id="evolutionOn" value="evolved" />
-            <label for="evolutionOn">On</label>
-            <span></span>
+          <div id="sharedEvolutionBlock">
+            <div style="height:8px"></div>
+            <div class="label">Stellar Evolution ${tipIcon(TIP_LABEL["Stellar Evolution"] || "")}</div>
+            <div class="physics-duo-toggle" style="margin:4px 0 6px">
+              <input type="radio" name="evolutionMode" id="evolutionOff" value="zams" />
+              <label for="evolutionOff">Off</label>
+              <input type="radio" name="evolutionMode" id="evolutionOn" value="evolved" />
+              <label for="evolutionOn">On</label>
+              <span></span>
+            </div>
+            <div class="hint" id="evolutionHint" style="margin-bottom:8px"></div>
           </div>
-          <div class="hint" id="evolutionHint" style="margin-bottom:8px"></div>
 
-          <div class="form-row">
+          <div class="form-row" id="sharedMetallicityRow">
             <div>
               <div class="label">Metallicity [Fe/H] <span class="unit">dex</span> ${tipIcon(TIP_LABEL["Metallicity [Fe/H]"] || "")}</div>
-              <div class="hint">Sun = 0.0 · Metal-poor halo ≈ −2 · Metal-rich disk ≈ +0.3</div>
+              <div class="hint">Sun = 0.0 · Metal-poor halo ≈ −2 · Metal-rich disk ≈ +0.3 · Shared across the home system in binary mode.</div>
             </div>
             <div class="input-pair">
             <input id="metallicity" type="number" step="0.01" min="-3" max="1" aria-label="Metallicity [Fe/H]" />
@@ -266,16 +1761,18 @@ export function initStarPage(mountEl, options = {}) {
           </div>
           </div>
 
-          <div style="height:8px"></div>
-          <div class="label">Physics Mode ${tipIcon(TIP_LABEL["Physics Mode"] || "")}</div>
-          <div class="physics-duo-toggle" style="margin:4px 0 6px">
-            <input type="radio" name="physicsMode" id="physicsSimple" value="simple" />
-            <label for="physicsSimple">Simple</label>
-            <input type="radio" name="physicsMode" id="physicsAdvanced" value="advanced" />
-            <label for="physicsAdvanced">Advanced</label>
-            <span></span>
+          <div id="primaryPhysicsBlock">
+            <div style="height:8px"></div>
+            <div class="label">Physics Mode ${tipIcon(TIP_LABEL["Physics Mode"] || "")}</div>
+            <div class="physics-duo-toggle" style="margin:4px 0 6px">
+              <input type="radio" name="physicsMode" id="physicsSimple" value="simple" />
+              <label for="physicsSimple">Simple</label>
+              <input type="radio" name="physicsMode" id="physicsAdvanced" value="advanced" />
+              <label for="physicsAdvanced">Advanced</label>
+              <span></span>
+            </div>
+            <div class="hint" id="physicsModeHint" style="margin-bottom:8px"></div>
           </div>
-          <div class="hint" id="physicsModeHint" style="margin-bottom:8px"></div>
 
           <div id="advancedDerivRow" style="display:none;margin-bottom:8px">
             <div class="label" style="margin-bottom:6px">Derivation Mode</div>
@@ -326,12 +1823,12 @@ export function initStarPage(mountEl, options = {}) {
 
           <div class="hint" id="resolutionStatus" style="margin-top:4px;font-style:italic"></div>
 
-          <div class="button-row">
+          <div id="primaryStarActionsRow" class="button-row">
             <button id="btn-sol">Sol-ish Preset</button>
             <button id="btn-reset">Reset to Defaults</button>
           </div>
 
-          <div class="hint" style="margin-top:10px">
+          <div id="inputAutosaveHint" class="hint" style="margin-top:10px">
             Autosaves locally as you make changes.
           </div>
         </div>
@@ -361,6 +1858,54 @@ export function initStarPage(mountEl, options = {}) {
   const metallicityEl = wrap.querySelector("#metallicity");
   const kpisEl = wrap.querySelector("#kpis");
   const detailsEl = wrap.querySelector("#details");
+  const topologyKindEl = wrap.querySelector("#topologyKind");
+  const topologyHintEl = wrap.querySelector("#topologyHint");
+  const quadLayoutRowEl = wrap.querySelector("#quadLayoutRow");
+  const quadLayoutHintEl = wrap.querySelector("#quadLayoutHint");
+  const quadLayoutRadios = wrap.querySelectorAll('[name="quadLayoutKind"]');
+  const activeHostFrameRowEl = wrap.querySelector("#activeHostFrameRow");
+  const activeHostFrameEl = wrap.querySelector("#activeHostFrame");
+  const activeHostFrameSummaryEl = wrap.querySelector("#activeHostFrameSummary");
+  const topologyHealthPanelEl = wrap.querySelector("#topologyHealthPanel");
+  const topologyHealthSummaryEl = wrap.querySelector("#topologyHealthSummary");
+  const topologyHealthMetaEl = wrap.querySelector("#topologyHealthMeta");
+  const topologyHealthLayersEl = wrap.querySelector("#topologyHealthLayers");
+  const binaryAuthoringSectionEl = wrap.querySelector("#binaryAuthoringSection");
+  const companionNameEl = wrap.querySelector("#companionName");
+  const companionMassEl = wrap.querySelector("#companionMass");
+  const companionSummaryHintEl = wrap.querySelector("#companionSummaryHint");
+  const binarySemiMajorAxisEl = wrap.querySelector("#binarySemiMajorAxis");
+  const binaryEccentricityEl = wrap.querySelector("#binaryEccentricity");
+  const binaryInclinationEl = wrap.querySelector("#binaryInclination");
+  const binaryArgPeriapsisEl = wrap.querySelector("#binaryArgPeriapsis");
+  const binaryMeanAnomalyEl = wrap.querySelector("#binaryMeanAnomaly");
+  const binaryPairGuardrailHintEl = wrap.querySelector("#binaryPairGuardrailHint");
+  const tertiaryAuthoringSectionEl = wrap.querySelector("#tertiaryAuthoringSection");
+  const tertiaryNameEl = wrap.querySelector("#tertiaryName");
+  const tertiaryMassEl = wrap.querySelector("#tertiaryMass");
+  const tertiarySummaryHintEl = wrap.querySelector("#tertiarySummaryHint");
+  const tertiaryPairTitleEl = wrap.querySelector("#tertiaryPairTitle");
+  const tertiaryPairAxisHintEl = wrap.querySelector("#tertiaryPairAxisHint");
+  const tertiaryPairEccentricityHintEl = wrap.querySelector("#tertiaryPairEccentricityHint");
+  const tripleOuterSemiMajorAxisEl = wrap.querySelector("#tripleOuterSemiMajorAxis");
+  const tripleOuterEccentricityEl = wrap.querySelector("#tripleOuterEccentricity");
+  const tripleOuterInclinationEl = wrap.querySelector("#tripleOuterInclination");
+  const tripleOuterArgPeriapsisEl = wrap.querySelector("#tripleOuterArgPeriapsis");
+  const tripleOuterMeanAnomalyEl = wrap.querySelector("#tripleOuterMeanAnomaly");
+  const triplePairGuardrailHintEl = wrap.querySelector("#triplePairGuardrailHint");
+  const quaternaryAuthoringSectionEl = wrap.querySelector("#quaternaryAuthoringSection");
+  const quaternaryNameEl = wrap.querySelector("#quaternaryName");
+  const quaternaryMassEl = wrap.querySelector("#quaternaryMass");
+  const quaternarySummaryHintEl = wrap.querySelector("#quaternarySummaryHint");
+  const quaternaryPairTitleEl = wrap.querySelector("#quaternaryPairTitle");
+  const quaternaryPairAxisHintEl = wrap.querySelector("#quaternaryPairAxisHint");
+  const quaternaryPairEccentricityHintEl = wrap.querySelector("#quaternaryPairEccentricityHint");
+  const quadOuterSemiMajorAxisEl = wrap.querySelector("#quadOuterSemiMajorAxis");
+  const quadOuterEccentricityEl = wrap.querySelector("#quadOuterEccentricity");
+  const quadOuterInclinationEl = wrap.querySelector("#quadOuterInclination");
+  const quadOuterArgPeriapsisEl = wrap.querySelector("#quadOuterArgPeriapsis");
+  const quadOuterMeanAnomalyEl = wrap.querySelector("#quadOuterMeanAnomaly");
+  const quadPairGuardrailHintEl = wrap.querySelector("#quadPairGuardrailHint");
   const physicsModeRadios = wrap.querySelectorAll('[name="physicsMode"]');
   const advancedDerivRowEl = wrap.querySelector("#advancedDerivRow");
   const physicsDerivRadios = wrap.querySelectorAll('[name="physicsDerivMode"]');
@@ -377,8 +1922,401 @@ export function initStarPage(mountEl, options = {}) {
   const physicsModeHintEl = wrap.querySelector("#physicsModeHint");
   const evolutionModeRadios = wrap.querySelectorAll('[name="evolutionMode"]');
   const evolutionHintEl = wrap.querySelector("#evolutionHint");
+  const starCreateEntryEl = wrap.querySelector("#starCreateEntry");
   const starCreateQuickBtn = wrap.querySelector("#starCreateQuickBtn");
   const starCreateGuidedBtn = wrap.querySelector("#starCreateGuidedBtn");
+  const inputPanelBodyEl = starCreateEntryEl?.parentElement || null;
+  const architectureSectionEl = topologyKindEl?.closest(".subsection") || null;
+  const topologyKindRowEl = topologyKindEl?.closest(".form-row") || null;
+  const primaryStarNameRowEl = wrap.querySelector("#primaryStarNameRow");
+  const primaryStarMassRowEl = wrap.querySelector("#primaryStarMassRow");
+  const sharedAgeRowEl = wrap.querySelector("#sharedAgeRow");
+  const sharedEvolutionBlockEl = wrap.querySelector("#sharedEvolutionBlock");
+  const sharedMetallicityRowEl = wrap.querySelector("#sharedMetallicityRow");
+  const primaryPhysicsBlockEl = wrap.querySelector("#primaryPhysicsBlock");
+  const primaryStarActionsRowEl = wrap.querySelector("#primaryStarActionsRow");
+  const inputAutosaveHintEl = wrap.querySelector("#inputAutosaveHint");
+  const binaryPairTitleEl = wrap.querySelector("#binaryPairTitle");
+  const companionNameRowEl = companionNameEl?.closest(".form-row") || null;
+  const companionMassRowEl = companionMassEl?.closest(".form-row") || null;
+  const binarySemiMajorAxisRowEl = binarySemiMajorAxisEl?.closest(".form-row") || null;
+  const binaryEccentricityRowEl = binaryEccentricityEl?.closest(".form-row") || null;
+  const binaryInclinationRowEl = binaryInclinationEl?.closest(".form-row") || null;
+  const binaryArgPeriapsisRowEl = binaryArgPeriapsisEl?.closest(".form-row") || null;
+  const binaryMeanAnomalyRowEl = binaryMeanAnomalyEl?.closest(".form-row") || null;
+  const tertiaryNameRowEl = tertiaryNameEl?.closest(".form-row") || null;
+  const tertiaryMassRowEl = tertiaryMassEl?.closest(".form-row") || null;
+  const tripleOuterSemiMajorAxisRowEl = tripleOuterSemiMajorAxisEl?.closest(".form-row") || null;
+  const tripleOuterEccentricityRowEl = tripleOuterEccentricityEl?.closest(".form-row") || null;
+  const tripleOuterInclinationRowEl = tripleOuterInclinationEl?.closest(".form-row") || null;
+  const tripleOuterArgPeriapsisRowEl = tripleOuterArgPeriapsisEl?.closest(".form-row") || null;
+  const tripleOuterMeanAnomalyRowEl = tripleOuterMeanAnomalyEl?.closest(".form-row") || null;
+  const quaternaryNameRowEl = quaternaryNameEl?.closest(".form-row") || null;
+  const quaternaryMassRowEl = quaternaryMassEl?.closest(".form-row") || null;
+  const quadOuterSemiMajorAxisRowEl = quadOuterSemiMajorAxisEl?.closest(".form-row") || null;
+  const quadOuterEccentricityRowEl = quadOuterEccentricityEl?.closest(".form-row") || null;
+  const quadOuterInclinationRowEl = quadOuterInclinationEl?.closest(".form-row") || null;
+  const quadOuterArgPeriapsisRowEl = quadOuterArgPeriapsisEl?.closest(".form-row") || null;
+  const quadOuterMeanAnomalyRowEl = quadOuterMeanAnomalyEl?.closest(".form-row") || null;
+
+  function createSectionTitle(text) {
+    return createElement("div", { className: "subsection__title", text });
+  }
+
+  function createHintText(text) {
+    return createElement("div", { className: "hint", text });
+  }
+
+  function createEditorTargetRow(id, label, hint, selectId, ariaLabel) {
+    const rowEl = createElement("div", { attrs: { id }, className: "form-row" });
+    const textColEl = document.createElement("div");
+    const labelEl = createElement("div", { className: "label", text: label });
+    const hintEl = createHintText(hint);
+    textColEl.append(labelEl, hintEl);
+    const controlColEl = document.createElement("div");
+    const selectEl = createElement("select", {
+      attrs: { id: selectId, "aria-label": ariaLabel },
+    });
+    controlColEl.append(selectEl);
+    rowEl.append(textColEl, controlColEl);
+    return { rowEl, selectEl };
+  }
+
+  function createArchitectureCard(card, selected, kind) {
+    const buttonEl = createElement("button", {
+      attrs: {
+        id: card.id,
+        type: "button",
+        "data-architecture-kind": kind,
+        "data-value": card.value,
+        "aria-pressed": selected ? "true" : "false",
+        "aria-label": `${card.title}. ${card.formula}. ${card.meaning}`,
+      },
+      className: `star-architecture-card${selected ? " is-selected" : ""}`,
+    });
+    buttonEl.append(
+      createElement("div", { className: "star-architecture-card__title", text: card.title }),
+      createElement("div", { className: "star-architecture-card__formula", text: card.formula }),
+      createElement("div", { className: "star-architecture-card__meaning", text: card.meaning }),
+      createElement("div", { className: "star-architecture-card__summary", text: card.summary }),
+    );
+    return buttonEl;
+  }
+
+  function createSvgElement(tagName, attrs = {}) {
+    const node = document.createElementNS("http://www.w3.org/2000/svg", tagName);
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value == null) continue;
+      node.setAttribute(key, String(value));
+    }
+    return node;
+  }
+
+  const topologyCardsSectionEl = createElement("div", {
+    attrs: { id: "topologyCardsSection" },
+    className: "star-architecture-group",
+  });
+  const topologyCardGridEl = createElement("div", {
+    attrs: { id: "topologyCardGrid" },
+    className: "star-architecture-grid",
+  });
+  topologyHintEl?.classList.add("star-architecture-selection-copy");
+  topologyCardsSectionEl.append(
+    createElement("div", { className: "label", text: "Choose a layout" }),
+    createHintText(
+      "Pick the home-system shape first. The rest of the editor follows this topology.",
+    ),
+    topologyCardGridEl,
+    topologyHintEl,
+  );
+
+  const quadLayoutCardsSectionEl = createElement("div", {
+    attrs: { id: "quadLayoutCardsSection" },
+    className: "star-architecture-group",
+  });
+  const quadLayoutCardGridEl = createElement("div", {
+    attrs: { id: "quadLayoutCardGrid" },
+    className: "star-architecture-grid star-architecture-grid--compact",
+  });
+  quadLayoutCardsSectionEl.style.display = "none";
+  quadLayoutHintEl?.classList.add("star-architecture-selection-copy");
+  quadLayoutCardsSectionEl.append(
+    createElement("div", { className: "label", text: "Choose a quad arrangement" }),
+    createHintText("Quad systems need one more choice so the hierarchy stays readable and stable."),
+    quadLayoutCardGridEl,
+    quadLayoutHintEl,
+  );
+
+  if (topologyKindRowEl) topologyKindRowEl.style.display = "none";
+  if (quadLayoutRowEl) quadLayoutRowEl.style.display = "none";
+  architectureSectionEl?.insertBefore(topologyCardsSectionEl, topologyKindRowEl);
+  architectureSectionEl?.insertBefore(quadLayoutCardsSectionEl, topologyKindRowEl);
+
+  const topologyMapSectionEl = createElement("div", {
+    attrs: { id: "topologyMapSection" },
+    className: "star-topology-map-section",
+  });
+  const topologyMapCanvasEl = createElement("div", {
+    attrs: { id: "topologyMapCanvas", "aria-describedby": "topologyMapSummary" },
+    className: "star-topology-map",
+  });
+  const topologyMapSvgEl = createSvgElement("svg", {
+    id: "topologyMapSvg",
+    class: "star-topology-map__svg",
+    viewBox: "0 0 100 100",
+    preserveAspectRatio: "none",
+    "aria-hidden": "true",
+  });
+  const topologyMapNodesEl = createElement("div", {
+    attrs: { id: "topologyMapNodes" },
+    className: "star-topology-map__nodes",
+  });
+  const topologyMapHealthChipsEl = createElement("div", {
+    attrs: { id: "topologyMapHealthChips" },
+    className: "star-topology-map__chips",
+  });
+  const topologyMapLegendEl = createElement("div", {
+    attrs: { id: "topologyMapLegend" },
+    className: "star-topology-map__legend",
+  });
+  const topologyMapSummaryEl = createElement("div", {
+    attrs: { id: "topologyMapSummary", "aria-live": "polite" },
+    className: "star-topology-map__sr-only",
+  });
+  topologyMapCanvasEl.append(topologyMapSvgEl, topologyMapNodesEl);
+  topologyMapSectionEl.append(
+    createElement("div", { className: "label", text: "Hierarchy map" }),
+    createHintText(
+      "Click a star or pair to focus its editor below. Outlined nodes mark the default orbit host.",
+    ),
+    topologyMapCanvasEl,
+    topologyMapHealthChipsEl,
+    topologyMapLegendEl,
+    topologyMapSummaryEl,
+  );
+  architectureSectionEl?.insertBefore(topologyMapSectionEl, activeHostFrameRowEl);
+
+  const sharedSystemContextSectionEl = createElement("div", {
+    attrs: { id: "sharedSystemContextSection" },
+    className: "subsection",
+  });
+  sharedSystemContextSectionEl.append(
+    createSectionTitle("Shared System Context"),
+    createHintText("Age, metallicity, and stellar evolution apply across the home stellar system."),
+    sharedAgeRowEl,
+    sharedEvolutionBlockEl,
+    sharedMetallicityRowEl,
+  );
+
+  const primaryStarAuthoringSectionEl = createElement("div", {
+    attrs: { id: "primaryStarAuthoringSection" },
+    className: "subsection",
+  });
+  const starEditorTitleEl = createSectionTitle("Selected Star");
+  const starEditorHintEl = createHintText(
+    "These inputs apply only to the selected star. Shared system context lives above.",
+  );
+  primaryStarAuthoringSectionEl.append(
+    starEditorTitleEl,
+    starEditorHintEl,
+    primaryStarNameRowEl,
+    primaryStarMassRowEl,
+    primaryPhysicsBlockEl,
+    advancedDerivRowEl,
+    radiusOverrideRowEl,
+    luminosityOverrideRowEl,
+    tempOverrideRowEl,
+    resolutionStatusEl,
+    primaryStarActionsRowEl,
+    inputAutosaveHintEl,
+  );
+
+  const companionSharedContextHintEl = createHintText(
+    "Uses shared age, metallicity, and stellar evolution from Shared System Context.",
+  );
+  const tertiarySharedContextHintEl = createHintText(
+    "Uses shared age, metallicity, and stellar evolution from Shared System Context.",
+  );
+  const quaternarySharedContextHintEl = createHintText(
+    "Uses shared age, metallicity, and stellar evolution from Shared System Context.",
+  );
+
+  const binaryStarTitleEl = binaryAuthoringSectionEl?.querySelector(".subsection__title") || null;
+  const tertiaryStarTitleEl =
+    tertiaryAuthoringSectionEl?.querySelector(".subsection__title") || null;
+  const quaternaryStarTitleEl =
+    quaternaryAuthoringSectionEl?.querySelector(".subsection__title") || null;
+
+  binaryAuthoringSectionEl?.replaceChildren(
+    binaryStarTitleEl,
+    companionSharedContextHintEl,
+    companionNameRowEl,
+    companionMassRowEl,
+    companionSummaryHintEl,
+  );
+  tertiaryAuthoringSectionEl?.replaceChildren(
+    tertiaryStarTitleEl,
+    tertiarySharedContextHintEl,
+    tertiaryNameRowEl,
+    tertiaryMassRowEl,
+    tertiarySummaryHintEl,
+  );
+  quaternaryAuthoringSectionEl?.replaceChildren(
+    quaternaryStarTitleEl,
+    quaternarySharedContextHintEl,
+    quaternaryNameRowEl,
+    quaternaryMassRowEl,
+    quaternarySummaryHintEl,
+  );
+
+  const pairAbAuthoringSectionEl = createElement("div", {
+    attrs: { id: "pairAbAuthoringSection" },
+    className: "subsection",
+  });
+  pairAbAuthoringSectionEl.append(
+    binaryPairTitleEl,
+    binarySemiMajorAxisRowEl,
+    binaryEccentricityRowEl,
+    binaryInclinationRowEl,
+    binaryArgPeriapsisRowEl,
+    binaryMeanAnomalyRowEl,
+    binaryPairGuardrailHintEl,
+  );
+
+  const triplePairAuthoringSectionEl = createElement("div", {
+    attrs: { id: "triplePairAuthoringSection" },
+    className: "subsection",
+  });
+  triplePairAuthoringSectionEl.append(
+    tertiaryPairTitleEl,
+    tripleOuterSemiMajorAxisRowEl,
+    tripleOuterEccentricityRowEl,
+    tripleOuterInclinationRowEl,
+    tripleOuterArgPeriapsisRowEl,
+    tripleOuterMeanAnomalyRowEl,
+    triplePairGuardrailHintEl,
+  );
+
+  const quadPairAuthoringSectionEl = createElement("div", {
+    attrs: { id: "quadPairAuthoringSection" },
+    className: "subsection",
+  });
+  quadPairAuthoringSectionEl.append(
+    quaternaryPairTitleEl,
+    quadOuterSemiMajorAxisRowEl,
+    quadOuterEccentricityRowEl,
+    quadOuterInclinationRowEl,
+    quadOuterArgPeriapsisRowEl,
+    quadOuterMeanAnomalyRowEl,
+    quadPairGuardrailHintEl,
+  );
+
+  const { rowEl: starEditorTargetRowEl, selectEl: starEditorTargetEl } = createEditorTargetRow(
+    "starEditorTargetRow",
+    "Star Focus",
+    "Choose which star editor is visible below.",
+    "starEditorTarget",
+    "Star editor focus",
+  );
+  const { rowEl: pairEditorTargetRowEl, selectEl: pairEditorTargetEl } = createEditorTargetRow(
+    "pairEditorTargetRow",
+    "Pair Focus",
+    "Choose which hierarchical pair editor is visible below.",
+    "pairEditorTarget",
+    "Pair editor focus",
+  );
+  const editorInspectorSectionEl = createElement("div", {
+    attrs: { id: "editorInspectorSection" },
+    className: "subsection star-editor-inspector",
+  });
+  const editorInspectorModeEl = createElement("div", {
+    attrs: { id: "editorInspectorMode" },
+    className: "star-editor-inspector__mode",
+  });
+  const editorModeStarBtn = createElement("button", {
+    attrs: {
+      id: "editorModeStar",
+      type: "button",
+      "data-editor-mode": "star",
+      "aria-pressed": "true",
+    },
+    className: "star-editor-inspector__mode-btn",
+    text: "Stars",
+  });
+  const editorModePairBtn = createElement("button", {
+    attrs: {
+      id: "editorModePair",
+      type: "button",
+      "data-editor-mode": "pair",
+      "aria-pressed": "false",
+    },
+    className: "star-editor-inspector__mode-btn",
+    text: "Pairs",
+  });
+  editorInspectorModeEl.append(editorModeStarBtn, editorModePairBtn);
+  const editorTargetPillsEl = createElement("div", {
+    attrs: { id: "editorTargetPills" },
+    className: "star-editor-inspector__pills",
+  });
+  const editorTargetSummaryEl = createElement("div", {
+    attrs: {
+      id: "editorTargetSummary",
+      role: "status",
+      "aria-live": "polite",
+      "aria-atomic": "true",
+    },
+    className: "star-editor-inspector__summary",
+  });
+  const editorTargetSummaryEyebrowEl = createElement("div", {
+    attrs: { id: "editorTargetSummaryEyebrow" },
+    className: "star-editor-inspector__summary-eyebrow",
+    text: "Editing target",
+  });
+  const editorTargetSummaryTitleEl = createElement("div", {
+    attrs: { id: "editorTargetSummaryTitle" },
+    className: "star-editor-inspector__summary-title",
+  });
+  const editorTargetSummaryMetaEl = createElement("div", {
+    attrs: { id: "editorTargetSummaryMeta" },
+    className: "star-editor-inspector__summary-meta",
+  });
+  const editorTargetSummaryHintEl = createElement("div", {
+    attrs: { id: "editorTargetSummaryHint" },
+    className: "star-editor-inspector__summary-hint",
+  });
+  editorTargetSummaryEl.append(
+    editorTargetSummaryEyebrowEl,
+    editorTargetSummaryTitleEl,
+    editorTargetSummaryMetaEl,
+    editorTargetSummaryHintEl,
+  );
+  const editorInspectorCompatEl = createElement("div", {
+    attrs: { id: "editorInspectorCompat", hidden: "hidden", "aria-hidden": "true" },
+    className: "star-editor-inspector__compat",
+  });
+  editorInspectorCompatEl.append(starEditorTargetRowEl, pairEditorTargetRowEl);
+  editorInspectorSectionEl.append(
+    createSectionTitle("Focused Editor"),
+    createHintText(
+      "Choose Stars or Pairs, then focus one target at a time. The topology map, pills, and focused outputs stay in sync.",
+    ),
+    editorInspectorModeEl,
+    editorTargetPillsEl,
+    editorTargetSummaryEl,
+    editorInspectorCompatEl,
+    primaryStarAuthoringSectionEl,
+    binaryAuthoringSectionEl,
+    tertiaryAuthoringSectionEl,
+    quaternaryAuthoringSectionEl,
+    pairAbAuthoringSectionEl,
+    triplePairAuthoringSectionEl,
+    quadPairAuthoringSectionEl,
+  );
+
+  if (inputPanelBodyEl && architectureSectionEl) {
+    architectureSectionEl.insertAdjacentElement("afterend", sharedSystemContextSectionEl);
+    sharedSystemContextSectionEl.insertAdjacentElement("afterend", editorInspectorSectionEl);
+  }
   const sunPreviewController = createCelestialVisualPreviewController({ speedDaysPerSec: 0.5 });
   const overlayClosers = new Set();
 
@@ -474,36 +2412,1165 @@ export function initStarPage(mountEl, options = {}) {
     return parsed;
   }
 
-  function persistState() {
-    updateWorld({
-      star: {
-        name: state.name,
-        massMsol: state.massMsol,
-        ageGyr: state.ageGyr,
-        metallicityFeH: state.metallicityFeH,
-        radiusRsolOverride: state.radiusRsolOverride,
-        luminosityLsolOverride: state.luminosityLsolOverride,
-        tempKOverride: state.tempKOverride,
-        physicsMode: state.physicsMode,
-        advancedDerivationMode: state.advancedDerivationMode,
-        evolutionMode: state.evolutionMode,
-        activityModelVersion: state.activityModelVersion,
+  function sanitiseCompanionName(raw) {
+    const txt = String(raw ?? "").trim();
+    return txt || "Companion";
+  }
+
+  function sanitiseTertiaryName(raw) {
+    const txt = String(raw ?? "").trim();
+    return txt || "Tertiary";
+  }
+
+  function sanitiseQuaternaryName(raw) {
+    const txt = String(raw ?? "").trim();
+    return txt || "Quaternary";
+  }
+
+  function buildStarComponent(id = "star_a", draftState = state) {
+    const starDraft = getStarDraftState(id, draftState);
+    return {
+      id,
+      name: starDraft.name,
+      massMsol: starDraft.massMsol,
+      physicsMode: starDraft.physicsMode,
+      advancedDerivationMode: starDraft.advancedDerivationMode,
+      radiusRsolOverride: starDraft.radiusRsolOverride,
+      luminosityLsolOverride: starDraft.luminosityLsolOverride,
+      tempKOverride: starDraft.tempKOverride,
+      evolutionMode: starDraft.evolutionMode,
+      activityModelVersion: starDraft.activityModelVersion,
+    };
+  }
+
+  function buildPairComponent(id, childA, childB, pairState) {
+    return {
+      id,
+      childA,
+      childB,
+      semiMajorAxisAu: pairState.semiMajorAxisAu,
+      eccentricity: pairState.eccentricity,
+      inclinationDeg: pairState.inclinationDeg,
+      argPeriapsisDeg: pairState.argPeriapsisDeg,
+      meanAnomalyDeg: pairState.meanAnomalyDeg,
+    };
+  }
+
+  function buildHostFrameOptionText(frame) {
+    if (!frame) return "Orbit host";
+    if (frame.id === "star_a") return `Around Star A (${frame.label})`;
+    if (frame.id === "star_b") return `Around Star B (${frame.label})`;
+    if (frame.id === "star_c") return `Around Star C (${frame.label})`;
+    if (frame.id === "star_d") return `Around Star D (${frame.label})`;
+    if (frame.id === "pair_ab") return `Around Pair A+B barycentre (${frame.label})`;
+    if (frame.id === "pair_cd") return `Around Pair C+D barycentre (${frame.label})`;
+    if (frame.id === "pair_abc") return `Around Pair (A+B)+C barycentre (${frame.label})`;
+    if (frame.id === "pair_abcd") return `Around Pair ((A+B)+C)+D barycentre (${frame.label})`;
+    if (frame.id === "pair_root") return `Around Pair (A+B)+(C+D) barycentre (${frame.label})`;
+    return frame.frameKind === "pair"
+      ? `Around ${frame.label} barycentre`
+      : `Around ${frame.label}`;
+  }
+
+  function buildDefaultOrbitHostSummary(frame) {
+    if (!frame) {
+      return "New planets and gas giants will use this host frame by default. Existing bodies keep their current host frame until you reassign them later.";
+    }
+    if (frame.frameKind === "pair") {
+      return `New planets and gas giants will default to orbiting the ${frame.label} barycentre in a P-type frame. Existing bodies keep their current host frame until reassigned on the Planets or System pages.`;
+    }
+    return `New planets and gas giants will default to orbiting ${frame.label} in an S-type circumstellar frame. Existing bodies keep their current host frame until reassigned on the Planets or System pages.`;
+  }
+
+  function buildStellarSystemFromDraft(draftState = state) {
+    const primaryStar = buildStarComponent("star_a", draftState);
+    const shared = {
+      ageGyr: draftState.ageGyr,
+      metallicityFeH: draftState.metallicityFeH,
+    };
+
+    if (draftState.topologyKind === "single") {
+      return {
+        topologyKind: "single",
+        shared,
+        stars: {
+          order: ["star_a"],
+          byId: { star_a: primaryStar },
+        },
+        pairs: {
+          order: [],
+          byId: {},
+        },
+        rootNodeId: "star_a",
+        defaultHostFrameId: "star_a",
+      };
+    }
+
+    const starsOrder = ["star_a", "star_b"];
+    const starsById = {
+      star_a: primaryStar,
+      star_b: buildStarComponent("star_b", draftState),
+    };
+    const pairsOrder = ["pair_ab"];
+    const pairsById = {
+      pair_ab: buildPairComponent(
+        "pair_ab",
+        { kind: "star", id: "star_a" },
+        { kind: "star", id: "star_b" },
+        {
+          semiMajorAxisAu: draftState.binarySemiMajorAxisAu,
+          eccentricity: draftState.binaryEccentricity,
+          inclinationDeg: draftState.binaryInclinationDeg,
+          argPeriapsisDeg: draftState.binaryArgPeriapsisDeg,
+          meanAnomalyDeg: draftState.binaryMeanAnomalyDeg,
+        },
+      ),
+    };
+    let topologyKind = "binary";
+    let rootNodeId = "pair_ab";
+
+    if (draftState.topologyKind === "triple") {
+      starsOrder.push("star_c");
+      starsById.star_c = buildStarComponent("star_c", draftState);
+      pairsOrder.push("pair_abc");
+      pairsById.pair_abc = buildPairComponent(
+        "pair_abc",
+        { kind: "pair", id: "pair_ab" },
+        { kind: "star", id: "star_c" },
+        {
+          semiMajorAxisAu: draftState.tripleOuterSemiMajorAxisAu,
+          eccentricity: draftState.tripleOuterEccentricity,
+          inclinationDeg: draftState.tripleOuterInclinationDeg,
+          argPeriapsisDeg: draftState.tripleOuterArgPeriapsisDeg,
+          meanAnomalyDeg: draftState.tripleOuterMeanAnomalyDeg,
+        },
+      );
+      topologyKind = "triple";
+      rootNodeId = "pair_abc";
+    }
+
+    if (draftState.topologyKind === "quad") {
+      starsOrder.push("star_c");
+      starsById.star_c = buildStarComponent("star_c", draftState);
+      starsOrder.push("star_d");
+      starsById.star_d = buildStarComponent("star_d", draftState);
+      if (normalizeQuadLayoutKind(draftState.quadLayoutKind) === "paired") {
+        pairsOrder.push("pair_cd");
+        pairsById.pair_cd = buildPairComponent(
+          "pair_cd",
+          { kind: "star", id: "star_c" },
+          { kind: "star", id: "star_d" },
+          {
+            semiMajorAxisAu: draftState.tripleOuterSemiMajorAxisAu,
+            eccentricity: draftState.tripleOuterEccentricity,
+            inclinationDeg: draftState.tripleOuterInclinationDeg,
+            argPeriapsisDeg: draftState.tripleOuterArgPeriapsisDeg,
+            meanAnomalyDeg: draftState.tripleOuterMeanAnomalyDeg,
+          },
+        );
+        pairsOrder.push("pair_root");
+        pairsById.pair_root = buildPairComponent(
+          "pair_root",
+          { kind: "pair", id: "pair_ab" },
+          { kind: "pair", id: "pair_cd" },
+          {
+            semiMajorAxisAu: draftState.quadOuterSemiMajorAxisAu,
+            eccentricity: draftState.quadOuterEccentricity,
+            inclinationDeg: draftState.quadOuterInclinationDeg,
+            argPeriapsisDeg: draftState.quadOuterArgPeriapsisDeg,
+            meanAnomalyDeg: draftState.quadOuterMeanAnomalyDeg,
+          },
+        );
+        rootNodeId = "pair_root";
+      } else {
+        pairsOrder.push("pair_abc");
+        pairsById.pair_abc = buildPairComponent(
+          "pair_abc",
+          { kind: "pair", id: "pair_ab" },
+          { kind: "star", id: "star_c" },
+          {
+            semiMajorAxisAu: draftState.tripleOuterSemiMajorAxisAu,
+            eccentricity: draftState.tripleOuterEccentricity,
+            inclinationDeg: draftState.tripleOuterInclinationDeg,
+            argPeriapsisDeg: draftState.tripleOuterArgPeriapsisDeg,
+            meanAnomalyDeg: draftState.tripleOuterMeanAnomalyDeg,
+          },
+        );
+        pairsOrder.push("pair_abcd");
+        pairsById.pair_abcd = buildPairComponent(
+          "pair_abcd",
+          { kind: "pair", id: "pair_abc" },
+          { kind: "star", id: "star_d" },
+          {
+            semiMajorAxisAu: draftState.quadOuterSemiMajorAxisAu,
+            eccentricity: draftState.quadOuterEccentricity,
+            inclinationDeg: draftState.quadOuterInclinationDeg,
+            argPeriapsisDeg: draftState.quadOuterArgPeriapsisDeg,
+            meanAnomalyDeg: draftState.quadOuterMeanAnomalyDeg,
+          },
+        );
+        rootNodeId = "pair_abcd";
+      }
+      topologyKind = "quad";
+    }
+
+    return {
+      topologyKind,
+      shared,
+      stars: {
+        order: starsOrder,
+        byId: starsById,
       },
+      pairs: {
+        order: pairsOrder,
+        byId: pairsById,
+      },
+      rootNodeId,
+      defaultHostFrameId: normalizeTopologyHostFrameId(
+        draftState.defaultHostFrameId,
+        topologyKind,
+        draftState.quadLayoutKind,
+      ),
+    };
+  }
+
+  function buildStellarSystemFromState() {
+    return buildStellarSystemFromDraft(state);
+  }
+
+  function buildDraftStateFromGuidedPreview(objectInputs = {}, systemInputs = null) {
+    const targetStarId = getFocusedStarEditorId();
+    const draftState = {
+      ...state,
+      ageGyr: Number(objectInputs?.ageGyr ?? state.ageGyr),
+      metallicityFeH: Number(objectInputs?.metallicityFeH ?? state.metallicityFeH) || 0,
+      evolutionMode: objectInputs?.evolutionMode === "evolved" ? "evolved" : "zams",
+      activityModelVersion: "v2",
+    };
+    assignStarDraftState(
+      targetStarId,
+      {
+        name: String(
+          objectInputs?.name || getStarDraftState(targetStarId, state).name || defaults.name,
+        ),
+        massMsol: Number(objectInputs?.massMsol ?? getStarDraftState(targetStarId, state).massMsol),
+        physicsMode: "simple",
+        advancedDerivationMode: "rl",
+        radiusRsolOverride: null,
+        luminosityLsolOverride: null,
+        tempKOverride: null,
+      },
+      draftState,
+    );
+
+    if (!systemInputs || typeof systemInputs !== "object") return draftState;
+
+    draftState.topologyKind = ["binary", "triple", "quad"].includes(systemInputs.topologyKind)
+      ? systemInputs.topologyKind
+      : "single";
+    if (draftState.topologyKind === "quad") {
+      draftState.quadLayoutKind = normalizeQuadLayoutKind(
+        systemInputs.quadLayoutKind,
+        draftState.quadLayoutKind,
+      );
+    }
+    if (typeof systemInputs.companionName === "string") {
+      draftState.companionName = sanitiseCompanionName(systemInputs.companionName);
+    }
+    if (systemInputs.companionMassMsol != null) {
+      draftState.companionMassMsol = clamp(Number(systemInputs.companionMassMsol), 0.075, 100);
+    }
+    if (systemInputs.binarySemiMajorAxisAu != null) {
+      draftState.binarySemiMajorAxisAu = Math.max(
+        Number(systemInputs.binarySemiMajorAxisAu),
+        0.001,
+      );
+    }
+    if (systemInputs.binaryEccentricity != null) {
+      draftState.binaryEccentricity = clamp(Number(systemInputs.binaryEccentricity), 0, 0.95);
+    }
+    if (systemInputs.binaryInclinationDeg != null) {
+      draftState.binaryInclinationDeg = clamp(Number(systemInputs.binaryInclinationDeg), 0, 180);
+    }
+    if (typeof systemInputs.tertiaryName === "string") {
+      draftState.tertiaryName = sanitiseTertiaryName(systemInputs.tertiaryName);
+    }
+    if (systemInputs.tertiaryMassMsol != null) {
+      draftState.tertiaryMassMsol = clamp(Number(systemInputs.tertiaryMassMsol), 0.075, 100);
+    }
+    if (systemInputs.tripleOuterSemiMajorAxisAu != null) {
+      draftState.tripleOuterSemiMajorAxisAu = Math.max(
+        Number(systemInputs.tripleOuterSemiMajorAxisAu),
+        0.001,
+      );
+    }
+    if (systemInputs.tripleOuterEccentricity != null) {
+      draftState.tripleOuterEccentricity = clamp(
+        Number(systemInputs.tripleOuterEccentricity),
+        0,
+        0.95,
+      );
+    }
+    if (systemInputs.tripleOuterInclinationDeg != null) {
+      draftState.tripleOuterInclinationDeg = clamp(
+        Number(systemInputs.tripleOuterInclinationDeg),
+        0,
+        180,
+      );
+    }
+    if (typeof systemInputs.quaternaryName === "string") {
+      draftState.quaternaryName = sanitiseQuaternaryName(systemInputs.quaternaryName);
+    }
+    if (systemInputs.quaternaryMassMsol != null) {
+      draftState.quaternaryMassMsol = clamp(Number(systemInputs.quaternaryMassMsol), 0.075, 100);
+    }
+    if (systemInputs.quadOuterSemiMajorAxisAu != null) {
+      draftState.quadOuterSemiMajorAxisAu = Math.max(
+        Number(systemInputs.quadOuterSemiMajorAxisAu),
+        0.001,
+      );
+    }
+    if (systemInputs.quadOuterEccentricity != null) {
+      draftState.quadOuterEccentricity = clamp(Number(systemInputs.quadOuterEccentricity), 0, 0.95);
+    }
+    if (systemInputs.quadOuterInclinationDeg != null) {
+      draftState.quadOuterInclinationDeg = clamp(
+        Number(systemInputs.quadOuterInclinationDeg),
+        0,
+        180,
+      );
+    }
+    draftState.defaultHostFrameId = normalizeTopologyHostFrameId(
+      systemInputs.defaultHostFrameId || draftState.defaultHostFrameId,
+      draftState.topologyKind,
+      draftState.quadLayoutKind,
+    );
+
+    return draftState;
+  }
+
+  function buildPreviewWorldFromDraft(draftState = state) {
+    const baseWorld = loadWorld();
+    const basePrimaryStar = getProjectedPrimaryStar(baseWorld);
+    const primaryStarDraft = getStarDraftState("star_a", draftState);
+    return {
+      ...baseWorld,
+      star: {
+        ...(basePrimaryStar || {}),
+        name: primaryStarDraft.name,
+        massMsol: primaryStarDraft.massMsol,
+        ageGyr: draftState.ageGyr,
+        metallicityFeH: draftState.metallicityFeH,
+        physicsMode: primaryStarDraft.physicsMode,
+        advancedDerivationMode: primaryStarDraft.advancedDerivationMode,
+        radiusRsolOverride: primaryStarDraft.radiusRsolOverride,
+        luminosityLsolOverride: primaryStarDraft.luminosityLsolOverride,
+        tempKOverride: primaryStarDraft.tempKOverride,
+        evolutionMode: draftState.evolutionMode,
+        activityModelVersion: draftState.activityModelVersion,
+      },
+      stellarSystem: buildStellarSystemFromDraft(draftState),
+    };
+  }
+
+  function buildTopologyHealthAssessment(draftState = state) {
+    const guardrails = buildTopologyGuardrailSummary({
+      topologyKind: draftState.topologyKind,
+      quadLayoutKind: draftState.quadLayoutKind,
+      primaryMassMsol: draftState.massMsol,
+      companionMassMsol: draftState.companionMassMsol,
+      binarySemiMajorAxisAu: draftState.binarySemiMajorAxisAu,
+      binaryEccentricity: draftState.binaryEccentricity,
+      binaryInclinationDeg: draftState.binaryInclinationDeg,
+      tertiaryMassMsol: draftState.tertiaryMassMsol,
+      tripleOuterSemiMajorAxisAu: draftState.tripleOuterSemiMajorAxisAu,
+      tripleOuterEccentricity: draftState.tripleOuterEccentricity,
+      tripleOuterInclinationDeg: draftState.tripleOuterInclinationDeg,
+      quaternaryMassMsol: draftState.quaternaryMassMsol,
+      quadOuterSemiMajorAxisAu: draftState.quadOuterSemiMajorAxisAu,
+      quadOuterEccentricity: draftState.quadOuterEccentricity,
+      quadOuterInclinationDeg: draftState.quadOuterInclinationDeg,
+      quadSecondarySemiMajorAxisAu: draftState.tripleOuterSemiMajorAxisAu,
+      quadSecondaryEccentricity: draftState.tripleOuterEccentricity,
+      quadSecondaryInclinationDeg: draftState.tripleOuterInclinationDeg,
+    });
+
+    let hostFrameLabel = "Star A";
+    let fluxSummary =
+      draftState.topologyKind === "single"
+        ? "Single-star layout: no companion-driven flux variability."
+        : "Flux context unavailable until the hierarchy preview resolves.";
+
+    try {
+      const previewWorld = buildPreviewWorldFromDraft(draftState);
+      const homeSystemContext = buildHomeSystemContext(previewWorld);
+      const solveContext = resolveHostFrameContext(
+        homeSystemContext,
+        normalizeTopologyHostFrameId(
+          draftState.defaultHostFrameId,
+          draftState.topologyKind,
+          draftState.quadLayoutKind,
+        ),
+      );
+      hostFrameLabel =
+        solveContext?.hostFrame?.label ||
+        listStellarSystemHostFrames(buildStellarSystemFromDraft(draftState))[0]?.label ||
+        "Star A";
+      const fluxVariabilityFraction = Number(solveContext?.fluxVariabilityFraction || 0);
+      const companionFluxEarth = Number(solveContext?.companionFluxEarth || 0);
+      if (draftState.topologyKind === "single") {
+        fluxSummary = "Single-star layout: no companion-driven flux variability.";
+      } else if (guardrails.blocked) {
+        fluxSummary = "Hierarchy preview paused until the inverted outer layer is widened.";
+      } else if (fluxVariabilityFraction >= 0.1) {
+        fluxSummary = `Strong flux variability (~${(fluxVariabilityFraction * 100).toFixed(1)}%) in the ${hostFrameLabel} frame.`;
+      } else if (fluxVariabilityFraction >= 0.02) {
+        fluxSummary = `Moderate flux variability (~${(fluxVariabilityFraction * 100).toFixed(1)}%) in the ${hostFrameLabel} frame.`;
+      } else if (companionFluxEarth > 0.0005) {
+        fluxSummary = `Outer-star heating stays mild in the ${hostFrameLabel} frame (~${companionFluxEarth.toFixed(3)}x Earth flux).`;
+      } else {
+        fluxSummary = `Outer-star heating is negligible in the ${hostFrameLabel} frame.`;
+      }
+    } catch {
+      if (guardrails.blocked) {
+        fluxSummary = "Hierarchy preview paused until the inverted outer layer is widened.";
+      }
+    }
+
+    return {
+      ...guardrails,
+      hostFrameLabel,
+      fluxSummary,
+    };
+  }
+
+  function persistState() {
+    const topologyHealth = buildTopologyHealthAssessment();
+    if (topologyHealth.blocked) return false;
+    saveStellarSystem(buildStellarSystemFromState());
+    return true;
+  }
+
+  function solveAdditionalStarInputs(starId = "star_b", draftState = state) {
+    return solveStarSummaryModel(starId, draftState);
+  }
+
+  function setSelectedEditorTarget(targetId) {
+    const targetKind = getEditorTargetKind(targetId);
+    if (targetKind === "pair") {
+      editorUiState.rememberedPairEditorId = normalizeSelectedPairEditorId(targetId, state);
+      editorUiState.selectedEditorMode = normalizeInspectorMode("pair", state);
+      editorUiState.selectedEditorTargetId = normalizeSelectedEditorTargetId(
+        editorUiState.rememberedPairEditorId,
+        state,
+        {
+          preferredMode: "pair",
+          rememberedStarEditorId: editorUiState.rememberedStarEditorId,
+          rememberedPairEditorId: editorUiState.rememberedPairEditorId,
+        },
+      );
+      return;
+    }
+    editorUiState.rememberedStarEditorId = normalizeSelectedStarEditorId(targetId, state);
+    editorUiState.selectedEditorMode = "star";
+    editorUiState.selectedEditorTargetId = normalizeSelectedEditorTargetId(
+      editorUiState.rememberedStarEditorId,
+      state,
+      {
+        preferredMode: "star",
+        rememberedStarEditorId: editorUiState.rememberedStarEditorId,
+        rememberedPairEditorId: editorUiState.rememberedPairEditorId,
+      },
+    );
+  }
+
+  function setEditorMode(nextMode) {
+    editorUiState.selectedEditorMode = normalizeInspectorMode(nextMode, state);
+    editorUiState.selectedEditorTargetId = normalizeSelectedEditorTargetId(
+      editorUiState.selectedEditorTargetId,
+      state,
+      {
+        preferredMode: editorUiState.selectedEditorMode,
+        rememberedStarEditorId: editorUiState.rememberedStarEditorId,
+        rememberedPairEditorId: editorUiState.rememberedPairEditorId,
+      },
+    );
+  }
+
+  function syncEditorSelectionState() {
+    const nextSignature = buildEditorTopologySignature(state);
+    const topologyChanged = editorUiState.topologySignature !== nextSignature;
+    editorUiState.rememberedStarEditorId = normalizeSelectedStarEditorId(
+      editorUiState.rememberedStarEditorId,
+      state,
+      { preferSuggested: topologyChanged },
+    );
+    editorUiState.rememberedPairEditorId = normalizeSelectedPairEditorId(
+      editorUiState.rememberedPairEditorId,
+      state,
+      { preferSuggested: topologyChanged },
+    );
+    editorUiState.selectedEditorMode = normalizeInspectorMode(
+      editorUiState.selectedEditorMode,
+      state,
+    );
+    editorUiState.selectedEditorTargetId = normalizeSelectedEditorTargetId(
+      editorUiState.selectedEditorTargetId,
+      state,
+      {
+        preferredMode: editorUiState.selectedEditorMode,
+        rememberedStarEditorId: editorUiState.rememberedStarEditorId,
+        rememberedPairEditorId: editorUiState.rememberedPairEditorId,
+        preferSuggested: topologyChanged,
+      },
+    );
+    if (getEditorTargetKind(editorUiState.selectedEditorTargetId) === "pair") {
+      editorUiState.selectedEditorMode = normalizeInspectorMode("pair", state);
+      editorUiState.rememberedPairEditorId = normalizeSelectedPairEditorId(
+        editorUiState.selectedEditorTargetId,
+        state,
+      );
+    } else {
+      editorUiState.selectedEditorMode = "star";
+      editorUiState.rememberedStarEditorId = normalizeSelectedStarEditorId(
+        editorUiState.selectedEditorTargetId,
+        state,
+      );
+    }
+    editorUiState.topologySignature = nextSignature;
+  }
+
+  function createEditorTargetPill(targetDescriptor, selected) {
+    const buttonEl = createElement("button", {
+      attrs: {
+        type: "button",
+        "data-editor-target-id": targetDescriptor.id,
+        "data-editor-target-kind": targetDescriptor.kind,
+        "aria-pressed": selected ? "true" : "false",
+      },
+      className: `star-editor-inspector__pill${selected ? " is-selected" : ""}`,
+    });
+    appendChildren(buttonEl, [
+      createElement("span", {
+        className: "star-editor-inspector__pill-label",
+        text: targetDescriptor.pillLabel,
+      }),
+      createElement("span", {
+        className: "star-editor-inspector__pill-summary",
+        text: targetDescriptor.pillSummary,
+      }),
+      targetDescriptor.statusLabel
+        ? createElement("span", {
+            className: "star-editor-inspector__pill-status",
+            attrs: { "data-status": targetDescriptor.status || "good" },
+            text: targetDescriptor.statusLabel,
+          })
+        : null,
+    ]);
+    return buttonEl;
+  }
+
+  function buildSelectedStarEditorHint(starId = "star_a", draftState = state) {
+    if (starId === "star_a") {
+      return "These inputs apply only to the selected primary star. Shared system context lives above.";
+    }
+    return `These inputs apply only to ${buildStarEditorLabel(starId, draftState)}. Shared age, metallicity, and stellar evolution live above and apply across the home stellar system.`;
+  }
+
+  function syncFocusedStarEditorInputs({ syncVisibleInputs = true } = {}) {
+    const focusedStarId = getFocusedStarEditorId();
+    const starDraft = getStarDraftState(focusedStarId, state);
+    if (starEditorTitleEl) {
+      starEditorTitleEl.textContent = buildStarEditorLabel(focusedStarId, state);
+    }
+    if (starEditorHintEl) {
+      starEditorHintEl.textContent = buildSelectedStarEditorHint(focusedStarId, state);
+    }
+    if (syncVisibleInputs) {
+      nameEl.value = starDraft.name;
+      massEl.value = starDraft.massMsol;
+      ageEl.value = state.ageGyr;
+      metallicityEl.value = state.metallicityFeH;
+      radiusOverrideEl.value = starDraft.radiusRsolOverride ?? "";
+      luminosityOverrideEl.value = starDraft.luminosityLsolOverride ?? "";
+      tempOverrideEl.value = starDraft.tempKOverride ?? "";
+      const physicsModeEl = wrap.querySelector(
+        `#${starDraft.physicsMode === "advanced" ? "physicsAdvanced" : "physicsSimple"}`,
+      );
+      if (physicsModeEl) physicsModeEl.checked = true;
+      const evolutionEl = wrap.querySelector(
+        `#${state.evolutionMode === "evolved" ? "evolutionOn" : "evolutionOff"}`,
+      );
+      if (evolutionEl) evolutionEl.checked = true;
+      setDerivMode(starDraft.advancedDerivationMode);
+    }
+    companionNameEl.value = state.companionName;
+    companionMassEl.value = state.companionMassMsol;
+    tertiaryNameEl.value = state.tertiaryName;
+    tertiaryMassEl.value = state.tertiaryMassMsol;
+    quaternaryNameEl.value = state.quaternaryName;
+    quaternaryMassEl.value = state.quaternaryMassMsol;
+    if (syncVisibleInputs) syncBoundInputs();
+  }
+
+  function buildOutputStarPreviewDescriptors(draftState = state) {
+    return listAvailableStarEditorIds(draftState).map((starId) => {
+      const starDraft = getStarDraftState(starId, draftState);
+      const model = solveStarSummaryModel(starId, draftState);
+      const meta = buildTopologyMapStarMeta(starId, draftState);
+      return {
+        id: starId,
+        starDraft,
+        model,
+        meta,
+      };
     });
   }
 
+  function buildOutputStarStripCopy(focusedStarId, draftState = state) {
+    const focusedLabel = buildStarEditorLabel(focusedStarId, draftState);
+    const starCount = listAvailableStarEditorIds(draftState).length;
+    const selectedTargetId = normalizeSelectedEditorTargetId(
+      editorUiState.selectedEditorTargetId,
+      draftState,
+      {
+        preferredMode: editorUiState.selectedEditorMode,
+        rememberedStarEditorId: editorUiState.rememberedStarEditorId,
+        rememberedPairEditorId: editorUiState.rememberedPairEditorId,
+      },
+    );
+    if (getEditorTargetKind(selectedTargetId) === "pair") {
+      return `Showing outputs for ${focusedLabel} while ${buildPairEditorLabel(selectedTargetId, draftState)} is selected in the inspector. Click a star card to switch the main preview and focus that star.`;
+    }
+    if (starCount <= 1) {
+      return `Showing outputs for ${focusedLabel}. This system currently has one star.`;
+    }
+    return `Showing outputs for ${focusedLabel}. Click another star to switch the main preview and derived outputs.`;
+  }
+
+  function createOutputStarPreviewCard(descriptor, isActive, draftState = state) {
+    const buttonEl = createElement("button", {
+      className: `star-output-strip__card${isActive ? " is-active" : ""}`,
+      attrs: {
+        type: "button",
+        "aria-pressed": isActive ? "true" : "false",
+        "aria-label": `Show outputs for ${descriptor.meta.accessibleLabel}`,
+      },
+      dataset: {
+        outputStarId: descriptor.id,
+      },
+    });
+    const swatchEl = createElement("div", {
+      className: "star-output-strip__swatch",
+      attrs: {
+        "aria-hidden": "true",
+      },
+    });
+    swatchEl.style.setProperty("--star-preview-hex", descriptor.model?.starColourHex || "#fff4dc");
+    appendChildren(buttonEl, [
+      createElement("div", { className: "star-output-strip__card-top" }, [
+        createElement("div", {
+          className: "star-output-strip__card-label",
+          text: `Star ${descriptor.meta.title}`,
+        }),
+        isActive
+          ? createElement("span", {
+              className: "star-output-strip__card-badge",
+              text: "Showing",
+            })
+          : null,
+      ]),
+      swatchEl,
+      createElement("div", {
+        className: "star-output-strip__card-name",
+        text: descriptor.starDraft.name,
+      }),
+      createElement("div", {
+        className: "star-output-strip__card-meta",
+        text:
+          `${descriptor.model?.spectralClass || "n/a"} · ` +
+          `${fmt(descriptor.starDraft.massMsol, 4)} Msol`,
+      }),
+    ]);
+    buttonEl.addEventListener("click", () => {
+      if (
+        editorUiState.selectedEditorMode === "star" &&
+        editorUiState.selectedEditorTargetId === descriptor.id
+      ) {
+        return;
+      }
+      setSelectedEditorTarget(descriptor.id);
+      render();
+    });
+    return buttonEl;
+  }
+
+  function renderOutputStarStrip(summarySectionEl, focusedStarId, draftState = state) {
+    if (!summarySectionEl) return;
+    summarySectionEl.querySelector("#starOutputStrip")?.remove();
+    const descriptors = buildOutputStarPreviewDescriptors(draftState);
+    if (!descriptors.length) return;
+    const stripEl = createElement("div", {
+      className: "star-output-strip",
+      attrs: { id: "starOutputStrip" },
+    });
+    appendChildren(stripEl, [
+      createElement("div", { className: "star-output-strip__header" }, [
+        createElement("div", { className: "star-output-strip__title", text: "System Stars" }),
+        createElement("div", {
+          attrs: {
+            id: "starOutputStripCopy",
+            role: "status",
+            "aria-live": "polite",
+            "aria-atomic": "true",
+          },
+          className: "star-output-strip__copy",
+          text: buildOutputStarStripCopy(focusedStarId, draftState),
+        }),
+      ]),
+      createElement(
+        "div",
+        { className: "star-output-strip__grid" },
+        descriptors.map((descriptor) =>
+          createOutputStarPreviewCard(descriptor, descriptor.id === focusedStarId, draftState),
+        ),
+      ),
+    ]);
+    summarySectionEl.appendChild(stripEl);
+  }
+
+  function renderArchitectureCards() {
+    const topologyCards = buildTopologyCardDescriptors(state);
+    topologyCardGridEl.replaceChildren(
+      ...topologyCards.map((card) =>
+        createArchitectureCard(card, state.topologyKind === card.value, "topology"),
+      ),
+    );
+    const selectedTopologyCard =
+      topologyCards.find((card) => card.value === state.topologyKind) || topologyCards[0] || null;
+    if (topologyHintEl) topologyHintEl.textContent = selectedTopologyCard?.detail || "";
+
+    const quadLayoutCards = buildQuadLayoutCardDescriptors();
+    quadLayoutCardGridEl.replaceChildren(
+      ...quadLayoutCards.map((card) =>
+        createArchitectureCard(card, state.quadLayoutKind === card.value, "quad-layout"),
+      ),
+    );
+    const selectedQuadLayoutCard =
+      quadLayoutCards.find((card) => card.value === state.quadLayoutKind) ||
+      quadLayoutCards[0] ||
+      null;
+    if (quadLayoutHintEl) {
+      quadLayoutHintEl.textContent =
+        selectedQuadLayoutCard?.hint || selectedQuadLayoutCard?.detail || "";
+    }
+  }
+
+  function renderTopologyMap(topologyMapModel) {
+    topologyMapCanvasEl.dataset.layout = topologyMapModel.layoutKey;
+    topologyMapCanvasEl.style.minHeight = `${topologyMapModel.minHeightPx}px`;
+
+    topologyMapSvgEl.replaceChildren(
+      ...topologyMapModel.edges
+        .filter((edge) => edge.fromNode && edge.toNode)
+        .map((edge) =>
+          createSvgElement("line", {
+            class: "star-topology-map__line",
+            x1: edge.fromNode.x,
+            y1: edge.fromNode.y,
+            x2: edge.toNode.x,
+            y2: edge.toNode.y,
+            "data-status": edge.status || "",
+          }),
+        ),
+    );
+
+    topologyMapNodesEl.replaceChildren(
+      ...topologyMapModel.nodes.map((node) => {
+        const buttonEl = createElement(
+          "button",
+          {
+            attrs: {
+              id: `topologyMapNode-${node.id}`,
+              type: "button",
+              "data-topology-node-id": node.id,
+              "data-node-kind": node.kind,
+              "data-selected": node.selected ? "true" : "false",
+              "data-default-host": node.defaultHost ? "true" : "false",
+              "data-status": node.status || "",
+              "aria-pressed": node.selected ? "true" : "false",
+              "aria-label": node.ariaLabel,
+              title: node.ariaLabel,
+            },
+            className: `star-topology-node star-topology-node--${node.kind}`,
+          },
+          [
+            createElement("span", { className: "star-topology-node__title", text: node.title }),
+            node.subtitle
+              ? createElement("span", {
+                  className: "star-topology-node__subtitle",
+                  text: node.subtitle,
+                })
+              : null,
+            node.statusLabel
+              ? createElement("span", {
+                  className: "star-topology-node__status",
+                  attrs: { "data-status": node.status || "good" },
+                  text: node.statusLabel,
+                })
+              : null,
+            buildTopologyNodeBadgeRow({
+              selected: node.selected,
+              defaultHost: node.defaultHost,
+            }),
+          ],
+        );
+        buttonEl.style.left = `${node.x}%`;
+        buttonEl.style.top = `${node.y}%`;
+        return buttonEl;
+      }),
+    );
+
+    topologyMapHealthChipsEl.replaceChildren(
+      ...topologyMapModel.chips.map((chip) =>
+        createElement(
+          "div",
+          {
+            className: "star-topology-map__chip",
+            attrs: {
+              "data-status": chip.status || "good",
+              title: chip.title || `${chip.label}: ${chip.value}`,
+            },
+          },
+          [
+            createElement("span", {
+              className: "star-topology-map__chip-label",
+              text: chip.label,
+            }),
+            createElement("span", {
+              className: "star-topology-map__chip-value",
+              text: chip.value,
+            }),
+          ],
+        ),
+      ),
+    );
+
+    topologyMapLegendEl.replaceChildren(
+      ...TOPOLOGY_MAP_LEGEND_ROWS.map((row) => createTopologyLegendRow(row)),
+    );
+
+    topologyMapSummaryEl.textContent = topologyMapModel.summaryText;
+
+    if (editorUiState.pendingTopologyMapFocusId) {
+      const focusTarget = topologyMapNodesEl.querySelector(
+        `#topologyMapNode-${editorUiState.pendingTopologyMapFocusId}`,
+      );
+      editorUiState.pendingTopologyMapFocusId = null;
+      focusTarget?.focus?.({ preventScroll: true });
+    }
+  }
+
+  function updateTopologyUI({ syncVisibleStarInputs = true } = {}) {
+    const isMulti = state.topologyKind !== "single";
+    const isTripleLike = state.topologyKind === "triple" || state.topologyKind === "quad";
+    const isQuad = state.topologyKind === "quad";
+    const quadLayoutCopy = buildQuadLayoutCopy(state.quadLayoutKind);
+    const topologyHealth = buildTopologyHealthAssessment();
+    syncEditorSelectionState();
+    renderArchitectureCards();
+    quadLayoutCardsSectionEl.style.display = isQuad ? "" : "none";
+    activeHostFrameRowEl.style.display = isMulti ? "" : "none";
+    topologyHealthPanelEl.style.display = isMulti ? "" : "none";
+    if (tertiaryPairTitleEl) {
+      tertiaryPairTitleEl.innerHTML = `${quadLayoutCopy.tertiaryPairTitle} ${tipIcon(TIP_LABEL["Hierarchy Pair"] || "")}`;
+    }
+    if (tertiaryPairAxisHintEl)
+      tertiaryPairAxisHintEl.textContent = quadLayoutCopy.tertiaryPairAxisHint;
+    if (tertiaryPairEccentricityHintEl) {
+      tertiaryPairEccentricityHintEl.textContent = quadLayoutCopy.tertiaryPairEccentricityHint;
+    }
+    if (quaternaryPairTitleEl) {
+      quaternaryPairTitleEl.innerHTML = `${quadLayoutCopy.quaternaryPairTitle} ${tipIcon(TIP_LABEL["Hierarchy Pair"] || "")}`;
+    }
+    if (quaternaryPairAxisHintEl) {
+      quaternaryPairAxisHintEl.textContent = quadLayoutCopy.quaternaryPairAxisHint;
+    }
+    if (quaternaryPairEccentricityHintEl) {
+      quaternaryPairEccentricityHintEl.textContent = quadLayoutCopy.quaternaryPairEccentricityHint;
+    }
+
+    const availableStarEditorIds = listAvailableStarEditorIds(state);
+    const availablePairEditorIds = listAvailablePairEditorIds(state);
+    const editorTargetDescriptors = buildEditorTargetDescriptors(state, topologyHealth);
+    const hasPairTargets = editorTargetDescriptors.pairTargets.length > 0;
+    const visibleTargetDescriptors =
+      editorUiState.selectedEditorMode === "pair"
+        ? editorTargetDescriptors.pairTargets
+        : editorTargetDescriptors.starTargets;
+    const selectedTargetDescriptor =
+      editorTargetDescriptors.byId.get(editorUiState.selectedEditorTargetId) ||
+      visibleTargetDescriptors[0] ||
+      editorTargetDescriptors.starTargets[0] ||
+      null;
+
+    starEditorTargetEl.replaceChildren(
+      ...availableStarEditorIds.map((starId) =>
+        createElement("option", {
+          attrs: { value: starId },
+          text: buildStarEditorLabel(starId, state),
+        }),
+      ),
+    );
+    starEditorTargetRowEl.style.display = "none";
+    starEditorTargetEl.value = editorUiState.rememberedStarEditorId;
+    pairEditorTargetEl.replaceChildren(
+      ...availablePairEditorIds.map((pairId) =>
+        createElement("option", {
+          attrs: { value: pairId },
+          text: buildPairEditorLabel(pairId, state),
+        }),
+      ),
+    );
+    pairEditorTargetRowEl.style.display = "none";
+    if (availablePairEditorIds.length) {
+      pairEditorTargetEl.value = editorUiState.rememberedPairEditorId;
+    }
+    editorInspectorModeEl.style.display = hasPairTargets ? "" : "none";
+    editorModeStarBtn.setAttribute(
+      "aria-pressed",
+      editorUiState.selectedEditorMode === "star" ? "true" : "false",
+    );
+    editorModePairBtn.setAttribute(
+      "aria-pressed",
+      editorUiState.selectedEditorMode === "pair" ? "true" : "false",
+    );
+    editorModePairBtn.disabled = !hasPairTargets;
+    editorTargetPillsEl.replaceChildren(
+      ...visibleTargetDescriptors.map((targetDescriptor) =>
+        createEditorTargetPill(
+          targetDescriptor,
+          targetDescriptor.id === editorUiState.selectedEditorTargetId,
+        ),
+      ),
+    );
+    editorTargetSummaryEl.style.display = selectedTargetDescriptor ? "" : "none";
+    if (selectedTargetDescriptor) {
+      editorTargetSummaryEyebrowEl.textContent =
+        selectedTargetDescriptor.kind === "pair" ? "Pair target" : "Star target";
+      editorTargetSummaryTitleEl.textContent = selectedTargetDescriptor.summaryTitle;
+      editorTargetSummaryMetaEl.textContent = selectedTargetDescriptor.summaryMeta;
+      editorTargetSummaryHintEl.textContent = selectedTargetDescriptor.summaryHint;
+    } else {
+      editorTargetSummaryEyebrowEl.textContent = "Editing target";
+      editorTargetSummaryTitleEl.textContent = "";
+      editorTargetSummaryMetaEl.textContent = "";
+      editorTargetSummaryHintEl.textContent = "";
+    }
+
+    const selectedEditorTargetId =
+      selectedTargetDescriptor?.id || editorUiState.selectedEditorTargetId;
+    const selectedTargetKind = getEditorTargetKind(selectedEditorTargetId);
+    primaryStarAuthoringSectionEl.style.display = selectedTargetKind === "star" ? "" : "none";
+    binaryAuthoringSectionEl.style.display = "none";
+    tertiaryAuthoringSectionEl.style.display = "none";
+    quaternaryAuthoringSectionEl.style.display = "none";
+    if (selectedTargetKind === "star") {
+      syncFocusedStarEditorInputs({ syncVisibleInputs: syncVisibleStarInputs });
+    }
+    pairAbAuthoringSectionEl.style.display =
+      availablePairEditorIds.includes("pair_ab") && selectedEditorTargetId === "pair_ab"
+        ? ""
+        : "none";
+    triplePairAuthoringSectionEl.style.display =
+      availablePairEditorIds.includes("pair_abc") || availablePairEditorIds.includes("pair_cd")
+        ? selectedEditorTargetId ===
+          (isQuad && state.quadLayoutKind === "paired" ? "pair_cd" : "pair_abc")
+          ? ""
+          : "none"
+        : "none";
+    quadPairAuthoringSectionEl.style.display =
+      availablePairEditorIds.includes("pair_abcd") || availablePairEditorIds.includes("pair_root")
+        ? selectedEditorTargetId ===
+          (isQuad && state.quadLayoutKind === "paired" ? "pair_root" : "pair_abcd")
+          ? ""
+          : "none"
+        : "none";
+
+    const hostFrameOptions = listStellarSystemHostFrames(buildStellarSystemFromState());
+    const starHostFrames = hostFrameOptions.filter((frame) => frame.frameKind === "star");
+    const pairHostFrames = hostFrameOptions.filter((frame) => frame.frameKind === "pair");
+    activeHostFrameEl.replaceChildren(
+      ...(starHostFrames.length
+        ? [
+            createElement(
+              "optgroup",
+              { attrs: { label: "Around a Star (S-type)" } },
+              starHostFrames.map((frame) =>
+                createElement("option", {
+                  attrs: { value: frame.id },
+                  text: buildHostFrameOptionText(frame),
+                }),
+              ),
+            ),
+          ]
+        : []),
+      ...(pairHostFrames.length
+        ? [
+            createElement(
+              "optgroup",
+              { attrs: { label: "Around a Pair / Barycentre (P-type)" } },
+              pairHostFrames.map((frame) =>
+                createElement("option", {
+                  attrs: { value: frame.id },
+                  text: buildHostFrameOptionText(frame),
+                }),
+              ),
+            ),
+          ]
+        : []),
+    );
+    const normalizedHostFrameId = normalizeTopologyHostFrameId(
+      state.defaultHostFrameId,
+      state.topologyKind,
+      state.quadLayoutKind,
+    );
+    const topologyMapModel = buildTopologyMapModel({
+      draftState: state,
+      topologyHealth,
+      selectedEditorTargetId: editorUiState.selectedEditorTargetId,
+      defaultHostFrameId: normalizedHostFrameId,
+    });
+    renderTopologyMap(topologyMapModel);
+    activeHostFrameEl.value = normalizedHostFrameId;
+    const selectedHostFrame =
+      hostFrameOptions.find((frame) => frame.id === normalizedHostFrameId) ||
+      hostFrameOptions[0] ||
+      null;
+    activeHostFrameSummaryEl.style.display = isMulti ? "" : "none";
+    activeHostFrameSummaryEl.textContent = isMulti
+      ? buildDefaultOrbitHostSummary(selectedHostFrame)
+      : "";
+
+    if (!isMulti) {
+      companionSummaryHintEl.textContent = "";
+      tertiarySummaryHintEl.textContent = "";
+      quaternarySummaryHintEl.textContent = "";
+      activeHostFrameSummaryEl.style.display = "none";
+      activeHostFrameSummaryEl.textContent = "";
+      binaryPairGuardrailHintEl.textContent = "";
+      triplePairGuardrailHintEl.textContent = "";
+      quadPairGuardrailHintEl.textContent = "";
+      tripleOuterSemiMajorAxisEl.toggleAttribute("aria-invalid", false);
+      quadOuterSemiMajorAxisEl.toggleAttribute("aria-invalid", false);
+      tripleOuterSemiMajorAxisEl.setCustomValidity("");
+      quadOuterSemiMajorAxisEl.setCustomValidity("");
+      topologyHealthSummaryEl.textContent = "";
+      topologyHealthMetaEl.textContent = "";
+      topologyHealthLayersEl.replaceChildren();
+      return;
+    }
+
+    const companionModel = solveAdditionalStarInputs("star_b", state);
+    companionSummaryHintEl.textContent =
+      `${companionModel.spectralClass} | ` +
+      `${fmt(companionModel.luminosityLsol, 3)} Lsol | ` +
+      `HZ ${companionModel.display?.hzAu || "n/a"}`;
+    if (isTripleLike) {
+      const tertiaryModel = solveAdditionalStarInputs("star_c", state);
+      tertiarySummaryHintEl.textContent =
+        `${tertiaryModel.spectralClass} | ` +
+        `${fmt(tertiaryModel.luminosityLsol, 3)} Lsol | ` +
+        `HZ ${tertiaryModel.display?.hzAu || "n/a"}`;
+    } else {
+      tertiarySummaryHintEl.textContent = "";
+    }
+    if (isQuad) {
+      const quaternaryModel = solveAdditionalStarInputs("star_d", state);
+      quaternarySummaryHintEl.textContent =
+        `${quaternaryModel.spectralClass} | ` +
+        `${fmt(quaternaryModel.luminosityLsol, 3)} Lsol | ` +
+        `HZ ${quaternaryModel.display?.hzAu || "n/a"}`;
+    } else {
+      quaternarySummaryHintEl.textContent = "";
+    }
+
+    binaryPairGuardrailHintEl.textContent =
+      state.topologyKind === "binary"
+        ? "Binary-only layout. This pair becomes the inner reference if you later add C or D."
+        : state.topologyKind === "quad" && state.quadLayoutKind === "paired"
+          ? "First inner binary. The shared root pair below is checked against both A+B and C+D."
+          : "Inner reference layer for the outer hierarchy checks below.";
+
+    const tripleLayer = topologyHealth.layers.find((layer) =>
+      state.topologyKind === "quad" && state.quadLayoutKind === "paired"
+        ? layer.id === "pair_root_cd"
+        : layer.id === "pair_abc",
+    );
+    triplePairGuardrailHintEl.textContent = tripleLayer
+      ? `${tripleLayer.statusLabel}: ${tripleLayer.summary} ${tripleLayer.detail}`.trim()
+      : "";
+    tripleOuterSemiMajorAxisEl.toggleAttribute("aria-invalid", tripleLayer?.hardBlocked === true);
+    tripleOuterSemiMajorAxisEl.setCustomValidity(
+      tripleLayer?.hardBlocked ? tripleLayer.summary : "",
+    );
+    if (!tripleLayer) {
+      tripleOuterSemiMajorAxisEl.toggleAttribute("aria-invalid", false);
+      tripleOuterSemiMajorAxisEl.setCustomValidity("");
+    }
+
+    const quadLayer = topologyHealth.layers.find((layer) =>
+      state.topologyKind === "quad" && state.quadLayoutKind === "paired"
+        ? layer.id === "pair_root_ab"
+        : layer.id === "pair_abcd",
+    );
+    quadPairGuardrailHintEl.textContent = quadLayer
+      ? `${quadLayer.statusLabel}: ${quadLayer.summary} ${quadLayer.detail}`.trim()
+      : "";
+    quadOuterSemiMajorAxisEl.toggleAttribute("aria-invalid", quadLayer?.hardBlocked === true);
+    quadOuterSemiMajorAxisEl.setCustomValidity(quadLayer?.hardBlocked ? quadLayer.summary : "");
+    if (!quadLayer) {
+      quadOuterSemiMajorAxisEl.toggleAttribute("aria-invalid", false);
+      quadOuterSemiMajorAxisEl.setCustomValidity("");
+    }
+
+    topologyHealthSummaryEl.textContent = `${topologyHealth.headline}. ${topologyHealth.summary}`;
+    topologyHealthMetaEl.textContent = `Topology ${state.topologyKind}${isQuad ? ` (${state.quadLayoutKind})` : ""}. Default orbit host ${topologyHealth.hostFrameLabel}. ${topologyHealth.fluxSummary}`;
+    topologyHealthLayersEl.replaceChildren(
+      ...topologyHealth.layers.map((layer) =>
+        createElement("div", {
+          className: "hint",
+          text: `${layer.label}: ${layer.statusLabel}. ${layer.summary} ${layer.detail}`.trim(),
+        }),
+      ),
+    );
+  }
+
   function solveStarGuidedInputs(starInputs = {}) {
+    const targetStarId = getFocusedStarEditorId();
+    const currentStar = getStarDraftState(targetStarId, state);
     const nextState = {
       ...state,
-      ...(starInputs || {}),
-      radiusRsolOverride: null,
-      luminosityLsolOverride: null,
-      tempKOverride: null,
-      physicsMode: "simple",
-      advancedDerivationMode: "rl",
     };
+    assignStarDraftState(
+      targetStarId,
+      {
+        name: String(starInputs?.name || currentStar.name),
+        massMsol: Number(starInputs?.massMsol ?? currentStar.massMsol),
+        physicsMode: "simple",
+        advancedDerivationMode: "rl",
+        radiusRsolOverride: null,
+        luminosityLsolOverride: null,
+        tempKOverride: null,
+      },
+      nextState,
+    );
+    nextState.ageGyr = Number(starInputs?.ageGyr ?? state.ageGyr);
+    nextState.metallicityFeH = Number(starInputs?.metallicityFeH ?? state.metallicityFeH) || 0;
+    nextState.evolutionMode = starInputs?.evolutionMode === "evolved" ? "evolved" : "zams";
+    const solvedStar = getStarDraftState(targetStarId, nextState);
     const model = calcStar({
-      massMsol: Number(nextState.massMsol),
+      massMsol: Number(solvedStar.massMsol),
       ageGyr: Number(nextState.ageGyr),
       metallicityFeH: Number(nextState.metallicityFeH) || 0,
       radiusRsolOverride: null,
@@ -513,7 +3580,7 @@ export function initStarPage(mountEl, options = {}) {
     });
     const activityModel = computeStellarActivityModel(
       {
-        massMsun: Number(nextState.massMsol),
+        massMsun: Number(solvedStar.massMsol),
         ageGyr: Number(nextState.ageGyr),
         teffK: model.tempK,
         luminosityLsun: model.luminosityLsol,
@@ -524,20 +3591,24 @@ export function initStarPage(mountEl, options = {}) {
   }
 
   function buildStarGuidedContext() {
-    const solvedContext = solveStarGuidedInputs(state);
+    const targetStarId = getFocusedStarEditorId();
+    const activeStar = getStarDraftState(targetStarId, state);
+    const solvedContext = solveStarGuidedInputs(activeStar);
     const activity = solvedContext.activityModel?.activity || {};
     return {
-      currentStarName: state.name || "Star",
+      currentStarName: activeStar.name || "Star",
+      currentTopologyKind: state.topologyKind,
+      currentDefaultHostFrameId: state.defaultHostFrameId,
       currentInputs: {
-        name: state.name,
-        massMsol: state.massMsol,
+        name: activeStar.name,
+        massMsol: activeStar.massMsol,
         ageGyr: state.ageGyr,
         metallicityFeH: state.metallicityFeH,
-        physicsMode: state.physicsMode,
-        advancedDerivationMode: state.advancedDerivationMode,
-        radiusRsolOverride: state.radiusRsolOverride,
-        luminosityLsolOverride: state.luminosityLsolOverride,
-        tempKOverride: state.tempKOverride,
+        physicsMode: activeStar.physicsMode,
+        advancedDerivationMode: activeStar.advancedDerivationMode,
+        radiusRsolOverride: activeStar.radiusRsolOverride,
+        luminosityLsolOverride: activeStar.luminosityLsolOverride,
+        tempKOverride: activeStar.tempKOverride,
         evolutionMode: state.evolutionMode,
         activityModelVersion: state.activityModelVersion,
       },
@@ -551,20 +3622,24 @@ export function initStarPage(mountEl, options = {}) {
   }
 
   function getStarGuidedSessionTarget() {
+    const targetStarId = getFocusedStarEditorId();
+    const activeStar = getStarDraftState(targetStarId, state);
     return {
-      objectKey: "primary-star",
+      objectKey: targetStarId,
       contextFingerprint: createGuidedContextFingerprint({
-        name: state.name,
-        massMsol: state.massMsol,
+        name: activeStar.name,
+        massMsol: activeStar.massMsol,
         ageGyr: state.ageGyr,
         metallicityFeH: state.metallicityFeH,
-        physicsMode: state.physicsMode,
-        advancedDerivationMode: state.advancedDerivationMode,
-        radiusRsolOverride: state.radiusRsolOverride,
-        luminosityLsolOverride: state.luminosityLsolOverride,
-        tempKOverride: state.tempKOverride,
+        physicsMode: activeStar.physicsMode,
+        advancedDerivationMode: activeStar.advancedDerivationMode,
+        radiusRsolOverride: activeStar.radiusRsolOverride,
+        luminosityLsolOverride: activeStar.luminosityLsolOverride,
+        tempKOverride: activeStar.tempKOverride,
         evolutionMode: state.evolutionMode,
         activityModelVersion: state.activityModelVersion,
+        topologyKind: state.topologyKind,
+        defaultHostFrameId: state.defaultHostFrameId,
       }),
     };
   }
@@ -597,65 +3672,224 @@ export function initStarPage(mountEl, options = {}) {
   function createStarGuidedPreviewContent(recommendation) {
     const model = recommendation?.previewPayload?.starCalc;
     const activity = recommendation?.previewPayload?.activityModel?.activity || null;
-    if (!model) return null;
+    const systemPreview = recommendation?.previewPayload?.systemPreview || null;
+    const previewDraftState = buildDraftStateFromGuidedPreview(
+      recommendation?.applyPayload?.objectInputs || {},
+      recommendation?.applyPayload?.systemInputs || null,
+    );
+    const hierarchyHealth =
+      previewDraftState.topologyKind !== "single"
+        ? buildTopologyHealthAssessment(previewDraftState)
+        : null;
+    if (!model && !systemPreview) return null;
     return createElement("div", { className: "guided-preview guided-preview--star" }, [
       createElement("div", {
         className: "guided-preview__title",
         text: "Solved preview in the current star-editor context",
       }),
       createElement("div", { className: "guided-preview__grid" }, [
-        createStarGuidedPreviewMetric("Class", model.spectralClass),
-        createStarGuidedPreviewMetric("Habitable Zone", model.display?.hzAu),
+        createStarGuidedPreviewMetric("Class", model?.spectralClass),
+        createStarGuidedPreviewMetric("Habitable Zone", model?.display?.hzAu),
         createStarGuidedPreviewMetric(
           "Activity",
           activity ? `${activity.teffBin}/${activity.ageBand}` : "n/a",
           activity ? `${fmt(activity.energeticFlareRatePerDay, 2)} flares/day` : "",
         ),
-        createStarGuidedPreviewMetric("Earth-like Life", model.earthLikeLifePossible),
+        createStarGuidedPreviewMetric("Earth-like Life", model?.earthLikeLifePossible),
+        createStarGuidedPreviewMetric("System", systemPreview?.label),
+        createStarGuidedPreviewMetric("Default Host", systemPreview?.defaultHostFrameLabel),
+        hierarchyHealth
+          ? createStarGuidedPreviewMetric(
+              "Hierarchy Health",
+              systemPreview?.hierarchyHealthLabel || hierarchyHealth.headline,
+              systemPreview?.hierarchyHealthSummary ||
+                `${hierarchyHealth.summary} ${hierarchyHealth.fluxSummary}`.trim(),
+            )
+          : null,
+        createStarGuidedPreviewMetric(
+          "Companion Context",
+          systemPreview?.companionSummary,
+          systemPreview?.impact || "",
+        ),
       ]),
     ]);
   }
 
-  function applyStarPresetInputs(nextInputs, { noticeLabel = "Star preset" } = {}) {
-    state.name = String(nextInputs?.name || state.name || defaults.name);
-    state.massMsol = Number(nextInputs?.massMsol ?? state.massMsol);
+  function applyStarSystemInputs(systemInputs = null) {
+    if (!systemInputs || typeof systemInputs !== "object") return null;
+
+    const nextTopologyKind = ["binary", "triple", "quad"].includes(systemInputs.topologyKind)
+      ? systemInputs.topologyKind
+      : "single";
+
+    state.topologyKind = nextTopologyKind;
+    if (nextTopologyKind === "quad") {
+      state.quadLayoutKind = normalizeQuadLayoutKind(
+        systemInputs.quadLayoutKind,
+        state.quadLayoutKind,
+      );
+    } else {
+      state.quadLayoutKind = normalizeQuadLayoutKind(state.quadLayoutKind);
+    }
+    if (typeof systemInputs.companionName === "string") {
+      state.companionName = sanitiseCompanionName(systemInputs.companionName);
+    }
+    if (systemInputs.companionMassMsol != null) {
+      state.companionMassMsol = clamp(Number(systemInputs.companionMassMsol), 0.075, 100);
+    }
+    if (systemInputs.binarySemiMajorAxisAu != null) {
+      state.binarySemiMajorAxisAu = Math.max(Number(systemInputs.binarySemiMajorAxisAu), 0.001);
+    }
+    if (systemInputs.binaryEccentricity != null) {
+      state.binaryEccentricity = clamp(Number(systemInputs.binaryEccentricity), 0, 0.95);
+    }
+    if (systemInputs.binaryInclinationDeg != null) {
+      state.binaryInclinationDeg = clamp(Number(systemInputs.binaryInclinationDeg), 0, 180);
+    }
+    if (systemInputs.binaryArgPeriapsisDeg != null) {
+      state.binaryArgPeriapsisDeg = clamp(Number(systemInputs.binaryArgPeriapsisDeg), 0, 360);
+    }
+    if (systemInputs.binaryMeanAnomalyDeg != null) {
+      state.binaryMeanAnomalyDeg = clamp(Number(systemInputs.binaryMeanAnomalyDeg), 0, 360);
+    }
+    if (typeof systemInputs.tertiaryName === "string") {
+      state.tertiaryName = sanitiseTertiaryName(systemInputs.tertiaryName);
+    }
+    if (systemInputs.tertiaryMassMsol != null) {
+      state.tertiaryMassMsol = clamp(Number(systemInputs.tertiaryMassMsol), 0.075, 100);
+    }
+    if (systemInputs.tripleOuterSemiMajorAxisAu != null) {
+      state.tripleOuterSemiMajorAxisAu = Math.max(
+        Number(systemInputs.tripleOuterSemiMajorAxisAu),
+        0.001,
+      );
+    }
+    if (systemInputs.tripleOuterEccentricity != null) {
+      state.tripleOuterEccentricity = clamp(Number(systemInputs.tripleOuterEccentricity), 0, 0.95);
+    }
+    if (systemInputs.tripleOuterInclinationDeg != null) {
+      state.tripleOuterInclinationDeg = clamp(
+        Number(systemInputs.tripleOuterInclinationDeg),
+        0,
+        180,
+      );
+    }
+    if (systemInputs.tripleOuterArgPeriapsisDeg != null) {
+      state.tripleOuterArgPeriapsisDeg = clamp(
+        Number(systemInputs.tripleOuterArgPeriapsisDeg),
+        0,
+        360,
+      );
+    }
+    if (systemInputs.tripleOuterMeanAnomalyDeg != null) {
+      state.tripleOuterMeanAnomalyDeg = clamp(
+        Number(systemInputs.tripleOuterMeanAnomalyDeg),
+        0,
+        360,
+      );
+    }
+    if (typeof systemInputs.quaternaryName === "string") {
+      state.quaternaryName = sanitiseQuaternaryName(systemInputs.quaternaryName);
+    }
+    if (systemInputs.quaternaryMassMsol != null) {
+      state.quaternaryMassMsol = clamp(Number(systemInputs.quaternaryMassMsol), 0.075, 100);
+    }
+    if (systemInputs.quadOuterSemiMajorAxisAu != null) {
+      state.quadOuterSemiMajorAxisAu = Math.max(
+        Number(systemInputs.quadOuterSemiMajorAxisAu),
+        0.001,
+      );
+    }
+    if (systemInputs.quadOuterEccentricity != null) {
+      state.quadOuterEccentricity = clamp(Number(systemInputs.quadOuterEccentricity), 0, 0.95);
+    }
+    if (systemInputs.quadOuterInclinationDeg != null) {
+      state.quadOuterInclinationDeg = clamp(Number(systemInputs.quadOuterInclinationDeg), 0, 180);
+    }
+    if (systemInputs.quadOuterArgPeriapsisDeg != null) {
+      state.quadOuterArgPeriapsisDeg = clamp(Number(systemInputs.quadOuterArgPeriapsisDeg), 0, 360);
+    }
+    if (systemInputs.quadOuterMeanAnomalyDeg != null) {
+      state.quadOuterMeanAnomalyDeg = clamp(Number(systemInputs.quadOuterMeanAnomalyDeg), 0, 360);
+    }
+
+    state.defaultHostFrameId = normalizeTopologyHostFrameId(
+      systemInputs.defaultHostFrameId,
+      nextTopologyKind,
+      state.quadLayoutKind,
+    );
+
+    topologyKindEl.value = state.topologyKind;
+    const nextQuadLayoutRadio = wrap.querySelector(
+      `#${state.quadLayoutKind === "paired" ? "quadLayoutPaired" : "quadLayoutChain"}`,
+    );
+    if (nextQuadLayoutRadio) nextQuadLayoutRadio.checked = true;
+    companionNameEl.value = state.companionName;
+    companionMassEl.value = state.companionMassMsol;
+    binarySemiMajorAxisEl.value = state.binarySemiMajorAxisAu;
+    binaryEccentricityEl.value = state.binaryEccentricity;
+    binaryInclinationEl.value = state.binaryInclinationDeg;
+    binaryArgPeriapsisEl.value = state.binaryArgPeriapsisDeg;
+    binaryMeanAnomalyEl.value = state.binaryMeanAnomalyDeg;
+    tertiaryNameEl.value = state.tertiaryName;
+    tertiaryMassEl.value = state.tertiaryMassMsol;
+    tripleOuterSemiMajorAxisEl.value = state.tripleOuterSemiMajorAxisAu;
+    tripleOuterEccentricityEl.value = state.tripleOuterEccentricity;
+    tripleOuterInclinationEl.value = state.tripleOuterInclinationDeg;
+    tripleOuterArgPeriapsisEl.value = state.tripleOuterArgPeriapsisDeg;
+    tripleOuterMeanAnomalyEl.value = state.tripleOuterMeanAnomalyDeg;
+    quaternaryNameEl.value = state.quaternaryName;
+    quaternaryMassEl.value = state.quaternaryMassMsol;
+    quadOuterSemiMajorAxisEl.value = state.quadOuterSemiMajorAxisAu;
+    quadOuterEccentricityEl.value = state.quadOuterEccentricity;
+    quadOuterInclinationEl.value = state.quadOuterInclinationDeg;
+    quadOuterArgPeriapsisEl.value = state.quadOuterArgPeriapsisDeg;
+    quadOuterMeanAnomalyEl.value = state.quadOuterMeanAnomalyDeg;
+    updateTopologyUI();
+    activeHostFrameEl.value = state.defaultHostFrameId;
+
+    return {
+      topologyKind: state.topologyKind,
+      defaultHostFrameId: state.defaultHostFrameId,
+    };
+  }
+
+  function applyStarPresetInputs(
+    nextInputs,
+    { noticeLabel = "Star preset", systemInputs = null } = {},
+  ) {
+    const targetStarId = getFocusedStarEditorId();
+    const fallbackStar = getStarDraftState(targetStarId, state);
+    assignStarDraftState(targetStarId, {
+      name: String(nextInputs?.name || fallbackStar.name || defaults.name),
+      massMsol: Number(nextInputs?.massMsol ?? fallbackStar.massMsol),
+      radiusRsolOverride: null,
+      luminosityLsolOverride: null,
+      tempKOverride: null,
+      physicsMode: "simple",
+      advancedDerivationMode: "rl",
+    });
     state.ageGyr = Number(nextInputs?.ageGyr ?? state.ageGyr);
     state.metallicityFeH = Number(nextInputs?.metallicityFeH ?? state.metallicityFeH) || 0;
-    state.radiusRsolOverride = null;
-    state.luminosityLsolOverride = null;
-    state.tempKOverride = null;
-    state.physicsMode = "simple";
-    state.advancedDerivationMode = "rl";
     state.evolutionMode = nextInputs?.evolutionMode === "evolved" ? "evolved" : "zams";
     state.activityModelVersion = "v2";
-    nameEl.value = state.name;
-    massEl.value = state.massMsol;
-    ageEl.value = state.ageGyr;
-    metallicityEl.value = state.metallicityFeH;
-    radiusOverrideEl.value = "";
-    luminosityOverrideEl.value = "";
-    tempOverrideEl.value = "";
-    const physicsSimpleEl = wrap.querySelector("#physicsSimple");
-    if (physicsSimpleEl) physicsSimpleEl.checked = true;
-    const evolutionEl = wrap.querySelector(
-      `#${state.evolutionMode === "evolved" ? "evolutionOn" : "evolutionOff"}`,
-    );
-    if (evolutionEl) evolutionEl.checked = true;
+    applyStarSystemInputs(systemInputs);
+    syncFocusedStarEditorInputs();
     setDerivMode("rl");
-    syncBoundInputs();
     persistState();
     render();
+    const appliedStar = getStarDraftState(targetStarId, state);
     return {
       appliedInputs: {
-        name: state.name,
-        massMsol: state.massMsol,
+        name: appliedStar.name,
+        massMsol: appliedStar.massMsol,
         ageGyr: state.ageGyr,
         metallicityFeH: state.metallicityFeH,
-        physicsMode: state.physicsMode,
-        advancedDerivationMode: state.advancedDerivationMode,
-        radiusRsolOverride: state.radiusRsolOverride,
-        luminosityLsolOverride: state.luminosityLsolOverride,
-        tempKOverride: state.tempKOverride,
+        physicsMode: appliedStar.physicsMode,
+        advancedDerivationMode: appliedStar.advancedDerivationMode,
+        radiusRsolOverride: appliedStar.radiusRsolOverride,
+        luminosityLsolOverride: appliedStar.luminosityLsolOverride,
+        tempKOverride: appliedStar.tempKOverride,
         evolutionMode: state.evolutionMode,
         activityModelVersion: state.activityModelVersion,
       },
@@ -666,6 +3900,7 @@ export function initStarPage(mountEl, options = {}) {
   function applyStarGuidedRecommendation(recommendation, { noticeLabel = "Guided star" } = {}) {
     const applied = applyStarPresetInputs(recommendation?.applyPayload?.objectInputs || {}, {
       noticeLabel,
+      systemInputs: recommendation?.applyPayload?.systemInputs || null,
     });
     return {
       appliedInputs: applied?.appliedInputs || null,
@@ -688,17 +3923,7 @@ export function initStarPage(mountEl, options = {}) {
   // Returns the override values to pass to calcStar based on current mode/state.
   // In advanced mode, the derivation dropdown controls which pair is active.
   function getEffectiveOverrides() {
-    if (state.physicsMode === "advanced") {
-      const m = state.advancedDerivationMode;
-      const r = state.radiusRsolOverride;
-      const l = state.luminosityLsolOverride;
-      const t = state.tempKOverride;
-      if (m === "rt") return { r, l: null, t };
-      if (m === "lt") return { r: null, l, t };
-      return { r, l, t: null }; // "rl" (default)
-    }
-    // Simple mode: all values from mass — no overrides reach the engine
-    return { r: null, l: null, t: null };
+    return getEffectiveOverridesForStar(getStarDraftState(getFocusedStarEditorId(), state));
   }
 
   function formatRecurrence(ratePerDay) {
@@ -721,17 +3946,23 @@ export function initStarPage(mountEl, options = {}) {
     return txt;
   }
 
-  function render() {
+  function render({ preserveFocusedDraft = false } = {}) {
+    syncEditorSelectionState();
+    const focusedStarId = getFocusedStarEditorId();
+    const focusedStar = getStarDraftState(focusedStarId, state);
     const ov = getEffectiveOverrides();
     const model = calcStar({
-      ...state,
+      ...focusedStar,
+      ageGyr: state.ageGyr,
+      metallicityFeH: state.metallicityFeH,
+      evolutionMode: state.evolutionMode,
       radiusRsolOverride: ov.r,
       luminosityLsolOverride: ov.l,
       tempKOverride: ov.t,
     });
     const activityModel = computeStellarActivityModel(
       {
-        massMsun: state.massMsol,
+        massMsun: focusedStar.massMsol,
         ageGyr: state.ageGyr,
         teffK: model.tempK,
         luminosityLsun: model.luminosityLsol,
@@ -747,6 +3978,44 @@ export function initStarPage(mountEl, options = {}) {
         : "Empirical split model outside FGK solar envelope";
     const xuvFluxMeta = `${model.display.xuvFluxRatioEarth} | saturation ${model.display.xuvSaturationAge}`;
     const life = model.earthLikeLifePossible;
+    const quadLayoutCopy = buildQuadLayoutCopy(state.quadLayoutKind);
+    const topologyLabel =
+      state.topologyKind === "quad"
+        ? quadLayoutCopy.topologyLabel
+        : state.topologyKind === "triple"
+          ? "Triple"
+          : state.topologyKind === "binary"
+            ? "Binary"
+            : "Single";
+    const isMulti = state.topologyKind !== "single";
+    const isTripleLike = state.topologyKind === "triple" || state.topologyKind === "quad";
+    const isQuad = state.topologyKind === "quad";
+    const companionModel = isMulti ? solveAdditionalStarInputs("star_b", state) : null;
+    const tertiaryModel = isTripleLike ? solveAdditionalStarInputs("star_c", state) : null;
+    const quaternaryModel = isQuad ? solveAdditionalStarInputs("star_d", state) : null;
+    const hostFrameRecords = listStellarSystemHostFrames(buildStellarSystemFromState());
+    const topologyHealth = buildTopologyHealthAssessment();
+    const activeHostFrameRecord =
+      hostFrameRecords.find(
+        (frame) =>
+          frame.id ===
+          normalizeTopologyHostFrameId(
+            state.defaultHostFrameId,
+            state.topologyKind,
+            state.quadLayoutKind,
+          ),
+      ) || null;
+    const activeHostFrameLabel = activeHostFrameRecord
+      ? buildHostFrameOptionText(activeHostFrameRecord)
+      : "Star A";
+    const tertiaryPairLabel =
+      state.topologyKind === "quad" && state.quadLayoutKind === "paired"
+        ? "Inner Pair C+D"
+        : "Outer Pair (A+B)+C";
+    const quaternaryPairLabel =
+      state.topologyKind === "quad" && state.quadLayoutKind === "paired"
+        ? "Root Pair (A+B)+(C+D)"
+        : "Outer Pair ((A+B)+C)+D";
 
     const starKpi = (label, value, meta = "", overrides = {}) => ({
       label,
@@ -756,13 +4025,142 @@ export function initStarPage(mountEl, options = {}) {
       ...overrides,
     });
 
+    const systemContextItems = [
+      ...(isMulti
+        ? [
+            starKpi("Topology", topologyLabel, `${hostFrameRecords.length} host frame(s)`, {
+              tipLabel: "Topology",
+            }),
+            starKpi("Default Orbit Host", activeHostFrameLabel, "Default future orbit host", {
+              tipLabel: "Default Orbit Host",
+            }),
+            starKpi(
+              "Secondary Mass",
+              fmt(state.companionMassMsol, 4),
+              `${companionModel?.spectralClass || "n/a"} | ${fmt(companionModel?.luminosityLsol || 0, 3)} Lsol`,
+              { tipLabel: "Companion Star" },
+            ),
+            starKpi(
+              "Inner Pair A+B",
+              fmt(state.binarySemiMajorAxisAu, 3),
+              `AU | e = ${fmt(state.binaryEccentricity, 3)}`,
+              { tipLabel: "Binary Pair" },
+            ),
+            starKpi("Hierarchy Health", topologyHealth.headline, topologyHealth.summary, {
+              tipLabel: "Hierarchy Health",
+            }),
+            ...(isTripleLike
+              ? [
+                  starKpi(
+                    "Tertiary Mass",
+                    fmt(state.tertiaryMassMsol, 4),
+                    `${tertiaryModel?.spectralClass || "n/a"} | ${fmt(tertiaryModel?.luminosityLsol || 0, 3)} Lsol`,
+                    { tipLabel: "Tertiary Star" },
+                  ),
+                  starKpi(
+                    tertiaryPairLabel,
+                    fmt(state.tripleOuterSemiMajorAxisAu, 3),
+                    `AU | e = ${fmt(state.tripleOuterEccentricity, 3)}`,
+                    { tipLabel: "Hierarchy Pair" },
+                  ),
+                ]
+              : []),
+            ...(isQuad
+              ? [
+                  starKpi(
+                    "Quaternary Mass",
+                    fmt(state.quaternaryMassMsol, 4),
+                    `${quaternaryModel?.spectralClass || "n/a"} | ${fmt(quaternaryModel?.luminosityLsol || 0, 3)} Lsol`,
+                    { tipLabel: "Quaternary Star" },
+                  ),
+                  starKpi(
+                    quaternaryPairLabel,
+                    fmt(state.quadOuterSemiMajorAxisAu, 3),
+                    `AU | e = ${fmt(state.quadOuterEccentricity, 3)}`,
+                    { tipLabel: "Hierarchy Pair" },
+                  ),
+                ]
+              : []),
+          ]
+        : []),
+      starKpi(
+        "Giant Planet Probability",
+        `${fmt(model.giantPlanetProbability * 100, 1)}%`,
+        "Fischer & Valenti (2005); Johnson et al. (2010)",
+      ),
+    ];
+
+    const systemDetailItems = [
+      ...(isMulti
+        ? [
+            {
+              label: "Topology",
+              value: topologyLabel,
+            },
+            {
+              label: "Default Orbit Host",
+              value: activeHostFrameLabel,
+            },
+            {
+              label: "Hierarchy Health",
+              value: topologyHealth.headline,
+              meta: `${topologyHealth.summary} ${topologyHealth.fluxSummary}`.trim(),
+            },
+            {
+              label: "Secondary Star",
+              value: `${state.companionName} (${companionModel?.spectralClass || "n/a"})`,
+              meta: `${fmt(state.companionMassMsol, 4)} Msol`,
+            },
+            {
+              label: "Inner Pair A+B",
+              value: `${fmt(state.binarySemiMajorAxisAu, 3)} AU`,
+              meta: `e ${fmt(state.binaryEccentricity, 3)} | i ${fmt(state.binaryInclinationDeg, 1)}°`,
+            },
+            ...(isTripleLike
+              ? [
+                  {
+                    label: "Tertiary Star",
+                    value: `${state.tertiaryName} (${tertiaryModel?.spectralClass || "n/a"})`,
+                    meta: `${fmt(state.tertiaryMassMsol, 4)} Msol`,
+                  },
+                  {
+                    label: tertiaryPairLabel,
+                    value: `${fmt(state.tripleOuterSemiMajorAxisAu, 3)} AU`,
+                    meta: `e ${fmt(state.tripleOuterEccentricity, 3)} | i ${fmt(state.tripleOuterInclinationDeg, 1)}°`,
+                  },
+                ]
+              : []),
+            ...(isQuad
+              ? [
+                  {
+                    label: "Quaternary Star",
+                    value: `${state.quaternaryName} (${quaternaryModel?.spectralClass || "n/a"})`,
+                    meta: `${fmt(state.quaternaryMassMsol, 4)} Msol`,
+                  },
+                  {
+                    label: quaternaryPairLabel,
+                    value: `${fmt(state.quadOuterSemiMajorAxisAu, 3)} AU`,
+                    meta: `e ${fmt(state.quadOuterEccentricity, 3)} | i ${fmt(state.quadOuterInclinationDeg, 1)}°`,
+                  },
+                ]
+              : []),
+          ]
+        : []),
+      {
+        label: "Giant Planet Probability",
+        value: `${fmt(model.giantPlanetProbability * 100, 1)}%`,
+        meta: "Fischer & Valenti (2005); Johnson et al. (2010)",
+      },
+    ];
+
+    syncFocusedStarEditorInputs({ syncVisibleInputs: !preserveFocusedDraft });
     renderKpiSections(kpisEl, [
       {
         id: "star-summary",
         title: "Summary",
         items: [
           starKpi(
-            "Star Visualiser",
+            "Focused Star Preview",
             `${model.starColourHex}`,
             "Hex (derived from temperature) - Animated at 0.5 d/s with flares + CMEs",
             {
@@ -834,13 +4232,7 @@ export function initStarPage(mountEl, options = {}) {
         id: "star-system",
         title: "System Context",
         density: "compact",
-        items: [
-          starKpi(
-            "Giant Planet Probability",
-            `${fmt(model.giantPlanetProbability * 100, 1)}%`,
-            "Fischer & Valenti (2005); Johnson et al. (2010)",
-          ),
-        ],
+        items: systemContextItems,
       },
       {
         id: "star-activity",
@@ -878,6 +4270,7 @@ export function initStarPage(mountEl, options = {}) {
         items: [starKpi("Earth-like Life?", life)],
       },
     ]);
+    renderOutputStarStrip(kpisEl.querySelector("#star-summary"), focusedStarId, state);
 
     renderDerivedDetails(
       detailsEl,
@@ -886,7 +4279,7 @@ export function initStarPage(mountEl, options = {}) {
           id: "star-details-identity",
           title: "Identity & Class",
           items: [
-            { label: "Name", value: state.name },
+            { label: "Name", value: focusedStar.name },
             { label: "Class", value: model.spectralClass },
             { label: "Current Age", value: `${fmt(state.ageGyr, 3)} Gyr` },
             { label: "Metallicity [Fe/H]", value: `${fmt(state.metallicityFeH, 2)} dex` },
@@ -894,7 +4287,7 @@ export function initStarPage(mountEl, options = {}) {
             { label: "Stellar Evolution", value: model.evolutionMode === "evolved" ? "On" : "Off" },
             {
               label: "Physics Mode",
-              value: state.physicsMode === "advanced" ? "Advanced" : "Simple",
+              value: focusedStar.physicsMode === "advanced" ? "Advanced" : "Simple",
             },
           ],
         },
@@ -932,13 +4325,7 @@ export function initStarPage(mountEl, options = {}) {
         {
           id: "star-details-system",
           title: "System Context",
-          items: [
-            {
-              label: "Giant Planet Probability",
-              value: `${fmt(model.giantPlanetProbability * 100, 1)}%`,
-              meta: "Fischer & Valenti (2005); Johnson et al. (2010)",
-            },
-          ],
+          items: systemDetailItems,
         },
         {
           id: "star-details-activity",
@@ -997,13 +4384,15 @@ export function initStarPage(mountEl, options = {}) {
     );
 
     sunPreviewController.attach(kpisEl.querySelector(".sun-preview-canvas"), {
-      starName: state.name,
-      starMassMsol: state.massMsol,
+      starName: focusedStar.name,
+      starMassMsol: focusedStar.massMsol,
       starAgeGyr: state.ageGyr,
       starTempK: model.tempK,
       starColourHex: model.starColourHex,
       activity,
     });
+
+    updateTopologyUI({ syncVisibleStarInputs: !preserveFocusedDraft });
 
     if (model.evolutionMode === "evolved") {
       const rz = model.radiusRsolZams;
@@ -1021,19 +4410,19 @@ export function initStarPage(mountEl, options = {}) {
         ? "Luminosity and radius evolve with age and metallicity (Hurley, Pols & Tout 2000)."
         : "Properties derived from mass only (static scaling laws).  Enable to model stellar ageing.";
 
-    updatePhysicsUI(model);
+    updatePhysicsUI(model, focusedStar);
   }
 
   // Show/hide input rows and update status based on mode and derivation choice.
-  function updatePhysicsUI(model) {
-    const isAdvanced = state.physicsMode === "advanced";
+  function updatePhysicsUI(model, starDraft = getStarDraftState(getFocusedStarEditorId(), state)) {
+    const isAdvanced = starDraft.physicsMode === "advanced";
     advancedDerivRowEl.style.display = isAdvanced ? "" : "none";
     physicsModeHintEl.textContent = isAdvanced
       ? "Specify any two of Radius, Luminosity, and Temperature; the third is computed via Stefan-Boltzmann (L = R² × (T/5776)⁴)."
       : "All physical properties are derived from mass and age using stellar scaling laws. Toggle Advanced to override specific values.";
 
     if (isAdvanced) {
-      const dm = state.advancedDerivationMode;
+      const dm = starDraft.advancedDerivationMode;
       // Show exactly the two input rows for the selected pair
       radiusOverrideRowEl.style.display = dm === "rl" || dm === "rt" ? "" : "none";
       luminosityOverrideRowEl.style.display = dm === "rl" || dm === "lt" ? "" : "none";
@@ -1066,44 +4455,232 @@ export function initStarPage(mountEl, options = {}) {
   function applyFromInputs({ commit = false } = {}) {
     if (hydrating) return;
     hydrating = true;
-    state.name = commit ? sanitiseName(nameEl.value) : sanitiseName(String(nameEl.value ?? ""));
-    if (commit) nameEl.value = state.name;
-    state.massMsol = readClampedNumberInput(massEl, 0.075, 100, state.massMsol, { commit });
+    const focusedStarId = getFocusedStarEditorId();
+    const focusedStar = getStarDraftState(focusedStarId, state);
+    state.topologyKind = ["binary", "triple", "quad"].includes(topologyKindEl.value)
+      ? topologyKindEl.value
+      : "single";
+    state.quadLayoutKind = normalizeQuadLayoutKind(
+      wrap.querySelector('input[name="quadLayoutKind"]:checked')?.value,
+      state.quadLayoutKind,
+    );
+    state.defaultHostFrameId = normalizeTopologyHostFrameId(
+      activeHostFrameEl.value,
+      state.topologyKind,
+      state.quadLayoutKind,
+    );
+    const nextFocusedStarName =
+      focusedStarId === "star_a"
+        ? commit
+          ? sanitiseName(nameEl.value)
+          : sanitiseName(String(nameEl.value ?? ""))
+        : focusedStarId === "star_b"
+          ? commit
+            ? sanitiseCompanionName(nameEl.value)
+            : sanitiseCompanionName(String(nameEl.value ?? ""))
+          : focusedStarId === "star_c"
+            ? commit
+              ? sanitiseTertiaryName(nameEl.value)
+              : sanitiseTertiaryName(String(nameEl.value ?? ""))
+            : commit
+              ? sanitiseQuaternaryName(nameEl.value)
+              : sanitiseQuaternaryName(String(nameEl.value ?? ""));
+    assignStarDraftState(focusedStarId, { name: nextFocusedStarName });
+    if (commit) nameEl.value = nextFocusedStarName;
+    assignStarDraftState(focusedStarId, {
+      massMsol: readClampedNumberInput(massEl, 0.075, 100, focusedStar.massMsol, {
+        commit,
+      }),
+    });
     state.ageGyr = readClampedNumberInput(ageEl, 0, 20, state.ageGyr, { commit });
     state.metallicityFeH = readClampedNumberInput(metallicityEl, -3, 1, state.metallicityFeH, {
       commit,
     });
+    state.binarySemiMajorAxisAu = readClampedNumberInput(
+      binarySemiMajorAxisEl,
+      0.001,
+      100000,
+      state.binarySemiMajorAxisAu,
+      { commit },
+    );
+    state.binaryEccentricity = readClampedNumberInput(
+      binaryEccentricityEl,
+      0,
+      0.95,
+      state.binaryEccentricity,
+      { commit },
+    );
+    state.binaryInclinationDeg = readClampedNumberInput(
+      binaryInclinationEl,
+      0,
+      180,
+      state.binaryInclinationDeg,
+      { commit },
+    );
+    state.binaryArgPeriapsisDeg = readClampedNumberInput(
+      binaryArgPeriapsisEl,
+      0,
+      360,
+      state.binaryArgPeriapsisDeg,
+      { commit },
+    );
+    state.binaryMeanAnomalyDeg = readClampedNumberInput(
+      binaryMeanAnomalyEl,
+      0,
+      360,
+      state.binaryMeanAnomalyDeg,
+      { commit },
+    );
+    state.tripleOuterSemiMajorAxisAu = readClampedNumberInput(
+      tripleOuterSemiMajorAxisEl,
+      0.001,
+      100000,
+      state.tripleOuterSemiMajorAxisAu,
+      { commit },
+    );
+    state.tripleOuterEccentricity = readClampedNumberInput(
+      tripleOuterEccentricityEl,
+      0,
+      0.95,
+      state.tripleOuterEccentricity,
+      { commit },
+    );
+    state.tripleOuterInclinationDeg = readClampedNumberInput(
+      tripleOuterInclinationEl,
+      0,
+      180,
+      state.tripleOuterInclinationDeg,
+      { commit },
+    );
+    state.tripleOuterArgPeriapsisDeg = readClampedNumberInput(
+      tripleOuterArgPeriapsisEl,
+      0,
+      360,
+      state.tripleOuterArgPeriapsisDeg,
+      { commit },
+    );
+    state.tripleOuterMeanAnomalyDeg = readClampedNumberInput(
+      tripleOuterMeanAnomalyEl,
+      0,
+      360,
+      state.tripleOuterMeanAnomalyDeg,
+      { commit },
+    );
+    state.quadOuterSemiMajorAxisAu = readClampedNumberInput(
+      quadOuterSemiMajorAxisEl,
+      0.001,
+      100000,
+      state.quadOuterSemiMajorAxisAu,
+      { commit },
+    );
+    state.quadOuterEccentricity = readClampedNumberInput(
+      quadOuterEccentricityEl,
+      0,
+      0.95,
+      state.quadOuterEccentricity,
+      { commit },
+    );
+    state.quadOuterInclinationDeg = readClampedNumberInput(
+      quadOuterInclinationEl,
+      0,
+      180,
+      state.quadOuterInclinationDeg,
+      { commit },
+    );
+    state.quadOuterArgPeriapsisDeg = readClampedNumberInput(
+      quadOuterArgPeriapsisEl,
+      0,
+      360,
+      state.quadOuterArgPeriapsisDeg,
+      { commit },
+    );
+    state.quadOuterMeanAnomalyDeg = readClampedNumberInput(
+      quadOuterMeanAnomalyEl,
+      0,
+      360,
+      state.quadOuterMeanAnomalyDeg,
+      { commit },
+    );
 
-    state.physicsMode = wrap.querySelector('input[name="physicsMode"]:checked')?.value || "simple";
-    state.advancedDerivationMode = getDerivMode();
+    const nextPhysicsMode =
+      wrap.querySelector('input[name="physicsMode"]:checked')?.value || "simple";
+    const nextDerivationMode = getDerivMode();
+    assignStarDraftState(focusedStarId, {
+      physicsMode: nextPhysicsMode,
+      advancedDerivationMode: nextDerivationMode,
+    });
     state.evolutionMode =
       wrap.querySelector('input[name="evolutionMode"]:checked')?.value || "zams";
+    state.defaultHostFrameId = normalizeTopologyHostFrameId(
+      state.defaultHostFrameId,
+      state.topologyKind,
+      state.quadLayoutKind,
+    );
 
     // Read overrides only in Advanced mode; in Simple they stay dormant in state
     // so values are preserved if the user switches back to Advanced.
-    if (state.physicsMode === "advanced") {
-      state.radiusRsolOverride =
-        radiusOverrideRowEl.style.display !== "none"
-          ? readPositiveOverride(radiusOverrideEl, { commit })
-          : null;
-
-      state.luminosityLsolOverride =
-        luminosityOverrideRowEl.style.display !== "none"
-          ? readPositiveOverride(luminosityOverrideEl, { commit })
-          : null;
-
-      state.tempKOverride =
-        tempOverrideRowEl.style.display !== "none"
-          ? readPositiveOverride(tempOverrideEl, { commit })
-          : null;
+    if (nextPhysicsMode === "advanced") {
+      assignStarDraftState(focusedStarId, {
+        radiusRsolOverride:
+          radiusOverrideRowEl.style.display !== "none"
+            ? readPositiveOverride(radiusOverrideEl, { commit })
+            : null,
+        luminosityLsolOverride:
+          luminosityOverrideRowEl.style.display !== "none"
+            ? readPositiveOverride(luminosityOverrideEl, { commit })
+            : null,
+        tempKOverride:
+          tempOverrideRowEl.style.display !== "none"
+            ? readPositiveOverride(tempOverrideEl, { commit })
+            : null,
+      });
     }
 
     if (commit) {
       syncBoundInputs();
       persistState();
     }
-    render();
+    render({ preserveFocusedDraft: !commit });
     hydrating = false;
+  }
+
+  function applyCompatStarInputs(starId, { commit = false } = {}) {
+    const config = {
+      star_b: {
+        nameEl: companionNameEl,
+        massEl: companionMassEl,
+        sanitiseName: sanitiseCompanionName,
+      },
+      star_c: {
+        nameEl: tertiaryNameEl,
+        massEl: tertiaryMassEl,
+        sanitiseName: sanitiseTertiaryName,
+      },
+      star_d: {
+        nameEl: quaternaryNameEl,
+        massEl: quaternaryMassEl,
+        sanitiseName: sanitiseQuaternaryName,
+      },
+    }[starId];
+    if (!config) return;
+    assignStarDraftState(starId, {
+      name: commit
+        ? config.sanitiseName(config.nameEl.value)
+        : config.sanitiseName(String(config.nameEl.value ?? "")),
+      massMsol: readClampedNumberInput(
+        config.massEl,
+        0.075,
+        100,
+        getStarDraftState(starId, state).massMsol,
+        { commit },
+      ),
+    });
+    if (commit) {
+      config.nameEl.value = getStarDraftState(starId, state).name;
+      config.massEl.value = getStarDraftState(starId, state).massMsol;
+      persistState();
+    }
+    render();
   }
 
   function buildStarGoalQuestionValues(flowState, questions = []) {
@@ -1127,6 +4704,8 @@ export function initStarPage(mountEl, options = {}) {
         values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
       } else if (question?.id === "searchBudget") {
         values.searchBudget = goalDraft.searchBudget || question?.defaultValue;
+      } else if (question?.id === "system_architecture") {
+        values.system_architecture = goalDraft.systemArchitecture || question?.defaultValue;
       } else if (String(question?.id || "").startsWith("traitRole:")) {
         const traitId = String(question.id).slice("traitRole:".length);
         values[question.id] = traitRoles[traitId] || "off";
@@ -1144,6 +4723,10 @@ export function initStarPage(mountEl, options = {}) {
       normalizedId === "searchBudget"
     ) {
       controllerRef?.setGoalDraftValue(normalizedId, value);
+      return;
+    }
+    if (normalizedId === "system_architecture") {
+      controllerRef?.setGoalDraftValue("systemArchitecture", value);
       return;
     }
     if (normalizedId.startsWith("traitRole:")) {
@@ -1579,24 +5162,37 @@ export function initStarPage(mountEl, options = {}) {
   }
 
   // Initial population
-  nameEl.value = state.name;
-  massEl.value = state.massMsol;
-  ageEl.value = state.ageGyr;
-  metallicityEl.value = state.metallicityFeH;
-  const physicsRadio = wrap.querySelector(
-    `#${state.physicsMode === "advanced" ? "physicsAdvanced" : "physicsSimple"}`,
+  topologyKindEl.value = state.topologyKind;
+  const quadLayoutRadio = wrap.querySelector(
+    `#${state.quadLayoutKind === "paired" ? "quadLayoutPaired" : "quadLayoutChain"}`,
   );
-  if (physicsRadio) physicsRadio.checked = true;
+  if (quadLayoutRadio) quadLayoutRadio.checked = true;
+  companionNameEl.value = state.companionName;
+  companionMassEl.value = state.companionMassMsol;
+  binarySemiMajorAxisEl.value = state.binarySemiMajorAxisAu;
+  binaryEccentricityEl.value = state.binaryEccentricity;
+  binaryInclinationEl.value = state.binaryInclinationDeg;
+  binaryArgPeriapsisEl.value = state.binaryArgPeriapsisDeg;
+  binaryMeanAnomalyEl.value = state.binaryMeanAnomalyDeg;
+  tertiaryNameEl.value = state.tertiaryName;
+  tertiaryMassEl.value = state.tertiaryMassMsol;
+  tripleOuterSemiMajorAxisEl.value = state.tripleOuterSemiMajorAxisAu;
+  tripleOuterEccentricityEl.value = state.tripleOuterEccentricity;
+  tripleOuterInclinationEl.value = state.tripleOuterInclinationDeg;
+  tripleOuterArgPeriapsisEl.value = state.tripleOuterArgPeriapsisDeg;
+  tripleOuterMeanAnomalyEl.value = state.tripleOuterMeanAnomalyDeg;
+  quaternaryNameEl.value = state.quaternaryName;
+  quaternaryMassEl.value = state.quaternaryMassMsol;
+  quadOuterSemiMajorAxisEl.value = state.quadOuterSemiMajorAxisAu;
+  quadOuterEccentricityEl.value = state.quadOuterEccentricity;
+  quadOuterInclinationEl.value = state.quadOuterInclinationDeg;
+  quadOuterArgPeriapsisEl.value = state.quadOuterArgPeriapsisDeg;
+  quadOuterMeanAnomalyEl.value = state.quadOuterMeanAnomalyDeg;
   const evolutionRadio = wrap.querySelector(
     `#${state.evolutionMode === "evolved" ? "evolutionOn" : "evolutionOff"}`,
   );
   if (evolutionRadio) evolutionRadio.checked = true;
-  setDerivMode(state.advancedDerivationMode);
-  radiusOverrideEl.value = state.radiusRsolOverride != null ? state.radiusRsolOverride : "";
-  luminosityOverrideEl.value =
-    state.luminosityLsolOverride != null ? state.luminosityLsolOverride : "";
-  tempOverrideEl.value = state.tempKOverride != null ? state.tempKOverride : "";
-  syncBoundInputs();
+  syncFocusedStarEditorInputs();
   render();
 
   // Live-update: apply on every input change
@@ -1605,13 +5201,46 @@ export function initStarPage(mountEl, options = {}) {
     massEl,
     ageEl,
     metallicityEl,
+    binarySemiMajorAxisEl,
+    binaryEccentricityEl,
+    binaryInclinationEl,
+    binaryArgPeriapsisEl,
+    binaryMeanAnomalyEl,
+    tripleOuterSemiMajorAxisEl,
+    tripleOuterEccentricityEl,
+    tripleOuterInclinationEl,
+    tripleOuterArgPeriapsisEl,
+    tripleOuterMeanAnomalyEl,
+    quadOuterSemiMajorAxisEl,
+    quadOuterEccentricityEl,
+    quadOuterInclinationEl,
+    quadOuterArgPeriapsisEl,
+    quadOuterMeanAnomalyEl,
     radiusOverrideEl,
     luminosityOverrideEl,
     tempOverrideEl,
   ].forEach((el) => el.addEventListener("input", () => applyFromInputs()));
-  [nameEl, radiusOverrideEl, luminosityOverrideEl, tempOverrideEl].forEach((el) =>
-    el.addEventListener("change", () => applyFromInputs({ commit: true })),
-  );
+  [
+    nameEl,
+    binarySemiMajorAxisEl,
+    binaryEccentricityEl,
+    binaryInclinationEl,
+    binaryArgPeriapsisEl,
+    binaryMeanAnomalyEl,
+    tripleOuterSemiMajorAxisEl,
+    tripleOuterEccentricityEl,
+    tripleOuterInclinationEl,
+    tripleOuterArgPeriapsisEl,
+    tripleOuterMeanAnomalyEl,
+    quadOuterSemiMajorAxisEl,
+    quadOuterEccentricityEl,
+    quadOuterInclinationEl,
+    quadOuterArgPeriapsisEl,
+    quadOuterMeanAnomalyEl,
+    radiusOverrideEl,
+    luminosityOverrideEl,
+    tempOverrideEl,
+  ].forEach((el) => el.addEventListener("change", () => applyFromInputs({ commit: true })));
 
   wrap.querySelector("#radiusClear").addEventListener("click", () => {
     radiusOverrideEl.value = "";
@@ -1631,7 +5260,6 @@ export function initStarPage(mountEl, options = {}) {
   // Live-update the UI layout when the mode toggle or dropdown changes
   physicsModeRadios.forEach((r) => {
     r.addEventListener("change", () => {
-      state.physicsMode = r.value;
       applyFromInputs({ commit: true });
     });
   });
@@ -1645,9 +5273,78 @@ export function initStarPage(mountEl, options = {}) {
 
   physicsDerivRadios.forEach((r) => {
     r.addEventListener("change", () => {
-      state.advancedDerivationMode = getDerivMode();
       applyFromInputs({ commit: true });
     });
+  });
+
+  [companionNameEl, companionMassEl].forEach((el) =>
+    el?.addEventListener("change", () => applyCompatStarInputs("star_b", { commit: true })),
+  );
+  [tertiaryNameEl, tertiaryMassEl].forEach((el) =>
+    el?.addEventListener("change", () => applyCompatStarInputs("star_c", { commit: true })),
+  );
+  [quaternaryNameEl, quaternaryMassEl].forEach((el) =>
+    el?.addEventListener("change", () => applyCompatStarInputs("star_d", { commit: true })),
+  );
+
+  topologyKindEl?.addEventListener("change", () => {
+    applyFromInputs({ commit: true });
+  });
+  topologyCardGridEl?.addEventListener("click", (event) => {
+    const buttonEl = event.target?.closest?.('button[data-architecture-kind="topology"]');
+    const nextTopologyKind = String(buttonEl?.dataset?.value || "");
+    if (!["single", "binary", "triple", "quad"].includes(nextTopologyKind)) return;
+    topologyKindEl.value = nextTopologyKind;
+    applyFromInputs({ commit: true });
+  });
+  quadLayoutRadios.forEach((radio) => {
+    radio.addEventListener("change", () => {
+      state.quadLayoutKind = normalizeQuadLayoutKind(radio.value, state.quadLayoutKind);
+      applyFromInputs({ commit: true });
+    });
+  });
+  quadLayoutCardGridEl?.addEventListener("click", (event) => {
+    const buttonEl = event.target?.closest?.('button[data-architecture-kind="quad-layout"]');
+    const nextLayoutKind = normalizeQuadLayoutKind(buttonEl?.dataset?.value, state.quadLayoutKind);
+    const nextQuadLayoutRadio = wrap.querySelector(
+      `#${nextLayoutKind === "paired" ? "quadLayoutPaired" : "quadLayoutChain"}`,
+    );
+    if (nextQuadLayoutRadio) nextQuadLayoutRadio.checked = true;
+    state.quadLayoutKind = nextLayoutKind;
+    applyFromInputs({ commit: true });
+  });
+  editorInspectorModeEl?.addEventListener("click", (event) => {
+    const buttonEl = event.target?.closest?.("button[data-editor-mode]");
+    const nextMode = String(buttonEl?.dataset?.editorMode || "");
+    if (!nextMode) return;
+    setEditorMode(nextMode);
+    render();
+  });
+  editorTargetPillsEl?.addEventListener("click", (event) => {
+    const buttonEl = event.target?.closest?.("button[data-editor-target-id]");
+    const nextTargetId = String(buttonEl?.dataset?.editorTargetId || "");
+    if (!nextTargetId) return;
+    setSelectedEditorTarget(nextTargetId);
+    render();
+  });
+  topologyMapNodesEl?.addEventListener("click", (event) => {
+    const buttonEl = event.target?.closest?.("button[data-topology-node-id]");
+    const nodeId = String(buttonEl?.dataset?.topologyNodeId || "");
+    if (!nodeId) return;
+    editorUiState.pendingTopologyMapFocusId = nodeId;
+    setSelectedEditorTarget(nodeId);
+    render();
+  });
+  starEditorTargetEl?.addEventListener("change", () => {
+    setSelectedEditorTarget(starEditorTargetEl.value);
+    render();
+  });
+  pairEditorTargetEl?.addEventListener("change", () => {
+    setSelectedEditorTarget(pairEditorTargetEl.value);
+    render();
+  });
+  activeHostFrameEl?.addEventListener("change", () => {
+    applyFromInputs({ commit: true });
   });
 
   starCreateQuickBtn?.addEventListener("click", () => {
@@ -1658,58 +5355,49 @@ export function initStarPage(mountEl, options = {}) {
   });
 
   wrap.querySelector("#btn-sol").addEventListener("click", () => {
+    const focusedStarId = getFocusedStarEditorId();
+    const nextName =
+      focusedStarId === "star_a"
+        ? sanitiseName(nameEl.value)
+        : focusedStarId === "star_b"
+          ? sanitiseCompanionName(nameEl.value)
+          : focusedStarId === "star_c"
+            ? sanitiseTertiaryName(nameEl.value)
+            : sanitiseQuaternaryName(nameEl.value);
     // "Sol-ish" (simple): mass 1, age ~4.6 Gyr
-    state.name = sanitiseName(nameEl.value);
-    nameEl.value = state.name;
-    state.massMsol = 1.0;
+    assignStarDraftState(focusedStarId, {
+      name: nextName,
+      massMsol: 1.0,
+      radiusRsolOverride: null,
+      luminosityLsolOverride: null,
+      tempKOverride: null,
+      physicsMode: "simple",
+      advancedDerivationMode: "rl",
+    });
     state.ageGyr = 4.6;
     state.metallicityFeH = 0.0;
-    state.radiusRsolOverride = null;
-    state.luminosityLsolOverride = null;
-    state.tempKOverride = null;
-    state.physicsMode = "simple";
-    state.advancedDerivationMode = "rl";
     state.evolutionMode = "zams";
-    massEl.value = state.massMsol;
-    ageEl.value = state.ageGyr;
-    metallicityEl.value = state.metallicityFeH;
-    radiusOverrideEl.value = "";
-    luminosityOverrideEl.value = "";
-    tempOverrideEl.value = "";
-    const physSimpleR = wrap.querySelector("#physicsSimple");
-    if (physSimpleR) physSimpleR.checked = true;
-    const evoOffR = wrap.querySelector("#evolutionOff");
-    if (evoOffR) evoOffR.checked = true;
-    setDerivMode("rl");
-    syncBoundInputs();
+    syncFocusedStarEditorInputs();
     persistState();
     render();
   });
 
   wrap.querySelector("#btn-reset").addEventListener("click", () => {
-    state.name = sanitiseName(nameEl.value);
-    nameEl.value = state.name;
-    state.massMsol = defaults.massMsol;
+    const focusedStarId = getFocusedStarEditorId();
+    const config = getStarEditorFieldConfig(focusedStarId);
+    assignStarDraftState(focusedStarId, {
+      name: config.defaultName,
+      massMsol: config.defaultMass,
+      radiusRsolOverride: null,
+      luminosityLsolOverride: null,
+      tempKOverride: null,
+      physicsMode: "simple",
+      advancedDerivationMode: "rl",
+    });
     state.ageGyr = defaults.ageGyr;
     state.metallicityFeH = 0.0;
-    state.radiusRsolOverride = null;
-    state.luminosityLsolOverride = null;
-    state.tempKOverride = null;
-    state.physicsMode = "simple";
-    state.advancedDerivationMode = "rl";
     state.evolutionMode = "zams";
-    massEl.value = state.massMsol;
-    ageEl.value = state.ageGyr;
-    metallicityEl.value = state.metallicityFeH;
-    radiusOverrideEl.value = "";
-    luminosityOverrideEl.value = "";
-    tempOverrideEl.value = "";
-    const physSimpleR = wrap.querySelector("#physicsSimple");
-    if (physSimpleR) physSimpleR.checked = true;
-    const evoOffR = wrap.querySelector("#evolutionOff");
-    if (evoOffR) evoOffR.checked = true;
-    setDerivMode("rl");
-    syncBoundInputs();
+    syncFocusedStarEditorInputs();
     persistState();
     render();
   });

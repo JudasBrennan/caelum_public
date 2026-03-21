@@ -13,6 +13,7 @@ export function computeMoonTemperature({
   albedo,
   planetSemiMajorAxisAu,
   starLuminosityLsol,
+  extraFluxEarth = 0,
   surfaceAreaM2,
   moonMassKg,
   radioisotopeAbundance,
@@ -23,10 +24,15 @@ export function computeMoonTemperature({
   greenhouseTauEquivalent = 0,
   antiGreenhouseFraction = 0,
 }) {
-  const stellarFluxAtDistanceWm2 = calcStellarFluxWm2({
-    starLuminosityLsol,
-    orbitalDistanceAu: planetSemiMajorAxisAu,
-  });
+  const stellarFluxAtDistanceWm2 =
+    calcStellarFluxWm2({
+      starLuminosityLsol,
+      orbitalDistanceAu: planetSemiMajorAxisAu,
+    }) +
+    calcStellarFluxWm2({
+      starLuminosityLsol: Math.max(extraFluxEarth, 0) * Math.max(planetSemiMajorAxisAu, 0.01) ** 2,
+      orbitalDistanceAu: planetSemiMajorAxisAu,
+    });
   const eclipsePenalty = clampPenalty(eclipseCoolingPenalty);
   const effectiveStellarFluxWm2 = stellarFluxAtDistanceWm2 * (1 - eclipsePenalty);
   const equilibriumFourthPower = calcEquilibriumFourthPowerFromFluxWm2({

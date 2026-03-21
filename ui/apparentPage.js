@@ -49,6 +49,39 @@ const TIP_LABEL = {
     "Shown in degrees (\u00b0) for very large objects, arcminutes (\u2032) for medium, " +
     "or arcseconds (\u2033) for small.\n\n" +
     "Reference: Sun from Earth \u2248 31.6\u2032, Full Moon \u2248 31.1\u2032.",
+  Object:
+    "Current row object in the apparent-size tables. For stars this is the emitting sun; for bodies and moons it is the target being compared from the selected home world.",
+  "Orbit (AU)":
+    "Orbital distance of the emitting star or host world in astronomical units. This sets the illumination and apparent-size geometry used in the apparent model.",
+  "Star Magnitude":
+    "Apparent visual magnitude of the star from the listed orbit.\n\nLower values are brighter; negative values indicate extremely bright naked-eye suns.",
+  "Brightness (Earth-sun = 1)":
+    "Relative stellar brightness compared with the Sun as seen from Earth. Values above 1 mean a brighter sky than the Earth-Sun baseline.",
+  "Apparent Size (Earth-sun = 1)":
+    "Relative angular size compared with the Sun as seen from Earth. Values above 1 mean the object appears larger on the sky than our Sun does from Earth.",
+  "Distance (AU)":
+    "Line-of-sight distance used for the body apparent-magnitude and angular-size calculation. This can differ from orbital radius when you override per-body distances.",
+  "Phase (deg)":
+    "Sun-object-observer phase angle in degrees. 0\u00b0 is full illumination; 180\u00b0 is new or backlit geometry.",
+  Magnitude:
+    "Apparent visual magnitude of the listed object under the current distance and phase geometry.\n\nLower values are brighter.",
+  Observable:
+    "Quick visibility flag indicating whether the geometry stays inside the app's observable phase limits.",
+  Visibility:
+    "Human-readable brightness impression for the current apparent magnitude, such as daylight object, brilliant night object, faint target, or effectively invisible.",
+  Moon: "Moon name for the current apparent-output row.",
+  "App Mag":
+    "Apparent visual magnitude of the moon from the selected home world under the current phase setting.",
+  "Brightness (full moon = 1)":
+    "Relative moon brightness compared with Earth\u2019s full Moon. Values above 1 indicate a brighter moon than Luna at full phase.",
+  "Size (moon = 1)":
+    "Relative angular size compared with Earth\u2019s Moon. Values above 1 indicate a larger apparent moon than Luna.",
+  Eclipses: "Simple eclipse-visibility note for the moon as seen from the selected home world.",
+  "Apparent Magnitude":
+    "Reference apparent magnitude for the listed Solar System comparison object as seen from Earth.",
+  "Angular Size":
+    "Reference angular size for the listed Solar System comparison object as seen from Earth.",
+  Note: "Short comparison note explaining why the listed Solar System reference is useful in the table.",
   "Sol references":
     "Familiar Solar System objects for magnitude and angular size comparison. " +
     "All values are as seen from Earth.",
@@ -56,6 +89,8 @@ const TIP_LABEL = {
     "Visual comparison of angular sizes as seen from the home world. " +
     "Objects are drawn as disks at their true relative angular sizes. " +
     "Dotted outlines show familiar Solar System references (Sol, Luna, Jupiter).\n\n" +
+    "In multistar skies, the canvas separates primary suns from companion suns. " +
+    "Two-star primary pairs are static by default and can be animated with the sky control on a compressed orbital timescale, while companion positions remain schematic when only host-frame separations are available.\n\n" +
     "When the star is much larger than other objects, a split scale is used: " +
     "the star appears at reduced scale (labelled) on the left, with moons " +
     "and planets at full scale on the right.\n\n" +
@@ -79,6 +114,9 @@ const TIP_LABEL = {
   "Moon count":
     "Total number of moons assigned to the home world.\n\n" +
     "Moons are assigned on the Moons page.",
+  "Visible suns":
+    "Counts the host star or host pair plus any additional companion stars visible from the selected home world.\n\n" +
+    "Pair-host worlds can show two primary suns in a static default sky view or animate them on demand in the sky canvas, while wider hierarchical companions are added using their host-frame separation as an approximate sky-distance reference.",
 };
 
 function numWithSlider(id, label, unit, min, max, step, tip) {
@@ -95,6 +133,19 @@ function numWithSlider(id, label, unit, min, max, step, tip) {
       </div>
     </div>
   `;
+}
+
+function describeVisibleSuns(sample) {
+  const primaryNames = (sample?.primarySuns || []).map((entry) => entry?.name).filter(Boolean);
+  const companionNames = (sample?.companionStars || []).map((entry) => entry?.name).filter(Boolean);
+
+  if (primaryNames.length && companionNames.length) {
+    return `Primary suns: ${primaryNames.join(", ")}. Companion suns: ${companionNames.join(", ")}.`;
+  }
+  if (primaryNames.length > 1) return `Primary suns: ${primaryNames.join(", ")}`;
+  if (primaryNames.length === 1) return primaryNames[0];
+  if (companionNames.length) return `Companion suns: ${companionNames.join(", ")}`;
+  return "single-star sky";
 }
 
 const TUTORIAL_STEPS = [
@@ -140,6 +191,7 @@ export function initApparentPage(mountEl) {
     moonPhaseDeg: 0,
     distanceByBodyId: {},
     skyMode: "night",
+    animatePrimaryPair: false,
   };
 
   const wrap = document.createElement("div");
@@ -189,10 +241,21 @@ export function initApparentPage(mountEl) {
             <label for="skyDay">Day</label>
             <span></span>
           </div>
+          <button
+            class="small"
+            id="skyPairAnimationToggle"
+            type="button"
+            aria-pressed="false"
+            hidden
+            style="margin-left:8px"
+          >
+            Animate primary suns
+          </button>
         </div>
         <div class="sky-canvas-wrap" id="skyCanvasWrap">
           <canvas id="skyCanvas" width="800" height="320"></canvas>
         </div>
+        <div class="hint" id="skyCanvasHint" style="margin-top:10px" hidden></div>
       </div>
     </div>
 
@@ -204,11 +267,11 @@ export function initApparentPage(mountEl) {
           <table class="cluster-table">
             <thead>
               <tr>
-                <th>Object</th>
-                <th>Orbit (AU)</th>
-                <th>Star Magnitude</th>
-                <th>Brightness (Earth-sun = 1)</th>
-                <th>Apparent Size (Earth-sun = 1)</th>
+                <th>Object ${tipIcon(TIP_LABEL["Object"])}</th>
+                <th>Orbit (AU) ${tipIcon(TIP_LABEL["Orbit (AU)"])}</th>
+                <th>Star Magnitude ${tipIcon(TIP_LABEL["Star Magnitude"])}</th>
+                <th>Brightness (Earth-sun = 1) ${tipIcon(TIP_LABEL["Brightness (Earth-sun = 1)"])}</th>
+                <th>Apparent Size (Earth-sun = 1) ${tipIcon(TIP_LABEL["Apparent Size (Earth-sun = 1)"])}</th>
                 <th>Angular Diameter ${tipIcon(TIP_LABEL["Angular diameter"])}</th>
               </tr>
             </thead>
@@ -226,14 +289,14 @@ export function initApparentPage(mountEl) {
           <table class="cluster-table">
             <thead>
               <tr>
-                <th>Object</th>
+                <th>Object ${tipIcon(TIP_LABEL["Object"])}</th>
                 <th>Type ${tipIcon(TIP_LABEL["Body type"])}</th>
-                <th>Distance (AU)</th>
-                <th>Phase (deg)</th>
-                <th>Magnitude</th>
-                <th>Angular Diameter</th>
-                <th>Observable</th>
-                <th>Visibility</th>
+                <th>Distance (AU) ${tipIcon(TIP_LABEL["Distance (AU)"])}</th>
+                <th>Phase (deg) ${tipIcon(TIP_LABEL["Phase (deg)"])}</th>
+                <th>Magnitude ${tipIcon(TIP_LABEL["Magnitude"])}</th>
+                <th>Angular Diameter ${tipIcon(TIP_LABEL["Angular diameter"])}</th>
+                <th>Observable ${tipIcon(TIP_LABEL["Observable"])}</th>
+                <th>Visibility ${tipIcon(TIP_LABEL["Visibility"])}</th>
               </tr>
             </thead>
             <tbody id="apparentBodyRows"></tbody>
@@ -250,13 +313,13 @@ export function initApparentPage(mountEl) {
           <table class="cluster-table">
             <thead>
               <tr>
-                <th>Moon</th>
+                <th>Moon ${tipIcon(TIP_LABEL["Moon"])}</th>
                 <th>Abs Mag ${tipIcon(TIP_LABEL["Moon absolute magnitude"])}</th>
-                <th>App Mag</th>
-                <th>Angular Diameter</th>
-                <th>Brightness (full moon = 1)</th>
-                <th>Size (moon = 1)</th>
-                <th>Eclipses</th>
+                <th>App Mag ${tipIcon(TIP_LABEL["App Mag"])}</th>
+                <th>Angular Diameter ${tipIcon(TIP_LABEL["Angular diameter"])}</th>
+                <th>Brightness (full moon = 1) ${tipIcon(TIP_LABEL["Brightness (full moon = 1)"])}</th>
+                <th>Size (moon = 1) ${tipIcon(TIP_LABEL["Size (moon = 1)"])}</th>
+                <th>Eclipses ${tipIcon(TIP_LABEL["Eclipses"])}</th>
               </tr>
             </thead>
             <tbody id="apparentMoonRows"></tbody>
@@ -273,10 +336,10 @@ export function initApparentPage(mountEl) {
           <table class="cluster-table">
             <thead>
               <tr>
-                <th>Object</th>
-                <th>Apparent Magnitude</th>
-                <th>Angular Size</th>
-                <th>Note</th>
+                <th>Object ${tipIcon(TIP_LABEL["Object"])}</th>
+                <th>Apparent Magnitude ${tipIcon(TIP_LABEL["Apparent Magnitude"])}</th>
+                <th>Angular Size ${tipIcon(TIP_LABEL["Angular Size"])}</th>
+                <th>Note ${tipIcon(TIP_LABEL["Note"])}</th>
               </tr>
             </thead>
             <tbody id="apparentSolRefRows"></tbody>
@@ -307,6 +370,8 @@ export function initApparentPage(mountEl) {
 
   const skyCanvasEl = wrap.querySelector("#skyCanvas");
   const skyWrapEl = wrap.querySelector("#skyCanvasWrap");
+  const skyHintEl = wrap.querySelector("#skyCanvasHint");
+  const skyPairAnimationToggleEl = wrap.querySelector("#skyPairAnimationToggle");
   let skyRendererReady = true;
 
   const skyUnmountObserver = new MutationObserver(() => {
@@ -354,6 +419,22 @@ export function initApparentPage(mountEl) {
       bodySamples: sample.bodySamples,
       moonSamples: sample.moonSamples,
     });
+
+    if (!sample.hasLivePrimaryPair) {
+      state.animatePrimaryPair = false;
+    }
+
+    if (skyPairAnimationToggleEl) {
+      const showAnimationToggle = Boolean(sample.hasLivePrimaryPair);
+      skyPairAnimationToggleEl.hidden = !showAnimationToggle;
+      skyPairAnimationToggleEl.setAttribute(
+        "aria-pressed",
+        state.animatePrimaryPair ? "true" : "false",
+      );
+      skyPairAnimationToggleEl.textContent = state.animatePrimaryPair
+        ? "Pause primary suns"
+        : "Animate primary suns";
+    }
 
     // Re-attach moonCalc from original samples (stripped by engine normalizer)
     model.moons.forEach((m, i) => {
@@ -416,6 +497,11 @@ export function initApparentPage(mountEl) {
           value: String(model.moons.length),
           meta: "assigned to home world",
         },
+        {
+          label: "Visible suns",
+          value: String(sample.visibleSunsCount ?? 1 + (sample.companionStars?.length || 0)),
+          meta: describeVisibleSuns(sample),
+        },
       ],
       TIP_LABEL,
     );
@@ -428,6 +514,37 @@ export function initApparentPage(mountEl) {
     renderApparentBodyRows(bodyRowsEl, model.bodiesFromHome);
     renderApparentMoonRows(moonRowsEl, model.moons);
     renderApparentSolRefRows(solRefRowsEl, SOL_REFERENCES);
+
+    if (skyHintEl) {
+      let hintText = "";
+      if (
+        sample.hasLivePrimaryPair &&
+        state.animatePrimaryPair &&
+        sample.hasApproximateCompanionSuns
+      ) {
+        hintText =
+          "Live pair phase: primary suns follow the local binary orbit on a compressed simulation timescale, while companion suns use host-frame separation as an approximate sky-distance reference.";
+      } else if (sample.hasLivePrimaryPair && state.animatePrimaryPair) {
+        hintText =
+          "Live pair phase: the two primary suns follow the local binary orbit on a compressed simulation timescale.";
+      } else if (sample.hasLivePrimaryPair && sample.hasApproximateCompanionSuns) {
+        hintText =
+          "Static pair view by default. Use Animate primary suns to play the local binary orbit on a compressed simulation timescale; companion suns use host-frame separation as an approximate sky-distance reference.";
+      } else if (sample.hasLivePrimaryPair) {
+        hintText =
+          "Static pair view by default. Use Animate primary suns to play the local binary orbit on a compressed simulation timescale.";
+      } else if (sample.hasApproximatePrimarySuns) {
+        hintText =
+          "Schematic sky layout: local multi-primary host suns are grouped for readability and are not phase-resolved.";
+      } else if (sample.hasApproximateCompanionSuns) {
+        hintText =
+          sample.primarySuns?.length > 1
+            ? "Schematic sky layout: primary suns are drawn together, while companion suns use host-frame separation as an approximate sky-distance reference."
+            : "Schematic sky layout: companion suns use host-frame separation as an approximate sky-distance reference.";
+      }
+      skyHintEl.textContent = hintText;
+      skyHintEl.hidden = !hintText;
+    }
 
     // Sky canvas
     const starModel = sample.starModel;
@@ -469,6 +586,10 @@ export function initApparentPage(mountEl) {
           starMassMsol: sample.starMassMsol,
           starAgeGyr: sample.starAgeGyr,
         },
+        sample.skyStars || sample.companionStars || [],
+        {
+          animatePrimaryPair: state.animatePrimaryPair,
+        },
       );
     }
   }
@@ -507,6 +628,11 @@ export function initApparentPage(mountEl) {
       state.skyMode = e.target.value;
       render();
     }
+  });
+
+  skyPairAnimationToggleEl?.addEventListener("click", () => {
+    state.animatePrimaryPair = !state.animatePrimaryPair;
+    render();
   });
 
   if (skyWrapEl) {

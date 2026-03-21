@@ -5,6 +5,8 @@
 // - Render an icon/span with data-tip="..."
 // - Call attachTooltips(root) once for the page root.
 
+import { createElement } from "./domHelpers.js";
+
 let activeEl = null;
 let activeBubble = null;
 let hideTimer = null;
@@ -14,6 +16,25 @@ export function tipIcon(text) {
   if (!text) return "";
   const safe = escapeAttr(text);
   return `<span class="tip-icon" tabindex="0" role="note" aria-label="Info" data-tip="${safe}">i</span>`;
+}
+
+export function tipAttr(text) {
+  if (!text) return "";
+  return `data-tip="${escapeAttr(text)}"`;
+}
+
+export function tipIconNode(text) {
+  if (!text) return null;
+  return createElement("span", {
+    className: "tip-icon",
+    attrs: {
+      tabindex: "0",
+      role: "note",
+      "aria-label": "Info",
+      "data-tip": text,
+    },
+    text: "i",
+  });
 }
 
 export function attachTooltips(root) {

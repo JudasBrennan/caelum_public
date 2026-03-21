@@ -1,5 +1,7 @@
 export const RESERVED_IMPORT_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
+import { validateStellarSystemDefinition } from "./stellarSystemModel.js";
+
 function isPlainObjectLike(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -59,6 +61,7 @@ export function validateEnvelope(obj) {
 
   const hasKnownWorldSection =
     (normalizedWorld.star && typeof normalizedWorld.star === "object") ||
+    (normalizedWorld.stellarSystem && typeof normalizedWorld.stellarSystem === "object") ||
     (normalizedWorld.system && typeof normalizedWorld.system === "object") ||
     (normalizedWorld.planets && typeof normalizedWorld.planets === "object") ||
     (normalizedWorld.planet && typeof normalizedWorld.planet === "object") ||
@@ -74,6 +77,13 @@ export function validateEnvelope(obj) {
     (typeof normalizedWorld.star !== "object" || Array.isArray(normalizedWorld.star))
   ) {
     errors.push("'star' must be an object.");
+  }
+  if (
+    normalizedWorld.stellarSystem != null &&
+    (typeof normalizedWorld.stellarSystem !== "object" ||
+      Array.isArray(normalizedWorld.stellarSystem))
+  ) {
+    errors.push("'stellarSystem' must be an object.");
   }
   if (
     normalizedWorld.system != null &&
@@ -113,6 +123,14 @@ export function validateEnvelope(obj) {
   const moonsById = normalizedWorld.moons?.byId;
   if (moonsById && (typeof moonsById !== "object" || Array.isArray(moonsById))) {
     errors.push("'moons.byId' must be an object.");
+  }
+
+  if (normalizedWorld.stellarSystem != null) {
+    errors.push(
+      ...validateStellarSystemDefinition(normalizedWorld.stellarSystem, {
+        fallbackStar: normalizedWorld.star,
+      }),
+    );
   }
 
   return { ok: errors.length === 0, errors, isEnvelope, world };

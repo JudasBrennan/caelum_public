@@ -1,5 +1,3 @@
-import { calcMoon } from "../../engine/moon.js";
-import { calcPlanetExact } from "../../engine/planet.js";
 import {
   ASTRO_ICON_CLASS_BY_KEY,
   CALENDAR_PHASES as PHASES,
@@ -22,6 +20,7 @@ import {
   RECURRENCES,
   WORK_CYCLE_MODES,
 } from "./constants.js";
+import { solveMoonForWorld, solvePlanetExactForWorld } from "../bodySolveHelpers.js";
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -878,38 +877,19 @@ export function createCalendarStateStoreBindings({
   getStarOverrides = () => ({}),
   listMoons = () => [],
   listPlanets = () => [],
+  solveMoonModelForWorld = solveMoonForWorld,
+  solvePlanetModelForWorld = solvePlanetExactForWorld,
   updateWorld = () => {},
 } = {}) {
   function derivePlanetPeriodDays(world, planet) {
     if (!planet?.inputs) return 365.2422;
-    const sov = getStarOverrides(world?.star);
-    const m = calcPlanetExact({
-      starMassMsol: N(world?.star?.massMsol, 1),
-      starAgeGyr: N(world?.star?.ageGyr, 4.5),
-      starMetallicityFeH: N(world?.star?.metallicityFeH, 0),
-      starRadiusRsolOverride: sov.r,
-      starLuminosityLsolOverride: sov.l,
-      starTempKOverride: sov.t,
-      starEvolutionMode: sov.ev,
-      planet: planet.inputs,
-    });
+    const { model: m } = solvePlanetModelForWorld(world, planet);
     return Math.max(0.1, N(m?.derived?.orbitalPeriodEarthDays, 365.2422));
   }
 
   function deriveMoonSynodicDays(world, planet, moon) {
     if (!planet?.inputs || !moon?.inputs) return 29.5306;
-    const sovM = getStarOverrides(world?.star);
-    const m = calcMoon({
-      starMassMsol: N(world?.star?.massMsol, 1),
-      starAgeGyr: N(world?.star?.ageGyr, 4.5),
-      starMetallicityFeH: N(world?.star?.metallicityFeH, 0),
-      starRadiusRsolOverride: sovM.r,
-      starLuminosityLsolOverride: sovM.l,
-      starTempKOverride: sovM.t,
-      starEvolutionMode: sovM.ev,
-      planet: planet.inputs,
-      moon: moon.inputs,
-    });
+    const { model: m } = solveMoonModelForWorld(world, planet, moon);
     return Math.max(0.1, N(m?.orbit?.orbitalPeriodSynodicDays, 29.5306));
   }
 

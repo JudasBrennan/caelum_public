@@ -19,7 +19,12 @@ export function listFromCollection(coll) {
   return order.map((id) => byId[id]).filter(Boolean);
 }
 
-export function normalizeDebrisDisk(raw, idx = 1) {
+function normalizeHostFrameId(value, fallbackId = null) {
+  const id = String(value ?? "").trim();
+  return id || fallbackId || null;
+}
+
+export function normalizeDebrisDisk(raw, idx = 1, { fallbackHostFrameId = null } = {}) {
   const inner = Number(raw?.innerAu ?? raw?.inner ?? 0);
   const outer = Number(raw?.outerAu ?? raw?.outer ?? 0);
   const innerAu = Number.isFinite(inner) ? Math.max(0, inner) : 0;
@@ -43,6 +48,7 @@ export function normalizeDebrisDisk(raw, idx = 1) {
   return {
     id: String(raw?.id || `dd${idx}`),
     name: String(raw?.name || (idx === 1 ? "Debris disk" : `Debris disk ${idx}`)),
+    hostFrameId: normalizeHostFrameId(raw?.hostFrameId, fallbackHostFrameId),
     innerAu,
     outerAu,
     suggested: Boolean(raw?.suggested),
@@ -77,15 +83,31 @@ export function getGasGiants(world, normalizeGasGiant = defaultNormalizeGasGiant
     .filter((g) => g.au > 0);
 }
 
-export function getDebrisDisks(world) {
+export function getDebrisDisks(world, { hostFrameId = null, fallbackHostFrameId = null } = {}) {
   const ds = world?.system?.debrisDisks;
-  if (Array.isArray(ds)) return ds.map((d, i) => normalizeDebrisDisk(d, i + 1));
-  return listFromCollection(ds).map((d, i) => normalizeDebrisDisk(d, i + 1));
+  const resolvedFallbackHostFrameId =
+    normalizeHostFrameId(
+      fallbackHostFrameId,
+      normalizeHostFrameId(world?.stellarSystem?.defaultHostFrameId, "star_a"),
+    ) || "star_a";
+  const normalized = Array.isArray(ds)
+    ? ds.map((d, i) =>
+        normalizeDebrisDisk(d, i + 1, { fallbackHostFrameId: resolvedFallbackHostFrameId }),
+      )
+    : listFromCollection(ds).map((d, i) =>
+        normalizeDebrisDisk(d, i + 1, { fallbackHostFrameId: resolvedFallbackHostFrameId }),
+      );
+  const resolvedHostFrameId = normalizeHostFrameId(hostFrameId, null);
+  if (!resolvedHostFrameId) return normalized;
+  return normalized.filter(
+    (disk) =>
+      normalizeHostFrameId(disk.hostFrameId, resolvedFallbackHostFrameId) === resolvedHostFrameId,
+  );
 }
 
 export function canonicalizeSystemFeatures(
   world,
-  { normalizeGasGiant = defaultNormalizeGasGiant } = {},
+  { normalizeGasGiant = defaultNormalizeGasGiant, fallbackHostFrameId = null } = {},
 ) {
   if (!world.system || typeof world.system !== "object") world.system = {};
 
@@ -101,11 +123,16 @@ export function canonicalizeSystemFeatures(
     return true;
   });
 
-  let debrisDisks = getDebrisDisks(world);
+  let debrisDisks = getDebrisDisks(world, { fallbackHostFrameId });
   debrisDisks = debrisDisks.map((d) => {
     const lo = Math.max(0, Math.min(d.innerAu, d.outerAu));
     const hi = Math.max(0, Math.max(d.innerAu, d.outerAu));
-    return { ...d, innerAu: lo, outerAu: hi };
+    return {
+      ...d,
+      hostFrameId: normalizeHostFrameId(d.hostFrameId, fallbackHostFrameId),
+      innerAu: lo,
+      outerAu: hi,
+    };
   });
 
   const prevSelectedGg = world.system.gasGiants?.selectedId ?? null;

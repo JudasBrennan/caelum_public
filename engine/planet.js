@@ -172,6 +172,7 @@ const SURFACE_DIVISOR_MIN = 0.9;
 
 function buildPlanetSummaryResult({
   star,
+  hostFrameId,
   massEarth,
   cmfPct,
   wmfPct,
@@ -200,6 +201,7 @@ function buildPlanetSummaryResult({
 }) {
   return {
     star,
+    hostFrameId,
     inputs: {
       massEarth,
       cmfPct,
@@ -275,6 +277,12 @@ export function calcPlanetExact({
   starLuminosityLsolOverride,
   starTempKOverride,
   starEvolutionMode,
+  hostFrameId = null,
+  hostFrame = null,
+  hostXuvFluxEarthAt1Au = null,
+  companionFluxEarth = 0,
+  companionXuvFluxEarth = 0,
+  fluxVariabilityFraction = 0,
   planet,
   moons,
   gasGiants,
@@ -353,10 +361,28 @@ export function calcPlanetExact({
   const rawGasMixOverflowPct = Math.max(0, rawGasInputTotalPct - 100);
   const rawGasMixClamped = rawGasMixOverflowPct > 0;
   let n2Pct = Math.max(0, rawN2PctRaw);
+  const meanCompanionFluxEarth = Math.max(toFinite(companionFluxEarth, 0), 0);
+  const meanCompanionXuvFluxEarth = Math.max(toFinite(companionXuvFluxEarth, 0), 0);
+  const resolvedHostXuvFluxEarthAt1Au = toFinite(hostXuvFluxEarthAt1Au, null);
+  const hostFrameFluxVariabilityFraction = Math.max(toFinite(fluxVariabilityFraction, 0), 0);
+
+  function effectiveLuminosityAtDistanceAu(distanceAu) {
+    const orbitalDistanceAu = Math.max(toFinite(distanceAu, semiMajorAxisAu), 0.01);
+    const hostFluxEarth = calcInsolationEarthRatio({
+      starLuminosityLsol: star.luminosityLsol,
+      orbitalDistanceAu,
+    });
+    return Math.max((hostFluxEarth + meanCompanionFluxEarth) * orbitalDistanceAu ** 2, 1e-9);
+  }
+
   // Star derived (also present on PLANET sheet)
   const starMassKg = STAR_MASS_TO_KG * starMassMsol;
-  const hzInnerAuRaw = Number(star.habitableZoneAu?.inner);
-  const hzOuterAuRaw = Number(star.habitableZoneAu?.outer);
+  const hzInnerAuRaw = Number(
+    hostFrame?.zones?.habitableZoneAu?.inner ?? star.habitableZoneAu?.inner,
+  );
+  const hzOuterAuRaw = Number(
+    hostFrame?.zones?.habitableZoneAu?.outer ?? star.habitableZoneAu?.outer,
+  );
   const hzInnerAu = Number.isFinite(hzInnerAuRaw) ? hzInnerAuRaw : 0;
   const hzOuterAu = Number.isFinite(hzOuterAuRaw) ? hzOuterAuRaw : 0;
 
@@ -394,15 +420,18 @@ export function calcPlanetExact({
 
   // ── Jeans escape ──────────────────────────────────────────────────
   // Equilibrium temperature (no greenhouse) — same formula as tEqK below.
-  const tEqNoGh = equilibriumTemperatureK(star.luminosityLsol, albedoBond, semiMajorAxisAu);
-
-  // XUV flux ratio relative to present-day Earth at 1 AU (Ribas et al. 2005)
-  const fXuvRatio = computeXuvFluxRatio(
-    star.massMsol,
-    star.luminosityLsol,
-    starAgeGyr,
+  const tEqNoGh = equilibriumTemperatureK(
+    effectiveLuminosityAtDistanceAu(semiMajorAxisAu),
+    albedoBond,
     semiMajorAxisAu,
   );
+
+  // XUV flux ratio relative to present-day Earth at 1 AU (Ribas et al. 2005)
+  const hostXuvRatio =
+    Number.isFinite(resolvedHostXuvFluxEarthAt1Au) && resolvedHostXuvFluxEarthAt1Au > 0
+      ? resolvedHostXuvFluxEarthAt1Au / Math.max(semiMajorAxisAu, 0.01) ** 2
+      : computeXuvFluxRatio(star.massMsol, star.luminosityLsol, starAgeGyr, semiMajorAxisAu);
+  const fXuvRatio = hostXuvRatio + meanCompanionXuvFluxEarth;
 
   // Exobase temperature: XUV-heated thermosphere countered by CO₂ cooling.
   const co2Frac = clamp(planet.co2Pct ?? 0, 0, 100) / 100;
@@ -444,7 +473,7 @@ export function calcPlanetExact({
 
   // Temperature chain (Calculations C128..C135)
   const { surfaceTempK: tKel, surfaceTempC: tC } = computePlanetSurfaceTemperature({
-    starLuminosityLsol: star.luminosityLsol,
+    starLuminosityLsol: effectiveLuminosityAtDistanceAu(semiMajorAxisAu),
     albedoBond,
     semiMajorAxisAu,
     greenhouseEffect,
@@ -495,10 +524,11 @@ export function calcPlanetExact({
   const coreRadiusKm = coreRadiusFraction * radiusKm;
 
   // Insolation relative to Earth (L/d²)
-  const insolationEarth = calcInsolationEarthRatio({
+  const hostInsolationEarth = calcInsolationEarthRatio({
     starLuminosityLsol: star.luminosityLsol,
     orbitalDistanceAu: semiMajorAxisAu,
   });
+  const insolationEarth = hostInsolationEarth + meanCompanionFluxEarth;
 
   // Habitable zone membership
   const inHabitableZone =
@@ -537,7 +567,11 @@ export function calcPlanetExact({
 
   // Atmospheric thermal-tide resistance (Leconte+ 2015).
   // Thick atmospheres generate a pressure-asymmetry torque opposing synchronisation.
-  const tEqK = equilibriumTemperatureK(star.luminosityLsol, albedoBond, semiMajorAxisAu);
+  const tEqK = equilibriumTemperatureK(
+    effectiveLuminosityAtDistanceAu(semiMajorAxisAu),
+    albedoBond,
+    semiMajorAxisAu,
+  );
   const bAtm = atmosphereTideRatio(pressureAtm, insolationEarth, gravityMs2, tEqK);
   const atmospherePreventsLocking = bAtm >= 1;
 
@@ -575,6 +609,7 @@ export function calcPlanetExact({
   if (detailLevel === "summary") {
     return buildPlanetSummaryResult({
       star,
+      hostFrameId,
       massEarth,
       cmfPct,
       wmfPct,
@@ -718,17 +753,21 @@ export function calcPlanetExact({
   // Equilibrium temperature at periapsis and apoapsis (blackbody + albedo,
   // no greenhouse).  Same formula as tEqK (line above) but substituting
   // the actual distance at orbital extremes.
-  const { periapsisK: tEqPeriK, apoapsisK: tEqApoK } = computePeriapsisApoapsisTemperatures({
-    starLuminosityLsol: star.luminosityLsol,
+  const { periapsisK: tEqPeriK } = computePeriapsisApoapsisTemperatures({
+    starLuminosityLsol: effectiveLuminosityAtDistanceAu(periapsisAu),
     albedoBond,
     periapsisAu,
     apoapsisAu,
     fallbackK: tEqK,
   });
+  const tEqApoResolvedK =
+    apoapsisAu > 0
+      ? equilibriumTemperatureK(effectiveLuminosityAtDistanceAu(apoapsisAu), albedoBond, apoapsisAu)
+      : tEqK;
 
   // Volatile sublimation analysis (dwarf planets only)
   const isDwarfPlanet = massEarth < 0.01;
-  const volatileFlags = isDwarfPlanet ? analyseVolatiles(tEqPeriK, tEqApoK) : null;
+  const volatileFlags = isDwarfPlanet ? analyseVolatiles(tEqPeriK, tEqApoResolvedK) : null;
 
   // Nearest gas giant mean-motion resonance
   const nearestResonance = findNearestResonance(
@@ -848,6 +887,85 @@ export function calcPlanetExact({
 
   // Apparent size of star (Calculations C146)
   const apparentStarDeg = (star.radiusRsol / semiMajorAxisAu) * 0.5332;
+  const hostFrameCriticalOuterAu = Number(hostFrame?.stability?.criticalOuterAu);
+  const hostFrameCriticalInnerAu = Number(hostFrame?.stability?.criticalInnerAu);
+  const hostFrameDiskTruncationAu = Number(
+    hostFrame?.stability?.diskTruncationAu ?? hostFrame?.zones?.diskTruncationAu,
+  );
+  const hostFrameCircumbinaryInnerEdgeAu = Number(hostFrame?.stability?.circumbinaryInnerEdgeAu);
+  let dynamicalStabilityState = "Stable";
+  const dynamicalStabilityNotes = [];
+  if (hostFrame?.frameKind === "pair") {
+    if (Number.isFinite(hostFrameCriticalInnerAu) && hostFrameCriticalInnerAu > 0) {
+      if (semiMajorAxisAu < hostFrameCriticalInnerAu) {
+        dynamicalStabilityState = "Likely unstable";
+        dynamicalStabilityNotes.push(
+          `Orbit lies inside the circumbinary stability floor (${fmt(hostFrameCriticalInnerAu, 3)} AU).`,
+        );
+      } else if (semiMajorAxisAu < hostFrameCriticalInnerAu * 1.15) {
+        dynamicalStabilityState = "Marginal";
+        dynamicalStabilityNotes.push(
+          `Orbit sits close to the circumbinary stability floor (${fmt(hostFrameCriticalInnerAu, 3)} AU).`,
+        );
+      }
+    }
+    if (
+      Number.isFinite(hostFrameCircumbinaryInnerEdgeAu) &&
+      hostFrameCircumbinaryInnerEdgeAu > 0 &&
+      semiMajorAxisAu < hostFrameCircumbinaryInnerEdgeAu
+    ) {
+      if (dynamicalStabilityState === "Stable") dynamicalStabilityState = "Disk-cleared";
+      dynamicalStabilityNotes.push(
+        `Orbit lies inside the likely cleared inner circumbinary disk (${fmt(hostFrameCircumbinaryInnerEdgeAu, 3)} AU).`,
+      );
+    }
+    if (Number.isFinite(hostFrameCriticalOuterAu) && hostFrameCriticalOuterAu > 0) {
+      if (semiMajorAxisAu > hostFrameCriticalOuterAu) {
+        dynamicalStabilityState = "Likely unstable";
+        dynamicalStabilityNotes.push(
+          `Orbit extends beyond the outer hierarchical stability limit (${fmt(hostFrameCriticalOuterAu, 3)} AU).`,
+        );
+      } else if (semiMajorAxisAu > hostFrameCriticalOuterAu * 0.85) {
+        if (dynamicalStabilityState === "Stable") dynamicalStabilityState = "Marginal";
+        dynamicalStabilityNotes.push(
+          `Orbit sits close to the outer hierarchical stability edge (${fmt(hostFrameCriticalOuterAu, 3)} AU).`,
+        );
+      }
+    }
+    if (Number.isFinite(hostFrameDiskTruncationAu) && hostFrameDiskTruncationAu > 0) {
+      if (semiMajorAxisAu > hostFrameDiskTruncationAu) {
+        if (dynamicalStabilityState === "Stable") dynamicalStabilityState = "Disk-truncated";
+        dynamicalStabilityNotes.push(
+          `Orbit lies beyond the likely truncated outer circumbinary disk (${fmt(hostFrameDiskTruncationAu, 3)} AU).`,
+        );
+      }
+    }
+  } else {
+    if (Number.isFinite(hostFrameCriticalOuterAu) && hostFrameCriticalOuterAu > 0) {
+      if (semiMajorAxisAu > hostFrameCriticalOuterAu) {
+        dynamicalStabilityState = "Likely unstable";
+        dynamicalStabilityNotes.push(
+          `Orbit extends beyond the circumstellar stability limit (${fmt(hostFrameCriticalOuterAu, 3)} AU).`,
+        );
+      } else if (semiMajorAxisAu > hostFrameCriticalOuterAu * 0.85) {
+        dynamicalStabilityState = "Marginal";
+        dynamicalStabilityNotes.push(
+          `Orbit sits close to the circumstellar stability edge (${fmt(hostFrameCriticalOuterAu, 3)} AU).`,
+        );
+      }
+    }
+    if (Number.isFinite(hostFrameDiskTruncationAu) && hostFrameDiskTruncationAu > 0) {
+      if (semiMajorAxisAu > hostFrameDiskTruncationAu) {
+        if (dynamicalStabilityState === "Stable") dynamicalStabilityState = "Disk-truncated";
+        dynamicalStabilityNotes.push(
+          `Orbit lies beyond the likely truncated circumstellar disk (${fmt(hostFrameDiskTruncationAu, 3)} AU).`,
+        );
+      }
+    }
+  }
+  for (const warning of hostFrame?.stability?.warnings || []) {
+    dynamicalStabilityNotes.push(String(warning));
+  }
 
   const habitabilityContext = buildPlanetHabitabilityContext({
     star,
@@ -908,6 +1026,14 @@ export function calcPlanetExact({
 
   return {
     star,
+    hostFrame: hostFrame
+      ? {
+          id: hostFrame.id,
+          label: hostFrame.label,
+          frameKind: hostFrame.frameKind,
+          orbitFamilyKind: hostFrame.orbitFamilyKind,
+        }
+      : null,
     inputs: {
       massEarth,
       cmfPct,
@@ -950,9 +1076,28 @@ export function calcPlanetExact({
       starMassKg,
       starRadiusRsol: star.radiusRsol,
       starLuminosityLsol: star.luminosityLsol,
+      hostFrameId,
+      hostFrameLabel: hostFrame?.label || null,
+      hostFrameKind: hostFrame?.frameKind || null,
+      orbitFamilyKind: hostFrame?.orbitFamilyKind || "single",
       hzInnerAu,
       hzOuterAu,
       inHabitableZone,
+      hostInsolationEarth,
+      companionFluxEarth: meanCompanionFluxEarth,
+      companionFluxFraction: insolationEarth > 0 ? meanCompanionFluxEarth / insolationEarth : 0,
+      companionXuvFluxEarth: meanCompanionXuvFluxEarth,
+      fluxVariabilityFraction: hostFrameFluxVariabilityFraction,
+      dynamicalStabilityState,
+      dynamicalStabilityNotes,
+      criticalOuterAu:
+        Number.isFinite(hostFrameCriticalOuterAu) && hostFrameCriticalOuterAu > 0
+          ? hostFrameCriticalOuterAu
+          : null,
+      diskTruncationAu:
+        Number.isFinite(hostFrameDiskTruncationAu) && hostFrameDiskTruncationAu > 0
+          ? hostFrameDiskTruncationAu
+          : null,
       insolationEarth,
       tidalLockStarGyr,
       tidallyLockedToStar,
@@ -1008,7 +1153,7 @@ export function calcPlanetExact({
       periapsisAu,
       apoapsisAu,
       tEqPeriK: Math.round(tEqPeriK),
-      tEqApoK: Math.round(tEqApoK),
+      tEqApoK: Math.round(tEqApoResolvedK),
       volatileFlags,
       nearestResonance,
       orbitalPeriodEarthYears,
@@ -1144,7 +1289,10 @@ export function calcPlanetExact({
           : null,
       tempApo:
         eccentricity > 0.005
-          ? fmt(Math.round(tEqApoK), 0) + " K (" + fmt(Math.round(tEqApoK) - 273, 0) + " \u00b0C)"
+          ? fmt(Math.round(tEqApoResolvedK), 0) +
+            " K (" +
+            fmt(Math.round(tEqApoResolvedK) - 273, 0) +
+            " \u00b0C)"
           : null,
       volatileSummary: volatileFlags
         ? volatileFlags
@@ -1176,6 +1324,17 @@ export function calcPlanetExact({
       earthSimilarityIndex: fmt(earthSimilarity.score, 3),
       habitabilityIndex: fmt(planetaryHabitability.score, 3),
       insolation: fmt(insolationEarth, 3) + "× Earth",
+      companionFlux:
+        hostFrame?.frameKind === "pair"
+          ? "Included in host pair"
+          : meanCompanionFluxEarth > 0
+            ? `${fmt(meanCompanionFluxEarth, 3)}× Earth (${fmt((meanCompanionFluxEarth / Math.max(insolationEarth, 1e-9)) * 100, 1)}%)`
+            : "Negligible",
+      fluxVariability:
+        hostFrameFluxVariabilityFraction > 0
+          ? `${fmt(hostFrameFluxVariabilityFraction * 100, 1)}%`
+          : "Low",
+      dynamicalStability: dynamicalStabilityState,
       tidalLock: atmospherePreventsLocking
         ? "Atmosphere-stabilised"
         : tidallyLockedToStar

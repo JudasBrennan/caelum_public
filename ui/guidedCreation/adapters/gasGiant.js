@@ -155,17 +155,20 @@ const ORBIT_POLICY_OPTIONS = Object.freeze([
   {
     value: "keep-current",
     label: "Keep current orbit",
-    description: "Preserves the current semi-major axis and only refits the giant itself.",
+    description:
+      "Keeps the current semi-major axis, so irradiation, class, and moon-zone context stay close to the existing giant.",
   },
   {
     value: "fit-thermal-band",
     label: "Fit thermal band",
-    description: "Moves the giant toward the archetype's irradiation band around the current star.",
+    description:
+      "Moves the giant into the archetype's preferred irradiation band, often changing class, clouds, and mass-loss behavior.",
   },
   {
     value: "use-archetype",
     label: "Use archetype orbit",
-    description: "Uses the archetype's scaled reference orbit around the current star.",
+    description:
+      "Uses the archetype's scaled reference orbit, which can move the giant furthest from its current thermal regime.",
   },
 ]);
 
@@ -173,17 +176,20 @@ const RING_TARGET_OPTIONS = Object.freeze([
   {
     value: "auto",
     label: "Auto rings",
-    description: "Let the existing ring science decide whether rings should be shown.",
+    description:
+      "Lets the current ring science decide, so visibility stays tied to the derived physical state.",
   },
   {
     value: "ringed",
     label: "Force ringed",
-    description: "Keep a visible ring system even if the science would normally hide it.",
+    description:
+      "Biases toward a visible ring system, even when the underlying science would normally hide or downplay it.",
   },
   {
     value: "no-rings",
     label: "Force no rings",
-    description: "Hide rings even if the science would normally show them.",
+    description:
+      "Biases toward a cleaner giant with no visible rings, even when the science would normally show them.",
   },
 ]);
 
@@ -191,22 +197,26 @@ const MASS_TARGET_OPTIONS = Object.freeze([
   {
     value: "compact",
     label: "Compact",
-    description: "Bias toward sub-Neptune and ice-giant masses.",
+    description:
+      "Pushes toward sub-Neptune or ice-giant masses, usually making the giant denser and more metal-rich.",
   },
   {
     value: "saturnian",
     label: "Saturnian",
-    description: "Bias toward lower-density Saturn-class masses.",
+    description:
+      "Pushes toward lower-density Saturn-class masses, which often pair well with visible rings and cooler giant profiles.",
   },
   {
     value: "jupiter",
     label: "Jovian",
-    description: "Bias toward Jupiter-class masses.",
+    description:
+      "Pushes toward Jupiter-class masses, giving a more classic giant-planet bulk regime.",
   },
   {
     value: "super",
     label: "Super-Jovian",
-    description: "Bias toward higher giant-planet masses.",
+    description:
+      "Pushes toward higher giant-planet masses, usually increasing gravity, compactness, and visual dominance.",
   },
 ]);
 
@@ -214,17 +224,20 @@ const METALLICITY_TARGET_OPTIONS = Object.freeze([
   {
     value: "low",
     label: "Low metallicity",
-    description: "Keep the atmosphere only mildly enriched relative to solar.",
+    description:
+      "Keeps the atmosphere only mildly enriched, which usually preserves a cleaner Jupiter-like composition profile.",
   },
   {
     value: "solar",
     label: "Solar-ish",
-    description: "Target near-solar atmospheric enrichment.",
+    description:
+      "Targets near-solar enrichment and keeps the result close to a standard giant-atmosphere baseline.",
   },
   {
     value: "enriched",
     label: "Enriched",
-    description: "Push toward heavier-element-rich giant atmospheres.",
+    description:
+      "Pushes toward heavier-element-rich atmospheres, which often fits ice giants and compact giants better.",
   },
 ]);
 
@@ -232,22 +245,26 @@ const GOAL_PRIORITY_OPTIONS = Object.freeze([
   {
     value: "maximize-realism",
     label: "Maximize realism",
-    description: "Favor the most conservative physically defensible fit.",
+    description:
+      "Keeps the fit conservative and resists dramatic orbit, ring, or class changes that are only weakly supported.",
   },
   {
     value: "maximize-habitability",
     label: "Maximize spectacle",
-    description: "Push harder toward strong visual identity and target traits.",
+    description:
+      "Accepts larger changes if they produce a more distinctive giant, stronger rings, or a cleaner class match.",
   },
   {
     value: "preserve-current-system",
     label: "Preserve current system",
-    description: "Stay closer to the current star and orbit context where possible.",
+    description:
+      "Keeps the result closer to the current star and orbit context even if the requested giant is a weaker match.",
   },
   {
     value: "preserve-current-orbit-context",
     label: "Preserve current orbit",
-    description: "Prefer smaller orbit changes even if the fit is weaker.",
+    description:
+      "Strongly resists orbit moves, so thermal-class and irradiation goals may only be partially reached.",
   },
 ]);
 
@@ -255,17 +272,20 @@ const GOAL_ALLOWED_EDIT_OPTIONS = Object.freeze([
   {
     value: "edit-object-only",
     label: "Giant only",
-    description: "Search only within the current gas-giant inputs.",
+    description:
+      "Only this giant's inputs move, so the result stays local but may miss thermal-band goals that need a new orbit.",
   },
   {
     value: "edit-object-plus-host",
     label: "Giant + host context",
-    description: "Allow broader orbit refits around the current star.",
+    description:
+      "Allows orbit refits around the current star, which is often the main lever for class and mass-loss goals.",
   },
   {
     value: "edit-object-plus-local-system",
     label: "Giant + local system",
-    description: "Allow the broadest seeded search in this pilot flow.",
+    description:
+      "Allows the broadest seeded search, increasing fit quality at the cost of larger context changes.",
   },
 ]);
 
@@ -273,17 +293,20 @@ const GOAL_SEARCH_BUDGET_OPTIONS = Object.freeze([
   {
     value: "fast",
     label: "Fast",
-    description: "Try a small seeded search for a quick answer.",
+    description:
+      "Tries only a few seeded candidates, so it returns quickly but can miss a better gas-giant fit.",
   },
   {
     value: "balanced",
     label: "Balanced",
-    description: "Try more seeded candidates before choosing the best fit.",
+    description:
+      "Tries a moderate number of seeded candidates and is the default speed-versus-fit trade-off.",
   },
   {
     value: "deep",
     label: "Deep",
-    description: "Try the broadest seeded search available in this pilot flow.",
+    description:
+      "Tries the broadest seeded search, taking longer but increasing the chance of a closer match.",
   },
 ]);
 
@@ -461,28 +484,32 @@ function buildGasGiantGoalDraftQuestionOptions(traitId) {
     {
       value: "off",
       label: "Off",
-      description: "Do not explicitly optimize for or avoid this trait.",
+      description:
+        "Leaves this trait neutral, so it does not help or hurt a candidate unless other choices imply it.",
     },
   ];
   if (allowedRoles.includes("required")) {
     options.push({
       value: "required",
       label: "Must have",
-      description: "Treat this as a hard constraint in the search.",
+      description:
+        "Treats this as a hard requirement, so candidates missing it usually fall out of contention.",
     });
   }
   if (allowedRoles.includes("preferred")) {
     options.push({
       value: "preferred",
       label: "Prefer",
-      description: "Improve the score when this trait is reached.",
+      description:
+        "Raises the score when this trait is reached, but still allows trade-off results that miss it.",
     });
   }
   if (allowedRoles.includes("avoid")) {
     options.push({
       value: "avoid",
       label: "Avoid",
-      description: "Penalize results that trigger this trait.",
+      description:
+        "Pushes the search away from this trait without making it completely impossible.",
     });
   }
   return options;
@@ -501,7 +528,7 @@ function buildGasGiantGoalQuestions(flowState, context = {}) {
       label: "Priority",
       help:
         context.currentContextText ||
-        "Choose whether this search should favor realism, spectacle, or preserving the current orbit context.",
+        "Sets the scoring bias for the search. Realism stays conservative, spectacle accepts bolder changes, and preserve-current resists large orbit moves.",
       defaultValue: draft.priority,
       options: GOAL_PRIORITY_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -510,7 +537,7 @@ function buildGasGiantGoalQuestions(flowState, context = {}) {
       stepId: "orbit-context",
       kind: "choice",
       label: "Allowed edits",
-      help: "Decide whether the search may only retune this gas giant or make broader local changes.",
+      help: "Sets how far the search may move. Narrow scope keeps changes on this giant; broader scope allows orbit refits that can reshape class and mass-loss outputs.",
       defaultValue: draft.allowedEdits,
       options: GOAL_ALLOWED_EDIT_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -519,7 +546,7 @@ function buildGasGiantGoalQuestions(flowState, context = {}) {
       stepId: "orbit-context",
       kind: "choice",
       label: "Search budget",
-      help: "Controls how many seeded candidate paths this pilot goal search will try.",
+      help: "Sets how many seeded candidate paths the search tries. Deeper searches take longer but are more likely to find a closer gas-giant fit.",
       defaultValue: draft.searchBudget,
       options: GOAL_SEARCH_BUDGET_OPTIONS.map((entry) => ({ ...entry })),
     },
@@ -742,7 +769,7 @@ function buildGasGiantQuestions(archetype, context = {}) {
       label: "Orbit Fit",
       help:
         context.currentContextText ||
-        "Decide whether to keep the current orbit or refit the giant around the current star.",
+        "Controls how aggressively guided mode can move the orbit. Orbit changes are the main driver of irradiation class, cloud regime, and mass loss.",
       options: ORBIT_POLICY_OPTIONS,
       defaultValue: defaults.orbit_policy,
     },
@@ -751,7 +778,7 @@ function buildGasGiantQuestions(archetype, context = {}) {
       stepId: "goal-details",
       kind: "choice",
       label: "Ring Target",
-      help: "Keep the existing ring science, force visible rings, or force them off.",
+      help: "Sets whether ring appearance should follow the science or be pushed toward a specific visual outcome.",
       options: RING_TARGET_OPTIONS,
       defaultValue: defaults.ring_target,
     },
@@ -760,7 +787,7 @@ function buildGasGiantQuestions(archetype, context = {}) {
       stepId: "goal-details",
       kind: "choice",
       label: "Mass Target",
-      help: "Choose the bulk-mass regime you want this giant to sit in.",
+      help: "Sets the bulk mass band the result should aim for. This strongly affects density, classification, and overall giant character.",
       options: MASS_TARGET_OPTIONS,
       defaultValue: defaults.mass_target,
     },
@@ -769,7 +796,7 @@ function buildGasGiantQuestions(archetype, context = {}) {
       stepId: "goal-details",
       kind: "choice",
       label: "Metallicity Target",
-      help: "Push the atmosphere toward low, solar-like, or enriched heavy-element content.",
+      help: "Sets the atmospheric enrichment target, which changes how Jupiter-like, Saturn-like, or ice-giant-like the result tends to feel.",
       options: METALLICITY_TARGET_OPTIONS,
       defaultValue: defaults.metallicity_target,
     },

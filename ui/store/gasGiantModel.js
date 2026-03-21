@@ -106,6 +106,7 @@ export function normalizeGasGiant(raw, idx = 1) {
   return {
     id: String(raw?.id || `gg${idx}`),
     name: String(raw?.name || `Gas giant ${idx}`),
+    hostFrameId: String(raw?.hostFrameId || "").trim() || null,
     au: fixedAu,
     slotIndex,
     style: normalizeGasGiantStyle(raw?.style),

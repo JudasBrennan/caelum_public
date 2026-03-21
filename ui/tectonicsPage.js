@@ -4,7 +4,6 @@ import {
   volcanicArcDistance,
   airyRootDepth,
 } from "../engine/tectonics.js";
-import { calcPlanetExact } from "../engine/planet.js";
 import { fmt } from "../engine/utils.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { createTutorial } from "./tutorial.js";
@@ -12,14 +11,8 @@ import { replaceSelectOptions } from "./domHelpers.js";
 import { escapeHtml } from "./uiHelpers.js";
 import { statRowsHTML } from "./statRows.js";
 import { enableKpiInteractions } from "./planet/outputRender.js";
-import {
-  getSelectedPlanet,
-  getStarOverrides,
-  listPlanets,
-  loadWorld,
-  selectPlanet,
-  updateWorld,
-} from "./store.js";
+import { solvePlanetExactForWorld } from "./bodySolveHelpers.js";
+import { getSelectedPlanet, listPlanets, loadWorld, selectPlanet, updateWorld } from "./store.js";
 
 const TIP_LABEL = {
   "Max Peak Height":
@@ -243,23 +236,12 @@ export function getPlanetTectonicContext(world) {
   };
   const planet = getSelectedPlanet(world);
   if (!planet) return fallback;
-  const sov = getStarOverrides(world?.star);
-  const starAgeGyr = Number(world?.star?.ageGyr) || 4.6;
-  const model = calcPlanetExact({
-    starMassMsol: Number(world?.star?.massMsol) || 1,
-    starAgeGyr,
-    starMetallicityFeH: Number(world?.star?.metallicityFeH) || 0,
-    starRadiusRsolOverride: sov.r,
-    starLuminosityLsolOverride: sov.l,
-    starTempKOverride: sov.t,
-    starEvolutionMode: sov.ev,
-    planet: planet.inputs || {},
-  });
+  const { model, starConfig } = solvePlanetExactForWorld(world, planet);
   if (!model?.derived) return fallback;
   return {
     gravityG: model.derived.gravityG || 1,
     massEarth: model.inputs?.massEarth || 1,
-    ageGyr: starAgeGyr,
+    ageGyr: Number(starConfig?.ageGyr) || 4.6,
     surfaceTempK: model.derived.surfaceTempK || 288,
     h2oPct: model.inputs?.h2oPct || 0,
     compositionClass: model.derived.compositionClass || "Earth-like",

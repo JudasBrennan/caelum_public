@@ -11,6 +11,11 @@ function syncSelectedPlanetSnapshot(world) {
   }
 }
 
+function normalizeHostFrameKey(value) {
+  const id = String(value ?? "").trim();
+  return id || "__default__";
+}
+
 function syncSelectedMoonSnapshot(world) {
   const selectedMoon = world.moons?.selectedId ? world.moons.byId?.[world.moons.selectedId] : null;
   if (selectedMoon) {
@@ -28,12 +33,16 @@ export function selectPlanetInWorld(world, planetId) {
 export function createPlanetInWorld(world, inputs, { name = "New Planet" } = {}) {
   const id = makeEntityId("p");
   const normalizedInputs = { ...(inputs || {}) };
+  if (Object.prototype.hasOwnProperty.call(normalizedInputs, "hostFrameId")) {
+    delete normalizedInputs.hostFrameId;
+  }
   if (normalizedInputs.ringMode == null) normalizedInputs.ringMode = "auto";
   if (normalizedInputs.ringStyleId == null) normalizedInputs.ringStyleId = "auto";
   const planet = {
     id,
     name: name || inputs?.name || "New Planet",
     slotIndex: null,
+    hostFrameId: inputs?.hostFrameId || null,
     locked: false,
     inputs: normalizedInputs,
   };
@@ -79,6 +88,7 @@ export function updatePlanetInWorld(world, planetId, patch) {
 
   if (patch.name != null) planet.name = patch.name;
   if (patch.slotIndex !== undefined) planet.slotIndex = patch.slotIndex;
+  if (patch.hostFrameId !== undefined) planet.hostFrameId = patch.hostFrameId || null;
   if (patch.inputs) planet.inputs = { ...planet.inputs, ...patch.inputs };
 
   if (world.planets.selectedId === planetId) syncSelectedPlanetSnapshot(world);
@@ -250,12 +260,15 @@ export function togglePlanetLockInWorld(world, planetId) {
 export function assignPlanetToSlotInWorld(world, planetId, slotIndexOrNull) {
   const planet = world.planets.byId[planetId];
   if (!planet) return world;
+  const targetHostFrameKey = normalizeHostFrameKey(planet.hostFrameId);
 
   if (slotIndexOrNull != null) {
     for (const otherId of world.planets.order) {
       if (otherId === planetId) continue;
       const other = world.planets.byId[otherId];
-      if (other && other.slotIndex === slotIndexOrNull) other.slotIndex = null;
+      if (!other) continue;
+      if (normalizeHostFrameKey(other.hostFrameId) !== targetHostFrameKey) continue;
+      if (other.slotIndex === slotIndexOrNull) other.slotIndex = null;
     }
   }
 

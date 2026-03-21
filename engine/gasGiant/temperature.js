@@ -163,9 +163,24 @@ export function internalHeatRatio(massMjup) {
   return 1.503 + Math.log10(mass / 2.0) * 0.5;
 }
 
-export function computeThermalProfile({ massMjup, orbitAu, starLuminosityLsol, eccentricity }) {
+export function computeThermalProfile({
+  massMjup,
+  orbitAu,
+  starLuminosityLsol,
+  eccentricity,
+  extraFluxEarth = 0,
+}) {
+  const companionFluxEarth = Math.max(extraFluxEarth, 0);
+  const effectiveLuminosityAtDistance = (distanceAu) => {
+    const orbitalDistanceAu = Math.max(distanceAu, 0.01);
+    const hostInsolationEarth = calcInsolationEarthRatio({
+      starLuminosityLsol,
+      orbitalDistanceAu,
+    });
+    return Math.max((hostInsolationEarth + companionFluxEarth) * orbitalDistanceAu ** 2, 1e-9);
+  };
   const teqFirst = calcEquilibriumTemperatureAtDistanceK({
-    starLuminosityLsol,
+    starLuminosityLsol: effectiveLuminosityAtDistance(orbitAu),
     albedoBond: 0,
     orbitalDistanceAu: orbitAu,
     coefficientK: ZERO_ALBEDO_EQ_COEFF,
@@ -174,7 +189,7 @@ export function computeThermalProfile({ massMjup, orbitAu, starLuminosityLsol, e
   const sudarsky = classifySudarsky(teqFirst, massMjup);
   const bondAlbedo = sudarsky.bondAlbedo;
   const equilibriumTempK = calcEquilibriumTemperatureAtDistanceK({
-    starLuminosityLsol,
+    starLuminosityLsol: effectiveLuminosityAtDistance(orbitAu),
     albedoBond: bondAlbedo,
     orbitalDistanceAu: orbitAu,
     coefficientK: ZERO_ALBEDO_EQ_COEFF,
@@ -188,7 +203,7 @@ export function computeThermalProfile({ massMjup, orbitAu, starLuminosityLsol, e
   const equilibriumTempPeriK =
     periapsisAu > 0
       ? calcEquilibriumTemperatureAtDistanceK({
-          starLuminosityLsol,
+          starLuminosityLsol: effectiveLuminosityAtDistance(periapsisAu),
           albedoBond: bondAlbedo,
           orbitalDistanceAu: periapsisAu,
           coefficientK: ZERO_ALBEDO_EQ_COEFF,
@@ -198,7 +213,7 @@ export function computeThermalProfile({ massMjup, orbitAu, starLuminosityLsol, e
   const equilibriumTempApoK =
     apoapsisAu > 0
       ? calcEquilibriumTemperatureAtDistanceK({
-          starLuminosityLsol,
+          starLuminosityLsol: effectiveLuminosityAtDistance(apoapsisAu),
           albedoBond: bondAlbedo,
           orbitalDistanceAu: apoapsisAu,
           coefficientK: ZERO_ALBEDO_EQ_COEFF,
@@ -218,9 +233,10 @@ export function computeThermalProfile({ massMjup, orbitAu, starLuminosityLsol, e
     equilibriumTempApoK,
     effectiveTempPeriK: (equilibriumTempPeriK ** 4 * heatRatio) ** 0.25,
     effectiveTempApoK: (equilibriumTempApoK ** 4 * heatRatio) ** 0.25,
-    insolationEarth: calcInsolationEarthRatio({
-      starLuminosityLsol,
-      orbitalDistanceAu: orbitAu,
-    }),
+    insolationEarth:
+      calcInsolationEarthRatio({
+        starLuminosityLsol,
+        orbitalDistanceAu: orbitAu,
+      }) + companionFluxEarth,
   };
 }

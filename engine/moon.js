@@ -557,6 +557,7 @@ function buildMoonResonance({
 }
 
 function buildMoonSummaryResult({
+  hostFrame,
   mStarMsol,
   rStarRsol,
   lStarLsol,
@@ -595,6 +596,14 @@ function buildMoonSummaryResult({
   unifiedMoonHabitability,
 }) {
   return {
+    hostFrame: hostFrame
+      ? {
+          id: hostFrame.id,
+          label: hostFrame.label,
+          frameKind: hostFrame.frameKind,
+          orbitFamilyKind: hostFrame.orbitFamilyKind,
+        }
+      : null,
     star: { massMsol: mStarMsol, radiusRsol: rStarRsol, luminosityLsol: lStarLsol, ageGyr },
     planet: {
       massEarth: mPlanetME,
@@ -713,6 +722,13 @@ export function calcMoonExact({
   starLuminosityLsolOverride,
   starTempKOverride,
   starEvolutionMode,
+  starHabitableZoneAu = null,
+  hostFrameId = null,
+  hostFrame = null,
+  hostXuvFluxEarthAt1Au = null,
+  companionFluxEarth = 0,
+  companionXuvFluxEarth = 0,
+  fluxVariabilityFraction = 0,
   planet,
   moon,
   parentOverride,
@@ -731,6 +747,12 @@ export function calcMoonExact({
       starLuminosityLsolOverride,
       starTempKOverride,
       starEvolutionMode,
+      hostFrameId,
+      hostFrame,
+      hostXuvFluxEarthAt1Au,
+      companionFluxEarth,
+      companionXuvFluxEarth,
+      fluxVariabilityFraction,
       planet,
       detailLevel: detailLevel === "summary" ? "summary" : "full",
     });
@@ -753,6 +775,9 @@ export function calcMoonExact({
   const hydrosphereMode = moonInputs.hydrosphereMode;
   const atmosphereMode = moonInputs.atmosphereMode;
   const orbitalCouplingMode = moonInputs.orbitalCouplingMode;
+  const meanCompanionFluxEarth = clamp(toFinite(companionFluxEarth, 0), 0, 1000);
+  const meanCompanionXuvFluxEarth = clamp(toFinite(companionXuvFluxEarth, 0), 0, 1000);
+  const hostFrameFluxVariabilityFraction = clamp(toFinite(fluxVariabilityFraction, 0), 0, 10);
 
   const mMoonMM = clamp(moonInputs.massMoon ?? 1.0, 1e-8, 10000);
   const rhoMoonGcm3 = clamp(moonInputs.densityGcm3 ?? 3.34, 0.1, 100);
@@ -786,6 +811,8 @@ export function calcMoonExact({
   const lStarLsol = resolvedStar.luminosityLsol ?? massToLuminosity(mStarMsol);
   const starTempK =
     resolvedStar.tempK ?? (rStarRsol > 0 ? (lStarLsol / rStarRsol ** 2) ** 0.25 * 5776 : 0);
+  const effectiveStarHabitableZoneAu =
+    hostFrame?.zones?.habitableZoneAu || starHabitableZoneAu || resolvedStar.habitableZoneAu;
 
   const rMoonRM = (mMoonMM / (rhoMoonGcm3 / 3.34)) ** (1 / 3);
   const gMoonG = (mMoonMM / rMoonRM ** 2) * 0.1654;
@@ -837,6 +864,7 @@ export function calcMoonExact({
     albedo,
     planetSemiMajorAxisAu: aPlanetAU,
     starLuminosityLsol: lStarLsol,
+    extraFluxEarth: meanCompanionFluxEarth,
     surfaceAreaM2: tides.surfaceAreaM2,
     moonMassKg: tides.moonMassKg,
     radioisotopeAbundance,
@@ -844,6 +872,7 @@ export function calcMoonExact({
   });
   const illumination = computeMoonIllumination({
     starLuminosityLsol: lStarLsol,
+    extraFluxEarth: meanCompanionFluxEarth,
     planetSemiMajorAxisAu: aPlanetAU,
     planetRadiusEarth: rPlanetRE,
     planetDensityGcm3: rhoPlanetGcm3,
@@ -859,6 +888,7 @@ export function calcMoonExact({
     albedo,
     planetSemiMajorAxisAu: aPlanetAU,
     starLuminosityLsol: lStarLsol,
+    extraFluxEarth: meanCompanionFluxEarth,
     surfaceAreaM2: tides.surfaceAreaM2,
     moonMassKg: tides.moonMassKg,
     radioisotopeAbundance,
@@ -925,6 +955,7 @@ export function calcMoonExact({
       albedo,
       planetSemiMajorAxisAu: aPlanetAU,
       starLuminosityLsol: lStarLsol,
+      extraFluxEarth: meanCompanionFluxEarth,
       surfaceAreaM2: tides.surfaceAreaM2,
       moonMassKg: tides.moonMassKg,
       radioisotopeAbundance,
@@ -999,6 +1030,7 @@ export function calcMoonExact({
     albedo,
     planetSemiMajorAxisAu: aPlanetAU,
     starLuminosityLsol: lStarLsol,
+    extraFluxEarth: meanCompanionFluxEarth,
     surfaceAreaM2: tides.surfaceAreaM2,
     moonMassKg: tides.moonMassKg,
     radioisotopeAbundance,
@@ -1101,6 +1133,8 @@ export function calcMoonExact({
     moonSemiMajorAxisKm: orbit.semiMajorAxisKm,
     starLuminosityLsol: lStarLsol,
     starAgeGyr: ageGyr,
+    hostXuvFluxRatioAt1Au: hostXuvFluxEarthAt1Au,
+    extraStellarXuvFluxRatio: meanCompanionXuvFluxEarth,
     surfacePressurePa,
     iceShellThicknessKm: hydrosphere.estimatedIceShellThicknessKm,
     magnetosphere,
@@ -1122,7 +1156,7 @@ export function calcMoonExact({
   };
   const biosphere = computeMoonBiosphere({
     starTempK,
-    insolationEarth: aPlanetAU > 0 ? lStarLsol / aPlanetAU ** 2 : 0,
+    insolationEarth: aPlanetAU > 0 ? lStarLsol / aPlanetAU ** 2 + meanCompanionFluxEarth : 0,
     surfacePressurePa,
     atmosphereComposition: atmosphere.composition,
     hydrosphere,
@@ -1151,7 +1185,7 @@ export function calcMoonExact({
       "No parent moon-system context was provided, so formation is only weakly constrained.",
   };
   const habitabilitySummary = buildMoonHabitabilitySummary({
-    starHabitableZoneAu: resolvedStar.habitableZoneAu,
+    starHabitableZoneAu: effectiveStarHabitableZoneAu,
     starLuminosityLsol: lStarLsol,
     starMassMsol: mStarMsol,
     parentMassEarth: mPlanetME,
@@ -1286,6 +1320,7 @@ export function calcMoonExact({
 
   if (detailLevel === "summary") {
     return buildMoonSummaryResult({
+      hostFrame,
       mStarMsol,
       rStarRsol,
       lStarLsol,
@@ -1326,6 +1361,14 @@ export function calcMoonExact({
   }
 
   return {
+    hostFrame: hostFrame
+      ? {
+          id: hostFrame.id,
+          label: hostFrame.label,
+          frameKind: hostFrame.frameKind,
+          orbitFamilyKind: hostFrame.orbitFamilyKind,
+        }
+      : null,
     star: { massMsol: mStarMsol, radiusRsol: rStarRsol, luminosityLsol: lStarLsol, ageGyr },
     planet: {
       massEarth: mPlanetME,
@@ -1421,6 +1464,8 @@ export function calcMoonExact({
       surfaceK: temperature.surfaceK,
       surfaceC: temperature.surfaceC,
       radiogenicWm2: temperature.radiogenicWm2,
+      companionFluxEarth: meanCompanionFluxEarth,
+      fluxVariabilityFraction: hostFrameFluxVariabilityFraction,
     },
 
     volatiles: {

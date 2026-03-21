@@ -1,6 +1,6 @@
 import * as store from "./store.js";
 import { isXlsxFile, importLegacyWorldsmithWorkbook } from "./legacyXlsxImport.js";
-import { attachTooltips, tipIcon } from "./tooltip.js";
+import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
 import { createSolPresetEnvelope } from "./solPreset.js";
 import { createRealmspacePresetEnvelope } from "./realmspacePreset.js";
 import { createArrakisPresetEnvelope } from "./arrakisPreset.js";
@@ -74,6 +74,40 @@ function setStatus(el, msg, kind = "info") {
   const normalizedKind = kind === "bad" ? "error" : kind;
   el.textContent = msg;
   el.dataset.kind = normalizedKind;
+}
+
+function formatHostFrameLabel(hostFrameId = "") {
+  switch (String(hostFrameId || "").trim()) {
+    case "star_b":
+      return "Star B";
+    case "star_c":
+      return "Star C";
+    case "star_d":
+      return "Star D";
+    case "pair_ab":
+      return "Pair A+B";
+    case "pair_abc":
+      return "Pair (A+B)+C";
+    case "pair_abcd":
+      return "Pair ((A+B)+C)+D";
+    case "star_a":
+    default:
+      return "Star A";
+  }
+}
+
+function formatTopologyLabel(topologyKind = "") {
+  switch (String(topologyKind || "").trim()) {
+    case "binary":
+      return "Binary";
+    case "triple":
+      return "Triple";
+    case "quad":
+      return "Quad";
+    case "single":
+    default:
+      return "Single";
+  }
 }
 
 function textSizeBytes(text) {
@@ -167,20 +201,20 @@ export function initImportExportPage(root) {
             <div style="height:10px"></div>
 
             <div class="io-actions">
-              <button id="btn-download" type="button">Download JSON</button>
-              <button id="btn-copy" type="button">Copy to clipboard</button>
-              <button id="btn-refresh" type="button">Refresh view</button>
-              <button id="btn-clear-data" type="button" class="small danger">Clear saved data</button>
+              <button id="btn-download" type="button" ${tipAttr(TIP_LABEL["Download JSON"] || "")}>Download JSON</button>
+              <button id="btn-copy" type="button" ${tipAttr(TIP_LABEL["Copy to clipboard"] || "")}>Copy to clipboard</button>
+              <button id="btn-refresh" type="button" ${tipAttr(TIP_LABEL["Refresh view"] || "")}>Refresh view</button>
+              <button id="btn-clear-data" type="button" class="small danger" ${tipAttr(TIP_LABEL["Clear saved data"] || "")}>Clear saved data</button>
             </div>
 
             <div style="height:10px"></div>
-            <textarea id="txt-json" class="io-textarea" spellcheck="false"></textarea>
+            <textarea id="txt-json" class="io-textarea" spellcheck="false" ${tipAttr(TIP_LABEL["Export JSON text"] || "")}></textarea>
             <div id="status-export" class="io-status" data-kind="info"></div>
           </div>
         </div>
 
         <div class="panel">
-          <div class="panel__header"><h2>Import & Backups</h2></div>
+          <div class="panel__header"><h2>Import & Backups ${tipIcon(TIP_LABEL["Import"] || "")}</h2></div>
             <div class="panel__body">
               <div class="label">Backups ${tipIcon(TIP_LABEL["Backups"] || "")}</div>
               <div class="hint">A backup is created automatically before applying an import. If something goes wrong, restore one here.</div>
@@ -193,23 +227,23 @@ export function initImportExportPage(root) {
             <div style="height:10px"></div>
 
             <div class="io-actions">
-              <input id="file" type="file" accept="application/json,.json,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
-              <button id="btn-import" type="button">Validate import</button>
-              <button id="btn-sol-preset" type="button">Import Sol preset</button>
-              <button id="btn-realmspace-preset" type="button">Import Realmspace preset</button>
-              <button id="btn-arrakis-preset" type="button">Import Arrakis preset</button>
+              <input id="file" type="file" accept="application/json,.json,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ${tipAttr(TIP_LABEL["Import file"] || "")} />
+              <button id="btn-import" type="button" ${tipAttr(TIP_LABEL["Validate import"] || "")}>Validate import</button>
+              <button id="btn-sol-preset" type="button" ${tipAttr(TIP_LABEL["Import Sol preset"] || "")}>Import Sol preset</button>
+              <button id="btn-realmspace-preset" type="button" ${tipAttr(TIP_LABEL["Import Realmspace preset"] || "")}>Import Realmspace preset</button>
+              <button id="btn-arrakis-preset" type="button" ${tipAttr(TIP_LABEL["Import Arrakis preset"] || "")}>Import Arrakis preset</button>
             </div>
 
             <div style="height:10px"></div>
 
             <div id="importPreview" class="io-import-preview" style="display:none"></div>
             <div class="io-import-actions" id="importActions" style="display:none">
-              <button id="btn-apply-import" type="button" class="btn-primary">Replace current world</button>
+              <button id="btn-apply-import" type="button" class="btn-primary" ${tipAttr(TIP_LABEL["Replace current world"] || "")}>Replace current world</button>
               <button id="btn-cancel-import" type="button">Cancel</button>
             </div>
 
             <div style="height:10px"></div>
-            <textarea id="txt-import" class="io-textarea" spellcheck="false" placeholder="{ ... }"></textarea>
+            <textarea id="txt-import" class="io-textarea" spellcheck="false" placeholder="{ ... }" ${tipAttr(TIP_LABEL["Import JSON text"] || "")}></textarea>
             <div id="status-import" class="io-status" data-kind="info"></div>
           </div>
         </div>
@@ -337,7 +371,13 @@ export function initImportExportPage(root) {
 
     const m = pendingImport.meta;
     const debrisText = m.debrisCount
-      ? m.debrisRanges.map((d) => `${d.name}: ${d.inner}-${d.outer} AU`).join(" | ")
+      ? m.debrisRanges
+          .map((d) => {
+            const hostSuffix =
+              m.topologyKind !== "single" && d.hostFrameLabel ? ` (${d.hostFrameLabel})` : "";
+            return `${d.name}${hostSuffix}: ${d.inner}-${d.outer} AU`;
+          })
+          .join(" | ")
       : "-";
     importPreviewEl.style.display = "block";
     importActionsEl.style.display = "flex";
@@ -370,6 +410,12 @@ export function initImportExportPage(root) {
       "Star",
       `${m.spec ? m.spec : "-"}${m.starMass != null ? ` | ${m.starMass} Msol` : ""}${
         m.starAge != null ? ` | ${m.starAge} Gyr` : ""
+      }`,
+    );
+    addRow(
+      "Home system",
+      `${formatTopologyLabel(m.topologyKind)} | ${m.starCount || 1} star${Number(m.starCount || 1) === 1 ? "" : "s"}${
+        m.defaultHostFrameId ? ` | default ${formatHostFrameLabel(m.defaultHostFrameId)}` : ""
       }`,
     );
     addRow("Planets", `${m.planets} total (${m.assigned} assigned, ${m.unassigned} unassigned)`);

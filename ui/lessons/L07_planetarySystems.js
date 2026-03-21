@@ -86,7 +86,42 @@ export function buildLesson07(mode) {
       mode,
     ),
 
-    /* ── 3. Inner Limits ── */
+    /* ── 3. Multistar Host Frames ── */
+    concept(
+      "Multistar Host Frames",
+      `<p>Not every planetary system orbits a single lonely star. Many systems are
+      binaries or higher-order multiples, and that changes what &ldquo;the host&rdquo;
+      means. In WorldSmith, planets can orbit either a <strong>single star</strong>
+      in a circumstellar <strong>S-type</strong> frame, or a <strong>bound pair</strong>
+      in a circumbinary <strong>P-type</strong> frame.</p>
+      <p>That distinction matters because each host frame has its own orbit ladder,
+      habitable zone, frost line, and stability limits. A planet orbiting Star A in
+      a wide binary does not feel the same geometry as a planet orbiting the A+B
+      barycentre in a close binary.</p>
+      <p>Hierarchical triples and quads extend the same idea: an inner pair can act
+      as a local host frame, while more distant stars contribute extra light and
+      long-term perturbations from higher levels of the hierarchy.</p>
+      ${analogy("Think of an airport with multiple runways. A single runway has one obvious traffic pattern. Add more runways and you need to know which traffic loop you are actually flying: around one runway, or around the whole airport complex. Multistar host frames work the same way.")}
+      ${keyIdea("In multistar systems, the active host frame matters. S-type worlds orbit one star; P-type worlds orbit a pair barycentre, and each frame has its own stable orbit zone.")}`,
+
+      `<p>The classic binary-stability fits of Holman & Wiegert (1999) give the rough
+      allowed regions:</p>
+      ${eq("a_{\\text{S-type}} \\lesssim 0.2\\text{--}0.3\\;a_{\\text{bin}}, \\qquad a_{\\text{P-type}} \\gtrsim 3\\text{--}5\\;a_{\\text{bin}}")}
+      <p>WorldSmith uses the full coefficient fits rather than just these rules of thumb,
+      and it also carries a hierarchical outer-pair guardrail for triples and quads so
+      outer branches do not crowd inner binaries.</p>
+      <p>Companion stars are not just gravitational nuisances. Their light is sampled across
+      the hierarchy orbit and contributes an extra heating term:</p>
+      ${eq("S_{\\text{comp}} = \\sum_i \\frac{L_i}{d_i^2}")}
+      <p>This can shift the effective habitable zone and frost-line context for the selected
+      host frame. So in multistar systems you always ask two questions together:
+      <em>Which star or pair is my planet orbiting?</em> and <em>How much extra forcing do the
+      other stars contribute?</em></p>
+      ${cite("Holman & Wiegert (1999, AJ 117, 621); Mardling & Aarseth (2001, MNRAS 321, 398).")}`,
+      mode,
+    ),
+
+    /* ── 4. Inner Limits ── */
     concept(
       "Inner Limits",
       `<p>There is a minimum distance at which a planet can orbit a star. Get
@@ -130,7 +165,7 @@ export function buildLesson07(mode) {
       mode,
     ),
 
-    /* ── 4. Giant Planet Probability ── */
+    /* ── 5. Giant Planet Probability ── */
     concept(
       "Giant Planet Probability",
       `<p>Not all stars are equally likely to have giant planets like Jupiter or

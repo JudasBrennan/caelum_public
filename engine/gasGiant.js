@@ -44,6 +44,8 @@ const EARTH_GRAVITY_MS2 = 9.80665;
 const ICE_GIANT_MASS_MJUP = 0.15;
 
 function buildGasGiantSummaryResult({
+  hostFrameId,
+  hostFrame,
   massMjup,
   radiusRj,
   orbitAu,
@@ -73,7 +75,16 @@ function buildGasGiantSummaryResult({
   rvSemiAmplitudeMs,
 }) {
   return {
+    hostFrame: hostFrame
+      ? {
+          id: hostFrame.id,
+          label: hostFrame.label,
+          frameKind: hostFrame.frameKind,
+          orbitFamilyKind: hostFrame.orbitFamilyKind,
+        }
+      : null,
     inputs: {
+      hostFrameId,
       massMjup,
       radiusRj,
       orbitAu,
@@ -130,6 +141,12 @@ export function calcGasGiant({
   starLuminosityLsol,
   starAgeGyr,
   starRadiusRsol,
+  hostFrameId = null,
+  hostFrame = null,
+  hostXuvFluxEarthAt1Au = null,
+  companionFluxEarth = 0,
+  companionXuvFluxEarth = 0,
+  fluxVariabilityFraction = 0,
   stellarMetallicityFeH,
   otherGiants,
   moons,
@@ -143,8 +160,20 @@ export function calcGasGiant({
   const sMass = clamp(toFinite(starMassMsol, 1), 0.075, 100);
   const sLum = Math.max(0.0001, toFinite(starLuminosityLsol, 1));
   const sAge = clamp(toFinite(starAgeGyr, 4.6), 0.01, 15);
+  const meanCompanionFluxEarth = Math.max(toFinite(companionFluxEarth, 0), 0);
+  const meanCompanionXuvFluxEarth = Math.max(toFinite(companionXuvFluxEarth, 0), 0);
+  const resolvedHostXuvFluxEarthAt1Au = toFinite(hostXuvFluxEarthAt1Au, null);
+  const hostFrameFluxVariabilityFraction = Math.max(toFinite(fluxVariabilityFraction, 0), 0);
   const giantMoons = Array.isArray(moons) ? moons : [];
   void starRadiusRsol;
+
+  function effectiveLuminosityAtDistanceAu(distanceAu) {
+    const orbitalDistanceAu = Math.max(toFinite(distanceAu, orbit), 0.01);
+    return Math.max(
+      (sLum / orbitalDistanceAu ** 2 + meanCompanionFluxEarth) * orbitalDistanceAu ** 2,
+      1e-9,
+    );
+  }
 
   let massMjup;
   let radiusRj;
@@ -182,6 +211,7 @@ export function calcGasGiant({
     orbitAu: orbit,
     starLuminosityLsol: sLum,
     eccentricity,
+    extraFluxEarth: meanCompanionFluxEarth,
   });
   const sudarsky = thermal.sudarsky;
   const teqK = thermal.equilibriumTempK;
@@ -189,7 +219,7 @@ export function calcGasGiant({
   const tEffK = thermal.effectiveTempK;
   const internalFlux = thermal.internalFluxWm2;
   const incidentFluxWm2 = calcStellarFluxWm2({
-    starLuminosityLsol: sLum,
+    starLuminosityLsol: effectiveLuminosityAtDistanceAu(orbit),
     orbitalDistanceAu: orbit,
   });
 
@@ -278,6 +308,8 @@ export function calcGasGiant({
 
   if (detailLevel === "summary") {
     return buildGasGiantSummaryResult({
+      hostFrameId,
+      hostFrame,
       massMjup,
       radiusRj,
       orbitAu: orbit,
@@ -326,7 +358,16 @@ export function calcGasGiant({
   const dynamics = calcDynamics(massMjup, radiusKm, rot, tEffK);
   const oblateness = calcOblateness(massMjup, radiusKm, rot, densityGcm3);
   const interior = calcInterior(massMjup);
-  const massLoss = calcMassLoss(massMjup, radiusKm, orbit, sMass, sLum, sAge);
+  const massLoss = calcMassLoss(
+    massMjup,
+    radiusKm,
+    orbit,
+    sMass,
+    sLum,
+    sAge,
+    meanCompanionXuvFluxEarth,
+    resolvedHostXuvFluxEarthAt1Au,
+  );
   const ggExobaseTempK = computeGasGiantExobaseTemp(tEffK, massLoss.xuvFluxRatioEarth);
   const ggJeansSpecies = computeGasGiantJeansEscape(escapeVelocityKms, ggExobaseTempK);
   const tidal = calcTidalEffects(massMjup, radiusKm, orbit, eccentricity, sMass, sAge);
@@ -348,6 +389,86 @@ export function calcGasGiant({
   );
 
   let jeansDisplay = `Atmospheric escape (T_exo ${fmt(round(ggExobaseTempK, 0), 0)} K, XUV ${fmt(round(massLoss.xuvFluxRatioEarth, 2), 2)}× Earth):`;
+  const hostFrameCriticalOuterAu = Number(hostFrame?.stability?.criticalOuterAu);
+  const hostFrameCriticalInnerAu = Number(hostFrame?.stability?.criticalInnerAu);
+  const hostFrameDiskTruncationAu = Number(
+    hostFrame?.stability?.diskTruncationAu ?? hostFrame?.zones?.diskTruncationAu,
+  );
+  const hostFrameCircumbinaryInnerEdgeAu = Number(hostFrame?.stability?.circumbinaryInnerEdgeAu);
+  let dynamicalStability = "Stable";
+  const dynamicalStabilityNotes = [];
+  if (hostFrame?.frameKind === "pair") {
+    if (Number.isFinite(hostFrameCriticalInnerAu) && hostFrameCriticalInnerAu > 0) {
+      if (orbit < hostFrameCriticalInnerAu) {
+        dynamicalStability = "Likely unstable";
+        dynamicalStabilityNotes.push(
+          `Orbit lies inside the circumbinary stability floor (${fmt(hostFrameCriticalInnerAu, 3)} AU).`,
+        );
+      } else if (orbit < hostFrameCriticalInnerAu * 1.15) {
+        dynamicalStability = "Marginal";
+        dynamicalStabilityNotes.push(
+          `Orbit sits close to the circumbinary stability floor (${fmt(hostFrameCriticalInnerAu, 3)} AU).`,
+        );
+      }
+    }
+    if (
+      Number.isFinite(hostFrameCircumbinaryInnerEdgeAu) &&
+      hostFrameCircumbinaryInnerEdgeAu > 0 &&
+      orbit < hostFrameCircumbinaryInnerEdgeAu
+    ) {
+      if (dynamicalStability === "Stable") dynamicalStability = "Disk-cleared";
+      dynamicalStabilityNotes.push(
+        `Orbit lies inside the likely cleared inner circumbinary disk (${fmt(hostFrameCircumbinaryInnerEdgeAu, 3)} AU).`,
+      );
+    }
+    if (Number.isFinite(hostFrameCriticalOuterAu) && hostFrameCriticalOuterAu > 0) {
+      if (orbit > hostFrameCriticalOuterAu) {
+        dynamicalStability = "Likely unstable";
+        dynamicalStabilityNotes.push(
+          `Orbit extends beyond the outer hierarchical stability limit (${fmt(hostFrameCriticalOuterAu, 3)} AU).`,
+        );
+      } else if (orbit > hostFrameCriticalOuterAu * 0.85) {
+        if (dynamicalStability === "Stable") dynamicalStability = "Marginal";
+        dynamicalStabilityNotes.push(
+          `Orbit sits close to the outer hierarchical stability edge (${fmt(hostFrameCriticalOuterAu, 3)} AU).`,
+        );
+      }
+    }
+    if (Number.isFinite(hostFrameDiskTruncationAu) && hostFrameDiskTruncationAu > 0) {
+      if (orbit > hostFrameDiskTruncationAu) {
+        if (dynamicalStability === "Stable") dynamicalStability = "Disk-truncated";
+        dynamicalStabilityNotes.push(
+          `Orbit lies beyond the likely truncated outer circumbinary disk (${fmt(hostFrameDiskTruncationAu, 3)} AU).`,
+        );
+      }
+    }
+  } else if (Number.isFinite(hostFrameCriticalOuterAu) && hostFrameCriticalOuterAu > 0) {
+    if (orbit > hostFrameCriticalOuterAu) {
+      dynamicalStability = "Likely unstable";
+      dynamicalStabilityNotes.push(
+        `Orbit extends beyond the circumstellar stability limit (${fmt(hostFrameCriticalOuterAu, 3)} AU).`,
+      );
+    } else if (orbit > hostFrameCriticalOuterAu * 0.85) {
+      dynamicalStability = "Marginal";
+      dynamicalStabilityNotes.push(
+        `Orbit sits close to the circumstellar stability edge (${fmt(hostFrameCriticalOuterAu, 3)} AU).`,
+      );
+    }
+  }
+  if (
+    hostFrame?.frameKind !== "pair" &&
+    Number.isFinite(hostFrameDiskTruncationAu) &&
+    hostFrameDiskTruncationAu > 0 &&
+    orbit > hostFrameDiskTruncationAu
+  ) {
+    if (dynamicalStability === "Stable") dynamicalStability = "Disk-truncated";
+    dynamicalStabilityNotes.push(
+      `Orbit lies beyond the likely truncated circumstellar disk (${fmt(hostFrameDiskTruncationAu, 3)} AU).`,
+    );
+  }
+  for (const warning of hostFrame?.stability?.warnings || []) {
+    dynamicalStabilityNotes.push(String(warning));
+  }
   for (const species of Object.values(ggJeansSpecies)) {
     const nonThermalTag = species.nonThermal ? " (non-thermal)" : "";
     jeansDisplay += `\n  ${species.label}: λ=${fmt(species.lambda, 1)} — ${species.status}${nonThermalTag}`;
@@ -410,6 +531,8 @@ export function calcGasGiant({
       incidentFluxWm2: ageRadius.incidentFluxWm2,
       incidentFluxErgCm2S: ageRadius.incidentFluxErgCm2S,
       bondAlbedo: round(sudarsky.bondAlbedo, 3),
+      companionFluxEarth: round(meanCompanionFluxEarth, 4),
+      fluxVariabilityFraction: round(hostFrameFluxVariabilityFraction, 4),
       insolationEarth: round(insolationEarth, 4),
       moonTidalHeatingW: round(moonTidalHeatingW, 0),
       moonTidalHeatingWm2: round(moonTidalHeatingWm2, 6),
@@ -457,6 +580,8 @@ export function calcGasGiant({
       orbitalDirection,
       localDaysPerYear: round(localDaysPerYear, 2),
       insolationEarth: round(insolationEarth, 4),
+      dynamicalStability,
+      dynamicalStabilityNotes,
       nearestResonance,
     },
 
@@ -500,6 +625,17 @@ export function calcGasGiant({
       orbitalPeriod: `${fmt(orbitalPeriodYears, 2)} yr (${fmt(orbitalPeriodDays, 1)} days)`,
       orbitalVelocity: `${fmt(orbitalVelocityKms, 1)} km/s`,
       insolation: `${fmt(insolationEarth, 3)}× Earth`,
+      companionFlux:
+        hostFrame?.frameKind === "pair"
+          ? "Included in host pair"
+          : meanCompanionFluxEarth > 0
+            ? `${fmt(meanCompanionFluxEarth, 3)}× Earth`
+            : "Negligible",
+      fluxVariability:
+        hostFrameFluxVariabilityFraction > 0
+          ? `${fmt(hostFrameFluxVariabilityFraction * 100, 1)}%`
+          : "Low",
+      dynamicalStability,
       transitDepth:
         `${fmt(transitDepthFraction * 100, transitDepthFraction * 100 >= 0.1 ? 2 : 4)}%` +
         ` (${fmt(transitDepthPpm, 0)} ppm)`,

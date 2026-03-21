@@ -10,18 +10,38 @@ import {
   makeCollection,
   normalizeClusterSystemNames,
 } from "./systemCollections.js";
+import {
+  applyCompatibilityStarToStellarSystem,
+  getDefaultHostFrameId,
+  normalizeStellarSystem,
+  projectPrimaryStarFromStellarSystem,
+} from "./stellarSystemModel.js";
 import { SCHEMA_VERSION, mergeWorldForMigration } from "./worldSchema.js";
 
 export function migrateWorld(world) {
   if (!world.version) world.version = 1;
 
-  if (!world.star || typeof world.star !== "object") world.star = {};
-  const starName = String(world.star.name ?? "").trim();
-  world.star.name = starName || "Star";
-  if (world.star.metallicityFeH == null) world.star.metallicityFeH = 0.0;
-  if (!world.star.evolutionMode) world.star.evolutionMode = "zams";
-  const activityModelVersion = String(world.star.activityModelVersion || "v2").toLowerCase();
-  world.star.activityModelVersion = activityModelVersion === "v1" ? "v1" : "v2";
+  const hasExplicitStar =
+    !!world.star && typeof world.star === "object" && !Array.isArray(world.star);
+  const compatibilityStar = hasExplicitStar ? { ...world.star } : {};
+  const hasExplicitStellarSystem =
+    !!world.stellarSystem &&
+    typeof world.stellarSystem === "object" &&
+    !Array.isArray(world.stellarSystem);
+  world.stellarSystem = normalizeStellarSystem(
+    hasExplicitStellarSystem ? world.stellarSystem : null,
+    { fallbackStar: compatibilityStar },
+  );
+  const shouldApplyCompatibilityStar =
+    hasExplicitStar && (!hasExplicitStellarSystem || world.stellarSystem.topologyKind === "single");
+  if (shouldApplyCompatibilityStar) {
+    world.stellarSystem = applyCompatibilityStarToStellarSystem(
+      world.stellarSystem,
+      compatibilityStar,
+    );
+  }
+  world.star = projectPrimaryStarFromStellarSystem(world.stellarSystem, compatibilityStar);
+  const defaultHostFrameId = getDefaultHostFrameId(world.stellarSystem);
 
   world.cluster = normalizeLocalClusterInputs(world.cluster || LOCAL_CLUSTER_DEFAULTS);
   world.clusterSystemNames = normalizeClusterSystemNames(world.clusterSystemNames);
@@ -68,6 +88,8 @@ export function migrateWorld(world) {
       if (!planet.inputs) planet.inputs = {};
       if (!planet.name) planet.name = planet.inputs.name || "New Planet";
       if (!planet.inputs.name) planet.inputs.name = planet.name;
+      const hostFrameId = String(planet.hostFrameId ?? "").trim();
+      planet.hostFrameId = hostFrameId || defaultHostFrameId || null;
     }
   }
 
@@ -114,6 +136,14 @@ export function migrateWorld(world) {
       ) {
         moon.planetId = null;
       }
+      if (!moon.hostFrameId) {
+        const parentHostFrameId =
+          world.planets.byId[moon.planetId]?.hostFrameId ||
+          world.system?.gasGiants?.byId?.[moon.planetId]?.hostFrameId ||
+          defaultHostFrameId ||
+          null;
+        moon.hostFrameId = parentHostFrameId;
+      }
     }
   }
 
@@ -153,6 +183,14 @@ export function migrateWorld(world) {
   if (!world.selectedBodyType) world.selectedBodyType = "planet";
   if (world.system.gasGiants && world.system.gasGiants.selectedId === undefined) {
     world.system.gasGiants.selectedId = world.system.gasGiants.order?.[0] || null;
+  }
+  if (world.system?.gasGiants?.byId) {
+    for (const gasGiantId of Object.keys(world.system.gasGiants.byId)) {
+      const gasGiant = world.system.gasGiants.byId[gasGiantId];
+      if (!gasGiant) continue;
+      gasGiant.hostFrameId =
+        String(gasGiant.hostFrameId ?? "").trim() || defaultHostFrameId || null;
+    }
   }
 
   if (world.planets && world.planets.byId) {
@@ -314,7 +352,10 @@ export function migrateWorld(world) {
     if (world.planet.k40Abundance === undefined) world.planet.k40Abundance = null;
   }
 
-  canonicalizeSystemFeatures(world, { normalizeGasGiant });
+  canonicalizeSystemFeatures(world, {
+    normalizeGasGiant,
+    fallbackHostFrameId: defaultHostFrameId,
+  });
 
   if (world.system?.gasGiants?.byId) {
     for (const gasGiantId of Object.keys(world.system.gasGiants.byId)) {

@@ -13,6 +13,7 @@ function defaultParentAlbedo({ radiusEarth, densityGcm3 }) {
 
 export function computeMoonIllumination({
   starLuminosityLsol,
+  extraFluxEarth = 0,
   planetSemiMajorAxisAu,
   planetRadiusEarth,
   planetDensityGcm3,
@@ -23,10 +24,17 @@ export function computeMoonIllumination({
   parentAxialTiltDeg,
   moonLockedToPlanet = true,
 } = {}) {
-  const stellarFluxWm2 = calcStellarFluxWm2({
-    starLuminosityLsol: Math.max(toFinite(starLuminosityLsol, 0), 0),
-    orbitalDistanceAu: Math.max(toFinite(planetSemiMajorAxisAu, 0), 0),
-  });
+  const orbitalDistanceAu = Math.max(toFinite(planetSemiMajorAxisAu, 0), 0);
+  const stellarFluxWm2 =
+    calcStellarFluxWm2({
+      starLuminosityLsol: Math.max(toFinite(starLuminosityLsol, 0), 0),
+      orbitalDistanceAu,
+    }) +
+    calcStellarFluxWm2({
+      starLuminosityLsol:
+        Math.max(toFinite(extraFluxEarth, 0), 0) * Math.max(orbitalDistanceAu, 0.01) ** 2,
+      orbitalDistanceAu,
+    });
   const radiusKm = Math.max(toFinite(planetRadiusEarth, 0), 0) * KM_PER_REARTH;
   const semiMajorAxisKm = Math.max(toFinite(moonSemiMajorAxisKm, 0), 0);
   const distanceRatio = radiusKm > 0 && semiMajorAxisKm > 0 ? (radiusKm / semiMajorAxisKm) ** 2 : 0;

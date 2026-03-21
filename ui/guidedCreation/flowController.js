@@ -58,6 +58,11 @@ function normalizeRecommendation(recommendation, state, adapter) {
               typeof recommendation.applyPayload.objectInputs === "object"
                 ? { ...recommendation.applyPayload.objectInputs }
                 : {},
+            systemInputs:
+              recommendation.applyPayload.systemInputs &&
+              typeof recommendation.applyPayload.systemInputs === "object"
+                ? { ...recommendation.applyPayload.systemInputs }
+                : null,
             parentPatch:
               recommendation.applyPayload.parentPatch &&
               typeof recommendation.applyPayload.parentPatch === "object"
@@ -71,6 +76,7 @@ function normalizeRecommendation(recommendation, state, adapter) {
           }
         : {
             objectInputs: {},
+            systemInputs: null,
             parentPatch: null,
             siblingPatch: null,
           },

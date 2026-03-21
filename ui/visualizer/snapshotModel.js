@@ -3,17 +3,24 @@ import { calcStar, starColourHexFromTempK } from "../../engine/star.js";
 import { calcPlanetExact } from "../../engine/planet.js";
 import { calcMoonExact } from "../../engine/moon.js";
 import { calcGasGiant } from "../../engine/gasGiant.js";
+import {
+  buildHierarchyPresentation,
+  listCompanionStarsForHostFrame,
+  listHostStarsForHostFrame,
+} from "../../engine/homeSystem/companionPresentation.js";
 import { resolveGasGiantRingState } from "../../engine/planetaryRings.js";
 import { computeStellarActivityModel } from "../../engine/stellarActivity.js";
 import { clamp } from "../../engine/utils.js";
 import {
   GAS_GIANT_RADIUS_MAX_RJ,
   GAS_GIANT_RADIUS_MIN_RJ,
-  getStarOverrides,
   listMoons,
   listPlanets,
   listSystemDebrisDisks,
   listSystemGasGiants,
+  buildWorldHomeSystemContext,
+  getProjectedPrimaryStar,
+  resolveWorldHostFrameContext,
 } from "../store.js";
 import { computeRockyVisualProfile } from "../rockyPlanetStyles.js";
 import { resolveRingAppearance } from "../ringAppearanceProfiles.js";
@@ -25,62 +32,242 @@ import {
 } from "./scaleMath.js";
 import { buildOffscaleZoneInfo } from "./projectionMath.js";
 
-export function buildVisualizerSnapshot(world, options = {}) {
-  const { debug = {}, hashUnit = () => 0 } = options;
-  const { enabled = false, log = () => {}, logThrottled = () => {} } = debug;
-  const starName = String(world.star?.name || "").trim() || "Star";
-  const starMassRaw =
-    Number.isFinite(Number(world.star?.massMsol)) && Number(world.star?.massMsol) > 0
-      ? Number(world.star.massMsol)
-      : Number(world.system?.starMassMsol);
-  const starMassMsol = Number.isFinite(starMassRaw) && starMassRaw > 0 ? starMassRaw : 0.8653;
-  const starAgeRaw = Number(world.star?.ageGyr);
-  const starAgeGyr = Number.isFinite(starAgeRaw) && starAgeRaw >= 0 ? starAgeRaw : 6.254;
-  const starMetallicityRaw = Number(world.star?.metallicityFeH);
-  const starMetallicityFeH = Number.isFinite(starMetallicityRaw) ? starMetallicityRaw : 0;
-  const starOverrides = getStarOverrides(world.star);
-  const starSeedRaw = world.star?.activitySeed ?? world.star?.seed ?? null;
-  const starPhysicsMode = world.star?.physicsMode ?? "simple";
-  const starDerivMode = world.star?.advancedDerivationMode ?? "rl";
-  let starRadiusOv = null;
-  let starLumOv = null;
-  let starTempOv = null;
-  if (starPhysicsMode === "advanced") {
-    const radiusOverride =
-      Number.isFinite(Number(world.star?.radiusRsolOverride)) &&
-      Number(world.star?.radiusRsolOverride) > 0
-        ? Number(world.star.radiusRsolOverride)
-        : null;
-    const luminosityOverride =
-      Number.isFinite(Number(world.star?.luminosityLsolOverride)) &&
-      Number(world.star?.luminosityLsolOverride) > 0
-        ? Number(world.star.luminosityLsolOverride)
-        : null;
-    const tempOverride =
-      Number.isFinite(Number(world.star?.tempKOverride)) && Number(world.star?.tempKOverride) > 0
-        ? Number(world.star.tempKOverride)
-        : null;
-    if (starDerivMode === "rt") {
-      starRadiusOv = radiusOverride;
-      starTempOv = tempOverride;
-    } else if (starDerivMode === "lt") {
-      starLumOv = luminosityOverride;
-      starTempOv = tempOverride;
-    } else {
-      starRadiusOv = radiusOverride;
-      starLumOv = luminosityOverride;
-    }
+function normalizeHostFrameId(value, fallbackId = null) {
+  const id = String(value ?? "").trim();
+  return id || fallbackId || null;
+}
+
+function filterBodiesForHostFrame(entries, hostFrameId, fallbackHostFrameId) {
+  const targetHostFrameId = normalizeHostFrameId(hostFrameId, fallbackHostFrameId);
+  return (entries || []).filter(
+    (entry) => normalizeHostFrameId(entry?.hostFrameId, fallbackHostFrameId) === targetHostFrameId,
+  );
+}
+
+function formatHostFrameOptionLabel(hostFrame) {
+  if (!hostFrame) return "Host frame";
+  const scopeLabel =
+    hostFrame.frameKind === "pair"
+      ? "circumbinary"
+      : hostFrame.orbitFamilyKind === "single"
+        ? "single-star"
+        : "circumstellar";
+  return `${hostFrame.label} - ${scopeLabel}`;
+}
+
+function createEmptyOverviewBodyCounts() {
+  return {
+    rockyPlanets: 0,
+    gasGiants: 0,
+    debrisDisks: 0,
+    total: 0,
+  };
+}
+
+function ensureOverviewBodyCounts(countsByHostFrameId, hostFrameId) {
+  if (!hostFrameId) return createEmptyOverviewBodyCounts();
+  if (!countsByHostFrameId[hostFrameId]) {
+    countsByHostFrameId[hostFrameId] = createEmptyOverviewBodyCounts();
+  }
+  return countsByHostFrameId[hostFrameId];
+}
+
+function buildOverviewBodyCounts(world, fallbackHostFrameId) {
+  const countsByHostFrameId = Object.create(null);
+
+  for (const planet of listPlanets(world)) {
+    const hostFrameId = normalizeHostFrameId(planet?.hostFrameId, fallbackHostFrameId);
+    if (!hostFrameId) continue;
+    const counts = ensureOverviewBodyCounts(countsByHostFrameId, hostFrameId);
+    counts.rockyPlanets += 1;
+    counts.total += 1;
   }
 
-  const starCalc = calcStar({
-    massMsol: starMassMsol,
-    ageGyr: starAgeGyr,
-    radiusRsolOverride: starRadiusOv,
-    luminosityLsolOverride: starLumOv,
-    tempKOverride: starTempOv,
-    metallicityFeH: starMetallicityFeH,
-    evolutionMode: starOverrides?.ev || world.star?.evolutionMode || "zams",
-  });
+  for (const gasGiant of listSystemGasGiants(world)) {
+    const hostFrameId = normalizeHostFrameId(gasGiant?.hostFrameId, fallbackHostFrameId);
+    if (!hostFrameId) continue;
+    const counts = ensureOverviewBodyCounts(countsByHostFrameId, hostFrameId);
+    counts.gasGiants += 1;
+    counts.total += 1;
+  }
+
+  for (const disk of listSystemDebrisDisks(world, { fallbackHostFrameId })) {
+    const hostFrameId = normalizeHostFrameId(disk?.hostFrameId, fallbackHostFrameId);
+    if (!hostFrameId) continue;
+    const counts = ensureOverviewBodyCounts(countsByHostFrameId, hostFrameId);
+    counts.debrisDisks += 1;
+    counts.total += 1;
+  }
+
+  return countsByHostFrameId;
+}
+
+function buildOverviewActivePathNodeIds(graph, activeHostFrameId) {
+  const rootNodeId = normalizeHostFrameId(graph?.rootNodeId, null);
+  const resolvedActiveHostFrameId = normalizeHostFrameId(activeHostFrameId, rootNodeId);
+  if (!rootNodeId) return resolvedActiveHostFrameId ? [resolvedActiveHostFrameId] : [];
+  if (!resolvedActiveHostFrameId || !graph?.nodesById?.[resolvedActiveHostFrameId])
+    return [rootNodeId];
+
+  const path = [];
+  const seen = new Set();
+  let currentNodeId = resolvedActiveHostFrameId;
+  while (currentNodeId && !seen.has(currentNodeId)) {
+    path.unshift(currentNodeId);
+    if (currentNodeId === rootNodeId) break;
+    seen.add(currentNodeId);
+    currentNodeId = graph?.parentNodeIdByNodeId?.[currentNodeId] || null;
+  }
+  if (path[0] !== rootNodeId) path.unshift(rootNodeId);
+  return path;
+}
+
+function resolveOverviewNodeColor(nodeId, graphNode, homeSystemContext) {
+  if (graphNode?.kind === "star") {
+    return (
+      String(homeSystemContext?.starsById?.[nodeId]?.model?.starColourHex || "").trim() || "#ffe9c0"
+    );
+  }
+
+  const pairContext = homeSystemContext?.pairsById?.[nodeId] || null;
+  const dominantStarId = pairContext?.dominantStarId || graphNode?.starIds?.[0] || null;
+  return (
+    String(homeSystemContext?.starsById?.[dominantStarId]?.model?.starColourHex || "").trim() ||
+    "#dbe7ff"
+  );
+}
+
+function buildOverviewShortLabel(graphNode, homeSystemContext) {
+  if (!graphNode) return "Host frame";
+  if (graphNode.kind === "star") return graphNode.label;
+  const childLabels = (graphNode.childIds || [])
+    .map((childId) => homeSystemContext?.hostFramesById?.[childId]?.label || childId)
+    .filter(Boolean);
+  if (childLabels.length === 2) return `${childLabels[0]} + ${childLabels[1]}`;
+  return graphNode.label;
+}
+
+function buildOverviewModel(
+  world,
+  homeSystemContext,
+  { activeHostFrameId, topologyKind, fallbackHostFrameId },
+) {
+  const graph = homeSystemContext?.topologyGraph || null;
+  if (!graph?.rootNodeId || !graph?.nodesById) return null;
+
+  const activePathNodeIds = buildOverviewActivePathNodeIds(graph, activeHostFrameId);
+  const activePathNodeIdSet = new Set(activePathNodeIds);
+  const bodyCountsByHostFrameId = buildOverviewBodyCounts(world, fallbackHostFrameId);
+  const nodes = (graph.nodeIdsInPreorder || [])
+    .map((nodeId) => {
+      const graphNode = graph.nodesById?.[nodeId] || null;
+      if (!graphNode) return null;
+      const bodyCounts = bodyCountsByHostFrameId[nodeId]
+        ? { ...bodyCountsByHostFrameId[nodeId] }
+        : createEmptyOverviewBodyCounts();
+      const pairContext = homeSystemContext?.pairsById?.[nodeId] || null;
+      return {
+        id: nodeId,
+        kind: graphNode.kind,
+        label: graphNode.label,
+        shortLabel: buildOverviewShortLabel(graphNode, homeSystemContext),
+        depth: graphNode.depth,
+        parentId: graphNode.parentId,
+        childIds: [...(graphNode.childIds || [])],
+        starIds: [...(graphNode.starIds || [])],
+        selectable: !!homeSystemContext?.hostFramesById?.[nodeId],
+        isActive: nodeId === activeHostFrameId,
+        isOnActivePath: activePathNodeIdSet.has(nodeId),
+        displayColorHex: resolveOverviewNodeColor(nodeId, graphNode, homeSystemContext),
+        separationAu:
+          Number.isFinite(Number(pairContext?.semiMajorAxisAu)) &&
+          Number(pairContext?.semiMajorAxisAu) > 0
+            ? Number(pairContext.semiMajorAxisAu)
+            : null,
+        bodyCounts,
+      };
+    })
+    .filter(Boolean);
+  const nodesById = Object.create(null);
+  for (const node of nodes) nodesById[node.id] = node;
+  const edges = (graph.edges || []).map((edge) => ({
+    parentId: edge.parentId,
+    childId: edge.childId,
+    isOnActivePath: activePathNodeIdSet.has(edge.parentId) && activePathNodeIdSet.has(edge.childId),
+  }));
+  const totalBodies = nodes.reduce((sum, node) => sum + Number(node?.bodyCounts?.total || 0), 0);
+
+  return {
+    topologyKind,
+    rootNodeId: graph.rootNodeId,
+    activeHostFrameId,
+    activePathNodeIds,
+    notToScale: true,
+    nodeIdsInPreorder: [...(graph.nodeIdsInPreorder || [])],
+    nodeIdsByDepth: (graph.nodeIdsByDepth || []).map((lane) => [...(lane || [])]),
+    nodes,
+    nodesById,
+    edges,
+    legend: {
+      selectedLabel:
+        String(homeSystemContext?.hostFramesById?.[activeHostFrameId]?.label || "").trim() ||
+        String(nodesById?.[activeHostFrameId]?.label || "").trim() ||
+        "Host frame",
+      totalBodies,
+      hasBodies: totalBodies > 0,
+    },
+  };
+}
+
+export function buildVisualizerSnapshot(world, options = {}) {
+  const { debug = {}, hashUnit = () => 0, hostFrameId: requestedHostFrameId = null } = options;
+  const { enabled = false, log = () => {}, logThrottled = () => {} } = debug;
+  const primaryStar = getProjectedPrimaryStar(world);
+  const homeSystemContext = buildWorldHomeSystemContext(world);
+  const primaryStarContext =
+    homeSystemContext?.starsById?.[homeSystemContext?.primaryStarId] || null;
+  const fallbackHostFrameId =
+    homeSystemContext?.defaultHostFrameId || homeSystemContext?.primaryStarId || "star_a";
+  const solveContext = resolveWorldHostFrameContext(
+    world,
+    normalizeHostFrameId(requestedHostFrameId, fallbackHostFrameId),
+    homeSystemContext,
+  );
+  const activeHostFrameId = normalizeHostFrameId(solveContext?.hostFrameId, fallbackHostFrameId);
+  const activeHostFrame =
+    solveContext?.hostFrame || homeSystemContext?.hostFramesById?.[activeHostFrameId];
+  const starConfig = solveContext?.starConfig || {};
+  const starCalc =
+    solveContext?.starModel ||
+    calcStar({
+      massMsol: Number(starConfig?.massMsol) || Number(primaryStar?.massMsol) || 1,
+      ageGyr: Number(starConfig?.ageGyr) || Number(primaryStar?.ageGyr) || 4.6,
+      radiusRsolOverride: starConfig?.radiusRsolOverride ?? null,
+      luminosityLsolOverride: starConfig?.luminosityLsolOverride ?? null,
+      tempKOverride: starConfig?.tempKOverride ?? null,
+      metallicityFeH:
+        Number(starConfig?.metallicityFeH) || Number(primaryStar?.metallicityFeH) || 0,
+      evolutionMode: starConfig?.evolutionMode || primaryStar?.evolutionMode || "zams",
+    });
+  const starName =
+    String(
+      solveContext?.starContext?.component?.name ||
+        activeHostFrame?.label ||
+        primaryStarContext?.component?.name ||
+        primaryStar?.name ||
+        "",
+    ).trim() || "Star";
+  const starMassMsol =
+    Number.isFinite(Number(starConfig?.massMsol)) && Number(starConfig?.massMsol) > 0
+      ? Number(starConfig.massMsol)
+      : Number(primaryStar?.massMsol) || 0.8653;
+  const starAgeGyr =
+    Number.isFinite(Number(starConfig?.ageGyr)) && Number(starConfig?.ageGyr) >= 0
+      ? Number(starConfig.ageGyr)
+      : Number(primaryStar?.ageGyr) || 6.254;
+  const starMetallicityFeH = Number.isFinite(Number(starConfig?.metallicityFeH))
+    ? Number(starConfig.metallicityFeH)
+    : Number(primaryStar?.metallicityFeH) || 0;
   const starTempK = Number(starCalc?.tempK);
   const starLuminosityLsun = Number(starCalc?.luminosityLsol);
   const starRadiusRsol = Math.max(0.01, Number(starCalc?.radiusRsol) || 1);
@@ -90,7 +277,8 @@ export function buildVisualizerSnapshot(world, options = {}) {
       ? starRadiusKmRaw
       : starRadiusRsol * SOL_RADIUS_KM;
   const starColourHex = String(starCalc?.starColourHex || starColourHexFromTempK(starTempK));
-  const activityModelVersion = world.star?.activityModelVersion === "v1" ? "v1" : "v2";
+  const activityModelVersion =
+    solveContext?.starContext?.component?.activityModelVersion === "v1" ? "v1" : "v2";
   const activityModel = computeStellarActivityModel(
     {
       teffK: starTempK,
@@ -103,22 +291,80 @@ export function buildVisualizerSnapshot(world, options = {}) {
   const flareParams = activityModel.activity;
   const n32 = Math.max(0, Number(flareParams?.N32) || 0);
   const starActivityLevel = clamp(Math.log10(1 + n32) / Math.log10(31), 0, 1);
-
-  const system = calcSystem({
-    starMassMsol,
-    spacingFactor: Number(world.system?.spacingFactor),
-    orbit1Au: Number(world.system?.orbit1Au),
-    luminosityLsolOverride: starLuminosityLsun,
-    radiusRsolOverride: starRadiusRsol,
+  const system =
+    activeHostFrame?.system ||
+    calcSystem({
+      starMassMsol,
+      spacingFactor: Number(world.system?.spacingFactor),
+      orbit1Au: Number(world.system?.orbit1Au),
+      luminosityLsolOverride: starLuminosityLsun,
+      radiusRsolOverride: starRadiusRsol,
+    });
+  const primaryStarOverrides = {
+    r: primaryStar?.radiusRsolOverride ?? null,
+    l: primaryStar?.luminosityLsolOverride ?? null,
+    t: primaryStar?.tempKOverride ?? null,
+    ev: primaryStar?.evolutionMode || "zams",
+  };
+  const starOverrides = {
+    r:
+      starConfig?.radiusRsolOverride !== undefined
+        ? starConfig.radiusRsolOverride
+        : primaryStarOverrides.r,
+    l:
+      starConfig?.luminosityLsolOverride !== undefined
+        ? starConfig.luminosityLsolOverride
+        : primaryStarOverrides.l,
+    t: starConfig?.tempKOverride !== undefined ? starConfig.tempKOverride : primaryStarOverrides.t,
+    ev: starConfig?.evolutionMode || primaryStarOverrides.ev,
+  };
+  const starSeedRaw =
+    solveContext?.starContext?.component?.activitySeed ??
+    solveContext?.starContext?.component?.seed ??
+    primaryStarContext?.component?.activitySeed ??
+    primaryStarContext?.component?.seed ??
+    null;
+  const companionFluxEarth = Number(solveContext?.companionFluxEarth || 0);
+  const companionXuvFluxEarth = Number(solveContext?.companionXuvFluxEarth || 0);
+  const fluxVariabilityFraction = Number(solveContext?.fluxVariabilityFraction || 0);
+  const hostStars = listHostStarsForHostFrame(homeSystemContext, activeHostFrameId);
+  const companionStars = listCompanionStarsForHostFrame(homeSystemContext, activeHostFrameId);
+  const hostFrameOptions = Object.values(homeSystemContext?.hostFramesById || {}).map((frame) => ({
+    id: frame.id,
+    label: formatHostFrameOptionLabel(frame),
+    selected: frame.id === activeHostFrameId,
+  }));
+  const topologyKind = homeSystemContext?.topology?.kind || "single";
+  const canvasMode =
+    activeHostFrame?.frameKind === "pair" && hostStars.length > 1
+      ? "binary-p-type"
+      : companionStars.length > 0
+        ? "binary-s-type"
+        : "single";
+  const hierarchySummary = buildHierarchyPresentation({
+    topologyKind,
+    hostFrame: activeHostFrame || null,
+    hostStars,
+    companionStars,
+    fallbackLocalLabel: activeHostFrame?.label || starName,
+  });
+  const overviewModel = buildOverviewModel(world, homeSystemContext, {
+    activeHostFrameId,
+    topologyKind,
+    fallbackHostFrameId,
   });
   logThrottled(enabled, "flare:snapshot:model", 1000, "flare:snapshot:model", {
     activityModelVersion,
+    canvasMode,
+    activeHostFrameId,
+    activeHostFrameLabel: activeHostFrame?.label || starName,
+    hierarchyBreadcrumb: hierarchySummary.breadcrumb,
     starMassMsol,
     starAgeGyr,
     starTempK,
     starLuminosityLsun,
     starMetallicityFeH,
-    starEvolutionMode: starOverrides?.ev || world.star?.evolutionMode || "zams",
+    starEvolutionMode: starOverrides?.ev || primaryStar?.evolutionMode || "zams",
     teffBin: flareParams?.teffBin,
     ageBand: flareParams?.ageBand,
     N32: Number(flareParams?.N32) || 0,
@@ -131,8 +377,17 @@ export function buildVisualizerSnapshot(world, options = {}) {
   log(enabled, "calcSystem (inputs echoed)", system.inputs);
   log(enabled, "calcSystem.orbitsAu[0..5]", (system.orbitsAu || []).slice(0, 6));
 
-  const planets = listPlanets(world);
+  const planets = filterBodiesForHostFrame(
+    listPlanets(world),
+    activeHostFrameId,
+    fallbackHostFrameId,
+  );
   const moons = listMoons(world);
+  const systemGasGiants = filterBodiesForHostFrame(
+    listSystemGasGiants(world),
+    activeHostFrameId,
+    fallbackHostFrameId,
+  );
   const orbitAuBySlot = system.orbitsAu || [];
   const planetNodes = planets
     .filter((planet) => planet.slotIndex != null || Number(planet.inputs?.semiMajorAxisAu) > 0)
@@ -153,6 +408,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
       let skyHorizonHex = null;
       let visualProfile = null;
       let ringAppearance = null;
+      let planetCalc = null;
       const planetInputs = { ...planet.inputs, semiMajorAxisAu: au };
       const planetMoonInputs = moons
         .filter((moon) => moon.planetId === planet.id)
@@ -161,7 +417,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
           ...(moon.inputs || {}),
         }));
       try {
-        const planetCalc = calcPlanetExact({
+        planetCalc = calcPlanetExact({
           starMassMsol,
           starAgeGyr,
           starMetallicityFeH,
@@ -169,8 +425,16 @@ export function buildVisualizerSnapshot(world, options = {}) {
           starLuminosityLsolOverride: starOverrides.l,
           starTempKOverride: starOverrides.t,
           starEvolutionMode: starOverrides.ev,
+          hostFrameId: activeHostFrameId,
+          hostFrame: activeHostFrame || null,
+          companionFluxEarth,
+          companionXuvFluxEarth,
+          fluxVariabilityFraction,
           planet: planetInputs,
           moons: planetMoonInputs,
+          gasGiants: systemGasGiants
+            .filter((gasGiant) => gasGiant?.id !== planet.id)
+            .map((gasGiant) => ({ name: gasGiant.name, au: gasGiant.au })),
         });
         periodDays = Number(planetCalc?.derived?.orbitalPeriodEarthDays);
         if (!Number.isFinite(periodDays) || periodDays <= 0) periodDays = null;
@@ -212,6 +476,11 @@ export function buildVisualizerSnapshot(world, options = {}) {
         periodDays,
         radiusEarth,
         massEarth: Number(planet.inputs?.massEarth) || null,
+        radiusKm:
+          Number.isFinite(Number(planetCalc?.derived?.radiusKm)) &&
+          Number(planetCalc?.derived?.radiusKm) > 0
+            ? Number(planetCalc.derived.radiusKm)
+            : null,
         rotationPeriodHours: Number(planet.inputs?.rotationPeriodHours) || null,
         axialTiltDeg: clamp(Number(planet.inputs?.axialTiltDeg ?? 0), 0, 180),
         skyHighHex,
@@ -222,12 +491,18 @@ export function buildVisualizerSnapshot(world, options = {}) {
         longitudeOfPeriapsisDeg: Number(planet.inputs?.longitudeOfPeriapsisDeg ?? 0),
         inclinationDeg: clamp(Number(planet.inputs?.inclinationDeg ?? 0), 0, 180),
         locked: !!planet.locked,
+        hostFrameId: activeHostFrameId,
         moons: buildMoonNodes({
           moons,
           starMassMsol,
           starAgeGyr,
           starMetallicityFeH,
           starOverrides,
+          hostFrameId: activeHostFrameId,
+          hostFrame: activeHostFrame || null,
+          companionFluxEarth,
+          companionXuvFluxEarth,
+          fluxVariabilityFraction,
           parentId: planet.id,
           parentInputs: planetInputs,
           hashUnit,
@@ -236,7 +511,6 @@ export function buildVisualizerSnapshot(world, options = {}) {
     })
     .sort((left, right) => left.au - right.au);
 
-  const systemGasGiants = listSystemGasGiants(world);
   const gasGiants = systemGasGiants
     .map((gasGiant, idx) =>
       buildGasGiantNode(gasGiant, idx, {
@@ -247,22 +521,30 @@ export function buildVisualizerSnapshot(world, options = {}) {
         starMetallicityFeH,
         starLuminosityLsun,
         starRadiusRsol,
+        hostFrameId: activeHostFrameId,
+        hostFrame: activeHostFrame || null,
+        companionFluxEarth,
+        companionXuvFluxEarth,
+        fluxVariabilityFraction,
         starOverrides,
         hashUnit,
-        world,
       }),
     )
     .filter((gasGiant) => Number.isFinite(gasGiant.au) && gasGiant.au > 0)
     .sort((left, right) => left.au - right.au);
 
   const debrisDisks = [];
-  for (const disk of listSystemDebrisDisks(world)) {
+  for (const disk of listSystemDebrisDisks(world, {
+    hostFrameId: activeHostFrameId,
+    fallbackHostFrameId,
+  })) {
     const inner = Number(disk.innerAu);
     const outer = Number(disk.outerAu);
     if (Number.isFinite(inner) && Number.isFinite(outer) && inner > 0 && outer > 0) {
       debrisDisks.push({
         id: disk.id || `dd${debrisDisks.length + 1}`,
         name: disk.name || `Debris disk ${debrisDisks.length + 1}`,
+        hostFrameId: activeHostFrameId,
         inner: Math.min(inner, outer),
         outer: Math.max(inner, outer),
       });
@@ -282,6 +564,18 @@ export function buildVisualizerSnapshot(world, options = {}) {
     planetNodes,
     debrisDisks,
     gasGiants,
+    topologyKind,
+    canvasMode,
+    activeHostFrameId,
+    activeHostFrameLabel: activeHostFrame?.label || starName,
+    activeHostFrame,
+    hostFrameOptions,
+    hostStars,
+    companionStars,
+    hierarchySummary,
+    overviewModel,
+    companionFluxEarth,
+    fluxVariabilityFraction,
     starName,
     starMassMsol,
     starAgeGyr,
@@ -303,6 +597,11 @@ function buildMoonNodes({
   starAgeGyr,
   starMetallicityFeH,
   starOverrides,
+  hostFrameId,
+  hostFrame,
+  companionFluxEarth,
+  companionXuvFluxEarth,
+  fluxVariabilityFraction,
   parentId,
   parentInputs,
   hashUnit,
@@ -315,6 +614,11 @@ function buildMoonNodes({
         starAgeGyr,
         starMetallicityFeH,
         starOverrides,
+        hostFrameId,
+        hostFrame,
+        companionFluxEarth,
+        companionXuvFluxEarth,
+        fluxVariabilityFraction,
         parentInputs,
         hashUnit,
       }),
@@ -327,8 +631,19 @@ function buildMoonNodes({
 }
 
 function buildMoonNode(moon, context) {
-  const { hashUnit, parentInputs, starAgeGyr, starMassMsol, starMetallicityFeH, starOverrides } =
-    context;
+  const {
+    hashUnit,
+    parentInputs,
+    starAgeGyr,
+    starMassMsol,
+    starMetallicityFeH,
+    starOverrides,
+    hostFrameId,
+    hostFrame,
+    companionFluxEarth,
+    companionXuvFluxEarth,
+    fluxVariabilityFraction,
+  } = context;
   const semiMajorAxisKm = Number(moon.inputs?.semiMajorAxisKm);
   let periodDays = null;
   let radiusKm = null;
@@ -343,6 +658,11 @@ function buildMoonNode(moon, context) {
       starLuminosityLsolOverride: starOverrides.l,
       starTempKOverride: starOverrides.t,
       starEvolutionMode: starOverrides.ev,
+      hostFrameId,
+      hostFrame,
+      companionFluxEarth,
+      companionXuvFluxEarth,
+      fluxVariabilityFraction,
       planet: parentInputs,
       moon: { ...moon.inputs },
     });
@@ -381,6 +701,7 @@ function buildMoonNode(moon, context) {
         : 0,
     radiusKm,
     moonCalc,
+    hostFrameId,
     eccentricity: clamp(Number(moon.inputs?.eccentricity ?? 0), 0, 0.99),
     inclinationDeg: clamp(Number(moon.inputs?.inclinationDeg ?? 0), 0, 180),
     longitudeOfPeriapsisDeg: hashUnit(moon.id) * 360,
@@ -391,14 +712,18 @@ function buildGasGiantNode(gasGiant, idx, context) {
   const {
     gasGiants,
     hashUnit,
+    hostFrame,
+    hostFrameId,
     moons,
     starAgeGyr,
     starMassMsol,
     starMetallicityFeH,
     starLuminosityLsun,
+    companionFluxEarth,
+    companionXuvFluxEarth,
+    fluxVariabilityFraction,
     starOverrides,
     starRadiusRsol,
-    world,
   } = context;
   const node = {
     id: gasGiant.id || `gg${idx + 1}`,
@@ -407,6 +732,7 @@ function buildGasGiantNode(gasGiant, idx, context) {
     radiusRj: Number.isFinite(Number(gasGiant.radiusRj))
       ? clamp(Number(gasGiant.radiusRj), GAS_GIANT_RADIUS_MIN_RJ, GAS_GIANT_RADIUS_MAX_RJ)
       : 1,
+    radiusKm: null,
     style: gasGiant.style || "jupiter",
     ringMode: gasGiant.ringMode,
     rings: !!gasGiant.rings,
@@ -414,6 +740,7 @@ function buildGasGiantNode(gasGiant, idx, context) {
     rotationPeriodHours: gasGiant.rotationPeriodHours,
     metallicity: gasGiant.metallicity,
     ringAppearance: null,
+    hostFrameId,
   };
   let parentOverride = null;
   try {
@@ -424,16 +751,22 @@ function buildGasGiantNode(gasGiant, idx, context) {
       rotationPeriodHours: gasGiant.rotationPeriodHours,
       metallicity: gasGiant.metallicity,
       starMassMsol,
-      starLuminosityLsol: Number(starLuminosityLsun) || Number(world.star?.luminosityLsol) || 1,
+      starLuminosityLsol: Number(starLuminosityLsun) || 1,
       starAgeGyr,
-      starRadiusRsol: Number(starRadiusRsol) || Number(world.star?.radiusRsol) || 1,
-      stellarMetallicityFeH: Number(world.star?.metallicityFeH) || starMetallicityFeH,
+      starRadiusRsol: Number(starRadiusRsol) || 1,
+      hostFrameId,
+      hostFrame,
+      companionFluxEarth,
+      companionXuvFluxEarth,
+      fluxVariabilityFraction,
+      stellarMetallicityFeH: starMetallicityFeH,
       otherGiants: Array.isArray(gasGiants)
         ? gasGiants.filter((other) => other?.id !== gasGiant.id)
         : [],
       moons: moons.filter((moon) => moon.planetId === node.id).map((moon) => moon.inputs || {}),
     });
     node.gasCalc = gasCalc;
+    node.radiusKm = Number(gasCalc?.physical?.radiusKm) || null;
     const ringState = resolveGasGiantRingState({
       ringMode: gasGiant.ringMode,
       gasCalc,
@@ -465,6 +798,7 @@ function buildGasGiantNode(gasGiant, idx, context) {
       },
     };
   } catch {
+    node.radiusKm = node.radiusRj * 69911;
     const ringState = resolveGasGiantRingState({
       ringMode: gasGiant.ringMode,
       legacyRings: gasGiant.rings,
@@ -500,6 +834,11 @@ function buildGasGiantNode(gasGiant, idx, context) {
             starLuminosityLsolOverride: starOverrides.l,
             starTempKOverride: starOverrides.t,
             starEvolutionMode: starOverrides.ev,
+            hostFrameId,
+            hostFrame,
+            companionFluxEarth,
+            companionXuvFluxEarth,
+            fluxVariabilityFraction,
             moon: { ...moon.inputs },
             parentOverride,
           });
@@ -540,6 +879,7 @@ function buildGasGiantNode(gasGiant, idx, context) {
             : 0,
         radiusKm,
         moonCalc,
+        hostFrameId,
         eccentricity: clamp(Number(moon.inputs?.eccentricity ?? 0), 0, 0.99),
         inclinationDeg: clamp(Number(moon.inputs?.inclinationDeg ?? 0), 0, 180),
         longitudeOfPeriapsisDeg: hashUnit(moon.id) * 360,
@@ -611,6 +951,15 @@ export function getFrameMetrics(snapshot, options) {
     snapshot.gasGiants.forEach((gasGiant) => {
       minAuCandidates.push(Number(gasGiant.au));
       maxAuCandidates.push(Number(gasGiant.au));
+    });
+  }
+  if (snapshot.canvasMode === "binary-p-type" && Array.isArray(snapshot.hostStars)) {
+    snapshot.hostStars.forEach((hostStar) => {
+      const barycentricOrbitAu = Number(hostStar?.barycentricOrbitAu);
+      if (Number.isFinite(barycentricOrbitAu) && barycentricOrbitAu > 0) {
+        minAuCandidates.push(barycentricOrbitAu);
+        maxAuCandidates.push(barycentricOrbitAu);
+      }
     });
   }
 

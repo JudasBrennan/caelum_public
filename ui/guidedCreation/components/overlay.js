@@ -1,4 +1,5 @@
 import { createElement } from "../../domHelpers.js";
+import { attachTooltips } from "../../tooltip.js";
 
 export function createGuidedCreationOverlay({
   overlayClassName = "",
@@ -29,6 +30,7 @@ export function createGuidedCreationOverlay({
     },
     [dialogEl],
   );
+  attachTooltips(overlayEl);
 
   return {
     overlayEl,

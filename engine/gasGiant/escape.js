@@ -19,6 +19,7 @@ const MW_CO = 0.028;
 const GG_EXOBASE_BASE_K = 200;
 const GG_EXOBASE_XUV_COEFF = 3.5;
 const GG_EXOBASE_MAX_K = 10000;
+const EARTH_REFERENCE_XUV_FLUX_ERG_CM2_S = 4.64;
 
 const GAS_SPECIES = [
   { key: "h2", label: "H\u2082", mw: MW_H2 },
@@ -36,16 +37,33 @@ export function calcMassLoss(
   starMassMsol,
   starLuminosityLsol,
   starAgeGyr,
+  extraXuvFluxRatioEarth = 0,
+  hostXuvFluxRatioAt1Au = null,
 ) {
   const massKg = massMjup * JUPITER_MASS_KG;
   const radiusM = radiusKm * 1000;
-  const fXuvAtOrbit = computeStarXuvFluxAtOrbitErgCm2S({
-    massMsol: starMassMsol,
-    luminosityLsol: starLuminosityLsol,
-    ageGyr: starAgeGyr,
-    orbitAu,
-  });
-  const fXuvSI = fXuvAtOrbit * 1e-3;
+  const resolvedHostXuvFluxRatioAt1Au = Number(hostXuvFluxRatioAt1Au);
+  const hostXuvFluxRatioEarth =
+    Number.isFinite(resolvedHostXuvFluxRatioAt1Au) && resolvedHostXuvFluxRatioAt1Au > 0
+      ? resolvedHostXuvFluxRatioAt1Au / Math.max(Number(orbitAu) || 0, 0.01) ** 2
+      : computeStarXuvFluxRatioEarth({
+          massMsol: starMassMsol,
+          luminosityLsol: starLuminosityLsol,
+          ageGyr: starAgeGyr,
+          orbitAu,
+        });
+  const fXuvAtOrbit =
+    hostXuvFluxRatioEarth * EARTH_REFERENCE_XUV_FLUX_ERG_CM2_S ||
+    computeStarXuvFluxAtOrbitErgCm2S({
+      massMsol: starMassMsol,
+      luminosityLsol: starLuminosityLsol,
+      ageGyr: starAgeGyr,
+      orbitAu,
+    });
+  const totalXuvFluxErgCm2S =
+    fXuvAtOrbit +
+    Math.max(0, Number(extraXuvFluxRatioEarth) || 0) * EARTH_REFERENCE_XUV_FLUX_ERG_CM2_S;
+  const fXuvSI = totalXuvFluxErgCm2S * 1e-3;
   const massLossKgS = (HEATING_EFFICIENCY * Math.PI * radiusM ** 3 * fXuvSI) / (G * massKg);
   const evapTimescaleGyr = massKg / Math.max(massLossKgS, 1e-30) / S_PER_GYR;
   const starMassMjup = starMassMsol * MSOL_PER_MJUP;
@@ -54,13 +72,8 @@ export function calcMassLoss(
   return {
     massLossRateKgS: massLossKgS,
     evaporationTimescaleGyr: round(Math.min(evapTimescaleGyr, 1e12), 3),
-    xuvFluxErgCm2S: round(fXuvAtOrbit, 4),
-    xuvFluxRatioEarth: computeStarXuvFluxRatioEarth({
-      massMsol: starMassMsol,
-      luminosityLsol: starLuminosityLsol,
-      ageGyr: starAgeGyr,
-      orbitAu,
-    }),
+    xuvFluxErgCm2S: round(totalXuvFluxErgCm2S, 4),
+    xuvFluxRatioEarth: hostXuvFluxRatioEarth + Math.max(0, Number(extraXuvFluxRatioEarth) || 0),
     rocheLobeRadiusKm: round(rocheLobeKm, 0),
     rocheLobeOverflow: rocheOverflow,
   };

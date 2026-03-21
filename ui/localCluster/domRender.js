@@ -107,6 +107,8 @@ export function renderClusterSystemsBody(
               value: systemName,
               placeholder: system.name || "Star System",
               "aria-label": `System name for ${system.id}`,
+              "data-tip":
+                "Editable display name for this generated system. This only changes the label shown in the Local Cluster table and visualiser.",
             },
             dataset: { systemId: system.id },
           }),
