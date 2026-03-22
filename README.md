@@ -1,4 +1,4 @@
-# WorldSmith Web 2.0.0
+# WorldSmith Web 2.0.1
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 

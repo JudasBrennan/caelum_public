@@ -21,7 +21,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.0.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.0.1</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, and calendars. Explore your creations in an interactive 3D
@@ -355,6 +355,14 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.0.1",
+      "(from 2.0.0)",
+      [
+        "<b>Apparent Moon Texture Fix</b> &mdash; The Apparent Size canvas no longer reuses the same moon texture for different moons that happen to share a broad moon class. Moon previews now key from the computed moon visual profile, so distinct moons stay visually distinct in the sky view.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.0.0",
       "(from 1.27.0)",
       [
@@ -366,7 +374,7 @@ function changelogHTML() {
         "<b>Science Page Search</b> &mdash; The Science &amp; Maths reference now has a search bar and live filtering, so large sections are much easier to navigate. Matching entries jump open and highlight directly instead of leaving you to scan the whole page.",
         "<b>Visualizer Orbit Polish</b> &mdash; Gas giants and comets now keep their eccentric orbit geometry, orientation, and appearance more consistently in the Local Frame visualizer. Complex outer-system scenes read much more cleanly as a result.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "1.27.0",

@@ -4,6 +4,28 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.0.1 - 2026-03-22
+
+### Apparent Moon Texture Cache Fix
+
+**Fixed the Apparent Size canvas reusing the same moon texture for different moons that shared a broad moon class**
+(ui/apparentSkyNativeThree.js, tests/apparentSkyNativeThree.test.js,
+tests/apparentPage.ui.test.js, tests/apparentDomRender.test.js)
+
+The native Apparent Size sky canvas was caching moon preview snapshots
+too coarsely, so different moons could collapse onto the same rendered
+surface if they landed in the same broad display class. Moon snapshots
+now key from the computed moon visual profile instead of only class
+labels, so the sky canvas preserves distinct moon textures more
+consistently.
+
+**Tests** (tests/apparentSkyNativeThree.test.js,
+tests/apparentPage.ui.test.js, tests/apparentDomRender.test.js)
+
+- Added a focused regression to ensure same-class moons do not reuse the
+  same cached apparent-sky texture, plus targeted Apparent page and DOM
+  render verification.
+
 ## 2.0.0 - 2026-03-22
 
 ### Brown Dwarf Full Integration

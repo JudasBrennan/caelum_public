@@ -1,5 +1,6 @@
 import { loadThreeCore } from "./threeBridge2d.js";
 import { renderCelestialRecipeSnapshot, renderStarSnapshot } from "./celestialVisualPreview.js";
+import { computeMoonVisualProfile } from "./moonStyles.js";
 import { computeRockyVisualProfile } from "./rockyPlanetStyles.js";
 import {
   computeBinaryPairOrbitalState,
@@ -107,10 +108,17 @@ function clearGroup(group) {
 
 /* ── Snapshot canvas helpers (mirror systemPosterNativeThree.js) ── */
 
+export function buildApparentMoonSnapKey(moonCalc, moonName = "") {
+  const name = String(moonName || moonCalc?.inputs?.name || moonCalc?.id || "");
+  if (!moonCalc) return `moon:${name}:default`;
+  const profile = computeMoonVisualProfile(moonCalc);
+  return `moon:${name}:${JSON.stringify(profile || {})}`;
+}
+
 function snapKey(obj) {
   if (obj.type === "moon") {
     const mc = obj.entry.moonCalc;
-    return `moon:${mc?.display?.displayClass || ""}:${mc?.display?.surfaceClass || ""}`;
+    return buildApparentMoonSnapKey(mc, obj.entry?.name || "");
   }
   const b = obj.entry;
   if (isBrownDwarfBodyEntry(b)) {
