@@ -20,7 +20,7 @@ export const VISUALIZER_TIP_LABEL = {
   "Habitable zone": "Show or hide the habitable-zone band (between HZ inner and HZ outer limits).",
   "Debris disks": "Show or hide debris disk bands and asteroid field particles.",
   "Eccentric orbits":
-    "When enabled, planet orbits are drawn as ellipses using each planet's saved eccentricity and longitude of periapsis. The planet also moves faster near periapsis and slower near apoapsis (Kepler's second law via the eccentric anomaly).\n\nWhen disabled (default), orbits are drawn as perfect circles - cleaner for typical near-circular worlds.",
+    "When enabled, planet and gas giant orbits are drawn as ellipses using each body's eccentricity and periapsis orientation. Bodies also move faster near periapsis and slower near apoapsis (Kepler's second law via the eccentric anomaly).\n\nWhen disabled (default), orbits are drawn as perfect circles - cleaner for typical near-circular worlds.",
   "Pe / Ap markers":
     "Show periapsis (closest approach) and apoapsis (farthest point) markers on eccentric orbits.",
   "Hill spheres":

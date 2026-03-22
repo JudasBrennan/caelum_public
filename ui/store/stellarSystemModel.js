@@ -1,4 +1,5 @@
 import { listFromCollection, makeCollection } from "./systemCollections.js";
+import { BROWN_DWARF_MIN_MSOL } from "../../engine/substellarRegime.js";
 
 export const STELLAR_SYSTEM_TOPOLOGY_KINDS = Object.freeze(["single", "binary", "triple", "quad"]);
 
@@ -76,9 +77,13 @@ function normalizeStarComponent(raw, index = 1, fallback = {}) {
   return {
     id,
     name: normalizeName(raw?.name, normalizeName(fallback?.name, defaultName)),
-    massMsol: toFiniteNumber(raw?.massMsol, toFiniteNumber(fallback?.massMsol, 1, { min: 0.08 }), {
-      min: 0.08,
-    }),
+    massMsol: toFiniteNumber(
+      raw?.massMsol,
+      toFiniteNumber(fallback?.massMsol, 1, { min: BROWN_DWARF_MIN_MSOL }),
+      {
+        min: BROWN_DWARF_MIN_MSOL,
+      },
+    ),
     physicsMode: raw?.physicsMode === "advanced" ? "advanced" : "simple",
     advancedDerivationMode: ["rl", "rt", "lt"].includes(raw?.advancedDerivationMode)
       ? raw.advancedDerivationMode
@@ -442,9 +447,9 @@ export function projectPrimaryStarFromStellarSystem(stellarSystem, fallbackStar 
     name: normalizeName(primary?.name, normalizeName(fallbackStar?.name, "Star")),
     massMsol: toFiniteNumber(
       primary?.massMsol,
-      toFiniteNumber(fallbackStar?.massMsol, 1, { min: 0.08 }),
+      toFiniteNumber(fallbackStar?.massMsol, 1, { min: BROWN_DWARF_MIN_MSOL }),
       {
-        min: 0.08,
+        min: BROWN_DWARF_MIN_MSOL,
       },
     ),
     ageGyr: toFiniteNumber(ageGyr, toFiniteNumber(fallbackStar?.ageGyr, 4.6, { min: 0 }), {

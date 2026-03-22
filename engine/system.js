@@ -27,6 +27,7 @@
 // This module is intentionally self-contained and pure (no DOM
 // access).  Units: AU, solar units.
 
+import { calcBrownDwarf } from "./brownDwarf.js";
 import { clamp, fmt } from "./utils.js";
 import { auToKilometers } from "./physics/orbital.js";
 import {
@@ -35,6 +36,12 @@ import {
   massToLuminosity,
   massToRadius,
 } from "./star.js";
+import {
+  BROWN_DWARF_MIN_MSOL,
+  classifyHostRegimeByMass,
+  getInsolationZoneKindForRegime,
+  getInsolationZoneLabelForRegime,
+} from "./substellarRegime.js";
 
 const AU_TO_KM = Math.round(auToKilometers(1) / 100000) * 100000;
 const AU_TO_MILLION_KM = AU_TO_KM / 1e6;
@@ -63,13 +70,27 @@ export function calcSystem({
   radiusRsolOverride,
   tempKOverride,
 }) {
-  const m = clamp(starMassMsol, 0.075, 100);
+  const m = clamp(starMassMsol, BROWN_DWARF_MIN_MSOL, 100);
   const s = clamp(spacingFactor, 0, 10); // spacing is a "knob"; allow wide but sane
   const o1 = clamp(orbit1Au, 0, 1e6);
+  const hostRegime = classifyHostRegimeByMass({ massMsol: m });
+  const zoneKind = getInsolationZoneKindForRegime(hostRegime);
+  const zoneLabel = getInsolationZoneLabelForRegime(hostRegime);
 
   // --- Star properties (Eker et al. 2018 relations from star.js) ---
-  const luminosityAuto = massToLuminosity(m);
-  const radiusAuto = massToRadius(m);
+  const brownDwarfAuto =
+    hostRegime === "brownDwarf"
+      ? calcBrownDwarf({
+          massMsol: m,
+          ageGyr: 4.6,
+          radiusRsolOverride,
+          luminosityLsolOverride,
+          tempKOverride,
+        })
+      : null;
+  const luminosityAuto =
+    hostRegime === "brownDwarf" ? brownDwarfAuto.luminosityLsolAuto : massToLuminosity(m);
+  const radiusAuto = hostRegime === "brownDwarf" ? brownDwarfAuto.radiusRsolAuto : massToRadius(m);
   const rOv = Number(radiusRsolOverride);
   const lOv = Number(luminosityLsolOverride);
   const tOv = Number(tempKOverride);
@@ -81,7 +102,11 @@ export function calcSystem({
   let radiusRsol;
   let tempK;
 
-  if (hasR && hasL) {
+  if (hostRegime === "brownDwarf") {
+    radiusRsol = brownDwarfAuto.radiusRsol;
+    luminosityLsol = brownDwarfAuto.luminosityLsol;
+    tempK = brownDwarfAuto.tempK;
+  } else if (hasR && hasL) {
     radiusRsol = rOv;
     luminosityLsol = lOv;
     tempK = (luminosityLsol / radiusRsol ** 2) ** 0.25 * 5776;
@@ -114,8 +139,12 @@ export function calcSystem({
   const densityDsol = m / radiusRsol ** 3;
   const densityGcm3 = 1.408 * densityDsol;
 
-  const hzTeffK = hasT ? tempK : estimateHabitableTeffKFromMass(m);
-  const hz = calcHabitableZoneAu({ luminosityLsol, teffK: hzTeffK });
+  const hzTeffK =
+    hostRegime === "brownDwarf" ? tempK : hasT ? tempK : estimateHabitableTeffKFromMass(m);
+  const hz =
+    hostRegime === "brownDwarf"
+      ? brownDwarfAuto.habitableZoneModel
+      : calcHabitableZoneAu({ luminosityLsol, teffK: hzTeffK });
   const hzInnerAu = hz.innerAu;
   const hzOuterAu = hz.outerAu;
 
@@ -144,8 +173,12 @@ export function calcSystem({
 
   return {
     inputs: { starMassMsol: m, spacingFactor: s, orbit1Au: o1 },
+    hostRegime,
+    zoneKind,
+    zoneLabel,
 
     star: {
+      regime: hostRegime,
       luminosityLsol,
       radiusRsol,
       densityDsol,
@@ -169,6 +202,7 @@ export function calcSystem({
     orbitsMillionKm: orbitsAu.map((x) => x * AU_TO_MILLION_KM),
 
     display: {
+      zoneLabel,
       hzAu: `${fmt(hzInnerAu, 3)} - ${fmt(hzOuterAu, 3)}`,
       frostAu: fmt(frostLineAu, 3),
       innerLimitAu: fmt(systemInnerLimitAu, 4),

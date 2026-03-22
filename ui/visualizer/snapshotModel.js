@@ -3,6 +3,7 @@ import { calcStar, starColourHexFromTempK } from "../../engine/star.js";
 import { calcPlanetExact } from "../../engine/planet.js";
 import { calcMoonExact } from "../../engine/moon.js";
 import { calcGasGiant } from "../../engine/gasGiant.js";
+import { buildBrownDwarfStarVisual } from "../../engine/brownDwarfVisual.js";
 import {
   buildHierarchyPresentation,
   listCompanionStarsForHostFrame,
@@ -10,6 +11,11 @@ import {
 } from "../../engine/homeSystem/companionPresentation.js";
 import { resolveGasGiantRingState } from "../../engine/planetaryRings.js";
 import { computeStellarActivityModel } from "../../engine/stellarActivity.js";
+import {
+  classifyCompanionRegimeByMass,
+  normalizeGiantCompanionClass,
+  regimeDisplayLabel,
+} from "../../engine/substellarRegime.js";
 import { clamp } from "../../engine/utils.js";
 import {
   GAS_GIANT_RADIUS_MAX_RJ,
@@ -22,6 +28,7 @@ import {
   getProjectedPrimaryStar,
   resolveWorldHostFrameContext,
 } from "../store.js";
+import { suggestStyles } from "../gasGiantStyles.js";
 import { computeRockyVisualProfile } from "../rockyPlanetStyles.js";
 import { resolveRingAppearance } from "../ringAppearanceProfiles.js";
 import {
@@ -59,6 +66,7 @@ function createEmptyOverviewBodyCounts() {
   return {
     rockyPlanets: 0,
     gasGiants: 0,
+    brownDwarfs: 0,
     debrisDisks: 0,
     total: 0,
   };
@@ -70,6 +78,34 @@ function ensureOverviewBodyCounts(countsByHostFrameId, hostFrameId) {
     countsByHostFrameId[hostFrameId] = createEmptyOverviewBodyCounts();
   }
   return countsByHostFrameId[hostFrameId];
+}
+
+function classifyGiantCompanionValue(entry) {
+  const explicitClass = String(entry?.companionClass || "").trim();
+  if (explicitClass) return normalizeGiantCompanionClass(explicitClass);
+  const regime = classifyCompanionRegimeByMass({ massMjup: entry?.massMjup });
+  return regime === "brownDwarf" ? "brownDwarf" : "gasGiant";
+}
+
+function defaultGiantCompanionName(entry, idx) {
+  const classLabel = regimeDisplayLabel(classifyGiantCompanionValue(entry));
+  return `${classLabel} ${idx + 1}`;
+}
+
+function resolveGiantCompanionStyle(rawStyle, gasCalc, companionClass) {
+  const explicitStyle = String(rawStyle || "").trim();
+  const brownDwarfStyleFamily = /^(brown-dwarf-|cloudless$|helium$|silicate$|alkali$)/i;
+  if (explicitStyle) {
+    if (!(companionClass === "brownDwarf" && !brownDwarfStyleFamily.test(explicitStyle))) {
+      return explicitStyle;
+    }
+  }
+  const suggestedStyle =
+    gasCalc && (gasCalc.classification || gasCalc.regime || gasCalc.companionClass)
+      ? suggestStyles(gasCalc)?.primary
+      : null;
+  if (suggestedStyle) return suggestedStyle;
+  return companionClass === "brownDwarf" ? "brown-dwarf-l" : "jupiter";
 }
 
 function buildOverviewBodyCounts(world, fallbackHostFrameId) {
@@ -87,7 +123,8 @@ function buildOverviewBodyCounts(world, fallbackHostFrameId) {
     const hostFrameId = normalizeHostFrameId(gasGiant?.hostFrameId, fallbackHostFrameId);
     if (!hostFrameId) continue;
     const counts = ensureOverviewBodyCounts(countsByHostFrameId, hostFrameId);
-    counts.gasGiants += 1;
+    if (classifyGiantCompanionValue(gasGiant) === "brownDwarf") counts.brownDwarfs += 1;
+    else counts.gasGiants += 1;
     counts.total += 1;
   }
 
@@ -584,6 +621,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
     starRadiusRsol,
     starRadiusKm,
     starColourHex,
+    starRegime: String(starCalc?.regime || "star"),
     starActivityLevel,
     starSeed: starSeedRaw,
     activityModelVersion,
@@ -725,10 +763,12 @@ function buildGasGiantNode(gasGiant, idx, context) {
     starOverrides,
     starRadiusRsol,
   } = context;
+  const rawCompanionClass = classifyGiantCompanionValue(gasGiant);
   const node = {
     id: gasGiant.id || `gg${idx + 1}`,
-    name: gasGiant.name || `Gas giant ${idx + 1}`,
+    name: gasGiant.name || defaultGiantCompanionName(gasGiant, idx),
     au: Number(gasGiant.au),
+    periodDays: null,
     radiusRj: Number.isFinite(Number(gasGiant.radiusRj))
       ? clamp(Number(gasGiant.radiusRj), GAS_GIANT_RADIUS_MIN_RJ, GAS_GIANT_RADIUS_MAX_RJ)
       : 1,
@@ -739,15 +779,30 @@ function buildGasGiantNode(gasGiant, idx, context) {
     massMjup: gasGiant.massMjup,
     rotationPeriodHours: gasGiant.rotationPeriodHours,
     metallicity: gasGiant.metallicity,
+    eccentricity: clamp(Number(gasGiant.eccentricity ?? 0), 0, 0.99),
+    inclinationDeg: clamp(Number(gasGiant.inclinationDeg ?? 0), 0, 180),
+    longitudeOfPeriapsisDeg: Number.isFinite(Number(gasGiant.longitudeOfPeriapsisDeg))
+      ? Number(gasGiant.longitudeOfPeriapsisDeg)
+      : hashUnit(gasGiant.id || `gg${idx + 1}`) * 360,
+    axialTiltDeg: clamp(Number(gasGiant.axialTiltDeg ?? 0), 0, 180),
     ringAppearance: null,
     hostFrameId,
+    companionClass: rawCompanionClass,
+    regime: rawCompanionClass,
+    classLabel: regimeDisplayLabel(rawCompanionClass),
+    renderModel: "gasGiant",
+    starVisual: null,
   };
   let parentOverride = null;
   try {
     const gasCalc = calcGasGiant({
+      companionClass: rawCompanionClass,
       massMjup: gasGiant.massMjup,
       radiusRj: gasGiant.radiusRj,
       orbitAu: node.au || 5,
+      eccentricity: node.eccentricity,
+      inclinationDeg: node.inclinationDeg,
+      axialTiltDeg: node.axialTiltDeg,
       rotationPeriodHours: gasGiant.rotationPeriodHours,
       metallicity: gasGiant.metallicity,
       starMassMsol,
@@ -766,7 +821,21 @@ function buildGasGiantNode(gasGiant, idx, context) {
       moons: moons.filter((moon) => moon.planetId === node.id).map((moon) => moon.inputs || {}),
     });
     node.gasCalc = gasCalc;
+    node.companionClass = normalizeGiantCompanionClass(
+      gasCalc?.companionClass,
+      gasCalc?.regime === "brownDwarf" ? "brownDwarf" : rawCompanionClass,
+    );
+    node.regime = String(gasCalc?.regime || node.companionClass);
+    node.classLabel = regimeDisplayLabel(node.regime);
+    node.name =
+      gasGiant.name || defaultGiantCompanionName({ companionClass: node.companionClass }, idx);
+    node.style = resolveGiantCompanionStyle(gasGiant.style, gasCalc, node.companionClass);
+    node.radiusRj =
+      Number(gasCalc?.physical?.radiusRj) ||
+      Number(gasCalc?.physical?.radiusRjAuto) ||
+      node.radiusRj;
     node.radiusKm = Number(gasCalc?.physical?.radiusKm) || null;
+    node.periodDays = Number(gasCalc?.orbital?.orbitalPeriodDays) || null;
     const ringState = resolveGasGiantRingState({
       ringMode: gasGiant.ringMode,
       gasCalc,
@@ -780,14 +849,26 @@ function buildGasGiantNode(gasGiant, idx, context) {
       ringState,
       ringStyleId: gasGiant.ringStyleId,
       gasCalc,
-      bodyStyleId: gasGiant.style,
+      bodyStyleId: node.style,
       seed: node.id || node.name,
     });
+    node.starVisual = buildBrownDwarfStarVisual(
+      {
+        name: node.name,
+        style: node.style,
+        companionClass: node.companionClass,
+        regime: node.regime,
+        gasCalc,
+        massMjup: node.massMjup,
+      },
+      { ageGyr: starAgeGyr },
+    );
+    node.renderModel = node.starVisual ? "brownDwarfStar" : "gasGiant";
     parentOverride = {
       inputs: {
         massEarth: gasCalc.physical.massEarth,
         semiMajorAxisAu: gasCalc.inputs.orbitAu,
-        eccentricity: 0,
+        eccentricity: gasCalc.inputs.eccentricity,
         rotationPeriodHours: gasCalc.inputs.rotationPeriodHours,
         cmfPct: 0,
       },
@@ -799,6 +880,8 @@ function buildGasGiantNode(gasGiant, idx, context) {
     };
   } catch {
     node.radiusKm = node.radiusRj * 69911;
+    node.periodDays = null;
+    node.style = resolveGiantCompanionStyle(gasGiant.style, null, rawCompanionClass);
     const ringState = resolveGasGiantRingState({
       ringMode: gasGiant.ringMode,
       legacyRings: gasGiant.rings,
@@ -811,9 +894,20 @@ function buildGasGiantNode(gasGiant, idx, context) {
       ringState,
       ringStyleId: gasGiant.ringStyleId,
       gasCalc: null,
-      bodyStyleId: gasGiant.style,
+      bodyStyleId: node.style,
       seed: node.id || node.name,
     });
+    node.starVisual = buildBrownDwarfStarVisual(
+      {
+        name: node.name,
+        style: node.style,
+        companionClass: rawCompanionClass,
+        regime: rawCompanionClass,
+        massMjup: node.massMjup,
+      },
+      { ageGyr: starAgeGyr },
+    );
+    node.renderModel = node.starVisual ? "brownDwarfStar" : "gasGiant";
     parentOverride = null;
   }
   node.moons = moons

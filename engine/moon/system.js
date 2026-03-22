@@ -1,20 +1,20 @@
 import { calcMoonExact } from "../moon.js";
-import { clamp, toFinite } from "../utils.js";
+import { toFinite } from "../utils.js";
 import { normalizeMoonInputs } from "./config.js";
 import { computeMoonStabilityLimits } from "./orbit.js";
+import {
+  classifyMigrationTrendState,
+  classifyMigrationTrendStrength,
+  computeForcedEccentricity,
+  computePeriodRatioDriftPctPerGyr,
+  findNearestResonance,
+  formatMigrationTrendDisplay,
+} from "./resonance.js";
 
 const EARTH_MASS_KG = 5.9722e24;
 const EARTH_RADIUS_KM = 6371;
 const LUNAR_MASS_IN_EARTH = 0.0123000371;
 const G = 6.6743e-11;
-const RESONANCE_CANDIDATES = [
-  { numerator: 2, denominator: 1 },
-  { numerator: 3, denominator: 2 },
-  { numerator: 5, denominator: 3 },
-  { numerator: 4, denominator: 3 },
-  { numerator: 5, denominator: 2 },
-  { numerator: 3, denominator: 1 },
-];
 
 function normalizeDetailLevel(detailLevel) {
   return detailLevel === "summary" ? "summary" : "full";
@@ -26,23 +26,6 @@ function orbitalPeriodSiderealDays(parentMassEarth, semiMajorAxisKm) {
   if (planetMassKg <= 0 || semiMajorAxisM <= 0) return Infinity;
   const periodSeconds = 2 * Math.PI * Math.sqrt(semiMajorAxisM ** 3 / (G * planetMassKg));
   return periodSeconds / 86400;
-}
-
-function findNearestResonance(periodRatio) {
-  if (!Number.isFinite(periodRatio) || periodRatio <= 0) return null;
-  let best = null;
-  for (const candidate of RESONANCE_CANDIDATES) {
-    const targetRatio = candidate.numerator / candidate.denominator;
-    const offsetPct = (Math.abs(periodRatio - targetRatio) / targetRatio) * 100;
-    if (!best || offsetPct < best.offsetPct) {
-      best = {
-        label: `${candidate.numerator}:${candidate.denominator}`,
-        targetRatio,
-        offsetPct,
-      };
-    }
-  }
-  return best;
 }
 
 function fallbackHabitableZone(starLuminosityLsol) {
@@ -155,16 +138,21 @@ function buildManualResonanceState(entries) {
           ? {
               label: `${entry.inputs.manualResonanceRatio || 2}:1`,
               offsetPct: 0,
+              withMoonId: prev.id,
+              withMoonName: prev.inputs.name || prev.id,
             }
           : null,
         chainMembership: groupId,
         laplaceChainId: groupEntries.length >= 3 ? groupId : null,
+        autoForcedEccentricity: 0,
+        forcingPartnerMoonId: null,
+        forcingPartnerMoonName: null,
+        forcingOffsetPct: null,
         forcedEccentricity:
           entry.inputs.forcedEccentricity != null
             ? Math.max(0, entry.inputs.forcedEccentricity)
             : 0,
-        forcedEccentricitySource:
-          entry.inputs.forcedEccentricity != null ? "manual" : prev ? "manual-resonance" : "none",
+        forcedEccentricitySource: entry.inputs.forcedEccentricity != null ? "manual" : "none",
         sustainedHeatingLikely:
           (entry.inputs.forcedEccentricity ?? 0) >= 0.003 || groupEntries.length >= 3,
       });
@@ -240,9 +228,24 @@ function analyseSystemCoupling({
       .sort((left, right) => left.resonance.offsetPct - right.resonance.offsetPct)[0];
 
     const hasResonance = nearest && nearest.resonance.offsetPct <= 2.5;
-    const forcedFloor = hasResonance
-      ? clamp(0.0015 + (2.5 - nearest.resonance.offsetPct) * 0.0012, 0, 0.007)
+    const autoForcedEccentricity = hasResonance
+      ? computeForcedEccentricity({
+          resonanceLabel: nearest.resonance.label,
+          offsetPct: nearest.resonance.offsetPct,
+          perturberMassMoon:
+            inner && nearest.partnerId === inner.id ? inner.inputs.massMoon : outer?.inputs.massMoon,
+          parentMassEarth,
+          semiMajorAxisKm: current.inputs.semiMajorAxisKm,
+          perturberSemiMajorAxisKm:
+            inner && nearest.partnerId === inner.id
+              ? inner.inputs.semiMajorAxisKm
+              : outer?.inputs.semiMajorAxisKm,
+        })
       : 0;
+    const forcedEccentricity =
+      current.inputs.forcedEccentricity != null
+        ? Math.max(current.inputs.forcedEccentricity, 0)
+        : autoForcedEccentricity;
     states.set(current.id, {
       nearestResonance: hasResonance
         ? {
@@ -254,25 +257,32 @@ function analyseSystemCoupling({
         : null,
       chainMembership: null,
       laplaceChainId: null,
-      forcedEccentricity:
-        current.inputs.forcedEccentricity != null
-          ? Math.max(current.inputs.forcedEccentricity, forcedFloor)
-          : forcedFloor,
+      autoForcedEccentricity,
+      forcingPartnerMoonId: hasResonance ? nearest.partnerId : null,
+      forcingPartnerMoonName: hasResonance ? nearest.partnerName : null,
+      forcingOffsetPct: hasResonance ? nearest.resonance.offsetPct : null,
+      forcedEccentricity,
       forcedEccentricitySource:
         current.inputs.forcedEccentricity != null
           ? "manual"
-          : hasResonance
-            ? "resonant-floor"
+          : autoForcedEccentricity > 0
+            ? "resonant-mass-model"
             : "none",
-      sustainedHeatingLikely: forcedFloor >= 0.003,
+      sustainedHeatingLikely: forcedEccentricity >= 0.003,
       tidalHabitableZone,
     });
   }
 
   for (let index = 0; index + 2 < entries.length; index += 1) {
+    if (
+      manualStates.has(entries[index].id) ||
+      manualStates.has(entries[index + 1].id) ||
+      manualStates.has(entries[index + 2].id)
+    ) {
+      continue;
+    }
     const first = states.get(entries[index].id);
     const second = states.get(entries[index + 1].id);
-    const third = states.get(entries[index + 2].id);
     const firstNearTwoToOne = first?.nearestResonance?.label === "2:1";
     const secondNearTwoToOne = second?.nearestResonance?.label === "2:1";
     if (!firstNearTwoToOne || !secondNearTwoToOne) continue;
@@ -281,15 +291,61 @@ function analyseSystemCoupling({
       const state = states.get(entry.id);
       state.chainMembership = chainId;
       state.laplaceChainId = chainId;
-      state.forcedEccentricity = Math.max(state.forcedEccentricity, 0.0035);
-      if (state.forcedEccentricitySource === "none") {
-        state.forcedEccentricitySource = "laplace-chain";
+      if (state.forcedEccentricitySource !== "manual" && state.forcedEccentricity < 0.0035) {
+        state.forcedEccentricity = 0.0035;
+        state.forcedEccentricitySource = "laplace-chain-floor";
       }
-      state.sustainedHeatingLikely = true;
+      state.sustainedHeatingLikely = state.forcedEccentricity >= 0.003 || !!state.laplaceChainId;
     }
   }
 
   return states;
+}
+
+function applyMigrationTrendMetadata(results) {
+  const resultsById = new Map(results.map((entry) => [entry.raw.id, entry]));
+
+  for (const entry of results) {
+    const resonance = entry.model?.resonance;
+    if (!resonance) continue;
+
+    let ratioDriftPctPerGyr = null;
+    const partnerId = resonance.nearestResonance?.withMoonId;
+    if (partnerId) {
+      const partnerEntry = resultsById.get(partnerId);
+      const currentSemiMajorAxisKm = toFinite(entry.model?.inputs?.semiMajorAxisKm, 0);
+      const partnerSemiMajorAxisKm = toFinite(partnerEntry?.model?.inputs?.semiMajorAxisKm, 0);
+      const currentDadtMs = toFinite(entry.model?.tides?.dadtTotalMs, 0);
+      const partnerDadtMs = toFinite(partnerEntry?.model?.tides?.dadtTotalMs, 0);
+
+      if (currentSemiMajorAxisKm > 0 && partnerSemiMajorAxisKm > 0) {
+        ratioDriftPctPerGyr =
+          currentSemiMajorAxisKm <= partnerSemiMajorAxisKm
+            ? computePeriodRatioDriftPctPerGyr({
+                semiMajorAxisInnerKm: currentSemiMajorAxisKm,
+                semiMajorAxisOuterKm: partnerSemiMajorAxisKm,
+                dadtInnerMs: currentDadtMs,
+                dadtOuterMs: partnerDadtMs,
+              })
+            : computePeriodRatioDriftPctPerGyr({
+                semiMajorAxisInnerKm: partnerSemiMajorAxisKm,
+                semiMajorAxisOuterKm: currentSemiMajorAxisKm,
+                dadtInnerMs: partnerDadtMs,
+                dadtOuterMs: currentDadtMs,
+              });
+      }
+    }
+
+    resonance.ratioDriftPctPerGyr =
+      ratioDriftPctPerGyr == null ? null : toFinite(ratioDriftPctPerGyr, null);
+    resonance.migrationTrendState = classifyMigrationTrendState(ratioDriftPctPerGyr);
+    resonance.migrationTrendStrength = classifyMigrationTrendStrength(ratioDriftPctPerGyr);
+    if (entry.model.display) {
+      entry.model.display.migrationTrend = formatMigrationTrendDisplay(resonance);
+    }
+  }
+
+  return results;
 }
 
 export function buildRockyMoonParentOverride(model, { includeRadiation = true } = {}) {
@@ -370,12 +426,16 @@ export function solveMoonSystem({
     starMassMsol,
   });
 
-  return moonEntries.map((entry) => {
+  const results = moonEntries.map((entry) => {
     const normalizedInputs = normalizeMoonInputs(entry.inputs || entry);
     const couplingState = couplingStates.get(entry.id) || {
       nearestResonance: null,
       chainMembership: null,
       laplaceChainId: null,
+      autoForcedEccentricity: 0,
+      forcingPartnerMoonId: null,
+      forcingPartnerMoonName: null,
+      forcingOffsetPct: null,
       forcedEccentricity: normalizedInputs.forcedEccentricity ?? 0,
       forcedEccentricitySource: normalizedInputs.forcedEccentricity != null ? "manual" : "none",
       sustainedHeatingLikely: false,
@@ -410,6 +470,10 @@ export function solveMoonSystem({
         nearestResonance: couplingState.nearestResonance,
         chainMembership: couplingState.chainMembership,
         laplaceChainId: couplingState.laplaceChainId,
+        autoForcedEccentricity: couplingState.autoForcedEccentricity,
+        forcingPartnerMoonId: couplingState.forcingPartnerMoonId,
+        forcingPartnerMoonName: couplingState.forcingPartnerMoonName,
+        forcingOffsetPct: couplingState.forcingOffsetPct,
         forcedEccentricity: couplingState.forcedEccentricity,
         forcedEccentricitySource: couplingState.forcedEccentricitySource,
         sustainedHeatingLikely: couplingState.sustainedHeatingLikely,
@@ -429,4 +493,6 @@ export function solveMoonSystem({
       formation: model.formation,
     };
   });
+
+  return applyMigrationTrendMetadata(results);
 }

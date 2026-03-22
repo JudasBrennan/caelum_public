@@ -1,6 +1,9 @@
 import { createSeededRng } from "../../engine/stellarActivity.js";
 import { clamp } from "../../engine/utils.js";
 
+const BROWN_DWARF_MAX_TEMP_K = 2400;
+const HYDROGEN_BURNING_MASS_FLOOR_MSOL = 0.075;
+
 export function hexToRgba(hex, alpha = 1) {
   if (!hex) return `rgba(160,200,255,${alpha})`;
   const raw = hex.replace("#", "").trim();
@@ -47,6 +50,10 @@ export function rgbToCss(rgb, alpha = 1) {
   return `rgba(${clamp(Math.round(rgb.r), 0, 255)},${clamp(Math.round(rgb.g), 0, 255)},${clamp(Math.round(rgb.b), 0, 255)},${a})`;
 }
 
+function lerp(a, b, t) {
+  return a + (b - a) * clamp(Number(t), 0, 1);
+}
+
 export function getStarSurfaceSeed(snapshot) {
   const rawSeed =
     snapshot?.starSeed ??
@@ -54,6 +61,76 @@ export function getStarSurfaceSeed(snapshot) {
       snapshot?.starAgeGyr || 4.6,
     ).toFixed(2)}`;
   return String(rawSeed);
+}
+
+export function inferStarVisualRegime({
+  regime = null,
+  tempK = null,
+  starTempK = null,
+  massMsol = null,
+  starMassMsol = null,
+} = {}) {
+  const explicit = String(regime || "").trim();
+  if (explicit === "brownDwarf") return "brownDwarf";
+
+  const resolvedTempK = Number.isFinite(Number(tempK)) ? Number(tempK) : Number(starTempK);
+  const resolvedMassMsol = Number.isFinite(Number(massMsol)) ? Number(massMsol) : Number(starMassMsol);
+  if (
+    (Number.isFinite(resolvedTempK) && resolvedTempK > 0 && resolvedTempK < BROWN_DWARF_MAX_TEMP_K) ||
+    (Number.isFinite(resolvedMassMsol) &&
+      resolvedMassMsol > 0 &&
+      resolvedMassMsol < HYDROGEN_BURNING_MASS_FLOOR_MSOL)
+  ) {
+    return "brownDwarf";
+  }
+  return "star";
+}
+
+export function getStarVisualStyle(input = {}) {
+  const resolvedTempK = Number.isFinite(Number(input?.tempK))
+    ? Number(input.tempK)
+    : Number(input?.starTempK);
+  const regime = inferStarVisualRegime(input);
+  if (regime !== "brownDwarf") {
+    return {
+      regime,
+      isBrownDwarf: false,
+      coreMix: 0.34,
+      limbMix: 0.2,
+      brightMix: 0.58,
+      darkMix: 0.62,
+      faculaMix: 0.54,
+      coronaOpacityScale: 1,
+      haloOpacityScale: 1,
+      rimOpacityScale: 1,
+      burstOpacityScale: 1,
+      surfaceContrastScale: 1,
+      activityScale: 1,
+      glowRadiusScale: 1,
+      glowOpacityScale: 1,
+      rimWarmHex: "#ffd9ad",
+    };
+  }
+
+  const tempT = clamp((resolvedTempK - 250) / (BROWN_DWARF_MAX_TEMP_K - 250), 0, 1);
+  return {
+    regime,
+    isBrownDwarf: true,
+    coreMix: lerp(0.08, 0.16, tempT),
+    limbMix: lerp(0.48, 0.32, tempT),
+    brightMix: lerp(0.16, 0.24, tempT),
+    darkMix: lerp(0.78, 0.68, tempT),
+    faculaMix: lerp(0.16, 0.26, tempT),
+    coronaOpacityScale: lerp(0.14, 0.28, tempT),
+    haloOpacityScale: lerp(0.16, 0.3, tempT),
+    rimOpacityScale: lerp(0.1, 0.22, tempT),
+    burstOpacityScale: lerp(0.12, 0.28, tempT),
+    surfaceContrastScale: lerp(0.72, 0.86, tempT),
+    activityScale: lerp(0.18, 0.35, tempT),
+    glowRadiusScale: lerp(0.62, 0.84, tempT),
+    glowOpacityScale: lerp(0.18, 0.38, tempT),
+    rimWarmHex: "#ffb08c",
+  };
 }
 
 function drawSoftBlob(cctx, x, y, r, rgb, alphaInner, alphaOuter = 0) {
@@ -70,21 +147,22 @@ function drawSoftBlob(cctx, x, y, r, rgb, alphaInner, alphaOuter = 0) {
 export function paintStarSurfaceTexture(
   cctx,
   size,
-  { baseHex = "#fff4dc", seed = "star", tempK = 5776, activity = 0.2 } = {},
+  { baseHex = "#fff4dc", seed = "star", tempK = 5776, activity = 0.2, regime = null, massMsol = null } = {},
 ) {
   const s = Math.max(64, Number(size) || 512);
   const cx = s * 0.5;
   const cy = s * 0.5;
   const r = s * 0.48;
   const baseRgb = hexToRgb(baseHex);
-  const coreRgb = hexToRgb(mixHex(baseHex, "#fff7e6", 0.42));
-  const limbRgb = hexToRgb(mixHex(baseHex, "#1d1410", 0.35));
-  const brightRgb = hexToRgb(mixHex(baseHex, "#fff3dc", 0.58));
-  const darkRgb = hexToRgb(mixHex(baseHex, "#130d0b", 0.62));
-  const faculaRgb = hexToRgb(mixHex(baseHex, "#ffd9ad", 0.54));
+  const visualStyle = getStarVisualStyle({ regime, tempK, massMsol });
+  const coreRgb = hexToRgb(mixHex(baseHex, "#fff7e6", visualStyle.coreMix));
+  const limbRgb = hexToRgb(mixHex(baseHex, "#1d1410", visualStyle.limbMix));
+  const brightRgb = hexToRgb(mixHex(baseHex, "#fff3dc", visualStyle.brightMix));
+  const darkRgb = hexToRgb(mixHex(baseHex, "#130d0b", visualStyle.darkMix));
+  const faculaRgb = hexToRgb(mixHex(baseHex, visualStyle.rimWarmHex, visualStyle.faculaMix));
   const tempNorm = clamp((Number(tempK) - 3000) / 7000, 0, 1);
-  const activityNorm = clamp(Number(activity), 0, 1);
-  const contrast = 1 - tempNorm * 0.28;
+  const activityNorm = clamp(Number(activity), 0, 1) * visualStyle.activityScale;
+  const contrast = (1 - tempNorm * 0.28) * visualStyle.surfaceContrastScale;
   const rng = createSeededRng(
     `${seed}:star-surface:${Math.round(tempK)}:${Math.round(activityNorm * 100)}`,
   );
@@ -161,8 +239,14 @@ export function paintStarSurfaceTexture(
 
   const rimGrad = cctx.createRadialGradient(cx, cy, r * 0.92, cx, cy, r * 1.03);
   rimGrad.addColorStop(0, rgbToCss(faculaRgb, 0));
-  rimGrad.addColorStop(0.76, rgbToCss(faculaRgb, 0.5 + activityNorm * 0.2));
-  rimGrad.addColorStop(0.95, rgbToCss(mixRgb(faculaRgb, brightRgb, 0.4), 0.22));
+  rimGrad.addColorStop(
+    0.76,
+    rgbToCss(faculaRgb, (0.5 + activityNorm * 0.2) * visualStyle.rimOpacityScale),
+  );
+  rimGrad.addColorStop(
+    0.95,
+    rgbToCss(mixRgb(faculaRgb, brightRgb, 0.4), 0.22 * visualStyle.rimOpacityScale),
+  );
   rimGrad.addColorStop(1, rgbToCss(faculaRgb, 0));
   cctx.fillStyle = rimGrad;
   cctx.beginPath();

@@ -1,6 +1,7 @@
 ﻿import { calcStar } from "../engine/star.js";
 import { buildHomeSystemContext, resolveHostFrameContext } from "../engine/homeSystem/context.js";
 import { buildTopologyGuardrailSummary } from "../engine/homeSystem/stability.js";
+import { BROWN_DWARF_MIN_MSOL, regimeDisplayLabel } from "../engine/substellarRegime.js";
 import { computeStellarActivityModel } from "../engine/stellarActivity.js";
 import { clamp, fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
@@ -39,8 +40,10 @@ import { createTutorial } from "./tutorial.js";
 const TIP_LABEL = {
   Name: "Display name used in exports, the visualiser, and linked pages.",
   Class:
-    'Spectral type classification (O, B, A, F, G, K, M from most to least massive/luminous).\n\nEach class is subdivided 0\u20139 (0 = hottest within class). "V" denotes a main-sequence star undergoing core hydrogen fusion.',
-  Mass: "Star mass in solar masses.\n\nApproximate main-sequence ranges:\nO: ~16+ Msol\nB: ~2.19\u201316 Msol\nA: ~1.44\u20132.19 Msol\nF: ~1.06\u20131.44 Msol\nG: ~0.84\u20131.06 Msol\nK: ~0.47\u20130.84 Msol\nM: ~0.075\u20130.47 Msol\n\nStars between 0.5 and 1.4 Msol are considered most suitable for Earth-like life.\n\nSun = 1 Msol = 1.989E30 kg",
+    'Hydrogen-burning stars use the familiar O, B, A, F, G, K, M classes.\n\nBrown dwarfs use cooler L, T, and Y classes and are substellar cooling objects rather than main-sequence stars.\n\nEach class is subdivided 0\u20139 (0 = hottest within class). "V" denotes a main-sequence star undergoing core hydrogen fusion.',
+  "Brown Dwarf Class":
+    'Brown dwarfs use the L, T, and Y sequence from hottest to coolest.\n\nThe number runs 0-9 within each family, where 0 is hotter and 9 is cooler. So "T9 BD" means a very cool late-T brown dwarf near the T/Y boundary.\n\nQuick guide:\nL = warmer dusty brown dwarf\nT = cooler methane-rich brown dwarf\nY = coldest known brown-dwarf class\nBD = brown dwarf.',
+  Mass: "Host-component mass in solar masses.\n\nApproximate regimes:\nBrown dwarf: ~0.0124\u20130.0716 Msol (~13\u201375 Mjup)\nM star: ~0.075\u20130.47 Msol\nK star: ~0.47\u20130.84 Msol\nG star: ~0.84\u20131.06 Msol\nF star: ~1.06\u20131.44 Msol\nA star: ~1.44\u20132.19 Msol\nB star: ~2.19\u201316 Msol\nO star: ~16+ Msol\n\nHydrogen-burning stars between 0.5 and 1.4 Msol are considered most suitable for Earth-like life.\n\nSun = 1 Msol = 1.989E30 kg",
   "Current Age":
     "Star age in billions of years (Gyr). Must be less than the Maximum Age shown in outputs.",
   "Maximum Age":
@@ -48,7 +51,7 @@ const TIP_LABEL = {
   Radius:
     "Stellar radius in solar radii.\n\nFor M \u2264 0.5 Msol: Schweitzer et al. (2019) linear relation from M-dwarf eclipsing binaries.\nFor 0.5\u20131.5 Msol: Eker et al. (2018, MNRAS 479, 5491) quadratic mass\u2013radius relation.\nFor M > 1.5 Msol: Stefan-Boltzmann derivation from Eker MLR + MTR.\n\nSun = 1 Rsol = 695,700 km",
   Luminosity:
-    "Stellar luminosity in solar luminosities.\n\nZAMS mode: Eker et al. (2018, MNRAS 479, 5491) six-piece empirical relation from 509 eclipsing binaries. Replaces the classical L = M\u2074 approximation, which overestimated K-dwarf luminosities by 30\u201385%.\n\nEvolved mode: Hurley, Pols & Tout (2000) analytical stellar evolution. Radius and temperature are accurate to ~1\u20132%, but luminosity carries ~10% mean error inherent to the Tout (1996) polynomial ZAMS baseline and Hurley evolution-rate fits. This is the practical accuracy ceiling of analytical single-star evolution; sub-2% luminosity would require tabulated MESA/MIST isochrone grids.\n\nSun = 1 Lsol = 3.846E26 watts",
+    "Stellar luminosity in solar luminosities.\n\nKPI cards may auto-scale dim outputs for readability:\nLsol = Sun's luminosity\nmLsol = 10^-3 Lsol (one thousandth of Sol)\n\u03bcLsol = 10^-6 Lsol (one millionth of Sol)\nnLsol = 10^-9 Lsol (one billionth of Sol)\n\nHover the KPI for the exact Lsol and watt values.\n\nZAMS mode: Eker et al. (2018, MNRAS 479, 5491) six-piece empirical relation from 509 eclipsing binaries. Replaces the classical L = M\u2074 approximation, which overestimated K-dwarf luminosities by 30\u201385%.\n\nEvolved mode: Hurley, Pols & Tout (2000) analytical stellar evolution. Radius and temperature are accurate to ~1\u20132%, but luminosity carries ~10% mean error inherent to the Tout (1996) polynomial ZAMS baseline and Hurley evolution-rate fits. This is the practical accuracy ceiling of analytical single-star evolution; sub-2% luminosity would require tabulated MESA/MIST isochrone grids.\n\nSun = 1 Lsol = 3.846E26 watts",
   "Radius Override":
     "Optionally override the mass-derived stellar radius in solar radii. Leave blank to use the Eker et al. (2018) scaling-law value derived from mass.\n\nUseful for modelling subgiants, evolved stars, or stars with a measured radius.\n\nSun = 1 Rsol = 695,700 km",
   "Luminosity Override":
@@ -59,13 +62,13 @@ const TIP_LABEL = {
   Temperature:
     "Effective photospheric temperature in kelvin, derived from luminosity and radius via Stefan-Boltzmann.",
   "Habitable Zone":
-    "A planet orbiting within this region receives Earth-like stellar heating.\n\nUses a temperature-dependent model where the inner/outer flux thresholds (S_in/S_out) vary with stellar effective temperature, based on Chromant's Desmos correction.\n\n1 AU = ~150,000,000 km.",
+    "A planet orbiting within this region receives Earth-like stellar heating.\n\nHydrogen-burning stars use the classical habitable-zone wording. Brown dwarfs instead expose a current temperate zone because their luminosity cools over time.\n\nUses a temperature-dependent model where the inner/outer flux thresholds (S_in/S_out) vary with effective temperature.\n\n1 AU = ~150,000,000 km.",
   "Star Colour":
     "Stellar colour derived from effective temperature using Tanner Helland\u2019s empirical blackbody approximation (valid 1000\u201340,000 K, R\u00b2 > 0.987), producing a smooth, continuous colour gradient across spectral classes.",
   "Sun Visual":
     "Animated stellar preview using the current star colour and the active flare/CME rates.\n\nThe preview runs at 0.5 simulated days per second and renders textured photosphere detail plus flare/CME activity.",
   "Earth-like Life?":
-    "Whether a planet comparable to modern-day Earth could orbit this star.\n\nYes: the star\u2019s mass and age permit an Earth-like biosphere.\nNo: conditions preclude an Earth-like biosphere.\nStar Too Young: a pre-Cambrian-level biosphere is possible, but complex life has not had time to develop.",
+    "Whether a planet comparable to modern-day Earth could orbit this host object.\n\nFor hydrogen-burning stars this follows the classic mass/age rule-of-thumb. Brown dwarfs default to no direct Earth-like-life verdict because they are cooling substellar objects; use the current temperate-zone and moon outputs instead.",
   "Stellar Evolution":
     "When enabled, luminosity and radius evolve with age and metallicity using analytical stellar evolution tracks (Hurley, Pols & Tout 2000).\n\nWhen off, properties are derived from mass only using static scaling laws (ZAMS).",
   "Physics Mode":
@@ -95,13 +98,13 @@ const TIP_LABEL = {
   "Total CME Rate":
     "Total expected CME rate per day. For FGK stars, this follows the solar-cycle envelope and is split into associated and background channels.\n\nReference: Yashiro et al. (2006, JGR 111, A12S05).",
   "XUV Regime":
-    "Extreme-UV and soft X-ray activity regime from the star-owned XUV evolution model.\n\nYoung stars remain in a saturated high-XUV phase, while older stars decline through an unsaturated age-decay track. The saturation time depends on stellar mass, with cool stars staying active longer.",
+    "Extreme-UV and soft X-ray activity regime from the host-object XUV model.\n\nHydrogen-burning stars use the stellar saturated/unsaturated activity track. Brown dwarfs currently report negligible XUV in this model.",
   "XUV Luminosity":
-    "High-energy stellar luminosity in the XUV band, reported from the star-owned evolution model.\n\nThis is the coronal luminosity used downstream by atmospheric escape and moon-radiation calculations.",
+    "High-energy host-object luminosity in the XUV band.\n\nHydrogen-burning stars report stellar coronal output. Brown dwarfs currently report negligible XUV in this model.",
   "XUV Flux at 1 AU":
-    "XUV flux a body would receive at 1 AU from this star.\n\nReported both as erg/cm²/s and relative to present-day Earth, then diluted by inverse-square distance for planets and moons.",
+    "XUV flux a body would receive at 1 AU from this host object.\n\nReported both as erg/cm²/s and relative to present-day Earth, then diluted by inverse-square distance for planets and moons.",
   "XUV Saturation Age":
-    "Approximate duration of the star's saturated high-XUV phase.\n\nLower-mass cool stars keep elevated XUV output for much longer than Sun-like stars.",
+    "Approximate duration of the host object's saturated high-XUV phase.\n\nLower-mass cool stars keep elevated XUV output for much longer than Sun-like stars. Brown dwarfs currently report no stellar-style saturation interval in this model.",
   "Home System Architecture":
     "Defines whether the home system uses one star or a constrained hierarchical multi-star tree.\n\nSingle keeps the classic workflow. Binary adds one bound pair. Triple and Quad use nested stable templates so later planet, moon, and canvas views can stay readable.",
   Topology:
@@ -133,6 +136,99 @@ const TIP_LABEL = {
   "Binary Mean Anomaly":
     "Current orbital phase position of the binary pair.\n\nThis is stored now so later animated or phase-aware views can place the stars consistently.",
 };
+
+const HOST_COMPONENT_MASS_MIN = BROWN_DWARF_MIN_MSOL;
+const HOST_COMPONENT_MASS_MIN_TEXT = HOST_COMPONENT_MASS_MIN.toFixed(4);
+
+function isBrownDwarfModel(model) {
+  return model?.regime === "brownDwarf";
+}
+
+function getHostZoneLabel(model) {
+  return String(model?.zoneLabel || "Habitable Zone");
+}
+
+function getHostClassLabel(model) {
+  return isBrownDwarfModel(model) ? "Brown Dwarf Class" : "Class";
+}
+
+function getHostClassValue(model) {
+  return model?.spectralClass || regimeDisplayLabel(model?.regime);
+}
+
+function formatHostZoneValue(model) {
+  return model?.display?.hzAu || "n/a";
+}
+
+function formatHostZoneInline(model) {
+  return `${getHostZoneLabel(model)} ${formatHostZoneValue(model)}`;
+}
+
+function getHostLifetimeLabel(model) {
+  return isBrownDwarfModel(model) ? "Cooling State" : "Maximum Age";
+}
+
+function getHostLifetimeValue(model) {
+  if (!isBrownDwarfModel(model)) return fmt(model?.maxAgeGyr, 3);
+  if (model?.deuteriumBurningActive) return "Deuterium-burning";
+  return `${model?.spectralFamily || "Cooling"}-type cooling`;
+}
+
+function getHostLifetimeMeta(model) {
+  if (!isBrownDwarfModel(model)) return "Gyr";
+  return model?.deuteriumBurningPossible ? "Substellar cooling track" : "Cooling object";
+}
+
+function formatLuminosityLsol(value, dp = 3) {
+  const x = Number(value);
+  if (!Number.isFinite(x)) return "NA";
+  const abs = Math.abs(x);
+  if (abs === 0) return "0";
+  if (abs < 1e-4) return x.toExponential(2);
+  if (abs < 0.01) return fmt(x, Math.max(dp, 6));
+  return fmt(x, dp);
+}
+
+function formatScaledLuminosityLsol(value, dp = 3) {
+  const x = Number(value);
+  if (!Number.isFinite(x)) return "NA";
+  const abs = Math.abs(x);
+  if (abs === 0) return "0 Lsol";
+  if (abs >= 0.01) return `${fmt(x, dp)} Lsol`;
+
+  const scaledUnits = [
+    { scale: 1e3, label: "mLsol" },
+    { scale: 1e6, label: "\u03bcLsol" },
+    { scale: 1e9, label: "nLsol" },
+  ];
+  for (const unit of scaledUnits) {
+    const scaled = x * unit.scale;
+    const scaledAbs = Math.abs(scaled);
+    if (scaledAbs >= 0.1) {
+      const scaledDp = scaledAbs >= 100 ? 0 : scaledAbs >= 10 ? 1 : 2;
+      return `${fmt(scaled, scaledDp)} ${unit.label}`;
+    }
+  }
+  return `${formatLuminosityLsol(x, Math.max(dp, 6))} Lsol`;
+}
+
+function buildLuminosityKpiMeta(model) {
+  if (!model) return "";
+  const exactLsol = formatLuminosityLsol(model.luminosityLsol, 6);
+  const watts = fmt(model.metric?.luminosityW, 0);
+  return `${exactLsol} Lsol | ${watts} W${model.luminosityOverridden ? " (Override)" : ""}`;
+}
+
+function buildLuminosityKpiTooltip(model) {
+  if (!model) return TIP_LABEL["Luminosity"] || "";
+  return (
+    `${TIP_LABEL["Luminosity"] || ""}\n\n` +
+    `Current solve:\n` +
+    `${formatScaledLuminosityLsol(model.luminosityLsol, 3)}\n` +
+    `${formatLuminosityLsol(model.luminosityLsol, 6)} Lsol\n` +
+    `${fmt(model.metric?.luminosityW, 0)} W${model.luminosityOverridden ? " (Override)" : ""}`
+  ).trim();
+}
 
 const TUTORIAL_STEPS = [
   {
@@ -1332,9 +1428,9 @@ export function initStarPage(mountEl, options = {}) {
         id: starId,
         kind: "star",
         pillLabel: meta.title,
-        pillSummary: `${model?.spectralClass || "n/a"} · ${fmt(starDraft.massMsol, 4)} Msol`,
+        pillSummary: `${getHostClassValue(model)} · ${fmt(starDraft.massMsol, 4)} Msol`,
         summaryTitle: buildStarEditorLabel(starId, draftState),
-        summaryMeta: `${roleById[starId] || "Star"} · ${model?.spectralClass || "n/a"} · ${fmt(starDraft.massMsol, 4)} Msol`,
+        summaryMeta: `${roleById[starId] || "Star"} · ${getHostClassValue(model)} · ${fmt(starDraft.massMsol, 4)} Msol`,
         summaryHint: hintById[starId] || "Edit this star. Shared system context stays above.",
       };
     });
@@ -1481,7 +1577,7 @@ export function initStarPage(mountEl, options = {}) {
                 <div class="hint">Shapes the companion luminosity, class, and future binary context.</div>
               </div>
               <div>
-                <input id="companionMass" type="number" step="0.0001" min="0.075" max="100" aria-label="Companion mass" />
+                <input id="companionMass" type="number" step="0.0001" min="${HOST_COMPONENT_MASS_MIN_TEXT}" max="100" aria-label="Companion mass" />
               </div>
             </div>
 
@@ -1561,7 +1657,7 @@ export function initStarPage(mountEl, options = {}) {
                 <div class="hint">Shapes the tertiary light contribution and the outer stability boundary.</div>
               </div>
               <div>
-                <input id="tertiaryMass" type="number" step="0.0001" min="0.075" max="100" aria-label="Tertiary mass" />
+                <input id="tertiaryMass" type="number" step="0.0001" min="${HOST_COMPONENT_MASS_MIN_TEXT}" max="100" aria-label="Tertiary mass" />
               </div>
             </div>
 
@@ -1641,7 +1737,7 @@ export function initStarPage(mountEl, options = {}) {
                 <div class="hint">Extends the outermost light contribution and top-level stability envelope.</div>
               </div>
               <div>
-                <input id="quaternaryMass" type="number" step="0.0001" min="0.075" max="100" aria-label="Quaternary mass" />
+                <input id="quaternaryMass" type="number" step="0.0001" min="${HOST_COMPONENT_MASS_MIN_TEXT}" max="100" aria-label="Quaternary mass" />
               </div>
             </div>
 
@@ -1715,10 +1811,10 @@ export function initStarPage(mountEl, options = {}) {
           <div class="form-row" id="primaryStarMassRow">
             <div>
               <div class="label">Mass <span class="unit">Msol</span> ${tipIcon(TIP_LABEL["Mass"] || "")}</div>
-              <div class="hint">Valid range in sheet: 0.075 to 100.</div>
+              <div class="hint">Valid host-component range: ${HOST_COMPONENT_MASS_MIN_TEXT} to 100.</div>
             </div>
             <div class="input-pair">
-            <input id="mass" type="number" step="0.0001" min="0.075" max="100" aria-label="Mass" />
+            <input id="mass" type="number" step="0.0001" min="${HOST_COMPONENT_MASS_MIN_TEXT}" max="100" aria-label="Mass" />
             <input id="mass_slider" type="range" aria-label="Mass slider" />
             <div class="range-meta"><span id="mass_min"></span><span id="mass_max"></span></div>
           </div>
@@ -2333,12 +2429,12 @@ export function initStarPage(mountEl, options = {}) {
   const massSlider = wrap.querySelector("#mass_slider");
   const massMin = wrap.querySelector("#mass_min");
   const massMax = wrap.querySelector("#mass_max");
-  massMin.textContent = "0.075";
+  massMin.textContent = HOST_COMPONENT_MASS_MIN_TEXT;
   massMax.textContent = "100";
   const massBinding = bindNumberAndSlider({
     numberEl: massEl,
     sliderEl: massSlider,
-    min: 0.075,
+    min: HOST_COMPONENT_MASS_MIN,
     max: 100,
     step: 0.0001,
     mode: "auto",
@@ -2678,7 +2774,7 @@ export function initStarPage(mountEl, options = {}) {
       draftState.companionName = sanitiseCompanionName(systemInputs.companionName);
     }
     if (systemInputs.companionMassMsol != null) {
-      draftState.companionMassMsol = clamp(Number(systemInputs.companionMassMsol), 0.075, 100);
+      draftState.companionMassMsol = clamp(Number(systemInputs.companionMassMsol), HOST_COMPONENT_MASS_MIN, 100);
     }
     if (systemInputs.binarySemiMajorAxisAu != null) {
       draftState.binarySemiMajorAxisAu = Math.max(
@@ -2696,7 +2792,7 @@ export function initStarPage(mountEl, options = {}) {
       draftState.tertiaryName = sanitiseTertiaryName(systemInputs.tertiaryName);
     }
     if (systemInputs.tertiaryMassMsol != null) {
-      draftState.tertiaryMassMsol = clamp(Number(systemInputs.tertiaryMassMsol), 0.075, 100);
+      draftState.tertiaryMassMsol = clamp(Number(systemInputs.tertiaryMassMsol), HOST_COMPONENT_MASS_MIN, 100);
     }
     if (systemInputs.tripleOuterSemiMajorAxisAu != null) {
       draftState.tripleOuterSemiMajorAxisAu = Math.max(
@@ -2722,7 +2818,7 @@ export function initStarPage(mountEl, options = {}) {
       draftState.quaternaryName = sanitiseQuaternaryName(systemInputs.quaternaryName);
     }
     if (systemInputs.quaternaryMassMsol != null) {
-      draftState.quaternaryMassMsol = clamp(Number(systemInputs.quaternaryMassMsol), 0.075, 100);
+      draftState.quaternaryMassMsol = clamp(Number(systemInputs.quaternaryMassMsol), HOST_COMPONENT_MASS_MIN, 100);
     }
     if (systemInputs.quadOuterSemiMajorAxisAu != null) {
       draftState.quadOuterSemiMajorAxisAu = Math.max(
@@ -3088,7 +3184,7 @@ export function initStarPage(mountEl, options = {}) {
       createElement("div", {
         className: "star-output-strip__card-meta",
         text:
-          `${descriptor.model?.spectralClass || "n/a"} · ` +
+          `${getHostClassValue(descriptor.model)} · ` +
           `${fmt(descriptor.starDraft.massMsol, 4)} Msol`,
       }),
     ]);
@@ -3473,24 +3569,24 @@ export function initStarPage(mountEl, options = {}) {
 
     const companionModel = solveAdditionalStarInputs("star_b", state);
     companionSummaryHintEl.textContent =
-      `${companionModel.spectralClass} | ` +
-      `${fmt(companionModel.luminosityLsol, 3)} Lsol | ` +
-      `HZ ${companionModel.display?.hzAu || "n/a"}`;
+      `${getHostClassValue(companionModel)} | ` +
+      `${formatLuminosityLsol(companionModel.luminosityLsol, 3)} Lsol | ` +
+      `${formatHostZoneInline(companionModel)}`;
     if (isTripleLike) {
       const tertiaryModel = solveAdditionalStarInputs("star_c", state);
       tertiarySummaryHintEl.textContent =
-        `${tertiaryModel.spectralClass} | ` +
-        `${fmt(tertiaryModel.luminosityLsol, 3)} Lsol | ` +
-        `HZ ${tertiaryModel.display?.hzAu || "n/a"}`;
+        `${getHostClassValue(tertiaryModel)} | ` +
+        `${formatLuminosityLsol(tertiaryModel.luminosityLsol, 3)} Lsol | ` +
+        `${formatHostZoneInline(tertiaryModel)}`;
     } else {
       tertiarySummaryHintEl.textContent = "";
     }
     if (isQuad) {
       const quaternaryModel = solveAdditionalStarInputs("star_d", state);
       quaternarySummaryHintEl.textContent =
-        `${quaternaryModel.spectralClass} | ` +
-        `${fmt(quaternaryModel.luminosityLsol, 3)} Lsol | ` +
-        `HZ ${quaternaryModel.display?.hzAu || "n/a"}`;
+        `${getHostClassValue(quaternaryModel)} | ` +
+        `${formatLuminosityLsol(quaternaryModel.luminosityLsol, 3)} Lsol | ` +
+        `${formatHostZoneInline(quaternaryModel)}`;
     } else {
       quaternarySummaryHintEl.textContent = "";
     }
@@ -3614,8 +3710,8 @@ export function initStarPage(mountEl, options = {}) {
       },
       currentContextLabel: "Current star context",
       currentContextText:
-        `${solvedContext.model.spectralClass}. ` +
-        `Habitable zone ${solvedContext.model.display?.hzAu || "n/a"}. ` +
+        `${getHostClassValue(solvedContext.model)}. ` +
+        `${formatHostZoneInline(solvedContext.model)}. ` +
         `Activity ${activity.teffBin || "?"}/${activity.ageBand || "?"}.`,
       solveStarInputs: (starInputs) => solveStarGuidedInputs(starInputs),
     };
@@ -3688,14 +3784,17 @@ export function initStarPage(mountEl, options = {}) {
         text: "Solved preview in the current star-editor context",
       }),
       createElement("div", { className: "guided-preview__grid" }, [
-        createStarGuidedPreviewMetric("Class", model?.spectralClass),
-        createStarGuidedPreviewMetric("Habitable Zone", model?.display?.hzAu),
+        createStarGuidedPreviewMetric(getHostClassLabel(model), getHostClassValue(model)),
+        createStarGuidedPreviewMetric(getHostZoneLabel(model), formatHostZoneValue(model)),
         createStarGuidedPreviewMetric(
           "Activity",
           activity ? `${activity.teffBin}/${activity.ageBand}` : "n/a",
           activity ? `${fmt(activity.energeticFlareRatePerDay, 2)} flares/day` : "",
         ),
-        createStarGuidedPreviewMetric("Earth-like Life", model?.earthLikeLifePossible),
+        createStarGuidedPreviewMetric(
+          isBrownDwarfModel(model) ? "Direct Earth-like Life" : "Earth-like Life",
+          isBrownDwarfModel(model) ? "No (substellar host)" : model?.earthLikeLifePossible,
+        ),
         createStarGuidedPreviewMetric("System", systemPreview?.label),
         createStarGuidedPreviewMetric("Default Host", systemPreview?.defaultHostFrameLabel),
         hierarchyHealth
@@ -3735,7 +3834,7 @@ export function initStarPage(mountEl, options = {}) {
       state.companionName = sanitiseCompanionName(systemInputs.companionName);
     }
     if (systemInputs.companionMassMsol != null) {
-      state.companionMassMsol = clamp(Number(systemInputs.companionMassMsol), 0.075, 100);
+      state.companionMassMsol = clamp(Number(systemInputs.companionMassMsol), HOST_COMPONENT_MASS_MIN, 100);
     }
     if (systemInputs.binarySemiMajorAxisAu != null) {
       state.binarySemiMajorAxisAu = Math.max(Number(systemInputs.binarySemiMajorAxisAu), 0.001);
@@ -3756,7 +3855,7 @@ export function initStarPage(mountEl, options = {}) {
       state.tertiaryName = sanitiseTertiaryName(systemInputs.tertiaryName);
     }
     if (systemInputs.tertiaryMassMsol != null) {
-      state.tertiaryMassMsol = clamp(Number(systemInputs.tertiaryMassMsol), 0.075, 100);
+      state.tertiaryMassMsol = clamp(Number(systemInputs.tertiaryMassMsol), HOST_COMPONENT_MASS_MIN, 100);
     }
     if (systemInputs.tripleOuterSemiMajorAxisAu != null) {
       state.tripleOuterSemiMajorAxisAu = Math.max(
@@ -3792,7 +3891,7 @@ export function initStarPage(mountEl, options = {}) {
       state.quaternaryName = sanitiseQuaternaryName(systemInputs.quaternaryName);
     }
     if (systemInputs.quaternaryMassMsol != null) {
-      state.quaternaryMassMsol = clamp(Number(systemInputs.quaternaryMassMsol), 0.075, 100);
+      state.quaternaryMassMsol = clamp(Number(systemInputs.quaternaryMassMsol), HOST_COMPONENT_MASS_MIN, 100);
     }
     if (systemInputs.quadOuterSemiMajorAxisAu != null) {
       state.quadOuterSemiMajorAxisAu = Math.max(
@@ -3976,8 +4075,23 @@ export function initStarPage(mountEl, options = {}) {
       activity.teffBin === "FGK"
         ? "Solar-cycle envelope split into associated + background"
         : "Empirical split model outside FGK solar envelope";
-    const xuvFluxMeta = `${model.display.xuvFluxRatioEarth} | saturation ${model.display.xuvSaturationAge}`;
+    const xuvFluxMeta = isBrownDwarfModel(model)
+      ? `${model.display.xuvFluxRatioEarth} | negligible`
+      : `${model.display.xuvFluxRatioEarth} | saturation ${model.display.xuvSaturationAge}`;
     const life = model.earthLikeLifePossible;
+    const classLabel = getHostClassLabel(model);
+    const classValue = getHostClassValue(model);
+    const zoneLabel = getHostZoneLabel(model);
+    const zoneValue = formatHostZoneValue(model);
+    const zoneMeta = `AU | ${model.display.hzMkm} million km`;
+    const lifetimeLabel = getHostLifetimeLabel(model);
+    const lifetimeValue = getHostLifetimeValue(model);
+    const lifetimeMeta = getHostLifetimeMeta(model);
+    const lifeLabel = isBrownDwarfModel(model) ? "Direct Earth-like Life" : "Earth-like Life?";
+    const lifeValue = isBrownDwarfModel(model) ? "No (substellar host)" : life;
+    const lifeMeta = isBrownDwarfModel(model)
+      ? "Use the current temperate zone and moon outputs instead"
+      : "";
     const quadLayoutCopy = buildQuadLayoutCopy(state.quadLayoutKind);
     const topologyLabel =
       state.topologyKind === "quad"
@@ -4037,7 +4151,7 @@ export function initStarPage(mountEl, options = {}) {
             starKpi(
               "Secondary Mass",
               fmt(state.companionMassMsol, 4),
-              `${companionModel?.spectralClass || "n/a"} | ${fmt(companionModel?.luminosityLsol || 0, 3)} Lsol`,
+              `${getHostClassValue(companionModel)} | ${formatLuminosityLsol(companionModel?.luminosityLsol || 0, 3)} Lsol`,
               { tipLabel: "Companion Star" },
             ),
             starKpi(
@@ -4054,7 +4168,7 @@ export function initStarPage(mountEl, options = {}) {
                   starKpi(
                     "Tertiary Mass",
                     fmt(state.tertiaryMassMsol, 4),
-                    `${tertiaryModel?.spectralClass || "n/a"} | ${fmt(tertiaryModel?.luminosityLsol || 0, 3)} Lsol`,
+                    `${getHostClassValue(tertiaryModel)} | ${formatLuminosityLsol(tertiaryModel?.luminosityLsol || 0, 3)} Lsol`,
                     { tipLabel: "Tertiary Star" },
                   ),
                   starKpi(
@@ -4070,7 +4184,7 @@ export function initStarPage(mountEl, options = {}) {
                   starKpi(
                     "Quaternary Mass",
                     fmt(state.quaternaryMassMsol, 4),
-                    `${quaternaryModel?.spectralClass || "n/a"} | ${fmt(quaternaryModel?.luminosityLsol || 0, 3)} Lsol`,
+                    `${getHostClassValue(quaternaryModel)} | ${formatLuminosityLsol(quaternaryModel?.luminosityLsol || 0, 3)} Lsol`,
                     { tipLabel: "Quaternary Star" },
                   ),
                   starKpi(
@@ -4108,7 +4222,7 @@ export function initStarPage(mountEl, options = {}) {
             },
             {
               label: "Secondary Star",
-              value: `${state.companionName} (${companionModel?.spectralClass || "n/a"})`,
+              value: `${state.companionName} (${getHostClassValue(companionModel)})`,
               meta: `${fmt(state.companionMassMsol, 4)} Msol`,
             },
             {
@@ -4120,7 +4234,7 @@ export function initStarPage(mountEl, options = {}) {
               ? [
                   {
                     label: "Tertiary Star",
-                    value: `${state.tertiaryName} (${tertiaryModel?.spectralClass || "n/a"})`,
+                    value: `${state.tertiaryName} (${getHostClassValue(tertiaryModel)})`,
                     meta: `${fmt(state.tertiaryMassMsol, 4)} Msol`,
                   },
                   {
@@ -4134,7 +4248,7 @@ export function initStarPage(mountEl, options = {}) {
               ? [
                   {
                     label: "Quaternary Star",
-                    value: `${state.quaternaryName} (${quaternaryModel?.spectralClass || "n/a"})`,
+                    value: `${state.quaternaryName} (${getHostClassValue(quaternaryModel)})`,
                     meta: `${fmt(state.quaternaryMassMsol, 4)} Msol`,
                   },
                   {
@@ -4168,7 +4282,9 @@ export function initStarPage(mountEl, options = {}) {
               tipLabel: "Star Colour",
             },
           ),
-          starKpi("Class", model.spectralClass),
+          starKpi(classLabel, classValue, isBrownDwarfModel(model) ? regimeDisplayLabel(model.regime) : "", {
+            tipLabel: isBrownDwarfModel(model) ? "Brown Dwarf Class" : "Class",
+          }),
           starKpi(
             "Radius",
             fmt(model.radiusRsol, 3),
@@ -4176,13 +4292,14 @@ export function initStarPage(mountEl, options = {}) {
           ),
           starKpi(
             "Luminosity",
-            fmt(model.luminosityLsol, 3),
-            `Lsol | ${fmt(model.metric.luminosityW, 0)} W${model.luminosityOverridden ? " (Override)" : ""}`,
+            formatScaledLuminosityLsol(model.luminosityLsol, 3),
+            buildLuminosityKpiMeta(model),
+            { tip: buildLuminosityKpiTooltip(model) },
           ),
           starKpi("Temperature", fmt(model.tempK, 0), "K"),
-          starKpi("Habitable Zone", model.display.hzAu, `AU | ${model.display.hzMkm} million km`),
+          starKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" }),
           starKpi("Activity Regime", `${activity.teffBin}/${activity.ageBand}`, "Teff + age bins"),
-          starKpi("Earth-like Life?", life),
+          starKpi(lifeLabel, lifeValue, lifeMeta, { tipLabel: "Earth-like Life?" }),
         ],
       },
       {
@@ -4205,7 +4322,9 @@ export function initStarPage(mountEl, options = {}) {
         title: "Physical State",
         density: "compact",
         items: [
-          starKpi("Maximum Age", fmt(model.maxAgeGyr, 3), "Gyr"),
+          starKpi(lifetimeLabel, lifetimeValue, lifetimeMeta, {
+            tipLabel: isBrownDwarfModel(model) ? "Maximum Age" : lifetimeLabel,
+          }),
           starKpi(
             "Radius",
             fmt(model.radiusRsol, 3),
@@ -4213,8 +4332,9 @@ export function initStarPage(mountEl, options = {}) {
           ),
           starKpi(
             "Luminosity",
-            fmt(model.luminosityLsol, 3),
-            `Lsol | ${fmt(model.metric.luminosityW, 0)} W${model.luminosityOverridden ? " (Override)" : ""}`,
+            formatScaledLuminosityLsol(model.luminosityLsol, 3),
+            buildLuminosityKpiMeta(model),
+            { tip: buildLuminosityKpiTooltip(model) },
           ),
           starKpi("Density", fmt(model.densityGcm3, 3), "g/cm³"),
           starKpi("Temperature", fmt(model.tempK, 0), "K"),
@@ -4225,7 +4345,7 @@ export function initStarPage(mountEl, options = {}) {
         title: "Environment",
         density: "compact",
         items: [
-          starKpi("Habitable Zone", model.display.hzAu, `AU | ${model.display.hzMkm} million km`),
+          starKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" }),
         ],
       },
       {
@@ -4267,7 +4387,7 @@ export function initStarPage(mountEl, options = {}) {
         id: "star-habitability",
         title: "Habitability",
         density: "compact",
-        items: [starKpi("Earth-like Life?", life)],
+        items: [starKpi(lifeLabel, lifeValue, lifeMeta, { tipLabel: "Earth-like Life?" })],
       },
     ]);
     renderOutputStarStrip(kpisEl.querySelector("#star-summary"), focusedStarId, state);
@@ -4280,7 +4400,7 @@ export function initStarPage(mountEl, options = {}) {
           title: "Identity & Class",
           items: [
             { label: "Name", value: focusedStar.name },
-            { label: "Class", value: model.spectralClass },
+            { label: classLabel, value: classValue },
             { label: "Current Age", value: `${fmt(state.ageGyr, 3)} Gyr` },
             { label: "Metallicity [Fe/H]", value: `${fmt(state.metallicityFeH, 2)} dex` },
             { label: "Population", value: model.populationLabel },
@@ -4295,7 +4415,7 @@ export function initStarPage(mountEl, options = {}) {
           id: "star-details-physical",
           title: "Physical State",
           items: [
-            { label: "Maximum Age", value: `${fmt(model.maxAgeGyr, 3)} Gyr` },
+            { label: lifetimeLabel, value: lifetimeValue, meta: lifetimeMeta },
             {
               label: "Radius",
               value: `${fmt(model.radiusRsol, 3)} Rsol`,
@@ -4303,7 +4423,7 @@ export function initStarPage(mountEl, options = {}) {
             },
             {
               label: "Luminosity",
-              value: `${fmt(model.luminosityLsol, 3)} Lsol`,
+              value: `${formatLuminosityLsol(model.luminosityLsol, 3)} Lsol`,
               meta: `${fmt(model.metric.luminosityW, 0)} W`,
             },
             { label: "Density", value: `${fmt(model.densityGcm3, 3)} g/cm³` },
@@ -4315,8 +4435,8 @@ export function initStarPage(mountEl, options = {}) {
           title: "Environment",
           items: [
             {
-              label: "Habitable Zone",
-              value: model.display.hzAu,
+              label: zoneLabel,
+              value: zoneValue,
               meta: `${model.display.hzMkm} million km`,
             },
             { label: "Star Colour", value: model.starColourHex },
@@ -4377,7 +4497,7 @@ export function initStarPage(mountEl, options = {}) {
         {
           id: "star-details-habitability",
           title: "Habitability",
-          items: [{ label: "Earth-like Life?", value: life }],
+          items: [{ label: lifeLabel, value: lifeValue, meta: lifeMeta }],
         },
       ],
       { title: "Derived Details" },
@@ -4394,19 +4514,23 @@ export function initStarPage(mountEl, options = {}) {
 
     updateTopologyUI({ syncVisibleStarInputs: !preserveFocusedDraft });
 
-    if (model.evolutionMode === "evolved") {
+    if (isBrownDwarfModel(model)) {
+      radiusHintEl.textContent = `Auto (cooling track): ${fmt(model.radiusRsolAuto, 3)} Rsol`;
+      luminosityHintEl.textContent = `Auto (cooling track): ${formatLuminosityLsol(model.luminosityLsolAuto, 4)} Lsol`;
+    } else if (model.evolutionMode === "evolved") {
       const rz = model.radiusRsolZams;
       const lz = model.luminosityLsolZams;
       radiusHintEl.textContent = `Auto (evolved): ${fmt(model.radiusRsolAuto, 3)} Rsol  (ZAMS: ${fmt(rz, 3)})`;
-      luminosityHintEl.textContent = `Auto (evolved): ${fmt(model.luminosityLsolAuto, 4)} Lsol  (ZAMS: ${fmt(lz, 4)})`;
+      luminosityHintEl.textContent = `Auto (evolved): ${formatLuminosityLsol(model.luminosityLsolAuto, 4)} Lsol  (ZAMS: ${formatLuminosityLsol(lz, 4)})`;
     } else {
       radiusHintEl.textContent = `Auto (mass-derived): ${fmt(model.radiusRsolAuto, 3)} Rsol`;
-      luminosityHintEl.textContent = `Auto (mass-derived): ${fmt(model.luminosityLsolAuto, 4)} Lsol`;
+      luminosityHintEl.textContent = `Auto (mass-derived): ${formatLuminosityLsol(model.luminosityLsolAuto, 4)} Lsol`;
     }
     tempHintEl.textContent = `Auto (from R and L): ${fmt(model.tempK, 0)} K`;
 
-    evolutionHintEl.textContent =
-      state.evolutionMode === "evolved"
+    evolutionHintEl.textContent = isBrownDwarfModel(model)
+      ? "Brown dwarfs use the shared substellar cooling solver. Their current temperate zone and luminosity shift over time as they cool."
+      : state.evolutionMode === "evolved"
         ? "Luminosity and radius evolve with age and metallicity (Hurley, Pols & Tout 2000)."
         : "Properties derived from mass only (static scaling laws).  Enable to model stellar ageing.";
 
@@ -4419,7 +4543,9 @@ export function initStarPage(mountEl, options = {}) {
     advancedDerivRowEl.style.display = isAdvanced ? "" : "none";
     physicsModeHintEl.textContent = isAdvanced
       ? "Specify any two of Radius, Luminosity, and Temperature; the third is computed via Stefan-Boltzmann (L = R² × (T/5776)⁴)."
-      : "All physical properties are derived from mass and age using stellar scaling laws. Toggle Advanced to override specific values.";
+      : isBrownDwarfModel(model)
+        ? "Brown-dwarf properties are derived from the shared substellar cooling solver. Toggle Advanced to override specific values."
+        : "All physical properties are derived from mass and age using stellar scaling laws. Toggle Advanced to override specific values.";
 
     if (isAdvanced) {
       const dm = starDraft.advancedDerivationMode;
@@ -4432,7 +4558,7 @@ export function initStarPage(mountEl, options = {}) {
       if (dm === "rl") {
         resolutionStatusEl.textContent = `Computed: Temperature = ${fmt(model.tempK, 0)} K`;
       } else if (dm === "rt") {
-        resolutionStatusEl.textContent = `Computed: Luminosity = ${fmt(model.luminosityLsol, 4)} Lsol`;
+        resolutionStatusEl.textContent = `Computed: Luminosity = ${formatLuminosityLsol(model.luminosityLsol, 4)} Lsol`;
       } else if (dm === "lt") {
         resolutionStatusEl.textContent = `Computed: Radius = ${fmt(model.radiusRsol, 3)} Rsol`;
       }
@@ -4488,7 +4614,7 @@ export function initStarPage(mountEl, options = {}) {
     assignStarDraftState(focusedStarId, { name: nextFocusedStarName });
     if (commit) nameEl.value = nextFocusedStarName;
     assignStarDraftState(focusedStarId, {
-      massMsol: readClampedNumberInput(massEl, 0.075, 100, focusedStar.massMsol, {
+      massMsol: readClampedNumberInput(massEl, HOST_COMPONENT_MASS_MIN, 100, focusedStar.massMsol, {
         commit,
       }),
     });
@@ -4669,7 +4795,7 @@ export function initStarPage(mountEl, options = {}) {
         : config.sanitiseName(String(config.nameEl.value ?? "")),
       massMsol: readClampedNumberInput(
         config.massEl,
-        0.075,
+        HOST_COMPONENT_MASS_MIN,
         100,
         getStarDraftState(starId, state).massMsol,
         { commit },

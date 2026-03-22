@@ -106,17 +106,31 @@ export function formatRecession(cmYr) {
   return `${cmYr > 0 ? "+" : "−"}${fmt(magnitude, 2)} cm/yr (${direction})`;
 }
 
-export function formatOrbitalFate(dadt, toRocheGyr, toEscapeGyr) {
-  if (!Number.isFinite(dadt) || Math.abs(dadt) < 1e-30) return "Stable";
-  if (dadt < 0 && Number.isFinite(toRocheGyr)) {
-    if (toRocheGyr < 0.001) return "Roche limit in < 1 Myr";
-    if (toRocheGyr < 1) return `Roche limit in ~${fmt(toRocheGyr * 1000, 0)} Myr`;
-    return `Roche limit in ~${fmt(toRocheGyr, 1)} Gyr`;
+function computeIntegratedMigrationTimeGyr({ semiMajorAxisM, targetSemiMajorAxisM, dadtMs }) {
+  if (!Number.isFinite(semiMajorAxisM) || semiMajorAxisM <= 0) return Infinity;
+  if (!Number.isFinite(targetSemiMajorAxisM) || targetSemiMajorAxisM <= 0) return Infinity;
+  if (!Number.isFinite(dadtMs) || Math.abs(dadtMs) < 1e-30) return Infinity;
+
+  const ratio = targetSemiMajorAxisM / semiMajorAxisM;
+  const dtSec = (2 / 13) * (semiMajorAxisM / Math.abs(dadtMs)) * Math.abs(ratio ** (13 / 2) - 1);
+  return dtSec * SECONDS_TO_GYR;
+}
+
+function formatLongFate(prefix, timeGyr) {
+  if (timeGyr < 0.001) return `${prefix} in < 1 Myr`;
+  if (timeGyr < 1) return `${prefix} in ~${fmt(timeGyr * 1000, 0)} Myr`;
+  if (timeGyr < 1000) return `${prefix} in ~${fmt(timeGyr, 1)} Gyr`;
+  if (timeGyr < 1e6) return `${prefix} in ~${fmt(timeGyr, 0)} Gyr`;
+  return `${prefix} in > 1,000,000 Gyr`;
+}
+
+export function formatOrbitalFate(dadtTotalMs, toRocheGyr, toEscapeGyr) {
+  if (!Number.isFinite(dadtTotalMs) || Math.abs(dadtTotalMs) < 1e-30) return "Stable";
+  if (dadtTotalMs < 0 && Number.isFinite(toRocheGyr)) {
+    return formatLongFate("Roche limit", toRocheGyr);
   }
-  if (dadt > 0 && Number.isFinite(toEscapeGyr)) {
-    if (toEscapeGyr < 0.001) return "Escape in < 1 Myr";
-    if (toEscapeGyr < 1) return `Escape in ~${fmt(toEscapeGyr * 1000, 0)} Myr`;
-    return `Escape in ~${fmt(toEscapeGyr, 1)} Gyr`;
+  if (dadtTotalMs > 0 && Number.isFinite(toEscapeGyr)) {
+    return formatLongFate("Escape", toEscapeGyr);
   }
   return "Stable";
 }
@@ -273,17 +287,27 @@ export function computeMoonTidalState({
       nMeanMotion *
       (moonRadiusM ** 5 * moonEccentricity ** 2)) /
     moonSemiMajorAxisM ** 4;
-  const dadtTotal = dadtPlanet + dadtMoon;
-  const recessionCmYr = dadtTotal * 100 * 365.25 * SEC_PER_DAY;
+  const dadtTotalMs = dadtPlanet + dadtMoon;
+  const recessionCmYr = dadtTotalMs * 100 * 365.25 * SEC_PER_DAY;
 
-  const distToRocheM = moonSemiMajorAxisM - zoneInnerKm * 1000;
-  const distToHillM = zoneOuterKm * 1000 - moonSemiMajorAxisM;
+  const zoneInnerM = zoneInnerKm * 1000;
+  const zoneOuterM = zoneOuterKm * 1000;
   const timeToRocheGyr =
-    dadtTotal < 0 && distToRocheM > 0
-      ? (distToRocheM / Math.abs(dadtTotal)) * SECONDS_TO_GYR
+    dadtTotalMs < 0 && zoneInnerM > 0 && zoneInnerM < moonSemiMajorAxisM
+      ? computeIntegratedMigrationTimeGyr({
+          semiMajorAxisM: moonSemiMajorAxisM,
+          targetSemiMajorAxisM: zoneInnerM,
+          dadtMs: dadtTotalMs,
+        })
       : Infinity;
   const timeToEscapeGyr =
-    dadtTotal > 0 && distToHillM > 0 ? (distToHillM / dadtTotal) * SECONDS_TO_GYR : Infinity;
+    dadtTotalMs > 0 && zoneOuterM > moonSemiMajorAxisM
+      ? computeIntegratedMigrationTimeGyr({
+          semiMajorAxisM: moonSemiMajorAxisM,
+          targetSemiMajorAxisM: zoneOuterM,
+          dadtMs: dadtTotalMs,
+        })
+      : Infinity;
 
   const tidallyEvolvedMoon = tMoonLockGyr <= systemAgeGyr;
   const spinOrbitResonance = tidallyEvolvedMoon
@@ -323,6 +347,8 @@ export function computeMoonTidalState({
     qEffective: effectiveQ,
     rigidityEffectiveGPa: effectiveRigidity / 1e9,
     recessionCmYr,
+    dadtTotalMs,
+    fateTimescaleMethod: "integrated-a^-11/2-v1",
     timeToRocheGyr,
     timeToEscapeGyr,
     tidallyEvolvedMoon,
@@ -337,7 +363,6 @@ export function computeMoonTidalState({
       planetToStar: tPlanetLockToStarGyr,
     },
     rotationPeriodDays,
-    dadtTotal,
     surfaceAreaM2,
     moonMassKg,
     moonGravityMs2,

@@ -77,17 +77,50 @@ export function computeGasGiantPlacement(
   idx,
   metrics,
   starMassMsol,
-  { mapAuToPx, simTime },
+  { mapAuToPx, simTime, solveKeplerEquation, useEccentric = false },
 ) {
   const r = mapAuToPx(gasGiant.au, metrics.minAu, metrics.maxAu, metrics.maxR);
   const baseAngle = (0.15 + idx * 0.13) * Math.PI * 2;
-  const ggPeriod =
-    gasGiant.au && starMassMsol ? Math.sqrt(gasGiant.au ** 3 / starMassMsol) * 365.256 : 220;
-  const omega = (2 * Math.PI) / ggPeriod;
-  const angle = baseAngle + omega * simTime;
-  const ox = Math.cos(angle) * r;
-  const oy = Math.sin(angle) * r;
-  return { r, baseAngle, angle, ox, oy };
+  const period =
+    Number.isFinite(gasGiant?.periodDays) && gasGiant.periodDays > 0
+      ? gasGiant.periodDays
+      : gasGiant.au && starMassMsol
+        ? Math.sqrt(gasGiant.au ** 3 / starMassMsol) * 365.256
+        : 220;
+  const meanMotion = (2 * Math.PI) / period;
+  const ecc =
+    useEccentric && Number.isFinite(gasGiant?.eccentricity)
+      ? clamp(gasGiant.eccentricity, 0, 0.99)
+      : 0;
+
+  let ox;
+  let oy;
+  let angle;
+  if (useEccentric && ecc > 0 && typeof solveKeplerEquation === "function") {
+    const M = baseAngle + meanMotion * simTime;
+    const E = solveKeplerEquation(M, ecc);
+    const a = r;
+    const b = a * Math.sqrt(1 - ecc * ecc);
+    const cFocus = a * ecc;
+    const argW = ((Number(gasGiant?.longitudeOfPeriapsisDeg) || 0) * Math.PI) / 180;
+    const cosW = Math.cos(argW);
+    const sinW = Math.sin(argW);
+    const xf = a * Math.cos(E) - cFocus;
+    const zf = b * Math.sin(E);
+    ox = xf * cosW - zf * sinW;
+    oy = xf * sinW + zf * cosW;
+    angle = Math.atan2(oy, ox);
+  } else {
+    angle = baseAngle + meanMotion * simTime;
+    ox = Math.cos(angle) * r;
+    oy = Math.sin(angle) * r;
+  }
+
+  const incDeg = useEccentric ? Number(gasGiant?.inclinationDeg) || 0 : 0;
+  const incRad = (incDeg * Math.PI) / 180;
+  const oyVert = oy * Math.sin(incRad);
+  const oyFlat = oy * Math.cos(incRad);
+  return { r, baseAngle, angle, ox, oy: oyFlat, oyVert };
 }
 
 export function estimateMoonOrbitMaxPx(moons, parentRadiusPx) {

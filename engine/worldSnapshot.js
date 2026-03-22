@@ -133,9 +133,12 @@ function toPlanetEntry(raw, model, moonIds, mode, hostFrameId) {
 }
 
 function toGasGiantEntry(raw, model, moonIds, mode, hostFrameId) {
+  const companionClass = model?.companionClass || raw?.companionClass || "gasGiant";
   const base = {
     id: raw.id,
     kind: "gasGiant",
+    regime: model?.regime || companionClass,
+    companionClass,
     name: raw.name || raw.id,
     orbitAu: model.inputs.orbitAu,
     moonIds,
@@ -149,6 +152,8 @@ function toGasGiantEntry(raw, model, moonIds, mode, hostFrameId) {
       effectiveTempK: model.thermal.effectiveTempK,
       orbitalPeriodYears: model.orbital.orbitalPeriodYears,
       ringType: model.ringProperties.ringType,
+      classification:
+        model.classification?.substellarClass || model.classification?.sudarsky || null,
     };
   }
 

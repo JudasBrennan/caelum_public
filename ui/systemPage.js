@@ -143,6 +143,10 @@ function formatHabitableZoneRange(habitableZoneAu) {
   return `${fmt(inner, 3)} - ${fmt(outer, 3)} AU`;
 }
 
+function getHostZoneLabel(hostFrame) {
+  return String(hostFrame?.zones?.zoneLabel || "Habitable Zone");
+}
+
 function formatHostFrameHint(solveContext) {
   if (!solveContext?.hostFrame) return "Host-frame context unavailable.";
   const hostFrame = solveContext.hostFrame;
@@ -172,7 +176,7 @@ function buildSelectedHostReadout(solveContext) {
   return [
     `Selected host: ${hostFrame.label} (${formatHostFrameScopeLabel(hostFrame)})`,
     `Host mass: ${fmt(hostMass, 4)} Msol`,
-    `Habitable zone: ${hzText}`,
+    `${getHostZoneLabel(hostFrame)}: ${hzText}`,
   ].join(" | ");
 }
 
@@ -743,18 +747,20 @@ export function initSystemPage(mountEl) {
       const activeHostFrame = activeSolveContext?.hostFrame || null;
       const model = activeHostFrame?.system || homeSystemContext.primarySystem;
       state.starMassMsol = Number(activeSolveContext?.starConfig?.massMsol || primaryStar.massMsol);
+      const zoneLabel = getHostZoneLabel(activeHostFrame);
 
       renderHostFrameSelector(homeSystemContext, activeSolveContext);
       massDisplay.textContent = buildSelectedHostReadout(activeSolveContext);
 
       const items = [
         {
-          label: "Habitable Zone",
+          label: zoneLabel,
           value: formatHabitableZoneRange(activeHostFrame?.zones?.habitableZoneAu).replace(
             " AU",
             "",
           ),
           meta: "AU",
+          tipLabel: "Habitable Zone",
         },
         {
           label: "H2O Frost Line",

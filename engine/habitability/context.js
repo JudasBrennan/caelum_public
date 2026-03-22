@@ -273,6 +273,13 @@ export function buildPlanetHabitabilityContext(model = {}) {
       volatileInventory: [],
       mantleOxidationKey: String(inputs.mantleOxidation || derived.mantleOxidationKey || "earth"),
       primaryOutgassedSpecies: String(derived.primaryOutgassedSpecies || ""),
+      ozoneColumnDobsonUnits: derived.photochemistry?.ozoneColumnDobsonUnits,
+      ozoneEarthRatio: derived.photochemistry?.ozoneEarthRatio,
+      uvShieldingScore: derived.photochemistry?.uvShieldingScore,
+      uvShieldingClass: String(derived.photochemistry?.uvShieldingClass || ""),
+      photochemicalWarningCodes: Array.isArray(derived.photochemistry?.warningCodes)
+        ? derived.photochemistry.warningCodes
+        : [],
     },
     climate: {
       climateState: String(derived.climateState || "Stable"),

@@ -436,6 +436,14 @@ function bodyPxR(radiusKm) {
   return Math.max(4, Math.min(26, 8 * Math.pow(radiusKm / 6371, 0.42)));
 }
 
+function isBrownDwarfRenderBody(body) {
+  return body?.renderModel === "brownDwarfStar" && !!body?.starVisual;
+}
+
+function getSystemZoneLabel(system) {
+  return String(system?.zoneLabel || "Habitable Zone").trim() || "Habitable Zone";
+}
+
 function ringAppearanceKey(ringAppearance) {
   if (!ringAppearance) return "";
   return JSON.stringify({
@@ -462,6 +470,9 @@ function arcLabelPos(cx, cy, radius, targetY) {
 /* ── Poster body pre-rendering (procedural celestial textures) ── */
 
 function bodyKey(body) {
+  if (isBrownDwarfRenderBody(body)) {
+    return `brown-dwarf:${body.id || ""}:${starKey(body.starVisual)}`;
+  }
   if (body.type === "gas") {
     return `gas:${body.id || ""}:${body.style || "jupiter"}:${body.rings ? 1 : 0}:${ringAppearanceKey(body.ringAppearance)}`;
   }
@@ -476,13 +487,24 @@ function moonKey(m) {
 }
 
 function starKey(star) {
-  return `star:${star?.starColourHex || ""}:${Math.round(Number(star?.tempK) || 5778)}`;
+  return [
+    "star",
+    String(star?.starColourHex || ""),
+    Math.round(Number(star?.tempK ?? star?.starTempK) || 5778),
+    Math.round(Number(star?.massMsol ?? star?.starMassMsol) * 1000 || 0),
+    Math.round(Number(star?.ageGyr ?? star?.starAgeGyr) * 100 || 0),
+  ].join(":");
 }
 
 async function ensureBodyCanvas(body, shouldContinue = null) {
   if (typeof shouldContinue === "function" && !shouldContinue()) return null;
   const key = bodyKey(body);
   if (POSTER_CACHE.has(key)) return POSTER_CACHE.get(key);
+  if (isBrownDwarfRenderBody(body)) {
+    const canvas = ensureStarCanvas(body.starVisual);
+    POSTER_CACHE.set(key, canvas);
+    return canvas;
+  }
   const canvas = document.createElement("canvas");
   canvas.width = 128;
   canvas.height = 128;
@@ -538,10 +560,12 @@ function ensureStarCanvas(star) {
   renderStarSnapshot(
     canvas,
     {
+      regime: star?.regime,
+      starName: star?.starName || star?.name,
       starColourHex: star?.starColourHex,
-      starTempK: star?.tempK,
-      starMassMsol: star?.massMsol,
-      starAgeGyr: star?.ageGyr,
+      starTempK: star?.tempK ?? star?.starTempK,
+      starMassMsol: star?.massMsol ?? star?.starMassMsol,
+      starAgeGyr: star?.ageGyr ?? star?.starAgeGyr,
     },
     STAR_FILL,
   );
@@ -671,6 +695,7 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
   const warmModels = [];
   for (const body of allBodies) {
     if (POSTER_CACHE.has(bodyKey(body))) continue;
+    if (isBrownDwarfRenderBody(body)) continue;
     warmModels.push(
       body.type === "gas"
         ? {
@@ -899,6 +924,7 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
   };
 
   if (showHz && system?.habitableZoneAu) {
+    const zoneLabel = getSystemZoneLabel(system);
     const x1 = auToX(system.habitableZoneAu.inner);
     const x2 = auToX(system.habitableZoneAu.outer);
     const r1 = Math.max(1, x1 - orbitCenterX);
@@ -921,8 +947,8 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
           yOffset: 0,
           text:
             topologyKind !== "single" && activeHostFrameLabel
-              ? `${activeHostFrameLabel} HZ`
-              : "Habitable Zone",
+              ? `${activeHostFrameLabel} ${zoneLabel}`
+              : zoneLabel,
           color: "rgba(80,200,100,0.35)",
         });
       }
@@ -1682,7 +1708,9 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
     // Scale sprite up for ringed planets so the full ring system is visible.
     // doRecipeSnapshot stores cameraScale = cameraZ / 3.5 on the canvas.
     const cameraScale = parseFloat(bodyCanvas.dataset.cameraScale || "1");
-    const size = bodyPxR(body.radiusKm) * 2.1 * cameraScale;
+    const size = isBrownDwarfRenderBody(body)
+      ? Math.max(10, bodyPxR(body.radiusKm) / STAR_FILL)
+      : bodyPxR(body.radiusKm) * 2.1 * cameraScale;
     addCanvasSprite(runtime, bodyCanvas, x, y, size, 1, 1);
     doneItems++;
     setBar((doneItems / totalItems) * 100);

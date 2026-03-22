@@ -18,6 +18,10 @@ let _drawGen = 0;
 /* ── star snapshot fill fraction (matches system poster) ────── */
 const STAR_FILL = 0.22;
 
+function isBrownDwarfBodyEntry(entry) {
+  return entry?.renderModel === "brownDwarfStar" && !!entry?.starVisual;
+}
+
 function clampDpr(dpr) {
   const n = Number(dpr);
   if (!Number.isFinite(n) || n <= 0) return 1;
@@ -109,6 +113,16 @@ function snapKey(obj) {
     return `moon:${mc?.display?.displayClass || ""}:${mc?.display?.surfaceClass || ""}`;
   }
   const b = obj.entry;
+  if (isBrownDwarfBodyEntry(b)) {
+    return [
+      "brown-dwarf",
+      b.id || "",
+      String(b.starVisual?.starColourHex || ""),
+      Math.round(Number(b.starVisual?.starTempK) || 0),
+      Math.round(Number(b.starVisual?.starMassMsol) * 1000 || 0),
+      Math.round(Number(b.starVisual?.starAgeGyr) * 100 || 0),
+    ].join(":");
+  }
   if (
     String(b.classLabel || "")
       .toLowerCase()
@@ -132,6 +146,10 @@ async function ensureBodySnap(obj) {
   let model;
   if (obj.type === "moon") {
     model = { bodyType: "moon", moonCalc: b.moonCalc };
+  } else if (isBrownDwarfBodyEntry(b)) {
+    const starCanvas = ensureStarSnap(b.starVisual?.starColourHex, b.starVisual);
+    SNAP_CACHE.set(key, starCanvas);
+    return starCanvas;
   } else if (
     String(b.classLabel || "")
       .toLowerCase()
@@ -150,7 +168,13 @@ async function ensureBodySnap(obj) {
 }
 
 function ensureStarSnap(starColourHex, starData) {
-  const key = `star:${starColourHex || ""}:${Math.round(Number(starData?.starTempK) || 5778)}`;
+  const key = [
+    "star",
+    starColourHex || "",
+    Math.round(Number(starData?.starTempK) || 5778),
+    Math.round(Number(starData?.starMassMsol) * 1000 || 0),
+    Math.round(Number(starData?.starAgeGyr) * 100 || 0),
+  ].join(":");
   if (SNAP_CACHE.has(key)) return SNAP_CACHE.get(key);
   const canvas = document.createElement("canvas");
   canvas.width = 384;
@@ -887,7 +911,11 @@ export async function drawSkyCanvasNative(
     if (gen !== _drawGen) return false;
     const obj = objects[i];
     const cx = rightStart + spacing * (i + 1);
-    const size = logScaleSize(obj.a, rightScale, maxA);
+    const displaySize = logScaleSize(obj.a, rightScale, maxA);
+    const size =
+      obj.type === "body" && isBrownDwarfBodyEntry(obj.entry)
+        ? Math.max(8, displaySize / (STAR_FILL * 2))
+        : displaySize;
 
     const bodyCanvas = await ensureBodySnap(obj);
     if (gen !== _drawGen) return false;
@@ -902,12 +930,17 @@ export async function drawSkyCanvasNative(
     // Point-source glow for small objects (magnitude-driven, gas/rocky colors)
     if (size < 16) {
       const b = obj.entry;
+      const isBrownDwarf = obj.type === "body" && isBrownDwarfBodyEntry(b);
       const isGas =
         obj.type === "body" &&
         String(b.classLabel || "")
           .toLowerCase()
           .includes("gas");
-      const dotColor = isGas ? "rgba(232,216,176,0.6)" : "rgba(208,216,232,0.6)";
+      const dotColor = isBrownDwarf
+        ? b.starVisual?.starColourHex || "rgba(122,73,95,0.55)"
+        : isGas
+          ? "rgba(232,216,176,0.6)"
+          : "rgba(208,216,232,0.6)";
       addGlow(runtime, cx, diskCy, size, 1, dotColor, 0.4);
     }
 

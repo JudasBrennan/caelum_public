@@ -21,6 +21,13 @@ function formatSolReferenceAngularLabel(ref) {
   return "—";
 }
 
+function formatApparentBodyClass(row) {
+  const classLabel = String(row?.classLabel || "").trim();
+  const bodyTypeLabel = String(row?.bodyTypeLabel || "").trim();
+  if (/brown dwarf/i.test(classLabel)) return classLabel;
+  return bodyTypeLabel || classLabel;
+}
+
 function distanceInputNode(row) {
   const input = createElement("input", {
     className: "cluster-name-input",
@@ -106,7 +113,7 @@ export function renderApparentBodyRows(tbody, rows = []) {
     (Array.isArray(rows) ? rows : []).map((row) =>
       createElement("tr", {}, [
         textCell(row?.name),
-        textCell(row?.bodyTypeLabel || row?.classLabel),
+        textCell(formatApparentBodyClass(row)),
         createElement("td", {}, [distanceInputNode(row)]),
         textCell(fmt(row?.phaseAngleDeg, 2)),
         textCell(Number.isFinite(row?.apparentMagnitude) ? fmt(row.apparentMagnitude, 2) : "NA"),

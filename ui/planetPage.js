@@ -3,6 +3,7 @@ import { calcStar } from "../engine/star.js";
 import { calcSystem } from "../engine/system.js";
 import { calcGasGiant } from "../engine/gasGiant.js";
 import { resolveHostFrameContext } from "../engine/homeSystem/context.js";
+import { computeStellarActivityModel } from "../engine/stellarActivity.js";
 import {
   gasGiantRingScienceFromCalc,
   normalizeRingMode,
@@ -41,6 +42,11 @@ import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
 import { styleLabel, suggestStyles, GAS_GIANT_RECIPES } from "./gasGiantStyles.js";
 import { computeRockyVisualProfile, ROCKY_RECIPES } from "./rockyPlanetStyles.js";
 import {
+  getInsolationZoneLabelForRegime,
+  normalizeGiantCompanionClass,
+  regimeDisplayLabel,
+} from "../engine/substellarRegime.js";
+import {
   createCelestialVisualPreviewController,
   renderCelestialRecipeBatch,
 } from "./celestialVisualPreview.js";
@@ -69,12 +75,15 @@ import {
   GAS_GIANT_RADIUS_MAX_RJ,
   GAS_GIANT_RADIUS_MIN_RJ,
   GAS_GIANT_RADIUS_STEP_RJ,
-  GAS_GIANT_MASS_MIN_MJUP,
+  BROWN_DWARF_MASS_MAX_MJUP,
+  BROWN_DWARF_MASS_MIN_MJUP,
   GAS_GIANT_MASS_MAX_MJUP,
-  GAS_GIANT_MASS_STEP_MJUP,
   GAS_GIANT_METALLICITY_MIN,
   GAS_GIANT_METALLICITY_MAX,
   GAS_GIANT_METALLICITY_STEP,
+  GIANT_COMPANION_CLASS_BROWN_DWARF,
+  GIANT_COMPANION_CLASS_GAS_GIANT,
+  getGiantCompanionMassBounds,
   loadWorld,
   updateWorld,
   listPlanets,
@@ -109,7 +118,7 @@ const TIP_LABEL = {
 
   // ── Body selector ──
   "Body selection":
-    "Choose which body you are editing. Bodies are sorted by orbital distance. [R] = rocky planet, [D] = dwarf planet, [G] = gas giant.",
+    "Choose which body you are editing. Bodies are sorted by orbital distance. [R] = rocky planet, [D] = dwarf planet, [G] = gas giant, [B] = brown dwarf companion.",
 
   "Body Class":
     "Classification based on mass. Bodies below 0.1 M\u2295 (~Mars mass) are labelled as dwarf planets. The physics model is identical \u2014 this is purely a label.\n\nReal examples: Ceres (0.00016 M\u2295), Pluto (0.0022 M\u2295), Eris (0.0028 M\u2295).",
@@ -206,6 +215,12 @@ const TIP_LABEL = {
     "Earth Similarity Index (ESI) is a 0-1 Earth-likeness score based on radius, density, escape velocity, and average surface temperature.\n\n1.0 = Earth-like across those four inputs. Lower values indicate a less Earth-like rocky world.\n\nESI is not a direct habitability verdict.",
   "Habitability Index":
     "WorldSmith comparative habitability model for rocky worlds.\n\nThis is PHI-inspired, not a direct literature PHI implementation. The score depends on the selected solvent pathway and the active solvent-policy support for surface water, subsurface water, and alternative solvents.\n\nUse the expanded KPI details to see the current pathway, policy version, and term breakdown.",
+  "UV Shielding":
+    "Estimated surface-UV protection from the combined ozone column, atmospheric pressure support, and XUV environment. Shielded indicates an Earth-like to stronger photochemical UV screen, Partial indicates incomplete coverage, and Unshielded indicates weak protection.",
+  "Ozone Column":
+    "Estimated stratospheric ozone column in Dobson Units, scaled from oxygen partial pressure, stellar XUV level, and bulk atmospheric pressure. Earth averages about 300 DU.",
+  "Photochemical Stability":
+    "Flags incompatible atmospheric gas pairs that should not coexist at the shown levels without continuous replenishment. This is a lightweight plausibility screen, not a full photochemical equilibrium solver.",
   "Magnetic Field":
     "Estimated surface magnetic field strength relative to Earth (1.0\u00d7 = Earth's field).\n\nUses simplified Olson & Christensen (2006) dynamo scaling: field strength depends on core size, bulk density, heat flux, and core solidification state.\n\nTidal heating from assigned moons can extend core liquid lifetime, potentially sustaining a dynamo that would otherwise shut down. Shown as 'tidally sustained' when moon heating exceeds 10% of the planet's internal heat budget.\n\nA dipolar field (like Earth's) provides strong magnetospheric protection. Multipolar fields (slow rotators, P > ~96 h) are ~20\u00d7 weaker at the surface.\n\nStrong (> 0.5\u00d7): good protection from stellar wind\nModerate (0.1\u20130.5\u00d7): partial protection\nWeak (< 0.1\u00d7): minimal protection\nNone: no active dynamo",
   "Moon Tidal Heating":
@@ -279,6 +294,8 @@ const TIP_LABEL = {
     "Orbital slot from the system layout. Each slot has a fixed distance determined by the orbit spacing formula. Slots occupied by rocky planets are unavailable.",
   "Custom orbit":
     "Manual semi-major axis in AU. Use this when the gas giant does not sit neatly on one of the system\u2019s Titius\u2013Bode-style orbital slots.",
+  "GG Companion Class":
+    "Substellar companion regime. Gas giants stay below the deuterium-burning threshold (~13 Mjup). Brown dwarfs occupy the ~13-75 Mjup cooling-track regime and use brown-dwarf classification and current-temperate-zone outputs instead of the gas-giant atmosphere model.",
   "GG Size": `Gas giant radius in Jupiter radii (Rj). Constrained to ${GAS_GIANT_RADIUS_MIN_RJ.toFixed(2)}\u2013${GAS_GIANT_RADIUS_MAX_RJ.toFixed(2)} Rj. Radius and mass are related: larger giants are not always heavier due to electron degeneracy pressure compressing the core at high masses.`,
   "GG Mass":
     "Mass in Jupiter masses (M\u2081 = 1.898\u00d710\u00b2\u2077 kg). If blank, estimated from radius using Chen & Kipping 2017 power-law forecasting. Above ~3\u201310 Mj, deuterium fusion begins (brown dwarf regime).",
@@ -332,6 +349,50 @@ const TIP_LABEL = {
     "Choose whether rings follow the science recommendation or are manually forced on or off. Auto follows the derived ring science. Forced settings can go against the science and are labelled explicitly.",
   "GG Tidal":
     "Tidal locking timescale \u221d a\u2076: hot Jupiters at <0.05 AU lock within ~1 Gyr. Circularisation timescale \u221d a^6.5. Both compared to the host star\u2019s age to determine current state.",
+  "Brown Dwarf Class":
+    'Brown dwarfs use the L, T, and Y sequence from hottest to coolest.\n\nThe number runs 0-9 within each family, where 0 is hotter and 9 is cooler. So "T9 BD" means a very cool late-T brown dwarf near the T/Y boundary.\n\nQuick guide:\nL = warmer dusty brown dwarf\nT = cooler methane-rich brown dwarf\nY = coldest known brown-dwarf class\nBD = brown dwarf.',
+  "Current Age":
+    "Current age of this brown dwarf companion in billions of years (Gyr). In the current system model it follows the host system age.",
+  "Metallicity [Fe/H]":
+    "Host-system metallicity relative to the Sun.\n\n[Fe/H] = log\u2081\u2080(Fe/H)_object \u2212 log\u2081\u2080(Fe/H)_sun\n\nSun = 0.0 by definition. Positive = metal-rich, negative = metal-poor.",
+  "Stellar Population":
+    "A broad population label derived from metallicity.\n\nPopulation I (solar neighbourhood): [Fe/H] > \u22120.3\nIntermediate (old thin disk): \u22121.0 < [Fe/H] \u2264 \u22120.3\nPopulation II (metal-poor): [Fe/H] \u2264 \u22121.0\nMetal-rich (inner disk): [Fe/H] > +0.15",
+  "BD Radius":
+    "Brown-dwarf radius in solar radii.\n\nBrown dwarfs stay close to Jupiter-size despite much larger mass because electron degeneracy pressure limits radius growth.\n\nSun = 1 Rsol = 695,700 km",
+  Luminosity:
+    "Stellar luminosity in solar luminosities.\n\nKPI cards may auto-scale dim outputs for readability:\nLsol = Sun's luminosity\nmLsol = 10^-3 Lsol (one thousandth of Sol)\n\u03bcLsol = 10^-6 Lsol (one millionth of Sol)\nnLsol = 10^-9 Lsol (one billionth of Sol)\n\nHover the KPI for the exact Lsol and watt values.\n\nSun = 1 Lsol = 3.846E26 watts",
+  "BD Temperature":
+    "Effective photospheric temperature of the brown dwarf in kelvin, derived from its current cooling-track luminosity and radius.",
+  "Star Colour":
+    "Visible-light stylisation derived from the current brown-dwarf effective temperature. Cooler T and Y dwarfs are rendered much dimmer and redder/magenta than ordinary stars because most of their energy emerges in the infrared.",
+  "Activity Regime":
+    "Activity regime is based on effective temperature and age bins used by the flare-frequency model.\n\nTemperature bins:\nFGK: T >= 3900 K\nEarly M: 3200 K \u2264 T < 3900 K\nLate M: T < 3200 K\n\nAge bands:\nFGK: young <0.5 Gyr, mid 0.5\u20132 Gyr, old >=2 Gyr\nEarly M: young <1 Gyr, mid 1\u20134 Gyr, old >=4 Gyr\nLate M: young <2 Gyr, mid 2\u20136 Gyr, old >=6 Gyr.",
+  "Direct Earth-like Life":
+    "Whether a modern Earth-like planet is expected to work directly around this host object.\n\nBrown dwarfs default to no direct Earth-like-life verdict because they are cooling substellar objects; use the current temperate zone and moon outputs instead.",
+  "Cooling State":
+    "Brown dwarfs cool and fade over time instead of sustaining long-term core hydrogen fusion. This field shows the current cooling-track state, or the brief deuterium-burning phase near the low-mass brown-dwarf boundary.",
+  "XUV Regime":
+    "Extreme-UV and soft X-ray activity regime from the host-object XUV model.\n\nBrown dwarfs currently report negligible XUV in this model.",
+  "XUV Luminosity":
+    "High-energy host-object luminosity in the XUV band.\n\nBrown dwarfs currently report negligible XUV in this model.",
+  "XUV Flux at 1 AU":
+    "XUV flux a body would receive at 1 AU from this host object.\n\nReported both as erg/cm\u00b2/s and relative to present-day Earth, then diluted by inverse-square distance for planets and moons.",
+  "Energetic Flare Rate (>1e32 erg)":
+    "N32 is the expected rate of energetic flares above 10^32 erg.\n\nBaselines by regime:\nFGK old/mid/young: 0.05 / 0.25 / 1.0 per day\nEarly M old/mid/young: 0.5 / 2.0 / 8.0 per day\nLate M old/mid/young: 2.0 / 8.0 / 30.0 per day.",
+  "Energetic Flare Recurrence":
+    "Recurrence is computed from N32 as 1 / N32 days for flares above 10^32 erg.",
+  "Total Flare Rate (>1e30 erg)":
+    "Expected flare rate above 10^30 erg, computed from the flare-frequency distribution anchored to N32 and alpha.\n\nThis is a broader event count than the energetic >10^32 erg rate.",
+  "Total Flare Recurrence":
+    "Recurrence for flares above 10^30 erg, computed as 1 / rate and shown in hours or minutes when frequent.",
+  "Associated CME Rate":
+    "Expected CME rate linked to flare activity, using an energy-weighted flare-CME association probability and activity suppression at very high flare rates.",
+  "Background CME Rate":
+    "Expected CME rate not explicitly tied to an individual rendered flare. For FGK stars this fills the gap between the associated rate and the cycle envelope.",
+  "Total CME Rate":
+    "Total expected CME rate per day. For FGK stars, this follows the solar-cycle envelope and is split into associated and background channels.\n\nReference: Yashiro et al. (2006, JGR 111, A12S05).",
+  "Solar CME Envelope (FGK)":
+    "Solar observations show coronal mass ejection rates varying from about 0.5 to 6.0 per day across the solar cycle.\n\nThis envelope is shown only for FGK stars.",
 };
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
@@ -519,15 +580,141 @@ function formatHostFrameStabilityHint(hostFrame) {
   return "";
 }
 
-function formatHabitableZoneText(habitableZoneAu) {
+function getHostFrameZoneLabel(hostFrame) {
+  return String(hostFrame?.zones?.zoneLabel || "Habitable Zone");
+}
+
+function getGiantCompanionClass(value) {
+  return normalizeGiantCompanionClass(
+    value?.companionClass || value?.inputs?.companionClass || value?.regime,
+  );
+}
+
+function isBrownDwarfCompanion(value) {
+  return getGiantCompanionClass(value) === GIANT_COMPANION_CLASS_BROWN_DWARF;
+}
+
+function getGiantCompanionDisplayLabel(value) {
+  return regimeDisplayLabel(getGiantCompanionClass(value));
+}
+
+function formatHabitableZoneText(habitableZoneAu, zoneLabel = "Habitable Zone") {
   if (
     !habitableZoneAu ||
     !Number.isFinite(Number(habitableZoneAu.inner)) ||
     !Number.isFinite(Number(habitableZoneAu.outer))
   ) {
-    return "HZ unavailable";
+    return `${zoneLabel} unavailable`;
   }
-  return `HZ ${fmt(habitableZoneAu.inner, 3)}-${fmt(habitableZoneAu.outer, 3)} AU`;
+  return `${zoneLabel} ${fmt(habitableZoneAu.inner, 3)}-${fmt(habitableZoneAu.outer, 3)} AU`;
+}
+
+const BROWN_DWARF_SOLAR_RADIUS_KM = 696340;
+
+function readFirstFiniteNumber(...values) {
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function isBrownDwarfHostModel(model) {
+  return model?.regime === "brownDwarf";
+}
+
+function getHostZoneLabel(model) {
+  return String(model?.zoneLabel || "Habitable Zone");
+}
+
+function getHostClassValue(model) {
+  return model?.spectralClass || regimeDisplayLabel(model?.regime);
+}
+
+function formatHostZoneValue(model) {
+  return model?.display?.hzAu || "n/a";
+}
+
+function getHostLifetimeValue(model) {
+  if (!isBrownDwarfHostModel(model)) return fmt(model?.maxAgeGyr, 3);
+  if (model?.deuteriumBurningActive) return "Deuterium-burning";
+  return `${model?.spectralFamily || "Cooling"}-type cooling`;
+}
+
+function getHostLifetimeMeta(model) {
+  if (!isBrownDwarfHostModel(model)) return "Gyr";
+  return model?.deuteriumBurningPossible ? "Substellar cooling track" : "Cooling object";
+}
+
+function formatLuminosityLsol(value, dp = 3) {
+  const x = Number(value);
+  if (!Number.isFinite(x)) return "NA";
+  const abs = Math.abs(x);
+  if (abs === 0) return "0";
+  if (abs < 1e-4) return x.toExponential(2);
+  if (abs < 0.01) return fmt(x, Math.max(dp, 6));
+  return fmt(x, dp);
+}
+
+function formatScaledLuminosityLsol(value, dp = 3) {
+  const x = Number(value);
+  if (!Number.isFinite(x)) return "NA";
+  const abs = Math.abs(x);
+  if (abs === 0) return "0 Lsol";
+  if (abs >= 0.01) return `${fmt(x, dp)} Lsol`;
+
+  const scaledUnits = [
+    { scale: 1e3, label: "mLsol" },
+    { scale: 1e6, label: "\u03bcLsol" },
+    { scale: 1e9, label: "nLsol" },
+  ];
+  for (const unit of scaledUnits) {
+    const scaled = x * unit.scale;
+    const scaledAbs = Math.abs(scaled);
+    if (scaledAbs >= 0.1) {
+      const scaledDp = scaledAbs >= 100 ? 0 : scaledAbs >= 10 ? 1 : 2;
+      return `${fmt(scaled, scaledDp)} ${unit.label}`;
+    }
+  }
+  return `${formatLuminosityLsol(x, Math.max(dp, 6))} Lsol`;
+}
+
+function buildLuminosityKpiMeta(model) {
+  if (!model) return "";
+  const exactLsol = formatLuminosityLsol(model.luminosityLsol, 6);
+  const watts = fmt(model.metric?.luminosityW, 0);
+  return `${exactLsol} Lsol | ${watts} W${model.luminosityOverridden ? " (Override)" : ""}`;
+}
+
+function buildLuminosityKpiTooltip(model) {
+  if (!model) return TIP_LABEL["Luminosity"] || "";
+  return (
+    `${TIP_LABEL["Luminosity"] || ""}\n\n` +
+    `Current solve:\n` +
+    `${formatScaledLuminosityLsol(model.luminosityLsol, 3)}\n` +
+    `${formatLuminosityLsol(model.luminosityLsol, 6)} Lsol\n` +
+    `${fmt(model.metric?.luminosityW, 0)} W${model.luminosityOverridden ? " (Override)" : ""}`
+  ).trim();
+}
+
+function formatRecurrence(ratePerDay) {
+  const rate = Number(ratePerDay);
+  if (!(rate > 0)) return "Rare";
+  const days = 1 / rate;
+  if (days >= 365) return `~${fmt(days / 365, 2)} years`;
+  if (days >= 1) return `~${fmt(days, 2)} days`;
+  const hours = days * 24;
+  if (hours >= 1) return `~${fmt(hours, 2)} hours`;
+  return `~${fmt(hours * 60, 2)} minutes`;
+}
+
+function shortPopulationLabel(label) {
+  const txt = String(label || "").trim();
+  if (txt === "Population I (solar neighbourhood)") return "Pop I";
+  if (txt === "Intermediate (old thin disk)") return "Intermediate";
+  if (txt === "Population II (metal-poor)") return "Pop II";
+  if (txt === "Metal-rich (inner disk)") return "Metal-rich";
+  return txt;
 }
 
 function formatHostFrameHint(solveContext) {
@@ -535,7 +722,7 @@ function formatHostFrameHint(solveContext) {
   if (!hostFrame) return "Choose which host frame this body orbits.";
   const parts = [
     `${hostFrame.label} (${formatHostFrameScopeLabel(hostFrame)}).`,
-    formatHabitableZoneText(hostFrame.zones?.habitableZoneAu),
+    formatHabitableZoneText(hostFrame.zones?.habitableZoneAu, getHostFrameZoneLabel(hostFrame)),
   ];
   const companionFluxEarth = Number(solveContext?.companionFluxEarth || 0);
   if (hostFrame.frameKind === "pair") {
@@ -561,7 +748,7 @@ function buildSelectedBodyContextReadout(solveContext) {
     `Host frame: ${hostFrame.label} (${formatHostFrameScopeLabel(hostFrame)})`,
     `${hostFrame.frameKind === "pair" ? "System mass" : "Primary star mass"}: ${fmt(Number(solveContext.starConfig?.massMsol) || 0, 4)} Msol`,
     `${hostFrame.frameKind === "pair" ? "System age" : "Primary star age"}: ${fmt(Number(solveContext.starConfig?.ageGyr) || 0, 3)} Gyr`,
-    formatHabitableZoneText(hostFrame.zones?.habitableZoneAu),
+    formatHabitableZoneText(hostFrame.zones?.habitableZoneAu, getHostFrameZoneLabel(hostFrame)),
   ];
   const companionFluxEarth = Number(solveContext.companionFluxEarth || 0);
   lines.push(
@@ -603,6 +790,7 @@ function buildGasGiantCalc(
   );
   const hostSystem = solveContext?.hostFrame?.system || sysModel;
   return calcGasGiant({
+    companionClass: giant.companionClass,
     massMjup: giant.massMjup,
     radiusRj: giant.radiusRj,
     orbitAu: Number(giant.au) || hostSystem?.frostLineAu || sysModel.frostLineAu,
@@ -663,6 +851,99 @@ function deriveGasGiantAppearanceState(
     seed: giant?.id || giant?.name || derivedStyle,
   });
   return { gasCalc, derivedStyle, ringState, ringAppearance };
+}
+
+function buildBrownDwarfCompanionPresentation(world, giant, sysModel, gasCalc) {
+  const homeSystemContext = buildPlanetHomeSystemContext(world);
+  const solveContext = resolvePlanetPageHostFrameContext(world, giant, sysModel, homeSystemContext);
+  const primaryStar = getProjectedPrimaryStar(world);
+  const ageGyr = readFirstFiniteNumber(
+    solveContext?.starConfig?.ageGyr,
+    primaryStar?.ageGyr,
+    4.6,
+  );
+  const metallicityFeH = readFirstFiniteNumber(
+    solveContext?.starConfig?.metallicityFeH,
+    primaryStar?.metallicityFeH,
+    0,
+  );
+  const radiusKm = readFirstFiniteNumber(gasCalc?.physical?.radiusKm);
+  const radiusRsolOverride =
+    radiusKm && radiusKm > 0 ? radiusKm / BROWN_DWARF_SOLAR_RADIUS_KM : null;
+  const model = calcStar({
+    massMsol: readFirstFiniteNumber(gasCalc?.inputs?.massMsol, primaryStar?.massMsol, 0.02),
+    ageGyr,
+    metallicityFeH,
+    radiusRsolOverride,
+    evolutionMode: "zams",
+  });
+  const activityModel = computeStellarActivityModel(
+    {
+      massMsun: readFirstFiniteNumber(model?.inputs?.massMsol, gasCalc?.inputs?.massMsol, 0.02),
+      ageGyr,
+      teffK: model?.tempK,
+      luminosityLsun: model?.luminosityLsol,
+    },
+    { activityCycle: 0.5 },
+  );
+  return {
+    model,
+    solveContext,
+    ageGyr,
+    metallicityFeH,
+    activity: activityModel.activity,
+  };
+}
+
+function buildGiantCompanionClassOptions(selectedClass) {
+  const normalizedClass = normalizeGiantCompanionClass(selectedClass);
+  return [
+    {
+      value: GIANT_COMPANION_CLASS_GAS_GIANT,
+      label: "Gas giant",
+      selected: normalizedClass === GIANT_COMPANION_CLASS_GAS_GIANT,
+    },
+    {
+      value: GIANT_COMPANION_CLASS_BROWN_DWARF,
+      label: "Brown dwarf",
+      selected: normalizedClass === GIANT_COMPANION_CLASS_BROWN_DWARF,
+    },
+  ];
+}
+
+function buildGiantCompanionFormDescriptors(giant) {
+  const companionClass = getGiantCompanionClass(giant);
+  const bodyLabel = getGiantCompanionDisplayLabel(giant);
+  if (companionClass === GIANT_COMPANION_CLASS_BROWN_DWARF) {
+    return {
+      bodyLabel,
+      defaultName: "Brown dwarf",
+      companionClassHint:
+        "Brown dwarfs stay in the same workflow, but switch to a cooling-track solver and brown-dwarf class outputs.",
+      radiusHint: "Brown dwarfs usually stay near 0.8-1.1 Rj. Blank = cooling-track radius.",
+      massHint: `Brown dwarfs span ${BROWN_DWARF_MASS_MIN_MJUP}-${BROWN_DWARF_MASS_MAX_MJUP} Mj. Switching into this class requires an explicit mass.`,
+      metallicityHint:
+        "Optional placeholder only. Brown dwarfs do not currently use the gas-giant metallicity solver.",
+    };
+  }
+  return {
+    bodyLabel,
+    defaultName: "Gas giant",
+    companionClassHint:
+      "Gas giants and brown dwarfs share this editor. Change the class only when the object crosses into the brown-dwarf mass regime.",
+    radiusHint: "1.00 Rj = Jupiter-size.",
+    massHint: "Blank = derived from radius.",
+    metallicityHint: "Blank = derived from mass.",
+  };
+}
+
+function buildGiantCompanionContextClassText(model) {
+  if (isBrownDwarfCompanion(model)) {
+    return `${model?.classification?.substellarClass || "Brown dwarf"} ${model?.classification?.label || "brown dwarf"}`.trim();
+  }
+  return model?.classification?.sudarsky
+    ? `Class ${model.classification.sudarsky} ${model.classification.label || ""}`.trim()
+    : model?.display?.classification || "unknown class";
 }
 
 function getGasGiantRingModeLabel(ringMode) {
@@ -1569,9 +1850,7 @@ export function initPlanetPage(mountEl, options = {}) {
     const orbitText = Number.isFinite(Number(giant.au))
       ? `${fmt(Number(giant.au), 3)} AU`
       : "unknown orbit";
-    const classText = gasCalc?.classification?.sudarsky
-      ? `Class ${gasCalc.classification.sudarsky} ${gasCalc.classification.label || ""}`.trim()
-      : gasCalc?.display?.classification || "unknown class";
+    const classText = buildGiantCompanionContextClassText(gasCalc);
     const ringText = ringState?.effectiveEnabled
       ? "Rings currently visible."
       : "Rings currently hidden.";
@@ -2468,6 +2747,11 @@ export function initPlanetPage(mountEl, options = {}) {
           `${habitabilityPolicyLabel}\n` +
           `${d.habitabilityModelVersion || "phi-unified-v2"} | ${habitabilityPolicyVersion}`,
       },
+      {
+        label: "UV Shielding",
+        value: model.display.uvShielding,
+        meta: `${model.display.ozoneColumn} | ${model.display.photochemicalStability}`,
+      },
       model.display.moonTidalHeating && {
         label: "Moon Tidal Heating",
         value: model.display.moonTidalHeating,
@@ -2623,7 +2907,11 @@ export function initPlanetPage(mountEl, options = {}) {
       "RV Semi-Amplitude",
     ]);
     const activityLabels = new Set(["Moon Tidal Heating", "Tectonic Regime", "Outgassing"]);
-    const habitabilityLabels = new Set(["Earth Similarity Index", "Habitability Index"]);
+    const habitabilityLabels = new Set([
+      "Earth Similarity Index",
+      "Habitability Index",
+      "UV Shielding",
+    ]);
     const normalizeRockyItem = (item) => ({
       ...item,
       tip: item.tip || TIP_LABEL[item.tipLabel] || TIP_LABEL[item.label] || "",
@@ -2819,6 +3107,16 @@ export function initPlanetPage(mountEl, options = {}) {
                   },
                 ]
               : []),
+            {
+              label: "Photochemical Stability",
+              value: model.display.photochemicalStability,
+              meta:
+                Array.isArray(d.photochemistry?.warningMessages) &&
+                d.photochemistry.warningMessages.length
+                  ? d.photochemistry.warningMessages.join(" | ")
+                  : "No incompatible gas pairs detected",
+            },
+            { label: "Ozone Column", value: model.display.ozoneColumn },
             { label: "Avg Surface Temp", value: `${model.display.tempK} | ${model.display.tempC}` },
             {
               label: "Climate State",
@@ -3004,6 +3302,11 @@ export function initPlanetPage(mountEl, options = {}) {
                 `Persistence ${fmt(d.habitabilityBreakdown?.persistenceMultiplier ?? 0, 2)} | ` +
                 `Pathway ${d.habitabilityBreakdown?.solventPathway || "none"} | ${habitabilityPolicyLabel} | ` +
                 `${d.habitabilityModelVersion || "phi-unified-v2"} | ${habitabilityPolicyVersion}`,
+            },
+            {
+              label: "UV Shielding",
+              value: model.display.uvShielding,
+              meta: `${model.display.ozoneColumn} | ${model.display.photochemicalStability}`,
             },
           ],
         },
@@ -3300,6 +3603,9 @@ export function initPlanetPage(mountEl, options = {}) {
       hostFrameId,
       homeSystemContext?.defaultHostFrameId,
     );
+    const giantCompanionClass = getGiantCompanionClass(giant);
+    const giantMassBounds = getGiantCompanionMassBounds(giantCompanionClass);
+    const giantFormDescriptors = buildGiantCompanionFormDescriptors(giant);
     const planetSlots = new Set();
     for (const pp of planets) {
       if (pp.slotIndex != null && pp.slotIndex >= 1 && pp.slotIndex <= 20) {
@@ -3338,17 +3644,15 @@ export function initPlanetPage(mountEl, options = {}) {
         : `${fmt(Number(giant.au) || 0, 3)} AU (custom)`,
       slotOptions,
       tipLabels: TIP_LABEL,
+      companionClassOptions: buildGiantCompanionClassOptions(giantCompanionClass),
+      descriptors: giantFormDescriptors,
       ranges: {
         radius: {
           min: GAS_GIANT_RADIUS_MIN_RJ,
           max: GAS_GIANT_RADIUS_MAX_RJ,
           step: GAS_GIANT_RADIUS_STEP_RJ,
         },
-        mass: {
-          min: GAS_GIANT_MASS_MIN_MJUP,
-          max: GAS_GIANT_MASS_MAX_MJUP,
-          step: GAS_GIANT_MASS_STEP_MJUP,
-        },
+        mass: giantMassBounds,
         metallicity: {
           min: GAS_GIANT_METALLICITY_MIN,
           max: GAS_GIANT_METALLICITY_MAX,
@@ -3408,8 +3712,29 @@ export function initPlanetPage(mountEl, options = {}) {
         g.au = Number.isFinite(au) && au > 0 ? au : 0.01;
       }
       g.radiusRj = clampGasGiantRadiusRj(bodyInputsEl.querySelector("#ggRadius").value);
+      const selectedCompanionClass = normalizeGiantCompanionClass(
+        bodyInputsEl.querySelector("#ggCompanionClass")?.value || g.companionClass,
+      );
+      g.companionClass = selectedCompanionClass;
       const massVal = bodyInputsEl.querySelector("#ggMass").value;
-      g.massMjup = massVal !== "" ? Number(massVal) || null : null;
+      if (selectedCompanionClass === GIANT_COMPANION_CLASS_BROWN_DWARF) {
+        const storedMass = Number(g.massMjup);
+        const fallbackMass =
+          Number.isFinite(storedMass) && storedMass >= BROWN_DWARF_MASS_MIN_MJUP
+            ? storedMass
+            : 20;
+        const resolvedMass =
+          massVal !== "" && Number.isFinite(Number(massVal)) ? Number(massVal) : fallbackMass;
+        g.massMjup = Math.min(
+          BROWN_DWARF_MASS_MAX_MJUP,
+          Math.max(BROWN_DWARF_MASS_MIN_MJUP, resolvedMass),
+        );
+      } else {
+        g.massMjup = massVal !== "" ? Number(massVal) || null : null;
+        if (Number.isFinite(g.massMjup) && g.massMjup > GAS_GIANT_MASS_MAX_MJUP) {
+          g.massMjup = GAS_GIANT_MASS_MAX_MJUP;
+        }
+      }
       const rotVal = bodyInputsEl.querySelector("#ggRotation").value;
       g.rotationPeriodHours = rotVal !== "" ? Number(rotVal) || null : null;
       const metVal = bodyInputsEl.querySelector("#ggMetallicity").value;
@@ -3475,9 +3800,9 @@ export function initPlanetPage(mountEl, options = {}) {
     bindNumberAndSlider({
       numberEl: massEl,
       sliderEl: massSlider,
-      min: GAS_GIANT_MASS_MIN_MJUP,
-      max: GAS_GIANT_MASS_MAX_MJUP,
-      step: GAS_GIANT_MASS_STEP_MJUP,
+      min: giantMassBounds.min,
+      max: giantMassBounds.max,
+      step: giantMassBounds.step,
       mode: "auto",
       commitOnInput: false,
       onChange: () => {
@@ -3581,6 +3906,9 @@ export function initPlanetPage(mountEl, options = {}) {
     bodyInputsEl.querySelector("#ggName").addEventListener("change", () => {
       if (!hydrating) saveGiant();
     });
+    bodyInputsEl.querySelector("#ggCompanionClass")?.addEventListener("change", () => {
+      if (!hydrating) saveGiant();
+    });
     ggRingModePillsEl?.addEventListener("change", () => {
       if (!hydrating) saveGiant();
     });
@@ -3594,6 +3922,318 @@ export function initPlanetPage(mountEl, options = {}) {
     });
 
     hydrating = false;
+  }
+
+  function renderBrownDwarfCompanionOutputs(world, giant, sysModel, gasCalc) {
+    const presentation = buildBrownDwarfCompanionPresentation(world, giant, sysModel, gasCalc);
+    const model = presentation.model;
+    const activity = presentation.activity || {};
+    const ageGyr = presentation.ageGyr ?? 4.6;
+    const metallicityFeH = presentation.metallicityFeH ?? 0;
+    const brownDwarfKpi = (label, value, meta = "", overrides = {}) => ({
+      label,
+      tip: TIP_LABEL[overrides.tipLabel || label] || "",
+      value,
+      meta,
+      ...overrides,
+    });
+    const previewModel = {
+      bodyType: "star",
+      regime: model?.regime,
+      starName: giant.name || "Brown dwarf",
+      starMassMsol: model?.inputs?.massMsol,
+      starAgeGyr: ageGyr,
+      starTempK: model?.tempK,
+      starColourHex: model?.starColourHex,
+      activity,
+    };
+    const massNote =
+      gasCalc.inputs.massSource === "derived"
+        ? "Derived from radius"
+        : gasCalc.inputs.massSource === "default"
+          ? "Default"
+          : "";
+    const zoneLabel = getHostZoneLabel(model);
+    const zoneValue = formatHostZoneValue(model);
+    const zoneMeta = `AU | ${model?.display?.hzMkm || "n/a"} million km`;
+    const xuvFluxMeta = `${model?.display?.xuvFluxRatioEarth || "0\u00d7 Earth"} | negligible`;
+    const energeticRecurrenceText = formatRecurrence(activity.energeticFlareRatePerDay);
+    const totalRecurrenceText = formatRecurrence(activity.totalFlareRatePerDay);
+    const cmeTotalMeta =
+      activity.teffBin === "FGK"
+        ? "Solar-cycle envelope split into associated + background"
+        : "Empirical split model outside FGK solar envelope";
+    const atmosphereMixText =
+      `H2 ${gasCalc.atmosphere.h2Pct}%, He ${gasCalc.atmosphere.hePct}%` +
+      `${gasCalc.atmosphere.ch4Pct > 0 ? `, CH4 ${gasCalc.atmosphere.ch4Pct}%` : ""}` +
+      `${gasCalc.atmosphere.coPct > 0 ? `, CO ${gasCalc.atmosphere.coPct}%` : ""}` +
+      `${gasCalc.atmosphere.nh3Pct > 0 ? `, NH3 ${gasCalc.atmosphere.nh3Pct}%` : ""}`;
+
+    const summaryItems = [
+      brownDwarfKpi(
+        "Focused Star Preview",
+        `${model?.starColourHex || "#000000"}`,
+        "Hex (derived from temperature) - Animated at 0.5 d/s with flares + CMEs",
+        { kind: "sunVisual", tipLabel: "Star Colour" },
+      ),
+      brownDwarfKpi("Brown Dwarf Class", getHostClassValue(model), regimeDisplayLabel(model?.regime)),
+      brownDwarfKpi("Radius", fmt(model?.radiusRsol, 3), `Rsol | ${fmt(model?.metric?.radiusKm, 0)} km`, {
+        tipLabel: "BD Radius",
+      }),
+      brownDwarfKpi(
+        "Luminosity",
+        formatScaledLuminosityLsol(model?.luminosityLsol, 3),
+        buildLuminosityKpiMeta(model),
+        { tip: buildLuminosityKpiTooltip(model) },
+      ),
+      brownDwarfKpi("Temperature", fmt(model?.tempK, 0), "K", { tipLabel: "BD Temperature" }),
+      brownDwarfKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" }),
+      brownDwarfKpi("Activity Regime", `${activity.teffBin || "lateM"}/${activity.ageBand || "old"}`, "Teff + age bins"),
+      brownDwarfKpi(
+        "Direct Earth-like Life",
+        "No (substellar host)",
+        "Use the current temperate zone and moon outputs instead",
+      ),
+    ];
+    const identityItems = [
+      brownDwarfKpi("Current Age", fmt(ageGyr, 3), "Gyr"),
+      brownDwarfKpi("Metallicity [Fe/H]", fmt(metallicityFeH, 2), "dex"),
+      brownDwarfKpi(
+        "Population",
+        shortPopulationLabel(model?.populationLabel),
+        `${model?.populationLabel || "Substellar object"} | [Fe/H] = ${fmt(model?.inputs?.metallicityFeH, 2)}`,
+        { tipLabel: "Stellar Population" },
+      ),
+    ];
+    const physicalItems = [
+      brownDwarfKpi("Cooling State", getHostLifetimeValue(model), getHostLifetimeMeta(model)),
+      brownDwarfKpi("Radius", fmt(model?.radiusRsol, 3), `Rsol | ${fmt(model?.metric?.radiusKm, 0)} km`, {
+        tipLabel: "BD Radius",
+      }),
+      brownDwarfKpi(
+        "Luminosity",
+        formatScaledLuminosityLsol(model?.luminosityLsol, 3),
+        buildLuminosityKpiMeta(model),
+        { tip: buildLuminosityKpiTooltip(model) },
+      ),
+      brownDwarfKpi("Density", `${fmt(model?.densityGcm3, 3)} g/cm\u00b3`),
+      brownDwarfKpi("Temperature", fmt(model?.tempK, 0), "K", { tipLabel: "BD Temperature" }),
+    ];
+    const environmentItems = [
+      brownDwarfKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" }),
+    ];
+    const systemItems = [
+      brownDwarfKpi("Companion Type", getGiantCompanionDisplayLabel(gasCalc), "Cooling-track regime", {
+        tipLabel: "GG Companion Class",
+      }),
+      brownDwarfKpi(
+        "Host frame",
+        gasCalc.hostFrame?.label || "Primary star",
+        gasCalc.hostFrame?.frameKind === "pair"
+          ? "Circumbinary host"
+          : gasCalc.hostFrame?.orbitFamilyKind === "single"
+            ? "Single-star host"
+            : "Circumstellar host",
+      ),
+      brownDwarfKpi("Orbital Period", gasCalc.display.orbitalPeriod, gasCalc.display.orbitalVelocity),
+      brownDwarfKpi("Insolation", gasCalc.display.insolation),
+      brownDwarfKpi("Companion Flux", gasCalc.display.companionFlux),
+      brownDwarfKpi("Flux Variability", gasCalc.display.fluxVariability),
+      brownDwarfKpi(
+        "Dynamical Stability",
+        gasCalc.display.dynamicalStability,
+        Array.isArray(gasCalc.orbital?.dynamicalStabilityNotes)
+          ? gasCalc.orbital.dynamicalStabilityNotes.join(" ")
+          : "",
+      ),
+      brownDwarfKpi("Transit Depth", gasCalc.display.transitDepth, gasCalc.display.transitProbability),
+      brownDwarfKpi("RV Semi-Amplitude", gasCalc.display.rvSemiAmplitude, "Edge-on / transiting reference"),
+    ];
+    const activityItems = [
+      brownDwarfKpi("Activity Regime", `${activity.teffBin || "lateM"}/${activity.ageBand || "old"}`, "Teff + age bins"),
+      brownDwarfKpi("XUV Regime", model?.display?.xuvRegime || "Negligible", model?.display?.xuvSaturationAge || "0 Gyr"),
+      brownDwarfKpi("XUV Flux at 1 AU", model?.display?.xuvFluxAt1Au || "0 erg/cm\u00b2/s", xuvFluxMeta),
+      brownDwarfKpi("XUV Luminosity", model?.display?.xuvLuminosityW || "0 W", model?.display?.xuvLuminosityErgS || "0.00e+0"),
+      brownDwarfKpi("N32 Rate", fmt(activity.energeticFlareRatePerDay, 3), "flares/day (>1e32 erg)", {
+        tipLabel: "Energetic Flare Rate (>1e32 erg)",
+      }),
+      brownDwarfKpi("Energetic Flare Recurrence", energeticRecurrenceText, "for >1e32 erg flares"),
+      brownDwarfKpi("Total Flare Rate (>1e30 erg)", fmt(activity.totalFlareRatePerDay, 3), "flares/day"),
+      brownDwarfKpi("Total Flare Recurrence", totalRecurrenceText, "for >1e30 erg flares"),
+      brownDwarfKpi("Associated CME Rate", fmt(activity.cmeAssociatedRatePerDay, 3), "CME/day"),
+      brownDwarfKpi("Background CME Rate", fmt(activity.cmeBackgroundRatePerDay, 3), "CME/day"),
+      brownDwarfKpi("Total CME Rate", fmt(activity.cmeTotalRatePerDay, 3), cmeTotalMeta),
+      brownDwarfKpi(
+        "Solar CME Envelope (FGK)",
+        activity.teffBin === "FGK" ? "0.5 to 6.0/day" : "n/a",
+        activity.teffBin === "FGK" ? "Solar-cycle observed range" : "FGK stars only",
+      ),
+    ];
+    const habitabilityItems = [
+      brownDwarfKpi(
+        "Direct Earth-like Life",
+        "No (substellar host)",
+        "Use the current temperate zone and moon outputs instead",
+      ),
+    ];
+
+    const derivedDetails = createDerivedDetails(
+      [
+        {
+          id: "gas-giant-details-identity",
+          title: "Identity & Class",
+          items: [
+            { label: "Name", value: giant.name || "Brown dwarf" },
+            { label: "Companion Type", value: getGiantCompanionDisplayLabel(gasCalc) },
+            { label: "Brown Dwarf Class", value: getHostClassValue(model) },
+            { label: "Current Age", value: `${fmt(ageGyr, 3)} Gyr` },
+            { label: "Metallicity [Fe/H]", value: `${fmt(metallicityFeH, 2)} dex` },
+            { label: "Population", value: model?.populationLabel || "Substellar object" },
+          ],
+        },
+        {
+          id: "gas-giant-details-physical",
+          title: "Physical State",
+          items: [
+            { label: "Cooling State", value: getHostLifetimeValue(model), meta: getHostLifetimeMeta(model) },
+            { label: "Mass", value: gasCalc.display.mass, meta: massNote },
+            {
+              label: "Radius",
+              value: `${fmt(model?.radiusRsol, 3)} Rsol`,
+              meta: `${fmt(model?.radiusRj, 3)} Rj | ${fmt(model?.metric?.radiusKm, 0)} km`,
+            },
+            {
+              label: "Luminosity",
+              value: `${formatLuminosityLsol(model?.luminosityLsol, 3)} Lsol`,
+              meta: `${fmt(model?.metric?.luminosityW, 0)} W`,
+            },
+            { label: "Density", value: `${fmt(model?.densityGcm3, 3)} g/cm\u00b3` },
+            { label: "Gravity", value: gasCalc.display.gravity },
+            { label: "Escape Velocity", value: gasCalc.display.escapeVelocity },
+            { label: "Temperature", value: `${fmt(model?.tempK, 0)} K` },
+          ],
+        },
+        {
+          id: "gas-giant-details-environment",
+          title: "Environment",
+          items: [
+            { label: zoneLabel, value: zoneValue, meta: `${model?.display?.hzMkm || "n/a"} million km` },
+            { label: "Star Colour", value: model?.starColourHex || "n/a" },
+            { label: "Equilibrium Temp", value: gasCalc.display.equilibriumTemp },
+            { label: "Bond albedo", value: fmt(gasCalc.thermal.bondAlbedo, 2) },
+            { label: "Internal heat ratio", value: fmt(gasCalc.thermal.internalHeatRatio, 2) },
+            { label: "Atmosphere mix", value: atmosphereMixText },
+            { label: "Dominant trace", value: gasCalc.atmosphere.dominantTrace },
+            { label: "Cloud layers", value: gasCalc.clouds.map((cloud) => cloud.name).join(", ") || "None" },
+          ],
+        },
+        {
+          id: "gas-giant-details-system",
+          title: "System Context",
+          items: [
+            { label: "Companion Type", value: getGiantCompanionDisplayLabel(gasCalc) },
+            {
+              label: "Host frame",
+              value: gasCalc.hostFrame?.label || "Primary star",
+              meta:
+                gasCalc.hostFrame?.frameKind === "pair"
+                  ? "Circumbinary host"
+                  : gasCalc.hostFrame?.orbitFamilyKind === "single"
+                    ? "Single-star host"
+                    : "Circumstellar host",
+            },
+            { label: "Orbital Period", value: gasCalc.display.orbitalPeriod, meta: gasCalc.display.orbitalVelocity },
+            { label: "Insolation", value: gasCalc.display.insolation },
+            { label: "Companion Flux", value: gasCalc.display.companionFlux },
+            { label: "Flux Variability", value: gasCalc.display.fluxVariability },
+            {
+              label: "Dynamical Stability",
+              value: gasCalc.display.dynamicalStability,
+              meta: Array.isArray(gasCalc.orbital?.dynamicalStabilityNotes)
+                ? gasCalc.orbital.dynamicalStabilityNotes.join(" ")
+                : "",
+            },
+            { label: "Transit Depth", value: gasCalc.display.transitDepth, meta: gasCalc.display.transitProbability },
+            { label: "RV Semi-Amplitude", value: gasCalc.display.rvSemiAmplitude, meta: "Edge-on / transiting reference" },
+            ...(gasCalc.display.peri
+              ? [{ label: "Periapsis", value: `${gasCalc.display.peri} (${gasCalc.display.tempPeri})` }]
+              : []),
+            ...(gasCalc.display.apo
+              ? [{ label: "Apoapsis", value: `${gasCalc.display.apo} (${gasCalc.display.tempApo})` }]
+              : []),
+            { label: "Orbital direction", value: gasCalc.display.orbitalDirection },
+            { label: "Local days per year", value: gasCalc.display.localDaysPerYear },
+            { label: "Nearest resonance", value: gasCalc.display.resonance },
+            { label: "Hill sphere", value: gasCalc.display.hillSphere },
+            { label: "Roche limit", value: gasCalc.display.rocheLimit },
+            { label: "Chaotic zone", value: gasCalc.display.chaoticZone },
+          ],
+        },
+        {
+          id: "gas-giant-details-activity",
+          title: "Activity & Radiation",
+          items: [
+            { label: "Activity Regime", value: `${activity.teffBin || "lateM"}/${activity.ageBand || "old"}` },
+            { label: "XUV Regime", value: model?.display?.xuvRegime || "Negligible", meta: model?.display?.xuvSaturationAge || "0 Gyr" },
+            { label: "XUV Flux at 1 AU", value: model?.display?.xuvFluxAt1Au || "0 erg/cm\u00b2/s", meta: xuvFluxMeta },
+            { label: "XUV Luminosity", value: model?.display?.xuvLuminosityW || "0 W", meta: model?.display?.xuvLuminosityErgS || "0.00e+0" },
+            { label: "N32 Rate", value: `${fmt(activity.energeticFlareRatePerDay, 3)} flares/day` },
+            { label: "Energetic Flare Recurrence", value: energeticRecurrenceText },
+            { label: "Total Flare Rate (>1e30 erg)", value: `${fmt(activity.totalFlareRatePerDay, 3)} flares/day` },
+            { label: "Total Flare Recurrence", value: totalRecurrenceText },
+            { label: "Associated CME Rate", value: `${fmt(activity.cmeAssociatedRatePerDay, 3)} CME/day` },
+            { label: "Background CME Rate", value: `${fmt(activity.cmeBackgroundRatePerDay, 3)} CME/day` },
+            { label: "Total CME Rate", value: `${fmt(activity.cmeTotalRatePerDay, 3)} CME/day`, meta: cmeTotalMeta },
+            {
+              label: "Solar CME Envelope (FGK)",
+              value: activity.teffBin === "FGK" ? "0.5 to 6.0/day" : "n/a",
+              meta: activity.teffBin === "FGK" ? "Solar-cycle observed range" : "FGK stars only",
+            },
+            { label: "Magnetic Field", value: gasCalc.display.magneticField, meta: gasCalc.display.magneticMorphology },
+            { label: "Magnetosphere", value: gasCalc.display.magnetosphere },
+            { label: "Moon tidal heating", value: gasCalc.display.moonTidalHeating },
+            { label: "Atmospheric sputtering", value: gasCalc.display.sputteringPlasma },
+            { label: "Mass loss", value: gasCalc.display.massLossRate },
+            { label: "Evaporation", value: gasCalc.display.evaporationTimescale },
+            { label: "Roche lobe", value: gasCalc.display.rocheLobeRadius },
+            { label: "Jeans escape", value: gasCalc.display.jeansEscape },
+            { label: "Tidal locking", value: gasCalc.display.tidalLocking },
+            { label: "Circularisation", value: gasCalc.display.circularisation },
+          ],
+        },
+        {
+          id: "gas-giant-details-habitability",
+          title: "Habitability",
+          items: [
+            {
+              label: "Direct Earth-like Life",
+              value: "No (substellar host)",
+              meta: "Use the current temperate zone and moon outputs instead",
+            },
+          ],
+        },
+      ],
+      { title: "Derived Details" },
+    );
+
+    bodyOutputsEl.replaceChildren();
+    renderKpiSections(bodyOutputsEl, [
+      { id: "gas-giant-summary", title: "Summary", items: summaryItems },
+      { id: "gas-giant-identity", title: "Identity & Class", density: "compact", items: identityItems },
+      { id: "gas-giant-physical", title: "Physical State", density: "compact", items: physicalItems },
+      { id: "gas-giant-environment", title: "Environment", density: "compact", items: environmentItems },
+      { id: "gas-giant-system", title: "System Context", density: "compact", items: systemItems },
+      { id: "gas-giant-activity", title: "Activity & Radiation", density: "compact", items: activityItems },
+      { id: "gas-giant-habitability", title: "Habitability", density: "compact", items: habitabilityItems },
+    ]);
+    if (derivedDetails) bodyOutputsEl.append(derivedDetails);
+
+    const sunCanvas = bodyOutputsEl.querySelector(".sun-preview-canvas");
+    if (sunCanvas) {
+      celestialPreviewController.attach(sunCanvas, previewModel);
+    } else {
+      celestialPreviewController.detach();
+    }
   }
 
   function renderGasGiantOutputs(world, giant, sysModel) {
@@ -3657,23 +4297,41 @@ export function initPlanetPage(mountEl, options = {}) {
       ggRingStyleHintEl.textContent = formatRingStyleHint(ringAppearance, ringState);
     }
 
+    if (isBrownDwarfCompanion(m)) {
+      renderBrownDwarfCompanionOutputs(world, giant, sysModel, m);
+      return;
+    }
+
     const prevGasCanvas = bodyOutputsEl.querySelector(".gg-preview-canvas");
+    const isBrownDwarf = isBrownDwarfCompanion(m);
+    const classTip = isBrownDwarf ? TIP_LABEL["GG Companion Class"] || "" : TIP_LABEL["Sudarsky"] || "";
+    const classValue = isBrownDwarf
+      ? m.classification?.substellarClass || m.display?.classification || "Brown dwarf"
+      : `Class ${m.classification.sudarsky}`;
     const appearanceItem = {
       kind: "preview",
       label: "Appearance",
-      tip: TIP_LABEL["Sudarsky"] || "",
+      tip: classTip,
       canvasClass: "gg-preview-canvas",
       canvasDataset: {
         style: derivedStyle,
         rings: String(showRings),
       },
-      meta: `${styleLabel(derivedStyle)} - Class ${m.classification.sudarsky}`,
+      meta: isBrownDwarf
+        ? `${styleLabel(derivedStyle)} - ${classValue}`
+        : `${styleLabel(derivedStyle)} - Class ${m.classification.sudarsky}`,
     };
     const classItem = {
-      label: "Class",
-      tip: TIP_LABEL["Sudarsky"] || "",
-      value: `Class ${m.classification.sudarsky}`,
+      label: isBrownDwarf ? "Brown Dwarf Class" : "Class",
+      tip: classTip,
+      value: classValue,
       meta: styleLabel(derivedStyle),
+    };
+    const companionTypeItem = {
+      label: "Companion Type",
+      tip: TIP_LABEL["GG Companion Class"] || "",
+      value: getGiantCompanionDisplayLabel(m),
+      meta: isBrownDwarf ? "Cooling-track regime" : "Planetary giant regime",
     };
     const massItem = {
       label: "Mass",
@@ -3714,11 +4372,11 @@ export function initPlanetPage(mountEl, options = {}) {
       value: m.display.magneticField,
       meta: `${m.display.magneticMorphology} - ${m.magnetic.dynamoReason}`,
     };
-    const equilibriumTempItem = {
-      label: "Equilibrium Temp",
+    const temperatureItem = {
+      label: isBrownDwarf ? "Intrinsic Temp" : "Equilibrium Temp",
       tip: TIP_LABEL["GG Equilibrium Temp"] || "",
-      value: m.display.equilibriumTemp,
-      meta: `T_eff ${m.display.effectiveTemp}`,
+      value: isBrownDwarf ? m.display.effectiveTemp : m.display.equilibriumTemp,
+      meta: isBrownDwarf ? `T_eq ${m.display.equilibriumTemp}` : `T_eff ${m.display.effectiveTemp}`,
     };
     const orbitalPeriodItem = {
       label: "Orbital Period",
@@ -3737,6 +4395,21 @@ export function initPlanetPage(mountEl, options = {}) {
       tip: TIP_LABEL["GG Derived"] || "",
       value: m.atmosphere.dominantTrace,
       meta: `Clouds ${clouds}`,
+    };
+    const luminosityItem = {
+      label: "Luminosity",
+      tip: TIP_LABEL["GG Derived"] || "",
+      value: m.display.luminosity || "n/a",
+    };
+    const coolingItem = {
+      label: "Cooling State",
+      tip: TIP_LABEL["GG Companion Class"] || "",
+      value: m.display.coolingState || "n/a",
+    };
+    const zoneItem = {
+      label: m.display.zoneLabel || getInsolationZoneLabelForRegime("brownDwarf"),
+      tip: TIP_LABEL["Habitable Zone"] || "",
+      value: m.display.zone || "n/a",
     };
     const insolationItem = {
       label: "Insolation",
@@ -3801,19 +4474,34 @@ export function initPlanetPage(mountEl, options = {}) {
       meta: m.display.evaporationTimescale,
     };
 
-    const summaryItems = [
-      appearanceItem,
-      classItem,
-      massItem,
-      radiusItem,
-      equilibriumTempItem,
-      orbitalPeriodItem,
-      magneticFieldItem,
-      ringsItem,
-    ];
-    const identityItems = [classItem, metallicityItem];
+    const summaryItems = isBrownDwarf
+      ? [
+          appearanceItem,
+          classItem,
+          massItem,
+          radiusItem,
+          temperatureItem,
+          zoneItem,
+          coolingItem,
+          magneticFieldItem,
+        ]
+      : [
+          appearanceItem,
+          classItem,
+          massItem,
+          radiusItem,
+          temperatureItem,
+          orbitalPeriodItem,
+          magneticFieldItem,
+          ringsItem,
+        ];
+    const identityItems = isBrownDwarf
+      ? [companionTypeItem, classItem, luminosityItem, coolingItem]
+      : [classItem, metallicityItem];
     const physicalItems = [massItem, radiusItem, densityItem, gravityItem, escapeVelocityItem];
-    const environmentItems = [equilibriumTempItem, atmosphereItem, ringsItem];
+    const environmentItems = isBrownDwarf
+      ? [temperatureItem, luminosityItem, zoneItem, atmosphereItem]
+      : [temperatureItem, atmosphereItem, ringsItem];
     const systemItems = [
       hostFrameItem,
       orbitalPeriodItem,
@@ -3831,144 +4519,163 @@ export function initPlanetPage(mountEl, options = {}) {
       massLossItem,
     ];
 
+    const identityDetailItems = isBrownDwarf
+      ? [
+          { label: "Companion Type", value: getGiantCompanionDisplayLabel(m) },
+          { label: "Class", value: classValue },
+          { label: "Style", value: styleLabel(derivedStyle) },
+          { label: "Luminosity", value: m.display.luminosity },
+          { label: "Cooling state", value: m.display.coolingState },
+        ]
+      : [
+          { label: "Class", value: `Class ${m.classification.sudarsky}` },
+          { label: "Style", value: styleLabel(derivedStyle) },
+          { label: "Metallicity", value: m.display.metallicity, meta: metNote },
+          { label: "Heavy elements", value: m.display.heavyElements },
+          { label: "Bulk metallicity", value: m.display.bulkMetallicity },
+        ];
+    const physicalDetailItems = [
+      { label: "Mass", value: m.display.mass, meta: massNote },
+      { label: "Radius", value: m.display.radius, meta: radiusNote },
+      { label: "Density", value: m.display.density },
+      { label: "Gravity", value: m.display.gravity },
+      { label: "Escape Velocity", value: m.display.escapeVelocity },
+      { label: "Suggested radius", value: m.display.suggestedRadius },
+      { label: "Radius inflation", value: m.display.radiusInflation },
+      { label: "Radius age note", value: m.display.radiusAgeNote },
+      { label: "Oblateness", value: m.display.oblateness },
+      { label: "Equatorial/Polar", value: m.display.equatorialRadius },
+    ];
+    const environmentDetailItems = [
+      {
+        label: "Atmosphere mix",
+        value: `H2 ${m.atmosphere.h2Pct}%, He ${m.atmosphere.hePct}%${m.atmosphere.ch4Pct > 0 ? `, CH4 ${m.atmosphere.ch4Pct}%` : ""}${m.atmosphere.coPct > 0 ? `, CO ${m.atmosphere.coPct}%` : ""}${m.atmosphere.nh3Pct > 0 ? `, NH3 ${m.atmosphere.nh3Pct}%` : ""}`,
+      },
+      { label: "Dominant trace", value: m.atmosphere.dominantTrace },
+      { label: "Cloud layers", value: clouds },
+      { label: "Bond albedo", value: fmt(m.thermal.bondAlbedo, 2) },
+      { label: "Internal heat ratio", value: fmt(m.thermal.internalHeatRatio, 2) },
+      { label: "Equilibrium Temp", value: m.display.equilibriumTemp },
+      { label: "Effective Temp", value: m.display.effectiveTemp },
+      ...(isBrownDwarf
+        ? [
+            { label: "Luminosity", value: m.display.luminosity },
+            { label: m.display.zoneLabel || "Current Temperate Zone", value: m.display.zone },
+            { label: "Cooling state", value: m.display.coolingState },
+          ]
+        : []),
+      {
+        label: "Ring visibility",
+        value: ringDisplay.value,
+        meta: getGasGiantRingModeLabel(ringState.ringMode),
+      },
+      { label: "Ring science", value: ringState.scienceReason, meta: ringOverrideMeta },
+      { label: "Ring style", value: ringStyleDisplay.value, meta: ringStyleDisplay.meta },
+      {
+        label: "Ring style source",
+        value: getRingStyleSourceLabel(ringAppearance.styleSource),
+      },
+      { label: "Ring type", value: m.display.ringType },
+      { label: "Ring details", value: m.display.ringDetails },
+    ];
+    const systemDetailItems = [
+      {
+        label: "Host frame",
+        value: m.hostFrame?.label || "Primary star",
+        meta:
+          m.hostFrame?.frameKind === "pair"
+            ? "Circumbinary host"
+            : m.hostFrame?.orbitFamilyKind === "single"
+              ? "Single-star host"
+              : "Circumstellar host",
+      },
+      {
+        label: "Orbital Period",
+        value: m.display.orbitalPeriod,
+        meta: m.display.orbitalVelocity,
+      },
+      { label: "Insolation", value: m.display.insolation },
+      { label: "Companion Flux", value: m.display.companionFlux },
+      { label: "Flux Variability", value: m.display.fluxVariability },
+      {
+        label: "Dynamical Stability",
+        value: m.display.dynamicalStability,
+        meta:
+          Array.isArray(m.orbital?.dynamicalStabilityNotes) && m.orbital.dynamicalStabilityNotes.length
+            ? m.orbital.dynamicalStabilityNotes.join(" ")
+            : "",
+      },
+      {
+        label: "Transit Depth",
+        value: m.display.transitDepth,
+        meta: m.display.transitProbability,
+      },
+      {
+        label: "RV Semi-Amplitude",
+        value: m.display.rvSemiAmplitude,
+        meta: "Edge-on / transiting reference",
+      },
+      ...(m.display.peri
+        ? [{ label: "Periapsis", value: `${m.display.peri} (${m.display.tempPeri})` }]
+        : []),
+      ...(m.display.apo
+        ? [{ label: "Apoapsis", value: `${m.display.apo} (${m.display.tempApo})` }]
+        : []),
+      { label: "Orbital direction", value: m.display.orbitalDirection },
+      { label: "Local days per year", value: m.display.localDaysPerYear },
+      { label: "Nearest resonance", value: m.display.resonance },
+      { label: "Hill sphere", value: m.display.hillSphere },
+      { label: "Roche limit", value: m.display.rocheLimit },
+      { label: "Chaotic zone", value: m.display.chaoticZone },
+      {
+        label: "Ring zone",
+        value: `${fmt(m.gravity.ringZoneInnerKm, 0)}-${fmt(m.gravity.ringZoneOuterKm, 0)} km`,
+      },
+    ];
+    const activityDetailItems = [
+      {
+        label: "Magnetic Field",
+        value: m.display.magneticField,
+        meta: m.display.magneticMorphology,
+      },
+      { label: "Magnetosphere", value: m.display.magnetosphere },
+      { label: "Moon tidal heating", value: m.display.moonTidalHeating },
+      { label: "Atmospheric sputtering", value: m.display.sputteringPlasma },
+      { label: "Bands", value: m.display.bands },
+      { label: "Wind speed", value: m.display.windSpeed },
+      { label: "Mass loss", value: m.display.massLossRate },
+      { label: "Evaporation", value: m.display.evaporationTimescale },
+      { label: "Roche lobe", value: m.display.rocheLobeRadius },
+      { label: "Jeans escape", value: m.display.jeansEscape },
+      { label: "Tidal locking", value: m.display.tidalLocking },
+      { label: "Circularisation", value: m.display.circularisation },
+    ];
     const derivedDetails = createDerivedDetails(
       [
         {
           id: "gas-giant-details-identity",
           title: "Identity & Class",
-          items: [
-            { label: "Class", value: `Class ${m.classification.sudarsky}` },
-            { label: "Style", value: styleLabel(derivedStyle) },
-            { label: "Metallicity", value: m.display.metallicity, meta: metNote },
-            { label: "Heavy elements", value: m.display.heavyElements },
-            { label: "Bulk metallicity", value: m.display.bulkMetallicity },
-          ],
+          items: identityDetailItems,
         },
         {
           id: "gas-giant-details-physical",
           title: "Physical State",
-          items: [
-            { label: "Mass", value: m.display.mass, meta: massNote },
-            { label: "Radius", value: m.display.radius, meta: radiusNote },
-            { label: "Density", value: m.display.density },
-            { label: "Gravity", value: m.display.gravity },
-            { label: "Escape Velocity", value: m.display.escapeVelocity },
-            { label: "Suggested radius", value: m.display.suggestedRadius },
-            { label: "Radius inflation", value: m.display.radiusInflation },
-            { label: "Radius age note", value: m.display.radiusAgeNote },
-            { label: "Oblateness", value: m.display.oblateness },
-            { label: "Equatorial/Polar", value: m.display.equatorialRadius },
-          ],
+          items: physicalDetailItems,
         },
         {
           id: "gas-giant-details-environment",
           title: "Environment",
-          items: [
-            {
-              label: "Atmosphere mix",
-              value: `H2 ${m.atmosphere.h2Pct}%, He ${m.atmosphere.hePct}%${m.atmosphere.ch4Pct > 0 ? `, CH4 ${m.atmosphere.ch4Pct}%` : ""}${m.atmosphere.coPct > 0 ? `, CO ${m.atmosphere.coPct}%` : ""}`,
-            },
-            { label: "Dominant trace", value: m.atmosphere.dominantTrace },
-            { label: "Cloud layers", value: clouds },
-            { label: "Bond albedo", value: fmt(m.thermal.bondAlbedo, 2) },
-            { label: "Internal heat ratio", value: fmt(m.thermal.internalHeatRatio, 2) },
-            { label: "Equilibrium Temp", value: m.display.equilibriumTemp },
-            { label: "Effective Temp", value: m.display.effectiveTemp },
-            {
-              label: "Ring visibility",
-              value: ringDisplay.value,
-              meta: getGasGiantRingModeLabel(ringState.ringMode),
-            },
-            { label: "Ring science", value: ringState.scienceReason, meta: ringOverrideMeta },
-            { label: "Ring style", value: ringStyleDisplay.value, meta: ringStyleDisplay.meta },
-            {
-              label: "Ring style source",
-              value: getRingStyleSourceLabel(ringAppearance.styleSource),
-            },
-            { label: "Ring type", value: m.display.ringType },
-            { label: "Ring details", value: m.display.ringDetails },
-          ],
+          items: environmentDetailItems,
         },
         {
           id: "gas-giant-details-system",
           title: "System Context",
-          items: [
-            {
-              label: "Host frame",
-              value: m.hostFrame?.label || "Primary star",
-              meta:
-                m.hostFrame?.frameKind === "pair"
-                  ? "Circumbinary host"
-                  : m.hostFrame?.orbitFamilyKind === "single"
-                    ? "Single-star host"
-                    : "Circumstellar host",
-            },
-            {
-              label: "Orbital Period",
-              value: m.display.orbitalPeriod,
-              meta: m.display.orbitalVelocity,
-            },
-            { label: "Insolation", value: m.display.insolation },
-            { label: "Companion Flux", value: m.display.companionFlux },
-            { label: "Flux Variability", value: m.display.fluxVariability },
-            {
-              label: "Dynamical Stability",
-              value: m.display.dynamicalStability,
-              meta:
-                Array.isArray(m.orbital?.dynamicalStabilityNotes) &&
-                m.orbital.dynamicalStabilityNotes.length
-                  ? m.orbital.dynamicalStabilityNotes.join(" ")
-                  : "",
-            },
-            {
-              label: "Transit Depth",
-              value: m.display.transitDepth,
-              meta: m.display.transitProbability,
-            },
-            {
-              label: "RV Semi-Amplitude",
-              value: m.display.rvSemiAmplitude,
-              meta: "Edge-on / transiting reference",
-            },
-            ...(m.display.peri
-              ? [{ label: "Periapsis", value: `${m.display.peri} (${m.display.tempPeri})` }]
-              : []),
-            ...(m.display.apo
-              ? [{ label: "Apoapsis", value: `${m.display.apo} (${m.display.tempApo})` }]
-              : []),
-            { label: "Orbital direction", value: m.display.orbitalDirection },
-            { label: "Local days per year", value: m.display.localDaysPerYear },
-            { label: "Nearest resonance", value: m.display.resonance },
-            { label: "Hill sphere", value: m.display.hillSphere },
-            { label: "Roche limit", value: m.display.rocheLimit },
-            { label: "Chaotic zone", value: m.display.chaoticZone },
-            {
-              label: "Ring zone",
-              value: `${fmt(m.gravity.ringZoneInnerKm, 0)}-${fmt(m.gravity.ringZoneOuterKm, 0)} km`,
-            },
-          ],
+          items: systemDetailItems,
         },
         {
           id: "gas-giant-details-activity",
           title: "Activity & Radiation",
-          items: [
-            {
-              label: "Magnetic Field",
-              value: m.display.magneticField,
-              meta: m.display.magneticMorphology,
-            },
-            { label: "Magnetosphere", value: m.display.magnetosphere },
-            { label: "Moon tidal heating", value: m.display.moonTidalHeating },
-            { label: "Atmospheric sputtering", value: m.display.sputteringPlasma },
-            { label: "Bands", value: m.display.bands },
-            { label: "Wind speed", value: m.display.windSpeed },
-            { label: "Mass loss", value: m.display.massLossRate },
-            { label: "Evaporation", value: m.display.evaporationTimescale },
-            { label: "Roche lobe", value: m.display.rocheLobeRadius },
-            { label: "Jeans escape", value: m.display.jeansEscape },
-            { label: "Tidal locking", value: m.display.tidalLocking },
-            { label: "Circularisation", value: m.display.circularisation },
-          ],
+          items: activityDetailItems,
         },
       ],
       { title: "Derived Details" },
@@ -5286,6 +5993,7 @@ export function initPlanetPage(mountEl, options = {}) {
       hostFrameId,
       au: slot ? sysModel.orbitsAu[slot - 1] : Number(targetAu.toFixed(2)),
       slotIndex: slot,
+      companionClass: GIANT_COMPANION_CLASS_GAS_GIANT,
       style: "jupiter",
       ringMode: RING_MODE_AUTO,
       ringStyleId: RING_STYLE_AUTO,

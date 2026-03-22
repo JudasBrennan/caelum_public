@@ -58,6 +58,7 @@ export function collectBodyMeshWarmItems(snapshot, options = {}) {
   }
 
   for (const gasGiant of snapshot.gasGiants || []) {
+    if (gasGiant?.renderModel === "brownDwarfStar") continue;
     const key = vizBodyCacheKey("gas", gasGiant);
     const model = {
       bodyType: "gasGiant",

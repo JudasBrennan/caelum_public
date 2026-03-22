@@ -102,6 +102,13 @@ export function normalizeHabitabilityContext(rawContext = {}) {
         : [],
       mantleOxidationKey: String(chemistry.mantleOxidationKey || "earth"),
       primaryOutgassedSpecies: String(chemistry.primaryOutgassedSpecies || ""),
+      ozoneColumnDobsonUnits: optionalFiniteNonNegative(chemistry.ozoneColumnDobsonUnits),
+      ozoneEarthRatio: optionalFiniteNonNegative(chemistry.ozoneEarthRatio),
+      uvShieldingScore: optionalFraction(chemistry.uvShieldingScore),
+      uvShieldingClass: String(chemistry.uvShieldingClass || ""),
+      photochemicalWarningCodes: Array.isArray(chemistry.photochemicalWarningCodes)
+        ? chemistry.photochemicalWarningCodes.map((code) => String(code))
+        : [],
     },
     climate: {
       climateState: String(climate.climateState || "Stable"),

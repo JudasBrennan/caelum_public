@@ -686,8 +686,15 @@ export function renderGasGiantInputForm(
     hostFrameHint = "",
     tipLabels,
     ranges,
+    companionClassOptions = [],
+    descriptors = {},
   } = {},
 ) {
+  const bodyLabel = descriptors.bodyLabel || "Gas giant";
+  const defaultName = descriptors.defaultName || bodyLabel;
+  const radiusHint = descriptors.radiusHint || "1.00 Rj = Jupiter-size.";
+  const massHint = descriptors.massHint || "Blank = derived from radius.";
+  const metallicityHint = descriptors.metallicityHint || "Blank = derived from mass.";
   const ringModeValue =
     giant?.ringMode === "force-on" || giant?.ringMode === "force-off" ? giant.ringMode : "auto";
   const ringStyleValue = normalizeRingStyleId(giant?.ringStyleId);
@@ -730,14 +737,24 @@ export function renderGasGiantInputForm(
       id: "ggName",
       label: "Name",
       tip: tipLabels.Name || "",
-      value: giant?.name || "Gas giant",
+      value: giant?.name || defaultName,
     }),
+    companionClassOptions.length
+      ? createSelectRow({
+          id: "ggCompanionClass",
+          label: "Companion Class",
+          tip: tipLabels["GG Companion Class"] || "",
+          hint: descriptors.companionClassHint || "",
+          options: companionClassOptions,
+          style: "margin-top:8px",
+        })
+      : null,
     createSliderRow({
       id: "ggRadius",
       label: "Radius",
       unit: "Rj",
       tip: tipLabels["GG Size"] || "",
-      hint: "1.00 Rj = Jupiter-size.",
+      hint: radiusHint,
       min: ranges.radius.min,
       max: ranges.radius.max,
       step: ranges.radius.step,
@@ -749,7 +766,7 @@ export function renderGasGiantInputForm(
       label: "Mass",
       unit: "Mj",
       tip: tipLabels["GG Mass"] || "",
-      hint: "Blank = derived from radius.",
+      hint: massHint,
       min: ranges.mass.min,
       max: ranges.mass.max,
       step: ranges.mass.step,
@@ -775,7 +792,7 @@ export function renderGasGiantInputForm(
       label: "Metallicity",
       unit: "\u00d7 solar",
       tip: tipLabels["GG Metallicity"] || "",
-      hint: "Blank = derived from mass.",
+      hint: metallicityHint,
       min: ranges.metallicity.min,
       max: ranges.metallicity.max,
       step: ranges.metallicity.step,

@@ -1,5 +1,11 @@
 import { clamp } from "../../engine/utils.js";
 import {
+  BROWN_DWARF_MAX_MJUP,
+  BROWN_DWARF_MIN_MJUP,
+  classifyCompanionRegimeByMass,
+  normalizeGiantCompanionClass,
+} from "../../engine/substellarRegime.js";
+import {
   normalizeRingMode,
   RING_MODE_FORCE_OFF,
   RING_MODE_FORCE_ON,
@@ -16,6 +22,11 @@ export const GAS_GIANT_RADIUS_STEP_RJ = 0.01;
 export const GAS_GIANT_MASS_MIN_MJUP = 0.01;
 export const GAS_GIANT_MASS_MAX_MJUP = 13.0;
 export const GAS_GIANT_MASS_STEP_MJUP = 0.01;
+export const BROWN_DWARF_MASS_MIN_MJUP = BROWN_DWARF_MIN_MJUP;
+export const BROWN_DWARF_MASS_MAX_MJUP = BROWN_DWARF_MAX_MJUP;
+export const GIANT_COMPANION_MASS_MAX_MJUP = BROWN_DWARF_MASS_MAX_MJUP;
+export const GIANT_COMPANION_CLASS_GAS_GIANT = "gasGiant";
+export const GIANT_COMPANION_CLASS_BROWN_DWARF = "brownDwarf";
 // Gas giant atmospheric metallicity bounds (x solar):
 // 0.1x = very metal-poor, 200x = extreme ice-giant enrichment.
 export const GAS_GIANT_METALLICITY_MIN = 0.1;
@@ -59,6 +70,29 @@ export function randomGasGiantRadiusRj() {
   return clampGasGiantRadiusRj(GAS_GIANT_RADIUS_MIN_RJ + Math.random() * span);
 }
 
+export function getGiantCompanionMassBounds(companionClass) {
+  const normalizedClass = normalizeGiantCompanionClass(companionClass);
+  if (normalizedClass === GIANT_COMPANION_CLASS_BROWN_DWARF) {
+    return {
+      min: BROWN_DWARF_MASS_MIN_MJUP,
+      max: BROWN_DWARF_MASS_MAX_MJUP,
+      step: GAS_GIANT_MASS_STEP_MJUP,
+    };
+  }
+  return {
+    min: GAS_GIANT_MASS_MIN_MJUP,
+    max: GAS_GIANT_MASS_MAX_MJUP,
+    step: GAS_GIANT_MASS_STEP_MJUP,
+  };
+}
+
+export function clampGiantCompanionMassMjup(value, companionClass) {
+  const mass = Number(value);
+  if (!Number.isFinite(mass) || mass <= 0) return null;
+  const bounds = getGiantCompanionMassBounds(companionClass);
+  return roundToStep(clamp(mass, bounds.min, bounds.max), bounds.step);
+}
+
 export function normalizeGasGiantStyle(style) {
   const normalized = String(style || "jupiter").toLowerCase();
   return GAS_GIANT_STYLE_ALIASES[normalized] || normalized;
@@ -75,8 +109,23 @@ export function normalizeGasGiant(raw, idx = 1) {
     : seededGasGiantRadiusRj(raw?.id || raw?.name || `gg${idx}`);
   const rawMass = raw?.massMjup ?? raw?.massJupiter ?? raw?.massMj ?? null;
   const parsedMass = Number(rawMass);
+  const explicitCompanionClass = normalizeGiantCompanionClass(raw?.companionClass);
+  const inferredCompanionClass =
+    rawMass != null && Number.isFinite(parsedMass) && parsedMass > 0
+      ? classifyCompanionRegimeByMass({
+          massMjup: clamp(parsedMass, GAS_GIANT_MASS_MIN_MJUP, GIANT_COMPANION_MASS_MAX_MJUP),
+        }) === GIANT_COMPANION_CLASS_GAS_GIANT
+        ? GIANT_COMPANION_CLASS_GAS_GIANT
+        : GIANT_COMPANION_CLASS_BROWN_DWARF
+      : explicitCompanionClass;
+  const companionClass =
+    inferredCompanionClass === GIANT_COMPANION_CLASS_BROWN_DWARF
+      ? GIANT_COMPANION_CLASS_BROWN_DWARF
+      : GIANT_COMPANION_CLASS_GAS_GIANT;
   const massMjup =
-    rawMass != null && Number.isFinite(parsedMass) && parsedMass > 0 ? parsedMass : null;
+    rawMass != null && Number.isFinite(parsedMass) && parsedMass > 0
+      ? clampGiantCompanionMassMjup(parsedMass, companionClass)
+      : null;
   const rawRot = raw?.rotationPeriodHours ?? raw?.rotationHours ?? raw?.rotPeriodH ?? null;
   const parsedRot = Number(rawRot);
   const rotationPeriodHours =
@@ -93,6 +142,8 @@ export function normalizeGasGiant(raw, idx = 1) {
   const eccentricity = Number.isFinite(rawEcc) && rawEcc >= 0 && rawEcc <= 0.99 ? rawEcc : null;
   const rawInc = Number(raw?.inclinationDeg ?? raw?.inclination);
   const inclinationDeg = Number.isFinite(rawInc) && rawInc >= 0 && rawInc <= 180 ? rawInc : null;
+  const rawLop = Number(raw?.longitudeOfPeriapsisDeg ?? raw?.longitudeOfPeriapsis ?? raw?.argPeriapsisDeg);
+  const longitudeOfPeriapsisDeg = Number.isFinite(rawLop) ? rawLop : null;
   const rawTilt = Number(raw?.axialTiltDeg ?? raw?.axialTilt ?? raw?.obliquity);
   const axialTiltDeg = Number.isFinite(rawTilt) && rawTilt >= 0 && rawTilt <= 180 ? rawTilt : null;
   const ringMode = normalizeRingMode(raw?.ringMode);
@@ -105,10 +156,15 @@ export function normalizeGasGiant(raw, idx = 1) {
         : raw?.rings === true;
   return {
     id: String(raw?.id || `gg${idx}`),
-    name: String(raw?.name || `Gas giant ${idx}`),
+    name:
+      String(raw?.name || "").trim() ||
+      (companionClass === GIANT_COMPANION_CLASS_BROWN_DWARF
+        ? `Brown dwarf ${idx}`
+        : `Gas giant ${idx}`),
     hostFrameId: String(raw?.hostFrameId || "").trim() || null,
     au: fixedAu,
     slotIndex,
+    companionClass,
     style: normalizeGasGiantStyle(raw?.style),
     ringMode,
     ringStyleId,
@@ -119,6 +175,7 @@ export function normalizeGasGiant(raw, idx = 1) {
     metallicity,
     eccentricity,
     inclinationDeg,
+    longitudeOfPeriapsisDeg,
     axialTiltDeg,
     appearanceRecipeId: appearanceRecipeId || "",
   };

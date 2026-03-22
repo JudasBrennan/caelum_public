@@ -129,7 +129,6 @@ function uvScreeningScore(context) {
     chemistry.intrinsicFieldKnown === false
       ? null
       : clamp(Math.max(toFinite(chemistry.surfaceFieldEarths, 0), 0) / 0.3, 0, 1);
-  const ozoneProxy = clamp(Math.max(toFinite(atmosphere.o2, 0), 0) / 0.1, 0, 1);
   const hazeProxy = clamp(
     (Math.max(toFinite(atmosphere.ch4, 0), 0) + Math.max(toFinite(atmosphere.n2, 0), 0)) / 0.12,
     0,
@@ -138,12 +137,21 @@ function uvScreeningScore(context) {
   const xuvFluxRatio = Math.max(toFinite(energy.xuvFluxRatio, 0), 0);
   const xuvProtection =
     xuvFluxRatio <= 1 ? 1 : clamp(1 - Math.log10(Math.max(xuvFluxRatio, 1)) / 2.5, 0, 1);
+  const explicitScore = Number.isFinite(chemistry.uvShieldingScore)
+    ? clamp(toFinite(chemistry.uvShieldingScore, 0), 0, 1)
+    : null;
+  const explicitOzoneProxy = Number.isFinite(chemistry.ozoneEarthRatio)
+    ? clamp(toFinite(chemistry.ozoneEarthRatio, 0) / 1.5, 0, 1)
+    : null;
+  const legacyOzoneProxy = clamp(Math.max(toFinite(atmosphere.o2, 0), 0) / 0.1, 0, 1);
+  const ozoneProxy = explicitOzoneProxy ?? legacyOzoneProxy;
+  const legacyScore = weightedMeanIgnoringNulls(
+    [denseAtmShield, fieldShield, Math.max(legacyOzoneProxy, hazeProxy), xuvProtection],
+    [0.35, 0.15, 0.2, 0.3],
+  );
 
   return {
-    score: weightedMeanIgnoringNulls(
-      [denseAtmShield, fieldShield, Math.max(ozoneProxy, hazeProxy), xuvProtection],
-      [0.35, 0.15, 0.2, 0.3],
-    ),
+    score: explicitScore ?? legacyScore,
     denseAtmShield,
     fieldShield,
     ozoneProxy,

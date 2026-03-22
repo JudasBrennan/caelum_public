@@ -67,6 +67,7 @@ function buildStarContexts(stellarSystem, topology) {
     starsById[starId] = {
       id: starId,
       kind: "star",
+      regime: model?.regime || "star",
       component,
       config,
       model,
@@ -130,6 +131,9 @@ function buildPairContexts(stellarSystem, topology, starsById) {
     pairsById[pairId] = {
       id: pairId,
       kind: "pair",
+      regime: starContexts.length > 0 && starContexts.every((entry) => entry?.model?.regime === "brownDwarf")
+        ? "brownDwarf"
+        : "star",
       ...component,
       starIds,
       combinedMassMsol,

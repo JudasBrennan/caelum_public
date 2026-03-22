@@ -35,7 +35,7 @@ const TIP_LABEL = {
     "Phase function classification. " +
     "Type 1 (Rocky, airless): Bowell HG system, G=0.28. " +
     "Type 2 (Rocky w/ atmosphere): empirical polynomial. " +
-    "Type 3 (Gas giant, R \u2265 1.5 R\u2295): piecewise polynomial with opposition surge. " +
+    "Type 3 (Gas giant / brown dwarf, R \u2265 1.5 R\u2295): piecewise polynomial with opposition surge. " +
     "Type 4 (Tiny body, R < 0.1 R\u2295): Bowell HG, G=0.15.",
   "Moon apparent table":
     "Moon apparent outputs from the selected home world. " +
@@ -106,7 +106,7 @@ const TIP_LABEL = {
     "Apparent visual magnitude of the host star as seen from the home world.\n\n" +
     "The Sun from Earth is \u22122.74 mag.",
   "Brightest object":
-    "The planet or gas giant with the lowest (brightest) apparent magnitude " +
+    "The planet or giant companion with the lowest (brightest) apparent magnitude " +
     "as seen from the home world at the current phase.",
   "Brightest moon":
     "The moon with the lowest (brightest) apparent magnitude as seen from " +
@@ -167,14 +167,14 @@ const TUTORIAL_STEPS = [
     title: "Object Tables",
     body:
       "Tables list apparent magnitude, angular diameter, phase angle, and " +
-      "illuminated fraction for every planet, gas giant, and moon in your " +
+      "illuminated fraction for every planet, giant companion, and moon in your " +
       "system.",
   },
   {
     title: "Phase Functions",
     body:
       "Four body types use different scattering models: rocky airless, rocky " +
-      "with atmosphere, gas giant, and tiny body. Phase angles above 160\u00B0 " +
+      "with atmosphere, gas giant / brown dwarf, and tiny body. Phase angles above 160\u00B0 " +
       "are flagged as too extreme to observe.",
   },
 ];

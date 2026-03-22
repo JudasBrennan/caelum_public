@@ -403,6 +403,71 @@ const STYLE_DEFS = [
     glow: null,
     special: null,
   },
+  {
+    id: "brown-dwarf-l",
+    label: "L Dwarf",
+    category: "Substellar",
+    palette: {
+      size: 13,
+      c1: "rgba(218, 162, 108, 0.98)",
+      c2: "rgba(150, 92, 48, 0.96)",
+      c3: "rgba(62, 26, 12, 0.96)",
+      ring: "transparent",
+    },
+    bands: [
+      { y: 0.22, h: 0.08, colour: "rgba(175,112,62,0.38)" },
+      { y: 0.46, h: 0.09, colour: "rgba(118,62,28,0.46)" },
+      { y: 0.72, h: 0.07, colour: "rgba(165,102,58,0.32)" },
+    ],
+    spots: [{ x: 0.56, y: 0.46, rx: 0.09, ry: 0.05, colour: "rgba(82,36,18,0.52)" }],
+    hasRing: false,
+    ringStyle: { colour: "rgba(160,110,78,0.2)", gap: 0.75, width: 0.28 },
+    glow: { colour: "rgba(255,140,70,0.15)", radius: 1.14 },
+    special: null,
+  },
+  {
+    id: "brown-dwarf-t",
+    label: "T Dwarf",
+    category: "Substellar",
+    palette: {
+      size: 12,
+      c1: "rgba(142, 164, 198, 0.98)",
+      c2: "rgba(78, 98, 142, 0.96)",
+      c3: "rgba(24, 34, 62, 0.96)",
+      ring: "transparent",
+    },
+    bands: [
+      { y: 0.25, h: 0.07, colour: "rgba(108,128,170,0.26)" },
+      { y: 0.52, h: 0.08, colour: "rgba(64,82,132,0.34)" },
+      { y: 0.76, h: 0.05, colour: "rgba(96,118,162,0.24)" },
+    ],
+    spots: [{ x: 0.48, y: 0.58, rx: 0.08, ry: 0.04, colour: "rgba(34,44,82,0.44)" }],
+    hasRing: false,
+    ringStyle: { colour: "rgba(110,130,170,0.18)", gap: 0.78, width: 0.24 },
+    glow: { colour: "rgba(110,135,180,0.12)", radius: 1.12 },
+    special: null,
+  },
+  {
+    id: "brown-dwarf-y",
+    label: "Y Dwarf",
+    category: "Substellar",
+    palette: {
+      size: 11,
+      c1: "rgba(166, 178, 188, 0.96)",
+      c2: "rgba(98, 112, 128, 0.94)",
+      c3: "rgba(42, 50, 60, 0.94)",
+      ring: "transparent",
+    },
+    bands: [
+      { y: 0.32, h: 0.05, colour: "rgba(126,138,150,0.18)" },
+      { y: 0.62, h: 0.06, colour: "rgba(82,94,108,0.22)" },
+    ],
+    spots: [],
+    hasRing: false,
+    ringStyle: { colour: "rgba(140,150,165,0.14)", gap: 0.8, width: 0.22 },
+    glow: { colour: "rgba(160,172,188,0.08)", radius: 1.08 },
+    special: null,
+  },
 ];
 
 const GAS_STYLE_FAMILY_DEFAULTS = {
@@ -524,6 +589,34 @@ const GAS_STYLE_META_BY_ID = {
     turbulenceDefault: 0.14,
     shearDefault: 0.08,
     defaultHaze: 0.2,
+    polarHaze: 0.3,
+  },
+  "brown-dwarf-l": {
+    family: "patchy",
+    bandContrastDefault: 0.38,
+    bandCountDefault: 5,
+    turbulenceDefault: 0.46,
+    shearDefault: 0.24,
+    defaultHaze: 0.14,
+    polarHaze: 0.18,
+  },
+  "brown-dwarf-t": {
+    family: "patchy",
+    bandContrastDefault: 0.28,
+    bandCountDefault: 4,
+    turbulenceDefault: 0.34,
+    shearDefault: 0.16,
+    defaultHaze: 0.18,
+    polarHaze: 0.24,
+  },
+  "brown-dwarf-y": {
+    family: "solid",
+    hasVisibleBands: false,
+    bandContrastDefault: 0.12,
+    bandCountDefault: 2,
+    turbulenceDefault: 0.14,
+    shearDefault: 0.08,
+    defaultHaze: 0.22,
     polarHaze: 0.3,
   },
   "sub-neptune": {
@@ -736,6 +829,37 @@ export function normalizeStyleId(id) {
 export function suggestStyles(ggCalc) {
   if (!ggCalc || !ggCalc.classification) {
     return { primary: "jupiter", candidates: ["jupiter", "saturn"] };
+  }
+
+  if (
+    ggCalc.regime === "brownDwarf" ||
+    ggCalc.companionClass === "brownDwarf" ||
+    ggCalc.classification?.substellarClass
+  ) {
+    const family = String(
+      ggCalc.classification?.spectralFamily ||
+        ggCalc.classification?.substellarClass ||
+        "L",
+    )
+      .trim()
+      .charAt(0)
+      .toUpperCase();
+    if (family === "T") {
+      return {
+        primary: "brown-dwarf-t",
+        candidates: ["brown-dwarf-t", "cloudless", "helium"],
+      };
+    }
+    if (family === "Y") {
+      return {
+        primary: "brown-dwarf-y",
+        candidates: ["brown-dwarf-y", "helium", "cloudless"],
+      };
+    }
+    return {
+      primary: "brown-dwarf-l",
+      candidates: ["brown-dwarf-l", "silicate", "alkali"],
+    };
   }
 
   const cls = ggCalc.classification.sudarsky; // "I", "II", ..., "V", "I-ice"

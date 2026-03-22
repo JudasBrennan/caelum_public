@@ -25,6 +25,7 @@ import {
   supportsCelestialTextureWorker,
 } from "./celestialTextureWorkerClient.js";
 import { loadTexturesFromIDB, storeTexturesToIDB, clearStaleTextures } from "./textureCache.js";
+import { getStarVisualStyle } from "./visualizer/starSurface.js";
 
 const DEFAULT_SPEED_DAYS_PER_SEC = 0.5;
 const STAR_BURST_SIZE_SCALE = 0.3;
@@ -190,21 +191,22 @@ function drawSoftBlob(ctx, x, y, radius, rgb, alphaInner, alphaOuter = 0) {
 function paintStarSurfaceTexture(
   ctx,
   size,
-  { baseHex = "#fff4dc", seed = "star", tempK = 5776, activity = 0.2 } = {},
+  { baseHex = "#fff4dc", seed = "star", tempK = 5776, activity = 0.2, regime = null, massMsol = null } = {},
 ) {
   const s = Math.max(64, Number(size) || SURFACE_TEXTURE_SIZE);
   const cx = s * 0.5;
   const cy = s * 0.5;
   const radius = s * 0.48;
   const baseRgb = hexToRgb(baseHex);
-  const coreRgb = hexToRgb(mixHex(baseHex, "#fff7e6", 0.42));
-  const limbRgb = hexToRgb(mixHex(baseHex, "#1d1410", 0.35));
-  const brightRgb = hexToRgb(mixHex(baseHex, "#fff3dc", 0.58));
-  const darkRgb = hexToRgb(mixHex(baseHex, "#130d0b", 0.62));
-  const faculaRgb = hexToRgb(mixHex(baseHex, "#ffd9ad", 0.54));
+  const visualStyle = getStarVisualStyle({ regime, tempK, massMsol });
+  const coreRgb = hexToRgb(mixHex(baseHex, "#fff7e6", visualStyle.coreMix));
+  const limbRgb = hexToRgb(mixHex(baseHex, "#1d1410", visualStyle.limbMix));
+  const brightRgb = hexToRgb(mixHex(baseHex, "#fff3dc", visualStyle.brightMix));
+  const darkRgb = hexToRgb(mixHex(baseHex, "#130d0b", visualStyle.darkMix));
+  const faculaRgb = hexToRgb(mixHex(baseHex, visualStyle.rimWarmHex, visualStyle.faculaMix));
   const tempNorm = clamp((Number(tempK) - 3000) / 7000, 0, 1);
-  const activityNorm = clamp(Number(activity), 0, 1);
-  const contrast = 1 - tempNorm * 0.28;
+  const activityNorm = clamp(Number(activity), 0, 1) * visualStyle.activityScale;
+  const contrast = (1 - tempNorm * 0.28) * visualStyle.surfaceContrastScale;
   const rng = createSeededRng(
     `${seed}:star-surface:${Math.round(Number(tempK) || 5776)}:${Math.round(activityNorm * 100)}`,
   );
@@ -288,8 +290,14 @@ function paintStarSurfaceTexture(
 
   const rimGrad = ctx.createRadialGradient(cx, cy, radius * 0.92, cx, cy, radius * 1.03);
   rimGrad.addColorStop(0, rgbToCss(faculaRgb, 0));
-  rimGrad.addColorStop(0.76, rgbToCss(faculaRgb, 0.5 + activityNorm * 0.2));
-  rimGrad.addColorStop(0.95, rgbToCss(mixRgb(faculaRgb, brightRgb, 0.4), 0.22));
+  rimGrad.addColorStop(
+    0.76,
+    rgbToCss(faculaRgb, (0.5 + activityNorm * 0.2) * visualStyle.rimOpacityScale),
+  );
+  rimGrad.addColorStop(
+    0.95,
+    rgbToCss(mixRgb(faculaRgb, brightRgb, 0.4), 0.22 * visualStyle.rimOpacityScale),
+  );
   rimGrad.addColorStop(1, rgbToCss(faculaRgb, 0));
   ctx.fillStyle = rimGrad;
   ctx.beginPath();
@@ -581,6 +589,8 @@ function updateBursts(preview, dtSec) {
 function drawStarBursts(preview, cx, cy, starR, starColourHex) {
   if (!preview.bursts.length || !preview.ctx) return;
   const ctx = preview.ctx;
+  const burstOpacityScale = Number(preview.model?.visualStyle?.burstOpacityScale || 1);
+  if (!(burstOpacityScale > 0.001)) return;
 
   ctx.save();
   ctx.globalCompositeOperation = "screen";
@@ -591,7 +601,7 @@ function drawStarBursts(preview, cx, cy, starR, starColourHex) {
 
   for (const burst of preview.bursts) {
     const t = clamp(burst.age / burst.ttl, 0, 1);
-    const fade = Math.sin(Math.PI * t) * burst.intensity;
+    const fade = Math.sin(Math.PI * t) * burst.intensity * burstOpacityScale;
     if (!(fade > 0.001)) continue;
 
     const energyNorm = clamp(Number(burst.energyNorm) || flareEnergyNorm(burst.energyErg), 0, 1);
@@ -846,6 +856,8 @@ function ensureSurfaceTexture(preview) {
     seed,
     tempK,
     activity,
+    regime: preview.model.regime,
+    massMsol: preview.model.starMassMsol,
   });
   preview.surfaceTexture = surfaceCanvas;
   preview.surfaceTextureKey = key;
@@ -866,8 +878,9 @@ function drawFrame(preview, dtSec) {
   const cy = H * 0.5;
   const starR = Math.max(30, Math.min(W, H) * STAR_PREVIEW_FILL);
   const starColor = preview.model.starColourHex;
-  const starCoreHex = mixHex(starColor, "#ffffff", 0.34);
-  const starLimbHex = mixHex(starColor, "#0d1420", 0.2);
+  const visualStyle = preview.model.visualStyle || getStarVisualStyle(preview.model);
+  const starCoreHex = mixHex(starColor, "#ffffff", visualStyle.coreMix);
+  const starLimbHex = mixHex(starColor, "#0d1420", visualStyle.limbMix);
   const starActivity = preview.model.starActivityLevel;
   const glowPulse =
     0.55 + 0.45 * Math.sin(preview.activityDays * 0.08 + preview.model.starMassMsol * 0.45);
@@ -878,10 +891,10 @@ function drawFrame(preview, dtSec) {
 
   const coronaOuterR = Math.min(canvasRadius * 0.98, starR * (2.05 + 0.16 * glowPulse));
   const coronaGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coronaOuterR);
-  coronaGrad.addColorStop(0, hexToRgba(starColor, 0.19));
-  coronaGrad.addColorStop(0.22, hexToRgba(starColor, 0.13));
-  coronaGrad.addColorStop(0.5, hexToRgba(starColor, 0.07));
-  coronaGrad.addColorStop(0.78, hexToRgba(starColor, 0.02));
+  coronaGrad.addColorStop(0, hexToRgba(starColor, 0.19 * visualStyle.coronaOpacityScale));
+  coronaGrad.addColorStop(0.22, hexToRgba(starColor, 0.13 * visualStyle.coronaOpacityScale));
+  coronaGrad.addColorStop(0.5, hexToRgba(starColor, 0.07 * visualStyle.coronaOpacityScale));
+  coronaGrad.addColorStop(0.78, hexToRgba(starColor, 0.02 * visualStyle.coronaOpacityScale));
   coronaGrad.addColorStop(1, hexToRgba(starColor, 0));
   ctx.fillStyle = coronaGrad;
   ctx.beginPath();
@@ -889,8 +902,8 @@ function drawFrame(preview, dtSec) {
   ctx.fill();
 
   const innerHaloGrad = ctx.createRadialGradient(cx, cy, starR * 0.55, cx, cy, starR * 1.55);
-  innerHaloGrad.addColorStop(0, hexToRgba(starCoreHex, 0.36));
-  innerHaloGrad.addColorStop(0.4, hexToRgba(starColor, 0.22));
+  innerHaloGrad.addColorStop(0, hexToRgba(starCoreHex, 0.36 * visualStyle.haloOpacityScale));
+  innerHaloGrad.addColorStop(0.4, hexToRgba(starColor, 0.22 * visualStyle.haloOpacityScale));
   innerHaloGrad.addColorStop(1, hexToRgba(starColor, 0));
   ctx.fillStyle = innerHaloGrad;
   ctx.beginPath();
@@ -923,10 +936,13 @@ function drawFrame(preview, dtSec) {
     ctx.fill();
   }
 
-  const rimTint = mixHex(starColor, "#ffd9ad", 0.46);
+  const rimTint = mixHex(starColor, visualStyle.rimWarmHex, Math.max(visualStyle.faculaMix, 0.12));
   const rimGrad = ctx.createRadialGradient(cx, cy, starR * 0.9, cx, cy, starR * 1.05);
   rimGrad.addColorStop(0, hexToRgba(rimTint, 0));
-  rimGrad.addColorStop(0.8, hexToRgba(rimTint, 0.5 + starActivity * 0.2));
+  rimGrad.addColorStop(
+    0.8,
+    hexToRgba(rimTint, (0.5 + starActivity * 0.2) * visualStyle.rimOpacityScale),
+  );
   rimGrad.addColorStop(1, hexToRgba(rimTint, 0));
   ctx.fillStyle = rimGrad;
   ctx.beginPath();
@@ -940,7 +956,9 @@ function stopLoop(preview) {
   preview.running = false;
   preview.lastTs = 0;
   if (preview.rafId != null) {
-    cancelAnimationFrame(preview.rafId);
+    if (typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(preview.rafId);
+    }
     preview.rafId = null;
   }
 }
@@ -966,6 +984,7 @@ function startLoop(preview) {
 function buildModelSignature(model) {
   return [
     model.seed,
+    model.regime,
     model.starColourHex,
     model.starTempK.toFixed(2),
     model.starMassMsol.toFixed(6),
@@ -996,8 +1015,11 @@ function normalizeModel(input) {
   const starAgeGyr = Number(input?.starAgeGyr) || 4.6;
   const starTempK = Number(input?.starTempK) || 5776;
   const starColourHex = normalizeHex(input?.starColourHex || "#fff4dc");
+  const regime = String(input?.regime || "").trim();
+  const visualStyle = getStarVisualStyle({ regime, tempK: starTempK, massMsol: starMassMsol });
   const seed = `${starName}:${starMassMsol.toFixed(6)}:${starAgeGyr.toFixed(6)}:${starTempK.toFixed(2)}`;
   return {
+    regime: regime || visualStyle.regime,
     starName,
     starMassMsol,
     starAgeGyr,
@@ -1011,7 +1033,8 @@ function normalizeModel(input) {
     cmeBackgroundRatePerDay,
     teffBin: String(activity.teffBin || "FGK"),
     ageBand: String(activity.ageBand || "old"),
-    starActivityLevel: clamp(Math.log10(1 + n32) / Math.log10(31), 0, 1),
+    starActivityLevel: clamp(Math.log10(1 + n32) / Math.log10(31), 0, 1) * visualStyle.activityScale,
+    visualStyle,
   };
 }
 
@@ -1163,8 +1186,9 @@ export function renderStarSnapshot(canvas, starInput, fillFraction) {
   const cy = H * 0.5;
   const starR = Math.max(6, Math.min(W, H) * fill);
   const starColor = model.starColourHex;
-  const starCoreHex = mixHex(starColor, "#ffffff", 0.34);
-  const starLimbHex = mixHex(starColor, "#0d1420", 0.2);
+  const visualStyle = model.visualStyle || getStarVisualStyle(model);
+  const starCoreHex = mixHex(starColor, "#ffffff", visualStyle.coreMix);
+  const starLimbHex = mixHex(starColor, "#0d1420", visualStyle.limbMix);
   const canvasRadius = Math.min(W, H) * 0.5;
 
   ctx.clearRect(0, 0, W, H);
@@ -1172,10 +1196,10 @@ export function renderStarSnapshot(canvas, starInput, fillFraction) {
   /* corona */
   const coronaOuterR = Math.min(canvasRadius * 0.98, starR * 2.05);
   const coronaGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coronaOuterR);
-  coronaGrad.addColorStop(0, hexToRgba(starColor, 0.19));
-  coronaGrad.addColorStop(0.22, hexToRgba(starColor, 0.13));
-  coronaGrad.addColorStop(0.5, hexToRgba(starColor, 0.07));
-  coronaGrad.addColorStop(0.78, hexToRgba(starColor, 0.02));
+  coronaGrad.addColorStop(0, hexToRgba(starColor, 0.19 * visualStyle.coronaOpacityScale));
+  coronaGrad.addColorStop(0.22, hexToRgba(starColor, 0.13 * visualStyle.coronaOpacityScale));
+  coronaGrad.addColorStop(0.5, hexToRgba(starColor, 0.07 * visualStyle.coronaOpacityScale));
+  coronaGrad.addColorStop(0.78, hexToRgba(starColor, 0.02 * visualStyle.coronaOpacityScale));
   coronaGrad.addColorStop(1, hexToRgba(starColor, 0));
   ctx.fillStyle = coronaGrad;
   ctx.beginPath();
@@ -1184,8 +1208,8 @@ export function renderStarSnapshot(canvas, starInput, fillFraction) {
 
   /* inner halo */
   const innerHaloGrad = ctx.createRadialGradient(cx, cy, starR * 0.55, cx, cy, starR * 1.55);
-  innerHaloGrad.addColorStop(0, hexToRgba(starCoreHex, 0.36));
-  innerHaloGrad.addColorStop(0.4, hexToRgba(starColor, 0.22));
+  innerHaloGrad.addColorStop(0, hexToRgba(starCoreHex, 0.36 * visualStyle.haloOpacityScale));
+  innerHaloGrad.addColorStop(0.4, hexToRgba(starColor, 0.22 * visualStyle.haloOpacityScale));
   innerHaloGrad.addColorStop(1, hexToRgba(starColor, 0));
   ctx.fillStyle = innerHaloGrad;
   ctx.beginPath();
@@ -1203,6 +1227,8 @@ export function renderStarSnapshot(canvas, starInput, fillFraction) {
       seed: model.seed,
       tempK: model.starTempK,
       activity: model.starActivityLevel,
+      regime: model.regime,
+      massMsol: model.starMassMsol,
     });
     ctx.save();
     ctx.beginPath();
@@ -1231,10 +1257,13 @@ export function renderStarSnapshot(canvas, starInput, fillFraction) {
   }
 
   /* rim */
-  const rimTint = mixHex(starColor, "#ffd9ad", 0.46);
+  const rimTint = mixHex(starColor, visualStyle.rimWarmHex, Math.max(visualStyle.faculaMix, 0.12));
   const rimGrad = ctx.createRadialGradient(cx, cy, starR * 0.9, cx, cy, starR * 1.05);
   rimGrad.addColorStop(0, hexToRgba(rimTint, 0));
-  rimGrad.addColorStop(0.8, hexToRgba(rimTint, 0.5 + model.starActivityLevel * 0.2));
+  rimGrad.addColorStop(
+    0.8,
+    hexToRgba(rimTint, (0.5 + model.starActivityLevel * 0.2) * visualStyle.rimOpacityScale),
+  );
   rimGrad.addColorStop(1, hexToRgba(rimTint, 0));
   ctx.fillStyle = rimGrad;
   ctx.beginPath();

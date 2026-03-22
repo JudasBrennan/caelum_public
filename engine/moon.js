@@ -15,6 +15,7 @@ import { normalizeMoonInputs, resolveMoonRadioisotopeAbundance } from "./moon/co
 import { computeMoonIllumination } from "./moon/illumination.js";
 import { computeMoonGeology } from "./moon/geology.js";
 import { computeMoonBiosphere } from "./moon/biosphere.js";
+import { formatMigrationTrendDisplay } from "./moon/resonance.js";
 import {
   computeEarthSimilarityIndex,
   computeMoonHabitabilityIndex,
@@ -541,11 +542,24 @@ function buildMoonResonance({
     parentRadiusEarth,
   });
   return {
-    modelVersion: "moon-resonance-v1",
+    modelVersion: "moon-resonance-v2",
     nearestResonance: moonSystemContext?.nearestResonance || null,
     chainMembership: moonSystemContext?.chainMembership || null,
     laplaceStatus: moonSystemContext?.laplaceChainId ? "Laplace chain member" : "None",
     laplaceChainId: moonSystemContext?.laplaceChainId || null,
+    autoForcedEccentricity: Math.max(Number(moonSystemContext?.autoForcedEccentricity) || 0, 0),
+    forcingPartnerMoonId: moonSystemContext?.forcingPartnerMoonId || null,
+    forcingPartnerMoonName: moonSystemContext?.forcingPartnerMoonName || null,
+    forcingOffsetPct:
+      moonSystemContext?.forcingOffsetPct == null
+        ? null
+        : Math.max(Number(moonSystemContext.forcingOffsetPct) || 0, 0),
+    migrationTrendState: moonSystemContext?.migrationTrendState || "neutral",
+    migrationTrendStrength: moonSystemContext?.migrationTrendStrength || "none",
+    ratioDriftPctPerGyr:
+      moonSystemContext?.ratioDriftPctPerGyr == null
+        ? null
+        : toFinite(moonSystemContext.ratioDriftPctPerGyr, null),
     forcedEccentricity: Math.max(Number(moonSystemContext?.forcedEccentricity) || 0, 0),
     forcedEccentricitySource: moonSystemContext?.forcedEccentricitySource || "none",
     sustainedHeatingFlag:
@@ -784,11 +798,14 @@ export function calcMoonExact({
   const albedo = clamp(moonInputs.albedo ?? 0.11, 0, 0.95);
   const aMoonKmInput = clamp(moonInputs.semiMajorAxisKm ?? 384748, 10, 1e9);
   const eccentricityInput = clamp(moonInputs.eccentricity ?? 0.055, 0, 0.99);
+  const manualForcedEccentricity = moonInputs.forcedEccentricity;
   const forcedEccentricity =
     orbitalCouplingMode === "core"
       ? 0
       : clamp(
-          Math.max(moonInputs.forcedEccentricity ?? 0, moonSystemContext?.forcedEccentricity ?? 0),
+          manualForcedEccentricity != null
+            ? manualForcedEccentricity
+            : moonSystemContext?.forcedEccentricity ?? 0,
           0,
           0.2,
         );
@@ -1294,6 +1311,8 @@ export function calcMoonExact({
       qEffective: tides.qEffective,
       rigidityEffectiveGPa: tides.rigidityEffectiveGPa,
       recessionCmYr: tides.recessionCmYr,
+      dadtTotalMs: tides.dadtTotalMs,
+      fateTimescaleMethod: tides.fateTimescaleMethod,
       timeToRocheGyr: tides.timeToRocheGyr,
       timeToEscapeGyr: tides.timeToEscapeGyr,
       moonLockedToPlanet: tides.moonLockedToPlanet,
@@ -1551,6 +1570,8 @@ export function calcMoonExact({
       qEffective: tides.qEffective,
       rigidityEffectiveGPa: tides.rigidityEffectiveGPa,
       recessionCmYr: tides.recessionCmYr,
+      dadtTotalMs: tides.dadtTotalMs,
+      fateTimescaleMethod: tides.fateTimescaleMethod,
       timeToRocheGyr: tides.timeToRocheGyr,
       timeToEscapeGyr: tides.timeToEscapeGyr,
       tidallyEvolvedMoon: tides.tidallyEvolvedMoon,
@@ -1731,7 +1752,11 @@ export function calcMoonExact({
       surfaceRadiation: radiation.surfaceClass,
       subsurfaceRadiation: radiation.subsurfaceClass,
       recession: formatRecession(tides.recessionCmYr),
-      orbitalFate: formatOrbitalFate(tides.dadtTotal, tides.timeToRocheGyr, tides.timeToEscapeGyr),
+      orbitalFate: formatOrbitalFate(
+        tides.dadtTotalMs,
+        tides.timeToRocheGyr,
+        tides.timeToEscapeGyr,
+      ),
       moonLocked: tides.moonLockedToPlanet,
       planetLockedMoon: tides.planetLockedToMoon || "—",
       planetLockedStar: tides.planetLockedToStar,
@@ -1749,6 +1774,7 @@ export function calcMoonExact({
         resonance.forcedEccentricity > 0
           ? `${fmt(resonance.forcedEccentricity, 4)} (${resonance.forcedEccentricitySource})`
           : "None",
+      migrationTrend: formatMigrationTrendDisplay(resonance),
       tidalHabitableZone: resonance.tidalHabitableZone?.starHzEligible
         ? resonance.withinTidalHabitableZone
           ? "Inside tidal HZ"

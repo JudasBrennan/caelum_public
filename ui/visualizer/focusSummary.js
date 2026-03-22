@@ -4,6 +4,16 @@ function fmtNumber(value, digits = 2) {
   return Number(num.toFixed(digits)).toString();
 }
 
+function fmtLuminosityLsol(value, digits = 2) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "-";
+  const abs = Math.abs(num);
+  if (abs === 0) return "0";
+  if (abs < 1e-4) return num.toExponential(2);
+  if (abs < 0.01) return fmtNumber(num, Math.max(digits, 6));
+  return fmtNumber(num, digits);
+}
+
 function describeMoonSolventPathway(moonCalc) {
   const pathway = String(moonCalc?.habitability?.breakdown?.solventPathway || "");
   if (pathway === "subsurface-water") {
@@ -57,17 +67,40 @@ function summarizePlanet(planet) {
 }
 
 function summarizeGasGiant(gasGiant) {
+  const classLabel = gasGiant?.classLabel || "Gas giant";
+  const isBrownDwarf = String(gasGiant?.companionClass || gasGiant?.regime || "") === "brownDwarf";
+  const lines = [
+    { label: "Radius", value: `${fmtNumber(gasGiant?.radiusRj, 2)} RJ` },
+  ];
+  if (isBrownDwarf) {
+    if (gasGiant?.gasCalc?.classification?.substellarClass) {
+      lines.push({
+        label: "Class",
+        value: gasGiant.gasCalc.classification.substellarClass,
+      });
+    }
+    lines.push({
+      label: "Luminosity",
+      value: `${fmtLuminosityLsol(gasGiant?.gasCalc?.luminosityLsol, 6)} Lsol`,
+    });
+    lines.push({
+      label: "Intrinsic temp",
+      value: `${fmtNumber(gasGiant?.gasCalc?.thermal?.effectiveTempK, 0)} K`,
+    });
+  } else {
+    lines.push({
+      label: "Effective temp",
+      value: `${fmtNumber(gasGiant?.gasCalc?.thermal?.effectiveTempK, 0)} K`,
+    });
+  }
+  lines.push({
+    label: "Moons",
+    value: String(Array.isArray(gasGiant?.moons) ? gasGiant.moons.length : 0),
+  });
   return {
-    title: gasGiant?.name || "Gas giant",
-    subtitle: `Gas giant | ${fmtNumber(gasGiant?.au, 2)} AU`,
-    lines: [
-      { label: "Radius", value: `${fmtNumber(gasGiant?.radiusRj, 2)} RJ` },
-      {
-        label: "Effective temp",
-        value: `${fmtNumber(gasGiant?.gasCalc?.thermal?.effectiveTempK, 0)} K`,
-      },
-      { label: "Moons", value: String(Array.isArray(gasGiant?.moons) ? gasGiant.moons.length : 0) },
-    ],
+    title: gasGiant?.name || classLabel,
+    subtitle: `${classLabel} | ${fmtNumber(gasGiant?.au, 2)} AU`,
+    lines,
   };
 }
 
@@ -94,7 +127,7 @@ function summarizeStar(snapshot) {
       value: `${fmtNumber(snapshot?.starMassMsol, 2)} Msol`,
     },
     { label: "Age", value: `${fmtNumber(snapshot?.starAgeGyr, 2)} Gyr` },
-    { label: "Luminosity", value: `${fmtNumber(snapshot?.starLuminosityLsun, 2)} Lsol` },
+    { label: "Luminosity", value: `${fmtLuminosityLsol(snapshot?.starLuminosityLsun, 2)} Lsol` },
     { label: "Temperature", value: `${fmtNumber(snapshot?.starTempK, 0)} K` },
   ];
 
@@ -148,6 +181,11 @@ function formatAssignedBodyCounts(bodyCounts) {
   if (Number(bodyCounts.gasGiants) > 0) {
     parts.push(
       `${Number(bodyCounts.gasGiants)} gas giant${Number(bodyCounts.gasGiants) === 1 ? "" : "s"}`,
+    );
+  }
+  if (Number(bodyCounts.brownDwarfs) > 0) {
+    parts.push(
+      `${Number(bodyCounts.brownDwarfs)} brown dwarf${Number(bodyCounts.brownDwarfs) === 1 ? "" : "s"}`,
     );
   }
   if (Number(bodyCounts.debrisDisks) > 0) {

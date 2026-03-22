@@ -14,7 +14,9 @@
 //  - maxAgeGyr, radiusRsol, luminosityLsol, densityDsol, densityGcm3, tempK,
 //    spectralClass, habitableZoneAu, habitableZoneMillionKm, earthLikeLifePossible
 
+import { calcBrownDwarf, computeBrownDwarfXuvModel } from "./brownDwarf.js";
 import { clamp, fmt, toFinite } from "./utils.js";
+import { BROWN_DWARF_MIN_MSOL, classifyHostRegimeByMass } from "./substellarRegime.js";
 
 const HZ_SOLAR_TEFF_K = 5778;
 const HZ_MIN_FLUX = 1e-6;
@@ -317,6 +319,7 @@ export function populationLabel(metallicityFeH) {
 }
 
 export function estimateXuvSaturationAgeGyr(massMsol) {
+  if (classifyHostRegimeByMass({ massMsol }) === "brownDwarf") return 0;
   const mass = clamp(toFinite(massMsol, 1), 0.075, 100);
   if (mass <= XUV_SATURATION_ANCHORS[0].massMsol) {
     return XUV_SATURATION_ANCHORS[0].saturationAgeGyr;
@@ -334,6 +337,9 @@ export function estimateXuvSaturationAgeGyr(massMsol) {
 }
 
 export function computeStarXuvModel({ massMsol, ageGyr, luminosityLsol } = {}) {
+  if (classifyHostRegimeByMass({ massMsol }) === "brownDwarf") {
+    return computeBrownDwarfXuvModel();
+  }
   const mass = clamp(toFinite(massMsol, 1), 0.075, 100);
   const age = Math.max(XUV_MIN_AGE_GYR, toFinite(ageGyr, DEFAULT_SOLAR_AGE_GYR));
   const luminosity = Math.max(toFinite(luminosityLsol, 0), 0);
@@ -658,8 +664,20 @@ export function calcStar({
   metallicityFeH,
   evolutionMode,
 }) {
+  const resolvedMassMsol = clamp(toFinite(massMsol, BROWN_DWARF_MIN_MSOL), BROWN_DWARF_MIN_MSOL, 100);
+  if (classifyHostRegimeByMass({ massMsol: resolvedMassMsol }) === "brownDwarf") {
+    return calcBrownDwarf({
+      massMsol: resolvedMassMsol,
+      ageGyr,
+      radiusRsolOverride,
+      luminosityLsolOverride,
+      tempKOverride,
+      metallicityFeH,
+    });
+  }
+
   // Match sheet validation note: 0.075 <= mass <= 100
-  const m = clamp(massMsol, 0.075, 100);
+  const m = clamp(resolvedMassMsol, 0.075, 100);
   const age = clamp(ageGyr, 0, 20); // sanity clamp; sheet doesn't hard-limit
   const evolved = evolutionMode === "evolved";
   // The Hurley/Tout ZAMS radius polynomials become non-physical above about

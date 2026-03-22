@@ -45,6 +45,7 @@ import { createNativeSystemLayer } from "./visualizer/nativeSystemLayer.js";
 import { computeBinaryPairOrbitalState } from "./visualizer/multistarOrbit.js";
 import {
   getStarSurfaceSeed,
+  getStarVisualStyle,
   hexToRgba,
   mixHex,
   paintStarSurfaceTexture,
@@ -1023,6 +1024,22 @@ export function initVisualiserPage(root, options = {}) {
     return text.length > max ? `${text.slice(0, Math.max(0, max - 1))}...` : text;
   }
 
+  function getSnapshotZoneLabel(snapshot) {
+    return String(snapshot?.sys?.zoneLabel || "Habitable Zone").trim() || "Habitable Zone";
+  }
+
+  function syncZoneToggleLabel(snapshot) {
+    const labelWrap = systemCheckToggles?.hz?.querySelector("span");
+    if (!labelWrap) return;
+    const zoneLabel = getSnapshotZoneLabel(snapshot);
+    const nextText = `${zoneLabel} `;
+    if (labelWrap.firstChild?.nodeType === Node.TEXT_NODE) {
+      labelWrap.firstChild.textContent = nextText;
+      return;
+    }
+    labelWrap.insertBefore(document.createTextNode(nextText), labelWrap.firstChild || null);
+  }
+
   function formatOverviewBodyBadge(bodyCounts) {
     if (!bodyCounts || typeof bodyCounts !== "object" || Number(bodyCounts.total) <= 0) return "";
     const parts = [];
@@ -1031,6 +1048,9 @@ export function initVisualiserPage(root, options = {}) {
     }
     if (Number(bodyCounts.gasGiants) > 0) {
       parts.push(`${Number(bodyCounts.gasGiants)} giant`);
+    }
+    if (Number(bodyCounts.brownDwarfs) > 0) {
+      parts.push(`${Number(bodyCounts.brownDwarfs)} brown dwarf`);
     }
     if (Number(bodyCounts.debrisDisks) > 0) {
       parts.push(`${Number(bodyCounts.debrisDisks)} debris`);
@@ -1692,6 +1712,7 @@ export function initVisualiserPage(root, options = {}) {
     }
 
     if (chkHz?.checked && sys?.habitableZoneAu && !offscaleZones.hideHz) {
+      const zoneLabel = getSnapshotZoneLabel(snapshot);
       const hzi = Math.max(
         0.000001,
         Math.min(Number(sys.habitableZoneAu.inner), Number(sys.habitableZoneAu.outer)),
@@ -1743,8 +1764,8 @@ export function initVisualiserPage(root, options = {}) {
           key: "zone:hz",
           line1:
             snapshot.topologyKind !== "single" && snapshot.activeHostFrameLabel
-              ? `${snapshot.activeHostFrameLabel} HZ`
-              : "Habitable zone",
+              ? `${snapshot.activeHostFrameLabel} ${zoneLabel}`
+              : zoneLabel,
           line2: chkDistances?.checked
             ? `${Number(sys.habitableZoneAu.inner).toFixed(2)}-${Number(sys.habitableZoneAu.outer).toFixed(2)} AU`
             : "",
@@ -1985,11 +2006,16 @@ export function initVisualiserPage(root, options = {}) {
         ? snapshot.hostStars.filter((entry) => entry && entry.starColourHex)
         : [];
     const pairHostView = pairHostStars.length > 1;
+    const starVisualStyle = getStarVisualStyle({
+      regime: snapshot.starRegime,
+      tempK: snapshot.starTempK,
+      massMsol: snapshot.starMassMsol,
+    });
     const starTint = parseHexColorNumber(snapshot.starColourHex, 0xfff4dc);
-    const starCoreHex = mixHex(snapshot.starColourHex, "#ffffff", 0.34);
+    const starCoreHex = mixHex(snapshot.starColourHex, "#ffffff", starVisualStyle.coreMix);
     const starCoreTint = parseHexColorNumber(starCoreHex, starTint);
     const starRimTint = parseHexColorNumber(
-      mixHex(snapshot.starColourHex, "#ffd9ad", 0.46),
+      mixHex(snapshot.starColourHex, starVisualStyle.rimWarmHex, Math.max(starVisualStyle.faculaMix, 0.12)),
       starTint,
     );
     const flareRimTint = parseHexColorNumber(
@@ -2043,6 +2069,8 @@ export function initVisualiserPage(root, options = {}) {
           seed: starSurfaceSeed,
           tempK: snapshot.starTempK,
           activity: starActivity,
+          regime: snapshot.starRegime,
+          massMsol: snapshot.starMassMsol,
         });
       },
       512,
@@ -2274,16 +2302,16 @@ export function initVisualiserPage(root, options = {}) {
     };
     addStarSprite({
       tex: starGlowTex,
-      radius: Math.max(10, starR * (3.45 + 0.22 * glowPulse)),
-      opacity: pairHostView ? 0 : 0.19,
+      radius: Math.max(10, starR * (3.45 + 0.22 * glowPulse) * starVisualStyle.glowRadiusScale),
+      opacity: pairHostView ? 0 : 0.19 * starVisualStyle.glowOpacityScale,
       z: -1.35,
       color: starTint,
       blending: THREE.AdditiveBlending,
     });
     addStarSprite({
       tex: starGlowTex,
-      radius: Math.max(7, starR * (2.25 + 0.14 * glowPulse)),
-      opacity: pairHostView ? 0 : 0.28,
+      radius: Math.max(7, starR * (2.25 + 0.14 * glowPulse) * starVisualStyle.glowRadiusScale),
+      opacity: pairHostView ? 0 : 0.28 * starVisualStyle.glowOpacityScale,
       z: -1.18,
       color: starTint,
       blending: THREE.AdditiveBlending,
@@ -2300,7 +2328,7 @@ export function initVisualiserPage(root, options = {}) {
     addStarSprite({
       tex: starGlowTex,
       radius: Math.max(2.5, starR * 1.1),
-      opacity: pairHostView ? 0 : 0.35,
+      opacity: pairHostView ? 0 : 0.35 * starVisualStyle.rimOpacityScale,
       z: -0.94,
       color: starRimTint,
       blending: THREE.AdditiveBlending,
@@ -2308,7 +2336,7 @@ export function initVisualiserPage(root, options = {}) {
     addStarSprite({
       tex: starGlowTex,
       radius: Math.max(1.2, starR * 0.55),
-      opacity: pairHostView ? 0 : 0.42,
+      opacity: pairHostView ? 0 : 0.42 * starVisualStyle.haloOpacityScale,
       z: -0.91,
       color: starCoreTint,
       blending: THREE.AdditiveBlending,
@@ -2462,13 +2490,18 @@ export function initVisualiserPage(root, options = {}) {
           )
         : pairStarNodes;
       for (const entry of renderPairStarNodes) {
+        const entryVisualStyle = getStarVisualStyle({
+          regime: entry.regime,
+          tempK: entry.tempK,
+          massMsol: entry.massMsol,
+        });
         const entryTint = parseHexColorNumber(entry.starColourHex, starTint);
         const entryRimTint = parseHexColorNumber(
-          mixHex(entry.starColourHex, "#ffd9ad", 0.4),
+          mixHex(entry.starColourHex, entryVisualStyle.rimWarmHex, Math.max(entryVisualStyle.faculaMix, 0.12)),
           entryTint,
         );
         const entryCoreTint = parseHexColorNumber(
-          mixHex(entry.starColourHex, "#fff7e7", 0.58),
+          mixHex(entry.starColourHex, "#fff7e7", Math.max(entryVisualStyle.coreMix + 0.18, 0.18)),
           entryTint,
         );
         const entrySurfaceSeed = getStarSurfaceSeed({
@@ -2487,6 +2520,8 @@ export function initVisualiserPage(root, options = {}) {
               seed: entrySurfaceSeed,
               tempK: entry.tempK,
               activity: starActivity,
+              regime: entry.regime,
+              massMsol: entry.massMsol,
             });
           },
           384,
@@ -2494,8 +2529,8 @@ export function initVisualiserPage(root, options = {}) {
         const entryCenter = toThreeXY(metrics, entry.screenX, Number(entry.screenY || cy));
         addStarSprite({
           tex: starGlowTex,
-          radius: Math.max(8, entry.visualRadius * (2.35 + 0.16 * glowPulse)),
-          opacity: 0.16,
+          radius: Math.max(8, entry.visualRadius * (2.35 + 0.16 * glowPulse) * entryVisualStyle.glowRadiusScale),
+          opacity: 0.16 * entryVisualStyle.glowOpacityScale,
           z: -1.34,
           x: entryCenter.x,
           y: entryCenter.y,
@@ -2504,8 +2539,8 @@ export function initVisualiserPage(root, options = {}) {
         });
         addStarSprite({
           tex: starGlowTex,
-          radius: Math.max(5.5, entry.visualRadius * (1.7 + 0.12 * glowPulse)),
-          opacity: 0.23,
+          radius: Math.max(5.5, entry.visualRadius * (1.7 + 0.12 * glowPulse) * entryVisualStyle.glowRadiusScale),
+          opacity: 0.23 * entryVisualStyle.glowOpacityScale,
           z: -1.16,
           x: entryCenter.x,
           y: entryCenter.y,
@@ -2529,7 +2564,7 @@ export function initVisualiserPage(root, options = {}) {
         addStarSprite({
           tex: starGlowTex,
           radius: Math.max(2.5, entry.visualRadius * 1.1),
-          opacity: 0.3,
+          opacity: 0.3 * entryVisualStyle.rimOpacityScale,
           z: -0.94,
           x: entryCenter.x,
           y: entryCenter.y,
@@ -2539,7 +2574,7 @@ export function initVisualiserPage(root, options = {}) {
         addStarSprite({
           tex: starGlowTex,
           radius: Math.max(1.2, entry.visualRadius * 0.52),
-          opacity: 0.36,
+          opacity: 0.36 * entryVisualStyle.haloOpacityScale,
           z: -0.91,
           x: entryCenter.x,
           y: entryCenter.y,
@@ -3229,8 +3264,127 @@ export function initVisualiserPage(root, options = {}) {
         Number.isFinite(gasRotationHours) && gasRotationHours > 0 ? gasRotationHours / 24 : null;
       const gasAxialTiltDeg = normalizeAxialTiltDeg(g.axialTiltDeg ?? 0);
       const gasSpinAngle = computeSpinAngleRad(g.id, gasRotationDays, gasAxialTiltDeg);
+      const isBrownDwarfRender = g.renderModel === "brownDwarfStar" && !!g.starVisual;
       if (usePhysicalSize && gr < PHYS_VIS_THRESHOLD_PX) {
-        addPositionIndicatorNative(gPos.x, gPos.y, 0xe6bf88, bodyZ + 0.7);
+        addPositionIndicatorNative(
+          gPos.x,
+          gPos.y,
+          isBrownDwarfRender
+            ? parseHexColorNumber(g.starVisual?.starColourHex, 0x7a495f)
+            : 0xe6bf88,
+          bodyZ + 0.7,
+        );
+      } else if (isBrownDwarfRender) {
+        const brownDwarfVisual = g.starVisual;
+        const brownDwarfStyle = getStarVisualStyle({
+          regime: brownDwarfVisual.regime,
+          tempK: brownDwarfVisual.starTempK,
+          massMsol: brownDwarfVisual.starMassMsol,
+        });
+        const brownDwarfTint = parseHexColorNumber(
+          brownDwarfVisual.starColourHex,
+          0x7a495f,
+        );
+        const brownDwarfRimTint = parseHexColorNumber(
+          mixHex(
+            brownDwarfVisual.starColourHex,
+            brownDwarfStyle.rimWarmHex,
+            Math.max(brownDwarfStyle.faculaMix, 0.12),
+          ),
+          brownDwarfTint,
+        );
+        const brownDwarfCoreTint = parseHexColorNumber(
+          mixHex(
+            brownDwarfVisual.starColourHex,
+            "#fff7e7",
+            Math.max(brownDwarfStyle.coreMix + 0.18, 0.18),
+          ),
+          brownDwarfTint,
+        );
+        const brownDwarfSeed = getStarSurfaceSeed({
+          starSeed: brownDwarfVisual.seed,
+          starName: brownDwarfVisual.starName,
+          starTempK: brownDwarfVisual.starTempK,
+          starAgeGyr: brownDwarfVisual.starAgeGyr,
+        });
+        const brownDwarfSurfaceTex = getNativeProceduralTexture(
+          `star-surface:v3:${brownDwarfVisual.starColourHex}:${brownDwarfSeed}:${Math.round(Number(brownDwarfVisual.starTempK) || 5776)}:0`,
+          (cctx, size) => {
+            paintStarSurfaceTexture(cctx, size, {
+              baseHex: brownDwarfVisual.starColourHex,
+              seed: brownDwarfSeed,
+              tempK: brownDwarfVisual.starTempK,
+              activity: 0,
+              regime: brownDwarfVisual.regime,
+              massMsol: brownDwarfVisual.starMassMsol,
+            });
+          },
+          384,
+        );
+        const brownDwarfGlowPulse =
+          0.55 +
+          0.45 *
+            Math.sin(state.simTime * 0.08 + Number(brownDwarfVisual.starMassMsol || 0.05) * 10);
+        addStarSprite({
+          tex: starGlowTex,
+          radius: Math.max(
+            6,
+            gr * (2.35 + 0.16 * brownDwarfGlowPulse) * brownDwarfStyle.glowRadiusScale,
+          ),
+          opacity: 0.14 * brownDwarfStyle.glowOpacityScale,
+          z: bodyZ - 0.36,
+          x: pos.x,
+          y: pos.y,
+          color: brownDwarfTint,
+          blending: THREE.AdditiveBlending,
+        });
+        addStarSprite({
+          tex: starGlowTex,
+          radius: Math.max(
+            4,
+            gr * (1.72 + 0.12 * brownDwarfGlowPulse) * brownDwarfStyle.glowRadiusScale,
+          ),
+          opacity: 0.22 * brownDwarfStyle.glowOpacityScale,
+          z: bodyZ - 0.16,
+          x: pos.x,
+          y: pos.y,
+          color: brownDwarfTint,
+          blending: THREE.AdditiveBlending,
+        });
+        addStarSprite({
+          tex: brownDwarfSurfaceTex,
+          radius: Math.max(1.5, gr * 1.02),
+          opacity: 0.99,
+          z: bodyZ,
+          x: pos.x,
+          y: pos.y,
+          color: 0xffffff,
+          blending: THREE.NormalBlending,
+          rotation:
+            state.simTime * 0.0042 +
+            hashUnit(`${g.id}:brown-dwarf-surface`) * Math.PI * 2 +
+            hashUnit(`${brownDwarfSeed}:surface-rotation`) * Math.PI * 2,
+        });
+        addStarSprite({
+          tex: starGlowTex,
+          radius: Math.max(2, gr * 1.08),
+          opacity: 0.28 * brownDwarfStyle.rimOpacityScale,
+          z: bodyZ + 0.03,
+          x: pos.x,
+          y: pos.y,
+          color: brownDwarfRimTint,
+          blending: THREE.AdditiveBlending,
+        });
+        addStarSprite({
+          tex: starGlowTex,
+          radius: Math.max(1, gr * 0.5),
+          opacity: 0.32 * brownDwarfStyle.haloOpacityScale,
+          z: bodyZ + 0.06,
+          x: pos.x,
+          y: pos.y,
+          color: brownDwarfCoreTint,
+          blending: THREE.AdditiveBlending,
+        });
       } else {
         const gVizKey = vizBodyCacheKey("gas", g);
         const gModel = {
@@ -3278,7 +3432,7 @@ export function initVisualiserPage(root, options = {}) {
         }
       }
       addBodyLabelNative(
-        g.name || "Gas giant",
+        g.name || g.classLabel || "Gas giant",
         `${Number(g.au || 0).toFixed(2)} AU`,
         gPos.x,
         gPos.y,
@@ -4053,6 +4207,7 @@ export function initVisualiserPage(root, options = {}) {
 
   function syncHostFrameControls(snapshot) {
     if (!hostFrameRow || !hostFrameSelect || !hostFrameHintEl || !hostFrameHintRow) return;
+    syncZoneToggleLabel(snapshot);
     const options = Array.isArray(snapshot?.hostFrameOptions) ? snapshot.hostFrameOptions : [];
     const show = (snapshot?.topologyKind || "single") !== "single" && options.length > 1;
     const overviewMode = isSystemOverviewMode(snapshot);
@@ -4234,6 +4389,8 @@ export function initVisualiserPage(root, options = {}) {
     return computeSystemGasGiantPlacement(gasGiant, idx, metrics, starMassMsol, {
       mapAuToPx,
       simTime: state.simTime,
+      solveKeplerEquation,
+      useEccentric: chkEccentric?.checked === true,
     });
   }
 

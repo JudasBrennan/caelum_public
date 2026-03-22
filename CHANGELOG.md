@@ -4,6 +4,77 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+### Brown Dwarf Full Integration
+
+**Added fully integrated brown dwarf support across star hosts, orbiting giant companions, and shared read-only views**
+(engine/substellarRegime.js, engine/brownDwarf.js, engine/brownDwarfVisual.js, engine/star.js,
+engine/system.js, engine/gasGiant.js, engine/homeSystem/\*.js,
+engine/worldSnapshot.js, engine/worldAdapters.js,
+ui/store/stellarSystemModel.js, ui/store/gasGiantModel.js, ui/store.js,
+ui/starPage.js, ui/planetPage.js, ui/moonPage.js,
+ui/apparentPage.js, ui/apparent/domRender.js, ui/apparentSkyNativeThree.js,
+ui/systemPage.js, ui/systemPosterNativeThree.js,
+ui/visualizer/snapshotModel.js, ui/visualizer/bodyMeshService.js,
+ui/visualizer/focusSummary.js, ui/visualizerPage.js,
+ui/visualizer/starSurface.js, ui/celestialVisualPreview.js, ui/gasGiantStyles.js,
+tests/brownDwarf.test.js, tests/star.test.js, tests/system.test.js,
+tests/worldAdapters.test.js, tests/visualizerSnapshotModel.test.js,
+tests/visualizerFocusSummary.test.js, tests/starTopologyAuthoring.ui.test.js)
+
+Brown dwarfs now occupy the shared substellar regime between gas giants
+and hydrogen-burning stars. They can be authored as host stars on the
+Star page or as orbiting giant companions on the Planets page without
+branching into a bespoke workflow. The engine now solves brown-dwarf
+cooling-track properties, current temperate zones, and substellar
+classification, and the visualizer, system poster, apparent-size page,
+moon context, and snapshot/adaptation layers now surface brown dwarfs
+with class-aware labels, styles, and zone wording instead of collapsing
+them back into ordinary gas-giant or star-only presentation.
+
+Follow-up parity work brought the presentation layer into line across
+the Star page, Planets page, visualizer, poster, and apparent-sky
+surfaces. Brown dwarfs now use corrected L/T/Y visible-light colours,
+scaled luminosity formatting with explanatory tooltips, brown-dwarf
+class tooltips, star-style companion summaries, and explicit
+brown-dwarf render payloads so orbiting brown dwarfs no longer fall
+back to gas-giant or rocky-body graphics on shared renderer pages.
+
+**Tests** (tests/brownDwarf.test.js, tests/star.test.js, tests/system.test.js,
+tests/worldSnapshot.test.js, tests/worldAdapters.test.js,
+tests/engineWorldFixtures.test.js, tests/importExport.test.js,
+tests/gasGiant.test.js, tests/visualizerSnapshotModel.test.js,
+tests/visualizerFocusSummary.test.js, tests/starTopologyAuthoring.ui.test.js,
+tests/inputDraftStability.ui.test.js, tests/planetInputRender.test.js,
+tests/planetBodySelector.test.js, tests/storeSystemFacade.test.js,
+tests/planetStore.test.js)
+
+- Added brown-dwarf engine/regime tests, host-authoring coverage,
+  visualizer/poster/apparent renderer regressions, and full regression
+  sweeps across the star, planet, moon, snapshot, import/export, and
+  store paths.
+
+### Gas Giant Eccentric Orbit Rendering
+
+**Fixed gas giants rendering as circular orbits in the visualizer even when eccentric orbits were enabled**
+(ui/store/gasGiantModel.js, ui/visualizer/snapshotModel.js,
+ui/visualizer/focusCamera.js, ui/visualizer/constants.js,
+ui/visualizerPage.js, tests/visualizerSnapshotModel.test.js,
+tests/visualizerFocusCamera.test.js)
+
+Gas giants now carry eccentricity, inclination, periapsis orientation,
+axial tilt, and derived orbital period through the visualizer snapshot
+and placement pipeline instead of being flattened back to circular
+tracks. The local-frame renderer now animates gas giants with the same
+eccentric-orbit motion used for planets, and saved/imported gas giant
+periapsis orientation now survives normalization so ellipse orientation
+is preserved in the visualizer.
+
+**Tests** (tests/visualizerSnapshotModel.test.js,
+tests/visualizerFocusCamera.test.js)
+
+- Added regression coverage for gas giant orbital-field propagation and
+  eccentric placement math in the visualizer.
+
 ## 1.27.0 - 2026-03-21
 
 ### Multistar Release Readiness

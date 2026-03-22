@@ -11,6 +11,13 @@ import {
   listHostStarsForHostFrame,
 } from "./homeSystem/companionPresentation.js";
 import { resolveGasGiantRingState } from "./planetaryRings.js";
+import { buildBrownDwarfStarVisual } from "./brownDwarfVisual.js";
+import {
+  classifyCompanionRegimeByMass,
+  normalizeGiantCompanionClass,
+  regimeDisplayLabel,
+} from "./substellarRegime.js";
+import { suggestStyles } from "../ui/gasGiantStyles.js";
 import { computeRockyVisualProfile } from "../ui/rockyPlanetStyles.js";
 import { resolveRingAppearance } from "../ui/ringAppearanceProfiles.js";
 
@@ -36,6 +43,56 @@ function gasGiantAlbedo(style) {
     default:
       return 0.45;
   }
+}
+
+function resolveGiantCompanionClass(raw, model) {
+  const explicitClass = String(raw?.companionClass || model?.companionClass || "").trim();
+  if (explicitClass) return normalizeGiantCompanionClass(explicitClass);
+  const regime = classifyCompanionRegimeByMass({
+    massMjup: model?.inputs?.massMjup ?? raw?.massMjup,
+  });
+  return regime === "brownDwarf" ? "brownDwarf" : "gasGiant";
+}
+
+function resolveGiantCompanionLabel(raw, model) {
+  return regimeDisplayLabel(resolveGiantCompanionClass(raw, model));
+}
+
+function resolveGiantCompanionName(raw, model) {
+  const explicitName = String(raw?.name || model?.inputs?.name || "").trim();
+  if (explicitName) return explicitName;
+  return resolveGiantCompanionLabel(raw, model);
+}
+
+function resolveGiantCompanionStyle(raw, model) {
+  const explicitStyle = String(raw?.style || "").trim();
+  if (explicitStyle) return explicitStyle;
+  const suggestedStyle =
+    model && (model.classification || model.regime || model.companionClass)
+      ? suggestStyles(model)?.primary
+      : null;
+  if (suggestedStyle) return suggestedStyle;
+  return resolveGiantCompanionClass(raw, model) === "brownDwarf" ? "brown-dwarf-l" : "jupiter";
+}
+
+function giantCompanionGeometricAlbedo(raw, model) {
+  const companionClass = resolveGiantCompanionClass(raw, model);
+  const explicitStyle = String(raw?.style || "").trim().toLowerCase();
+  const styleId = String(resolveGiantCompanionStyle(raw, model) || "").toLowerCase();
+  if (companionClass === "brownDwarf") {
+    switch (styleId) {
+      case "brown-dwarf-l":
+        return 0.12;
+      case "brown-dwarf-t":
+        return 0.08;
+      case "brown-dwarf-y":
+        return 0.05;
+      default:
+        return 0.08;
+    }
+  }
+  if (!explicitStyle) return 0.45;
+  return gasGiantAlbedo(explicitStyle);
 }
 
 function requireFullEntry(entry, label) {
@@ -400,6 +457,10 @@ export function buildSystemPosterSnapshotInputs(
     fallbackHostFrameId,
   )
     .map((entry) => {
+      const companionClass = resolveGiantCompanionClass(entry.source, entry.model);
+      const classLabel = resolveGiantCompanionLabel(entry.source, entry.model);
+      const styleId = resolveGiantCompanionStyle(entry.source, entry.model);
+      const name = resolveGiantCompanionName(entry.source, entry.model);
       const ringState = resolveGasGiantRingState({
         ringMode: entry.source?.ringMode,
         gasCalc: entry.model,
@@ -410,15 +471,32 @@ export function buildSystemPosterSnapshotInputs(
         ringState,
         ringStyleId: entry.source?.ringStyleId,
         gasCalc: entry.model,
-        bodyStyleId: entry.source?.style,
+        bodyStyleId: styleId,
         seed: entry.id || entry.name,
       });
+      const starVisual = buildBrownDwarfStarVisual(
+        {
+          name,
+          style: styleId,
+          companionClass,
+          regime: entry.model?.regime || companionClass,
+          gasCalc: entry.model,
+        },
+        {
+          ageGyr: Number(activeSolveContext?.starConfig?.ageGyr ?? snapshot.star?.inputs?.ageGyr),
+        },
+      );
       return {
         id: entry.id,
-        name: entry.name,
+        name,
         au: Number(entry.model?.inputs?.orbitAu),
         radiusKm: Number(entry.model?.physical?.radiusKm),
-        style: entry.source?.style,
+        regime: entry.model?.regime || companionClass,
+        companionClass,
+        classLabel,
+        renderModel: starVisual ? "brownDwarfStar" : "gasGiant",
+        starVisual,
+        style: styleId,
         ringMode: ringState.ringMode,
         rings: ringState.effectiveEnabled,
         ringAppearance,
@@ -567,17 +645,36 @@ export function buildApparentSnapshotInputs(
   const gasGiants = gasGiantEntries
     .map((entry) => {
       const raw = entry.source || {};
+      const companionClass = resolveGiantCompanionClass(raw, entry.model);
+      const classLabel = resolveGiantCompanionLabel(raw, entry.model);
+      const styleId = resolveGiantCompanionStyle(raw, entry.model);
+      const name = resolveGiantCompanionName(raw, entry.model);
+      const starVisual = buildBrownDwarfStarVisual(
+        {
+          name,
+          style: styleId,
+          companionClass,
+          regime: entry.model?.regime || companionClass,
+          gasCalc: entry.model,
+        },
+        {
+          ageGyr: Number(fullSnapshot.star?.inputs?.ageGyr),
+        },
+      );
       return {
         id: `gas:${entry.id}`,
         kind: "gas",
-        name: entry.name,
-        classLabel: "Gas giant",
+        name,
+        classLabel,
         hostFrameId: entry.hostFrameId,
         orbitAu: Number(entry.model?.inputs?.orbitAu),
         radiusKm: Number(entry.model?.physical?.radiusKm),
-        geometricAlbedo: gasGiantAlbedo(raw.style),
+        geometricAlbedo: giantCompanionGeometricAlbedo(raw, entry.model),
         hasAtmosphere: true,
-        _styleId: raw.style || "jupiter",
+        renderModel: starVisual ? "brownDwarfStar" : "gasGiant",
+        starVisual,
+        _styleId: styleId,
+        _companionClass: companionClass,
       };
     })
     .filter((entry) => Number.isFinite(entry.orbitAu) && entry.orbitAu > 0);

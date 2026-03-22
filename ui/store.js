@@ -48,6 +48,8 @@ import {
 
 export { validateEnvelope };
 export {
+  BROWN_DWARF_MASS_MAX_MJUP,
+  BROWN_DWARF_MASS_MIN_MJUP,
   GAS_GIANT_MASS_MAX_MJUP,
   GAS_GIANT_MASS_MIN_MJUP,
   GAS_GIANT_MASS_STEP_MJUP,
@@ -57,6 +59,9 @@ export {
   GAS_GIANT_RADIUS_MAX_RJ,
   GAS_GIANT_RADIUS_MIN_RJ,
   GAS_GIANT_RADIUS_STEP_RJ,
+  GIANT_COMPANION_CLASS_BROWN_DWARF,
+  GIANT_COMPANION_CLASS_GAS_GIANT,
+  getGiantCompanionMassBounds,
   randomGasGiantRadiusRj,
 } from "./store/gasGiantModel.js";
 export {

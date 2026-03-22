@@ -21,6 +21,7 @@ export function buildBodySelectorEntries(planets, gasGiants) {
       id: giant.id,
       name: giant.name || giant.id,
       au: Number(giant.au) || 0,
+      companionClass: giant.companionClass || "gasGiant",
       value: `gasGiant:${giant.id}`,
     });
   }
@@ -29,7 +30,14 @@ export function buildBodySelectorEntries(planets, gasGiants) {
 
 export function buildBodySelectorOptions(entries) {
   return (entries || []).map((entry) => {
-    const bodyTypeLabel = entry.type === "planet" ? (entry.isDwarf ? "D" : "R") : "G";
+    const bodyTypeLabel =
+      entry.type === "planet"
+        ? entry.isDwarf
+          ? "D"
+          : "R"
+        : entry.companionClass === "brownDwarf"
+          ? "B"
+          : "G";
     return {
       value: entry.value,
       label: `[${bodyTypeLabel}] ${entry.name} (${fmt(entry.au, 3)} AU)`,

@@ -77,6 +77,7 @@ import {
   computeJeansEscape,
   computeXuvFluxRatio,
 } from "./planet/atmosphere.js";
+import { computePlanetPhotochemistry } from "./planet/photochemistry.js";
 import {
   computeAbsorbedFluxWm2,
   computePeriapsisApoapsisTemperatures,
@@ -828,6 +829,14 @@ export function calcPlanetExact({
       nh3: ppNH3Atm,
     },
   });
+  const photochemistry = computePlanetPhotochemistry({
+    pressureAtm,
+    xuvFluxRatio: fXuvRatio,
+    ppO2Atm,
+    ppCH4Atm,
+    ppH2Atm,
+    ppNH3Atm,
+  });
 
   // Atmospheric circulation cells (PLANET C60..C67)
   let cellCount = "NA";
@@ -1016,6 +1025,7 @@ export function calcPlanetExact({
       ppHeAtm,
       ppSO2Atm,
       ppNH3Atm,
+      photochemistry,
       jeansEscape: { species: jeansSpecies, xuvFluxRatio: fXuvRatio },
     },
   });
@@ -1186,6 +1196,7 @@ export function calcPlanetExact({
       ppHeAtm,
       ppSO2Atm,
       ppNH3Atm,
+      photochemistry,
       ppO2Kpa,
       ppCO2Kpa,
       ppArKpa,
@@ -1323,6 +1334,9 @@ export function calcPlanetExact({
       apparentStar: fmt(apparentStarDeg, 3) + "°",
       earthSimilarityIndex: fmt(earthSimilarity.score, 3),
       habitabilityIndex: fmt(planetaryHabitability.score, 3),
+      uvShielding: photochemistry.uvShieldingClass,
+      ozoneColumn: `${fmt(photochemistry.ozoneColumnDobsonUnits, 0)} DU (${fmt(photochemistry.ozoneEarthRatio, 2)}x Earth)`,
+      photochemicalStability: photochemistry.stabilityClass,
       insolation: fmt(insolationEarth, 3) + "× Earth",
       companionFlux:
         hostFrame?.frameKind === "pair"

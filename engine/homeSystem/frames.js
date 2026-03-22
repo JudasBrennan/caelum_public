@@ -9,6 +9,8 @@ function toFiniteNumber(value, fallback) {
 
 function buildZones(systemModel, overrides = {}) {
   return {
+    zoneKind: overrides.zoneKind || systemModel.zoneKind || "habitableZone",
+    zoneLabel: overrides.zoneLabel || systemModel.zoneLabel || "Habitable Zone",
     habitableZoneAu: overrides.habitableZoneAu
       ? { ...overrides.habitableZoneAu }
       : { ...systemModel.habitableZoneAu },
@@ -140,7 +142,7 @@ export function buildHostFrames({
       starMassMsol: starContext.config.massMsol,
       luminosityLsol: starContext.model.luminosityLsol,
       radiusRsol: starContext.model.radiusRsol,
-      tempK: null,
+      tempK: starContext.model?.regime === "brownDwarf" ? starContext.model.tempK : null,
       worldSystemInputs,
     });
     const fluxModel = buildHierarchicalFluxModel({

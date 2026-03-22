@@ -4,6 +4,11 @@ import { calcGasGiant } from "../engine/gasGiant.js";
 import { calcStar } from "../engine/star.js";
 import { resolveHostFrameContext } from "../engine/homeSystem/context.js";
 import {
+  classifyCompanionRegimeByMass,
+  normalizeGiantCompanionClass,
+  regimeDisplayLabel,
+} from "../engine/substellarRegime.js";
+import {
   buildGasGiantMoonParentOverride,
   buildRockyMoonParentOverride,
   solveMoonSystem,
@@ -220,12 +225,16 @@ const TIP_LABEL = {
     "Tidal surface heat flux normalised to Earth's mean geothermal heat flux (0.09 W/m\u00B2).\n\n<1 = less than Earth's internal heat. >1 = more. Io \u2248 4\u00D7 Earth (equilibrium model).",
   "Orbital Recession":
     "Rate of orbital migration due to tidal dissipation. Positive = outward (planet spins faster than moon orbits, like Earth\u2013Moon at +3.8 cm/yr). Negative = inward (planet spins slower, like Phobos spiralling toward Mars).\n\nDriven by two competing effects: the planet\u2019s tidal bulge transfers angular momentum, while the moon\u2019s own dissipation damps the orbit inward.",
+  // Keep this tooltip aligned with the live orbital-fate solver.
+  // Stage 1 switched the current estimate to an integrated model.
   "Orbital Fate":
-    "Linear extrapolation of the current recession rate to estimate when the moon reaches the Roche limit (tidal disruption) or escapes the Hill sphere.\n\nThis is a rough estimate \u2014 real orbital evolution is non-linear and depends on changing tidal parameters over geological time.",
+    "Integrated tidal-evolution estimate for when the moon reaches the Roche limit (tidal disruption) or escapes the stable outer moon zone.\n\nThe current migration rate is propagated as an a^(-11/2) tidal law, which reduces distortion in long-lived inward and outward fate estimates. This is still an approximate estimate: the model assumes the current tidal regime continues over geological time.",
   "Nearest Resonance":
     "Closest sibling-moon mean-motion resonance identified by the coupled moon-system solver.",
   "Laplace Status":
     "Whether the moon is currently tagged as part of a Laplace-style resonant chain.",
+  "Migration Trend":
+    "Instantaneous drift of the moon pair's period ratio from the current tidal migration rates. Converging means the pair is moving closer to resonance; diverging means it is moving away. This is not a capture guarantee.",
   "Tidal HZ": "Moon tidal-habitable-zone readout from the coupled moon-system solver.",
   Formation:
     "First-pass moon formation classifier derived from orbit geometry, inclination, distance from the parent, and regular versus irregular moon architecture.",
@@ -412,7 +421,7 @@ const TUTORIAL_STEPS = [
     body:
       "The Moons page creates and configures natural satellites. Select a moon " +
       "from the dropdown, or create a new one. Assign it to a parent planet " +
-      "or gas giant using the parent selector.",
+      "or giant companion using the parent selector.",
   },
   {
     title: "Orbit Setup",
@@ -972,6 +981,17 @@ export function initMoonPage(mountEl, options = {}) {
     return { type: "planet", inputs: { ...world.planet } };
   }
 
+  function getGiantCompanionClass(parent) {
+    const explicitClass = String(parent?.companionClass || "").trim();
+    if (explicitClass) return normalizeGiantCompanionClass(explicitClass);
+    const regime = classifyCompanionRegimeByMass({ massMjup: parent?.massMjup });
+    return regime === "brownDwarf" ? "brownDwarf" : "gasGiant";
+  }
+
+  function getGiantCompanionClassLabel(parent) {
+    return regimeDisplayLabel(getGiantCompanionClass(parent));
+  }
+
   function getModeValue(container, name, fallback = "core") {
     return container?.querySelector(`input[name="${name}"]:checked`)?.value || fallback;
   }
@@ -1316,7 +1336,11 @@ export function initMoonPage(mountEl, options = {}) {
         parentInfo: {
           parentId: resolved.gasGiant.id || requestedPlanetId || null,
           parentKind: "gasGiant",
-          parentName: resolved.gasGiant.name || resolved.gasGiant.id || "Gas giant",
+          parentName:
+            resolved.gasGiant.name ||
+            resolved.gasGiant.id ||
+            getGiantCompanionClassLabel(resolved.gasGiant),
+          parentClassLabel: getGiantCompanionClassLabel(resolved.gasGiant),
           assigned: requestedPlanetId != null,
           orbitAu:
             Number(resolved.gasGiant.au) || Number(parentOverride.inputs.semiMajorAxisAu) || null,
@@ -1330,7 +1354,7 @@ export function initMoonPage(mountEl, options = {}) {
         },
         contextText:
           `Host frame: ${hostFrameContext?.hostFrame?.label || "Primary star"}\n` +
-          `Parent: ${resolved.gasGiant.name || resolved.gasGiant.id} (gas giant)\n` +
+          `Parent: ${resolved.gasGiant.name || resolved.gasGiant.id} (${getGiantCompanionClassLabel(resolved.gasGiant).toLowerCase()})\n` +
           `Parent orbit: ${fmt(parentOverride.inputs.semiMajorAxisAu, 3)} AU\n` +
           `${companionFluxEarth > 0.0005 ? `Companion flux: ${fmt(companionFluxEarth, 3)}x Earth\n` : ""}` +
           `${fluxVariabilityFraction > 0.001 ? `Flux variability: ${fmt(fluxVariabilityFraction * 100, 1)}%` : "Flux variability: low"}`,
@@ -1658,6 +1682,7 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Nearest Resonance", model.display.nearestResonance),
           buildMoonKpi("Laplace Status", model.display.laplaceStatus),
           buildMoonKpi("Forced Eccentricity", model.display.forcedEccentricity),
+          buildMoonKpi("Migration Trend", model.display.migrationTrend),
           buildMoonKpi("Tidal HZ", model.display.tidalHabitableZone),
           buildMoonKpi("Formation", model.display.formation),
           buildMoonKpi("Orbital Recession", model.display.recession),
@@ -1887,6 +1912,7 @@ export function initMoonPage(mountEl, options = {}) {
             { label: "Nearest Resonance", value: model.display.nearestResonance },
             { label: "Laplace Status", value: model.display.laplaceStatus },
             { label: "Forced Eccentricity", value: model.display.forcedEccentricity },
+            { label: "Migration Trend", value: model.display.migrationTrend },
             { label: "Tidal HZ", value: model.display.tidalHabitableZone },
             { label: "Formation", value: model.display.formation },
             { label: "Orbital Recession", value: model.display.recession },
@@ -2226,15 +2252,18 @@ export function initMoonPage(mountEl, options = {}) {
       moonInputs: activeMoonInputs,
       planetId: activePlanetId,
     });
+    const currentGiantSystemLabel = solvedContext.parentInfo?.parentClassLabel
+      ? `Current ${String(solvedContext.parentInfo.parentClassLabel).toLowerCase()} system`
+      : "Current giant companion system";
     const currentContextLabel =
       solvedContext.parentInfo?.assigned === false
         ? "No assigned parent"
         : solvedContext.parentType === "gasGiant"
-          ? "Current gas giant system"
+          ? currentGiantSystemLabel
           : "Current planet system";
     const currentContextText =
       solvedContext.parentInfo?.assigned === false
-        ? `${solvedContext.contextText}\nMoon is currently unassigned. Assign it to a planet or gas giant before using strict guided fitting.`
+        ? `${solvedContext.contextText}\nMoon is currently unassigned. Assign it to a planet or giant companion before using strict guided fitting.`
         : solvedContext.contextText;
 
     return {
