@@ -88,8 +88,8 @@ export function computePeriodRatioDriftPctPerGyr({
   const resolvedDadtOuterMs = toFinite(dadtOuterMs, 0);
   if (aInnerM <= 0 || aOuterM <= 0) return 0;
 
-  const dlnPInnerDt = 1.5 * resolvedDadtInnerMs / aInnerM;
-  const dlnPOuterDt = 1.5 * resolvedDadtOuterMs / aOuterM;
+  const dlnPInnerDt = (1.5 * resolvedDadtInnerMs) / aInnerM;
+  const dlnPOuterDt = (1.5 * resolvedDadtOuterMs) / aOuterM;
   const dlnRatioDt = dlnPOuterDt - dlnPInnerDt;
   return dlnRatioDt * RATIO_DRIFT_SECONDS_PER_GYR * 100;
 }

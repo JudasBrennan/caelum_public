@@ -31,6 +31,7 @@ import {
   applyInertia as applyCameraInertia,
   applyResetEasing as applyCameraResetEasing,
   applyZoomInterpolation as applyCameraZoomInterpolation,
+  computeCometPlacement as computeSystemCometPlacement,
   computeGasGiantPlacement as computeSystemGasGiantPlacement,
   computePlanetPlacement as computeSystemPlanetPlacement,
   desiredFocusZoom as computeDesiredFocusZoom,
@@ -42,6 +43,13 @@ import {
 } from "./visualizer/focusCamera.js";
 import { createNativeLabelLayer } from "./visualizer/nativeLabelLayer.js";
 import { createNativeSystemLayer } from "./visualizer/nativeSystemLayer.js";
+import { buildProjectedCometOrbitDashRuns } from "./visualizer/cometOrbitPath.js";
+import {
+  buildCometParticleLayout,
+  buildCometTailGeometry,
+  hexToColorNumber,
+  resolveCometTailDirections,
+} from "./cometAppearance.js";
 import { computeBinaryPairOrbitalState } from "./visualizer/multistarOrbit.js";
 import {
   getStarSurfaceSeed,
@@ -177,6 +185,7 @@ export function initVisualiserPage(root, options = {}) {
               <label class="viz-check"><input id="chk-orbits" type="checkbox" checked /><span>Orbits ${tipIcon(TIP_LABEL["Orbits"] || "")}</span></label>
               <label class="viz-check"><input id="chk-hz" type="checkbox" checked /><span>Habitable zone ${tipIcon(TIP_LABEL["Habitable zone"] || "")}</span></label>
               <label class="viz-check"><input id="chk-debris" type="checkbox" checked /><span>Debris disks ${tipIcon(TIP_LABEL["Debris disks"] || "")}</span></label>
+              <label class="viz-check"><input id="chk-comets" type="checkbox" checked /><span>Comets ${tipIcon(TIP_LABEL["Comets"] || "")}</span></label>
               <label class="viz-check"><input id="chk-eccentric" type="checkbox" /><span>Eccentric orbits ${tipIcon(TIP_LABEL["Eccentric orbits"] || "")}</span></label>
               <label class="viz-check"><input id="chk-pe-ap" type="checkbox" /><span>Pe / Ap markers ${tipIcon(TIP_LABEL["Pe / Ap markers"] || "")}</span></label>
               <label class="viz-check"><input id="chk-hill" type="checkbox" /><span>Hill spheres ${tipIcon(TIP_LABEL["Hill spheres"] || "")}</span></label>
@@ -314,6 +323,7 @@ export function initVisualiserPage(root, options = {}) {
   const vizSizePhysical = root.querySelector("#vizSizePhysical");
   const chkHz = root.querySelector("#chk-hz");
   const chkDebris = root.querySelector("#chk-debris");
+  const chkComets = root.querySelector("#chk-comets");
   const chkEccentric = root.querySelector("#chk-eccentric");
   const chkPeAp = root.querySelector("#chk-pe-ap");
   const chkHill = root.querySelector("#chk-hill");
@@ -387,6 +397,7 @@ export function initVisualiserPage(root, options = {}) {
     orbits: chkOrbits?.closest(".viz-check"),
     hz: chkHz?.closest(".viz-check"),
     debris: chkDebris?.closest(".viz-check"),
+    comets: chkComets?.closest(".viz-check"),
     eccentric: chkEccentric?.closest(".viz-check"),
     peAp: chkPeAp?.closest(".viz-check"),
     hill: chkHill?.closest(".viz-check"),
@@ -482,16 +493,6 @@ export function initVisualiserPage(root, options = {}) {
     syncSystemViewModeControls(snapshot);
     syncHostFrameControls(snapshot);
     return resolvedMode;
-  }
-
-  function selectOverviewHostFrame(hostFrameId, { switchToLocal = false } = {}) {
-    const resolvedHostFrameId = String(hostFrameId || "").trim();
-    if (!resolvedHostFrameId) return;
-    state.activeHostFrameId = resolvedHostFrameId;
-    invalidateSnapshot();
-    if (switchToLocal) applySystemViewMode("local");
-    clearFocusTarget();
-    draw();
   }
 
   const state = {
@@ -1539,7 +1540,7 @@ export function initVisualiserPage(root, options = {}) {
       return drawSystemOverview(snapshot);
     }
     renderFocusSummary(getFocusedBodySummary(snapshot, state.focusTargetKind, state.focusTargetId));
-    const { sys, planetNodes, debrisDisks, gasGiants } = snapshot;
+    const { sys, planetNodes, debrisDisks, comets, gasGiants } = snapshot;
     const debugOn = flareDebugEnabled();
     const metrics = getFrameMetrics(snapshot);
     const { W, H, baseCx, baseCy, minAu, maxAu, maxR } = metrics;
@@ -1675,6 +1676,201 @@ export function initVisualiserPage(root, options = {}) {
         priority,
         opacity,
       });
+
+    const mapAuSpanToPx = (startAu, spanAu) => {
+      if (!(Number.isFinite(startAu) && Number.isFinite(spanAu) && spanAu > 0)) return 0;
+      return Math.max(
+        0,
+        mapAuToPx(startAu + spanAu, minAu, maxAu, maxR) - mapAuToPx(startAu, minAu, maxAu, maxR),
+      );
+    };
+
+    const normalizeVec2 = (x, y, fallback = { x: 1, y: 0 }) => {
+      const mag = Math.hypot(x, y);
+      if (!(mag > 0)) return fallback;
+      return { x: x / mag, y: y / mag };
+    };
+
+    const projectedDashedCometOrbitDashArc = (
+      comet,
+      color = 0xa8d7ff,
+      opacity = 0.42,
+      z = -5.9,
+      segments = 1920,
+    ) => {
+      const { pointRuns } = buildProjectedCometOrbitDashRuns({
+        comet,
+        cx,
+        cy,
+        z,
+        minAu,
+        maxAu,
+        maxR,
+        mapAuToPx,
+        orbitOffsetToScreen,
+        screenToThree,
+        sampleCount: segments,
+        dashSteps: 14,
+        gapSteps: 10,
+        substepsPerSample: 4,
+      });
+      if (!Array.isArray(pointRuns) || !pointRuns.length) return null;
+      const group = new THREE.Group();
+      for (const run of pointRuns) {
+        if (!Array.isArray(run) || run.length < 2) continue;
+        group.add(
+          new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(run),
+            new THREE.LineBasicMaterial({
+              color,
+              transparent: opacity < 1,
+              opacity,
+              depthWrite: false,
+            }),
+          ),
+        );
+      }
+      return group.children.length ? group : null;
+    };
+
+    const addTailRibbonNative = ({
+      tailBase,
+      dustUpperControl,
+      dustTip,
+      dustLowerControl,
+      dustBaseReturn,
+      color,
+      opacity,
+      z,
+    }) => {
+      const segments = 20;
+      const shape = new THREE.Shape();
+      const start = screenToThree(tailBase.x, tailBase.y, z);
+      shape.moveTo(start.x, start.y);
+      for (let i = 1; i <= segments; i += 1) {
+        const t = i / segments;
+        const p = quadraticScreenPoint(
+          tailBase.x,
+          tailBase.y,
+          dustUpperControl.x,
+          dustUpperControl.y,
+          dustTip.x,
+          dustTip.y,
+          t,
+        );
+        const tp = screenToThree(p.x, p.y, z);
+        shape.lineTo(tp.x, tp.y);
+      }
+      for (let i = 1; i <= segments; i += 1) {
+        const t = i / segments;
+        const p = quadraticScreenPoint(
+          dustTip.x,
+          dustTip.y,
+          dustLowerControl.x,
+          dustLowerControl.y,
+          dustBaseReturn.x,
+          dustBaseReturn.y,
+          t,
+        );
+        const tp = screenToThree(p.x, p.y, z);
+        shape.lineTo(tp.x, tp.y);
+      }
+      shape.closePath();
+      nativeThree.systemGroup.add(
+        new THREE.Mesh(
+          new THREE.ShapeGeometry(shape),
+          new THREE.MeshBasicMaterial({
+            color,
+            transparent: opacity < 1,
+            opacity,
+            depthWrite: false,
+            depthTest: false,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+          }),
+        ),
+      );
+    };
+
+    const quadraticScreenPoint = (sx, sy, cx1, cy1, ex, ey, t) => {
+      const inv = 1 - t;
+      return {
+        x: inv * inv * sx + 2 * inv * t * cx1 + t * t * ex,
+        y: inv * inv * sy + 2 * inv * t * cy1 + t * t * ey,
+      };
+    };
+
+    const quadraticScreenNormal = (sx, sy, cx1, cy1, ex, ey, t) => {
+      const dx = 2 * (1 - t) * (cx1 - sx) + 2 * t * (ex - cx1);
+      const dy = 2 * (1 - t) * (cy1 - sy) + 2 * t * (ey - cy1);
+      const tangent = normalizeVec2(dx, dy, { x: 1, y: 0 });
+      return { x: -tangent.y, y: tangent.x };
+    };
+
+    const addParticleFieldNative = ({
+      particles,
+      resolveScreenPoint,
+      color,
+      opacity = 0.6,
+      baseSize = 2.4,
+      z = 2.6,
+    }) => {
+      if (
+        !Array.isArray(particles) ||
+        !particles.length ||
+        typeof resolveScreenPoint !== "function"
+      ) {
+        return null;
+      }
+      const baseColor = new THREE.Color(color);
+      const buckets = [
+        { maxSize: 1.0, sizeScale: 0.85, opacityScale: 0.52, positions: [], colors: [] },
+        { maxSize: 1.55, sizeScale: 1.2, opacityScale: 0.72, positions: [], colors: [] },
+        { maxSize: Infinity, sizeScale: 1.7, opacityScale: 0.92, positions: [], colors: [] },
+      ];
+
+      for (const particle of particles) {
+        const screenPoint = resolveScreenPoint(particle);
+        if (!screenPoint) continue;
+        const { x, y, alpha = 1, size = 1 } = screenPoint;
+        if (!(Number.isFinite(x) && Number.isFinite(y))) continue;
+        const bucket =
+          buckets.find((entry) => size <= entry.maxSize) || buckets[buckets.length - 1];
+        const tp = screenToThree(x, y, z);
+        const brightness = clamp(0.22 + alpha * 0.95, 0.08, 1.15);
+        bucket.positions.push(tp.x, tp.y, z);
+        bucket.colors.push(
+          clamp(baseColor.r * brightness, 0, 1),
+          clamp(baseColor.g * brightness, 0, 1),
+          clamp(baseColor.b * brightness, 0, 1),
+        );
+      }
+
+      const group = new THREE.Group();
+      for (const bucket of buckets) {
+        if (!bucket.positions.length) continue;
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.Float32BufferAttribute(bucket.positions, 3));
+        geometry.setAttribute("color", new THREE.Float32BufferAttribute(bucket.colors, 3));
+        group.add(
+          new THREE.Points(
+            geometry,
+            new THREE.PointsMaterial({
+              size: baseSize * bucket.sizeScale,
+              vertexColors: true,
+              transparent: true,
+              opacity: clamp(opacity * bucket.opacityScale, 0.05, 1),
+              depthWrite: false,
+              depthTest: false,
+              blending: THREE.AdditiveBlending,
+              sizeAttenuation: false,
+            }),
+          ),
+        );
+      }
+
+      return group.children.length ? group : null;
+    };
 
     if (chkGrid?.checked) {
       const niceSteps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
@@ -2015,7 +2211,11 @@ export function initVisualiserPage(root, options = {}) {
     const starCoreHex = mixHex(snapshot.starColourHex, "#ffffff", starVisualStyle.coreMix);
     const starCoreTint = parseHexColorNumber(starCoreHex, starTint);
     const starRimTint = parseHexColorNumber(
-      mixHex(snapshot.starColourHex, starVisualStyle.rimWarmHex, Math.max(starVisualStyle.faculaMix, 0.12)),
+      mixHex(
+        snapshot.starColourHex,
+        starVisualStyle.rimWarmHex,
+        Math.max(starVisualStyle.faculaMix, 0.12),
+      ),
       starTint,
     );
     const flareRimTint = parseHexColorNumber(
@@ -2497,7 +2697,11 @@ export function initVisualiserPage(root, options = {}) {
         });
         const entryTint = parseHexColorNumber(entry.starColourHex, starTint);
         const entryRimTint = parseHexColorNumber(
-          mixHex(entry.starColourHex, entryVisualStyle.rimWarmHex, Math.max(entryVisualStyle.faculaMix, 0.12)),
+          mixHex(
+            entry.starColourHex,
+            entryVisualStyle.rimWarmHex,
+            Math.max(entryVisualStyle.faculaMix, 0.12),
+          ),
           entryTint,
         );
         const entryCoreTint = parseHexColorNumber(
@@ -2529,7 +2733,10 @@ export function initVisualiserPage(root, options = {}) {
         const entryCenter = toThreeXY(metrics, entry.screenX, Number(entry.screenY || cy));
         addStarSprite({
           tex: starGlowTex,
-          radius: Math.max(8, entry.visualRadius * (2.35 + 0.16 * glowPulse) * entryVisualStyle.glowRadiusScale),
+          radius: Math.max(
+            8,
+            entry.visualRadius * (2.35 + 0.16 * glowPulse) * entryVisualStyle.glowRadiusScale,
+          ),
           opacity: 0.16 * entryVisualStyle.glowOpacityScale,
           z: -1.34,
           x: entryCenter.x,
@@ -2539,7 +2746,10 @@ export function initVisualiserPage(root, options = {}) {
         });
         addStarSprite({
           tex: starGlowTex,
-          radius: Math.max(5.5, entry.visualRadius * (1.7 + 0.12 * glowPulse) * entryVisualStyle.glowRadiusScale),
+          radius: Math.max(
+            5.5,
+            entry.visualRadius * (1.7 + 0.12 * glowPulse) * entryVisualStyle.glowRadiusScale,
+          ),
           opacity: 0.23 * entryVisualStyle.glowOpacityScale,
           z: -1.16,
           x: entryCenter.x,
@@ -3281,10 +3491,7 @@ export function initVisualiserPage(root, options = {}) {
           tempK: brownDwarfVisual.starTempK,
           massMsol: brownDwarfVisual.starMassMsol,
         });
-        const brownDwarfTint = parseHexColorNumber(
-          brownDwarfVisual.starColourHex,
-          0x7a495f,
-        );
+        const brownDwarfTint = parseHexColorNumber(brownDwarfVisual.starColourHex, 0x7a495f);
         const brownDwarfRimTint = parseHexColorNumber(
           mixHex(
             brownDwarfVisual.starColourHex,
@@ -3628,6 +3835,243 @@ export function initVisualiserPage(root, options = {}) {
       }
       registerHit("gasGiant", g.id, gPos.x, gPos.y, Math.max(12, gr + 4), g);
       nativeGasRenderNodes.push({ g, placement, gPos, gr });
+    }
+
+    if (chkComets?.checked && Array.isArray(comets)) {
+      for (const comet of comets) {
+        if (!(Number(comet?.semiMajorAxisAu) > 0)) continue;
+        const cometParticles = buildCometParticleLayout({
+          comet,
+          seed: `${comet.id || comet.name || "comet"}:viz`,
+        });
+        const cometAppearance = cometParticles.appearance;
+        const orbitColor = hexToColorNumber(cometAppearance.orbitHex, 0xa8d7ff);
+        const comaColor = hexToColorNumber(cometAppearance.comaHex, 0xe9fbff);
+        const ionTailColor = hexToColorNumber(cometAppearance.ionTailHex, 0x74d7ff);
+        const dustTailColor = hexToColorNumber(cometAppearance.dustTailHex, 0xf0dcc1);
+        const nucleusHaloColor = hexToColorNumber(cometAppearance.nucleusHaloHex, 0xa7edff);
+        const nucleusCoreColor = hexToColorNumber(cometAppearance.nucleusCoreHex, 0xeef8ff);
+        if (chkOrbits?.checked) {
+          const cometOrbitArc = projectedDashedCometOrbitDashArc(
+            comet,
+            orbitColor,
+            0.34 + cometAppearance.activityLevel * 0.14,
+          );
+          if (cometOrbitArc) nativeThree.systemGroup.add(cometOrbitArc);
+        }
+
+        const placement = computeCometPlacement(comet, metrics, snapshot.starMassMsol);
+        const cometPos = orbitOffsetToScreen(
+          placement.ox,
+          placement.oy,
+          cx,
+          cy,
+          placement.oyVert || 0,
+        );
+        if (!Number.isFinite(cometPos.x) || !Number.isFinite(cometPos.y)) continue;
+
+        const futureStepDays = clamp(Number(placement.periodDays || 120) * 0.0025, 0.35, 16);
+        const futurePlacement = computeSystemCometPlacement(comet, metrics, snapshot.starMassMsol, {
+          mapAuToPx,
+          simTime: state.simTime + futureStepDays,
+          solveKeplerEquation,
+        });
+        const futurePos = orbitOffsetToScreen(
+          futurePlacement.ox,
+          futurePlacement.oy,
+          cx,
+          cy,
+          futurePlacement.oyVert || 0,
+        );
+
+        const nucleusR = clamp((Number(comet.nucleusRadiusKm) || 1) * 0.5, 3.2, 11);
+        const { antiSolarDir, dustDir } = resolveCometTailDirections({
+          cometPos,
+          futurePos,
+          starPos: { x: cx, y: cy },
+          dustBias: cometAppearance.dustBias,
+        });
+        const ionTailPx = mapAuSpanToPx(
+          Math.max(Number(comet.currentRadiusAu) || 0.001, 0.001),
+          Number(comet.ionTailLengthAu) || 0,
+        );
+        const dustTailPx = mapAuSpanToPx(
+          Math.max(Number(comet.currentRadiusAu) || 0.001, 0.001),
+          Number(comet.dustTailLengthAu) || 0,
+        );
+        const nucleusPos = screenToThree(cometPos.x, cometPos.y, 2.72);
+        const cometZoomFade = isPhysicalScale()
+          ? clamp((state.zoom - 0.28) / 0.72, 0, 1)
+          : clamp((metrics.bodyZoom - 0.12) / 0.4, 0, 1);
+        const cometFocusFade =
+          state.focusTargetKind === "comet" && state.focusTargetId === comet.id ? 0.45 : 0;
+        const cometDetailFade = Math.max(cometZoomFade, cometFocusFade);
+        const tailGeometry = buildCometTailGeometry({
+          tailBase: cometPos,
+          tailDir: dustDir,
+          preferredNormal: antiSolarDir,
+          dustLength: dustTailPx,
+          ionLength: ionTailPx * 0.82,
+          baseFlare: Math.max(nucleusR * 0.9, 3.4 + cometAppearance.dustBias * 2.6),
+        });
+
+        if (comet.activeNow) {
+          const comaR = clamp(
+            Math.log10((Number(comet.comaRadiusKm) || 0) + 10) * 4.2,
+            nucleusR * 1.7,
+            34,
+          );
+          if (cometDetailFade > 0.02) {
+            addStarSprite({
+              tex: starGlowTex,
+              radius: comaR * (0.82 + cometAppearance.activityLevel * 0.12),
+              opacity: (0.05 + cometAppearance.activityLevel * 0.09) * cometDetailFade,
+              z: 2.68,
+              x: nucleusPos.x,
+              y: nucleusPos.y,
+              color: comaColor,
+              blending: THREE.NormalBlending,
+            });
+            const comaParticles = addParticleFieldNative({
+              particles: cometParticles.comaParticles,
+              resolveScreenPoint: (particle) => ({
+                x: cometPos.x + Math.cos(particle.angle) * comaR * particle.radiusNorm,
+                y: cometPos.y + Math.sin(particle.angle) * comaR * particle.radiusNorm,
+                alpha: particle.alpha,
+                size: particle.size,
+              }),
+              color: comaColor,
+              opacity: (0.52 + cometAppearance.activityLevel * 0.1) * cometDetailFade,
+              baseSize: Math.max(1.5, nucleusR * 0.42),
+              z: 2.69,
+            });
+            if (comaParticles) nativeThree.systemGroup.add(comaParticles);
+          }
+
+          if (ionTailPx > 0.5) {
+            addScreenLine(
+              tailGeometry.tailBase.x,
+              tailGeometry.tailBase.y,
+              tailGeometry.ionEnd.x,
+              tailGeometry.ionEnd.y,
+              ionTailColor,
+              0.16 + cometAppearance.ionBias * 0.06,
+              2.58,
+            );
+            const ionParticleCloud = addParticleFieldNative({
+              particles: cometParticles.ionParticles,
+              resolveScreenPoint: (particle) => {
+                return {
+                  x:
+                    tailGeometry.tailBase.x +
+                    (tailGeometry.ionEnd.x - tailGeometry.tailBase.x) * particle.t +
+                    tailGeometry.tailNormal.x * ionTailPx * particle.lateral,
+                  y:
+                    tailGeometry.tailBase.y +
+                    (tailGeometry.ionEnd.y - tailGeometry.tailBase.y) * particle.t +
+                    tailGeometry.tailNormal.y * ionTailPx * particle.lateral,
+                  alpha: particle.alpha,
+                  size: particle.size,
+                };
+              },
+              color: ionTailColor,
+              opacity: 0.5 + cometAppearance.ionBias * 0.08,
+              baseSize: Math.max(1.7, nucleusR * 0.34),
+              z: 2.6,
+            });
+            if (ionParticleCloud) nativeThree.systemGroup.add(ionParticleCloud);
+          }
+
+          if (dustTailPx > 0.5) {
+            addTailRibbonNative({
+              tailBase: tailGeometry.tailBase,
+              dustUpperControl: tailGeometry.dustUpperControl,
+              dustTip: tailGeometry.dustTip,
+              dustLowerControl: tailGeometry.dustLowerControl,
+              dustBaseReturn: tailGeometry.dustBaseReturn,
+              color: dustTailColor,
+              opacity: 0.28 + cometAppearance.dustBias * 0.16,
+              z: 2.56,
+            });
+            const dustParticleCloud = addParticleFieldNative({
+              particles: cometParticles.dustParticles,
+              resolveScreenPoint: (particle) => {
+                const base = quadraticScreenPoint(
+                  tailGeometry.tailBase.x,
+                  tailGeometry.tailBase.y,
+                  tailGeometry.dustUpperControl.x,
+                  tailGeometry.dustUpperControl.y,
+                  tailGeometry.dustTip.x,
+                  tailGeometry.dustTip.y,
+                  particle.t,
+                );
+                const normal = quadraticScreenNormal(
+                  tailGeometry.tailBase.x,
+                  tailGeometry.tailBase.y,
+                  tailGeometry.dustUpperControl.x,
+                  tailGeometry.dustUpperControl.y,
+                  tailGeometry.dustTip.x,
+                  tailGeometry.dustTip.y,
+                  particle.t,
+                );
+                return {
+                  x: base.x + normal.x * dustTailPx * particle.lateral,
+                  y: base.y + normal.y * dustTailPx * particle.lateral,
+                  alpha: particle.alpha,
+                  size: particle.size,
+                };
+              },
+              color: dustTailColor,
+              opacity: 0.6 + cometAppearance.dustBias * 0.16,
+              baseSize: Math.max(1.8, nucleusR * 0.42),
+              z: 2.59,
+            });
+            if (dustParticleCloud) nativeThree.systemGroup.add(dustParticleCloud);
+          }
+        }
+
+        if (cometDetailFade > 0.05) {
+          addStarSprite({
+            tex: starGlowTex,
+            radius: nucleusR * (1.08 + cometAppearance.activityLevel * 0.22),
+            opacity:
+              (comet.activeNow ? 0.035 + cometAppearance.activityLevel * 0.045 : 0.018) *
+              cometDetailFade,
+            z: 2.7,
+            x: nucleusPos.x,
+            y: nucleusPos.y,
+            color: nucleusHaloColor,
+            blending: THREE.NormalBlending,
+          });
+        }
+        const nucleusCore = new THREE.Mesh(
+          new THREE.CircleGeometry(nucleusR, 22),
+          new THREE.MeshBasicMaterial({
+            color: nucleusCoreColor,
+            transparent: true,
+            opacity: 0.95,
+            depthWrite: false,
+            depthTest: false,
+          }),
+        );
+        nucleusCore.position.set(nucleusPos.x, nucleusPos.y, 2.72);
+        nativeThree.systemGroup.add(nucleusCore);
+
+        if (chkLabels?.checked) {
+          addBodyLabelNative(
+            comet.name || "Comet",
+            `${Number(comet.currentRadiusAu || 0).toFixed(2)} AU`,
+            cometPos.x,
+            cometPos.y,
+            nucleusR,
+            9,
+            `comet:${comet.id}`,
+            60,
+          );
+        }
+
+        registerHit("comet", comet.id, cometPos.x, cometPos.y, Math.max(10, nucleusR + 4), comet);
+      }
     }
 
     // All labels have been collected; sort by priority and place.
@@ -4309,6 +4753,7 @@ export function initVisualiserPage(root, options = {}) {
       orbits: !overviewMode,
       hz: !overviewMode,
       debris: !overviewMode,
+      comets: !overviewMode,
       eccentric: !overviewMode,
       peAp: !overviewMode,
       hill: !overviewMode,
@@ -4394,6 +4839,14 @@ export function initVisualiserPage(root, options = {}) {
     });
   }
 
+  function computeCometPlacement(comet, metrics, starMassMsol) {
+    return computeSystemCometPlacement(comet, metrics, starMassMsol, {
+      mapAuToPx,
+      simTime: state.simTime,
+      solveKeplerEquation,
+    });
+  }
+
   // Project a 3-D orbit-plane offset (ox, oy, oz) through the camera.
   // oy is the vertical offset (from inclination tilt); defaults to 0 for flat orbits.
   function projectOrbitOffset(ox, oz, oy = 0) {
@@ -4463,8 +4916,10 @@ export function initVisualiserPage(root, options = {}) {
       metrics,
       snapshot: snap,
       zoomMin: ZOOM_MIN,
+      computeCometPlacement,
       computeGasGiantPlacement,
       computePlanetPlacement,
+      mapAuToPx,
       getGasGiantRadiusPx(g, metricsArg) {
         return Math.max(
           1,
@@ -4501,6 +4956,7 @@ export function initVisualiserPage(root, options = {}) {
   function syncFocusPan(snapshot, metrics) {
     return syncFocusedPan({
       clearFocusTarget,
+      computeCometPlacement,
       computeGasGiantPlacement,
       computePlanetPlacement,
       metrics,
@@ -4875,6 +5331,7 @@ export function initVisualiserPage(root, options = {}) {
       chkOrbits,
       chkHz,
       chkDebris,
+      chkComets,
       chkEccentric,
       chkPeAp,
       chkHill,

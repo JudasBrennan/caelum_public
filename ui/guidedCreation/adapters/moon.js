@@ -1388,8 +1388,6 @@ function buildMoonParentPatch(archetype, answers = {}, currentSolved = null, con
   const model = currentSolved?.model || {};
   const temperature = model.temperature || {};
   const radiation = model.radiation || {};
-  const wantsSurfaceHabitability =
-    answers.water_state === "surface" || (answers.life_goal && answers.life_goal !== "sterile");
   const highRadiation =
     answers.life_goal === "surface-biosphere"
       ? (Number(radiation.magnetosphericRadRemDay) || 0) >= 1
@@ -2410,14 +2408,12 @@ function evaluateMoonGoalTrait(traitId, recommendation = {}) {
   const display = model.display || {};
   const hydrosphere = model.hydrosphere || {};
   const atmosphere = model.atmosphere || {};
-  const temperature = model.temperature || {};
   const resonance = model.resonance || {};
   const radiation = model.radiation || {};
   const biosphere = model.biosphere || {};
   const habitabilitySummary = model.habitability?.summary || {};
   const classifications = habitabilitySummary.classifications || {};
   const pressureAtm = Math.max(toFiniteNumber(atmosphere.surfacePressureAtm, 0), 0);
-  const surfaceK = Math.max(toFiniteNumber(temperature.surfaceK, 0), 0);
   const magnetoDose = Math.max(toFiniteNumber(radiation.magnetosphericRadRemDay, 0), 0);
   const climateText = normalizeText(display.climateState);
   const atmosphereText = normalizeText(display.atmosphereClass);
@@ -2794,7 +2790,6 @@ function scoreMoonEnvironmentFit(compiledGoal = {}, recommendation = {}) {
   const summary = model.habitability?.summary || {};
   const classifications = summary.classifications || {};
   const radiation = model.radiation || {};
-  const surfaceGoal = moonGoalTargetsSurfaceWarmth(compiledGoal);
   const subsurfaceGoal =
     goalTraitSelected(compiledGoal, "subsurface-ocean") &&
     !goalTraitSelected(compiledGoal, "surface-liquid-water") &&

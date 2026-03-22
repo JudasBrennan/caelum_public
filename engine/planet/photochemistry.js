@@ -30,11 +30,7 @@ export function computePlanetPhotochemistry({
   const xuvRelative = clamp(resolvedXuvFluxRatio, 0.01, 100);
   const pressureModifier = clamp(Math.max(resolvedPressureAtm, 0.01) ** 0.15, 0.5, 1.5);
 
-  const ozoneEarthRatio = clamp(
-    o2Relative ** 0.5 * xuvRelative ** 0.15 * pressureModifier,
-    0,
-    5,
-  );
+  const ozoneEarthRatio = clamp(o2Relative ** 0.5 * xuvRelative ** 0.15 * pressureModifier, 0, 5);
   const ozoneColumnDobsonUnits = EARTH_OZONE_DU * ozoneEarthRatio;
 
   const warningCodes = [];

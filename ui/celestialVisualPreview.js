@@ -191,7 +191,14 @@ function drawSoftBlob(ctx, x, y, radius, rgb, alphaInner, alphaOuter = 0) {
 function paintStarSurfaceTexture(
   ctx,
   size,
-  { baseHex = "#fff4dc", seed = "star", tempK = 5776, activity = 0.2, regime = null, massMsol = null } = {},
+  {
+    baseHex = "#fff4dc",
+    seed = "star",
+    tempK = 5776,
+    activity = 0.2,
+    regime = null,
+    massMsol = null,
+  } = {},
 ) {
   const s = Math.max(64, Number(size) || SURFACE_TEXTURE_SIZE);
   const cx = s * 0.5;
@@ -1033,7 +1040,8 @@ function normalizeModel(input) {
     cmeBackgroundRatePerDay,
     teffBin: String(activity.teffBin || "FGK"),
     ageBand: String(activity.ageBand || "old"),
-    starActivityLevel: clamp(Math.log10(1 + n32) / Math.log10(31), 0, 1) * visualStyle.activityScale,
+    starActivityLevel:
+      clamp(Math.log10(1 + n32) / Math.log10(31), 0, 1) * visualStyle.activityScale,
     visualStyle,
   };
 }

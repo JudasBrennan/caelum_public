@@ -837,9 +837,7 @@ export function suggestStyles(ggCalc) {
     ggCalc.classification?.substellarClass
   ) {
     const family = String(
-      ggCalc.classification?.spectralFamily ||
-        ggCalc.classification?.substellarClass ||
-        "L",
+      ggCalc.classification?.spectralFamily || ggCalc.classification?.substellarClass || "L",
     )
       .trim()
       .charAt(0)

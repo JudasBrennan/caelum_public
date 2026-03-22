@@ -2,6 +2,7 @@ import { calcSystem } from "../../engine/system.js";
 import { calcStar, starColourHexFromTempK } from "../../engine/star.js";
 import { calcPlanetExact } from "../../engine/planet.js";
 import { calcMoonExact } from "../../engine/moon.js";
+import { calcComet } from "../../engine/comet.js";
 import { calcGasGiant } from "../../engine/gasGiant.js";
 import { buildBrownDwarfStarVisual } from "../../engine/brownDwarfVisual.js";
 import {
@@ -22,6 +23,7 @@ import {
   GAS_GIANT_RADIUS_MIN_RJ,
   listMoons,
   listPlanets,
+  listSystemComets,
   listSystemDebrisDisks,
   listSystemGasGiants,
   buildWorldHomeSystemContext,
@@ -588,7 +590,48 @@ export function buildVisualizerSnapshot(world, options = {}) {
     }
   }
 
+  const comets = [];
+  for (const comet of listSystemComets(world, {
+    hostFrameId: activeHostFrameId,
+    fallbackHostFrameId,
+  })) {
+    try {
+      const cometCalc = calcComet({
+        comet,
+        starMassMsol,
+        starLuminosityLsol: starLuminosityLsun,
+      });
+      comets.push({
+        id: comet.id || `c${comets.length + 1}`,
+        name: comet.name || `Comet ${comets.length + 1}`,
+        hostFrameId: activeHostFrameId,
+        sourceReservoir: cometCalc.classification.sourceReservoir,
+        semiMajorAxisAu: Number(cometCalc.inputs.semiMajorAxisAu) || 0,
+        eccentricity: Number(cometCalc.inputs.eccentricity) || 0,
+        inclinationDeg: Number(cometCalc.inputs.inclinationDeg) || 0,
+        longitudeOfPeriapsisDeg: Number(cometCalc.inputs.longitudeOfPeriapsisDeg) || 0,
+        volatileClass: String(cometCalc.inputs.volatileClass || "waterRich"),
+        volatileLabel: String(cometCalc.classification.volatileLabel || ""),
+        dustToGasRatio: Number(cometCalc.inputs.dustToGasRatio) || 0,
+        trueAnomalyDeg: Number(cometCalc.orbit.trueAnomalyDeg) || 0,
+        currentRadiusAu: Number(cometCalc.orbit.currentRadiusAu) || 0,
+        visualOrbitOuterAu: Number(cometCalc.orbit.visualOrbitOuterAu) || 0,
+        activeNow: !!cometCalc.activity.activeNow,
+        activityState: cometCalc.display.activityState,
+        comaRadiusKm: Number(cometCalc.activity.comaRadiusKm) || 0,
+        dustTailLengthAu: Number(cometCalc.activity.dustTailLengthAu) || 0,
+        ionTailLengthAu: Number(cometCalc.activity.ionTailLengthAu) || 0,
+        nucleusRadiusKm: Number(cometCalc.inputs.nucleusRadiusKm) || 0,
+        dynamicalClass: cometCalc.classification.dynamicalClass,
+        sourceLabel: cometCalc.display.sourceReservoir,
+      });
+    } catch {
+      // Skip invalid comet solves rather than breaking the Local Frame snapshot.
+    }
+  }
+
   log(enabled, "debrisDisks", debrisDisks);
+  log(enabled, "comets", comets);
   log(enabled, "gasGiants", gasGiants);
   log(
     enabled,
@@ -600,6 +643,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
     sys: system,
     planetNodes,
     debrisDisks,
+    comets,
     gasGiants,
     topologyKind,
     canvasMode,

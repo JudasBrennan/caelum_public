@@ -40,7 +40,6 @@ function buildSystemQuestions(flowState = {}, context = {}) {
     flowState?.selectedArchetypeId || flowState?.selectedGoalTemplateId || "balanced",
   );
   const rerollMode = String(flowState?.answers?.rerollMode || "fresh-draft");
-  const goalTemplateId = String(flowState?.answers?.goalTemplateId || "none");
   const currentWorld =
     typeof context?.getCurrentWorld === "function"
       ? context.getCurrentWorld()

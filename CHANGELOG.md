@@ -4,6 +4,8 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.0.0 - 2026-03-22
+
 ### Brown Dwarf Full Integration
 
 **Added fully integrated brown dwarf support across star hosts, orbiting giant companions, and shared read-only views**
@@ -52,6 +54,169 @@ tests/planetStore.test.js)
   visualizer/poster/apparent renderer regressions, and full regression
   sweeps across the star, planet, moon, snapshot, import/export, and
   store paths.
+
+### Moon Tidal And Resonance Accuracy
+
+**Replaced the old linear moon-fate estimate with integrated tidal timescales, mass-aware resonance forcing, and migration-trend diagnostics**
+(engine/moon/tides.js, engine/moon/resonance.js,
+engine/moon/system.js, engine/moon.js, ui/moonPage.js,
+tests/moon.test.js, tests/moonResonance.test.js,
+tests/moonOrbitalFateRegression.test.js,
+tests/moonDisplayModel.test.js, tests/crossModelMoonSystems.test.js,
+tests/engineWorldFixtures.test.js)
+
+Moon orbital-fate outputs no longer rely on the old
+`distance / |da/dt|` shortcut. The Moon page now uses the integrated
+tidal migration timescale for inward Roche evolution and outward escape
+cases, so long-lived systems do not overstate or understate their
+remaining lifetime by large factors.
+
+Resonant moons also gained a more defensible forcing model. Forced
+eccentricity now depends on resonance partner mass instead of a flat
+heuristic floor, and adjacent moon pairs now surface a converging,
+diverging, or neutral migration trend so resonance approach and
+departure are easier to interpret directly from the Moon page.
+
+**Tests** (tests/moon.test.js, tests/moonResonance.test.js,
+tests/moonOrbitalFateRegression.test.js,
+tests/moonDisplayModel.test.js, tests/crossModelMoonSystems.test.js,
+tests/engineWorldFixtures.test.js)
+
+- Added Earth-Moon, Phobos, and Triton orbital-fate regressions, plus
+  mass-aware resonance and migration-trend coverage for the public moon
+  model and Moon page display layer.
+
+### Rocky-Planet Photochemical Stability
+
+**Added explicit rocky-world photochemical stability, ozone-column, and UV-shielding outputs**
+(engine/planet/photochemistry.js, engine/planet.js,
+engine/habitability/schema.js, engine/habitability/context.js,
+engine/habitability/chemistry.js, ui/planetPage.js,
+tests/planetPhotochemistry.test.js,
+tests/habitabilityChemistry.test.js,
+tests/engineWorldFixtures.test.js, tests/worldSnapshot.test.js,
+tests/worldSnapshotParity.test.js, tests/planetInputRender.test.js,
+tests/habitabilityMetrics.test.js, tests/habitabilityRadiation.test.js,
+tests/habitabilityContext.test.js)
+
+Rocky planets now estimate whether their atmospheres remain
+photochemically stable, derive a bounded ozone-column proxy, and report
+UV shielding directly on the Planet page. This gives thin, irradiated,
+or chemically fragile atmospheres more honest presentation than the
+older coarse ozone/UV proxy alone.
+
+The new photochemistry layer also feeds the shared habitability context,
+so atmosphere chemistry and radiation shielding are more consistent
+between the Planet page, the habitability model, snapshots, and
+import/export paths.
+
+**Tests** (tests/planetPhotochemistry.test.js,
+tests/habitabilityChemistry.test.js,
+tests/engineWorldFixtures.test.js, tests/worldSnapshot.test.js,
+tests/worldSnapshotParity.test.js, tests/planetInputRender.test.js,
+tests/habitabilityMetrics.test.js, tests/habitabilityRadiation.test.js,
+tests/habitabilityContext.test.js)
+
+- Added dedicated rocky photochemistry regressions and cross-model
+  validation for Planet page outputs, habitability context wiring, and
+  snapshot parity.
+
+### Editable Comets And Visualizer Integration
+
+**Added authored comets as a first-class system collection with comet-specific outputs, appearance previews, and Local Frame rendering**
+(engine/comet.js, ui/store/cometModel.js, ui/store/worldSchema.js,
+ui/store/worldMigration.js, ui/store.js, ui/outerObjectsPage.js,
+ui/cometAppearance.js, ui/visualizer/cometOrbitPath.js,
+ui/visualizer/snapshotModel.js, ui/visualizer/focusCamera.js,
+ui/visualizer/focusSummary.js, ui/visualizer/constants.js,
+ui/visualizer/inputBindings.js, ui/visualizerPage.js, styles.css,
+tests/comet.test.js, tests/cometStoreModel.test.js,
+tests/outerObjectsComets.ui.test.js,
+tests/visualizerSnapshotModel.test.js,
+tests/visualizerInputBindings.test.js,
+tests/inputDraftStability.ui.test.js)
+
+WorldSmith can now store, name, edit, duplicate, delete, import, and
+export authored comets instead of treating them as purely derived
+flavour. The `Other Objects` page gained a dedicated `Comets` tab,
+host-frame-aware comet editing, Oort seeding hooks, and live orbit,
+activity, tail, and appearance outputs for the selected comet.
+
+The Local Frame visualizer now renders comets as first-class bodies
+with eccentric-orbit placement, dashed orbit arcs, focus summaries,
+preview-aware appearance data, and a comet-specific tail/coma treatment
+that matches the `Appearance` KPI language on the editor side.
+
+**Tests** (tests/comet.test.js, tests/cometStoreModel.test.js,
+tests/outerObjectsComets.ui.test.js,
+tests/visualizerSnapshotModel.test.js,
+tests/visualizerInputBindings.test.js,
+tests/inputDraftStability.ui.test.js)
+
+- Added persistence, host-frame filtering, UI CRUD, seeding, draft
+  stability, and visualizer orbit/selection regression coverage for the
+  authored-comet path.
+
+### Oort Cloud Reservoir Modeling And User Controls
+
+**Added a paper-backed Oort-cloud baseline model, seeded long-period comet generation, and user-adjustable `Auto / Guided / Manual` reservoir controls**
+(engine/oortCloud.js, ui/store/oortCloudModel.js,
+ui/store/worldSchema.js, ui/store/worldMigration.js, ui/store.js,
+ui/outerObjectsPage.js, engine/worldAdapters.js,
+ui/importExportPage.js, ui/sciencePage.js,
+tests/oortCloud.test.js, tests/oortCloudControls.test.js,
+tests/engineWorldFixtures.test.js, tests/outerObjectsComets.ui.test.js,
+tests/importExportPage.ui.test.js, tests/importExport.test.js,
+tests/sciencePageReference.ui.test.js)
+
+WorldSmith now derives a system-wide Oort-cloud reservoir from stellar
+mass, giant-planet architecture, age, and Galactic environment, then
+surfaces that reservoir on the `Other Objects` page with explicit
+status, edge, mass, flux, and confidence KPIs. `Seed from Oort` now
+creates deterministic long-period comet templates from the resolved
+reservoir instead of using a fixed one-size-fits-all seed.
+
+The Oort model is no longer auto-only. Worlds now persist Oort-cloud
+controls in save data, support `Auto`, `Guided`, and `Manual` modes,
+and carry those settings cleanly through migration, save/load,
+import/export preview, and full round-trip validation. Guided controls
+apply disclosed multipliers on top of the automatic science layer;
+Manual mode explicitly overrides the displayed reservoir state.
+
+The Science page now distinguishes the literature-inspired automatic
+Oort baseline from the WorldSmith authoring overlay, and the
+Import/Export page now shows the Oort mode and whether the reservoir
+has been customized.
+
+**Tests** (tests/oortCloud.test.js, tests/oortCloudControls.test.js,
+tests/engineWorldFixtures.test.js, tests/outerObjectsComets.ui.test.js,
+tests/importExportPage.ui.test.js, tests/importExport.test.js,
+tests/sciencePageReference.ui.test.js)
+
+- Added Solar-calibration, control-layer normalization, UI mode switch,
+  seeding-profile, fixture, science-reference, and import/export
+  round-trip coverage for the Oort reservoir model.
+
+### Science Page Search And Reference UX
+
+**Added top-of-page search and live filtering to the Science page, plus Oort-control disclosure and formula fixes**
+(ui/sciencePage.js, styles.css, tests/sciencePageReference.ui.test.js)
+
+The `Science & Maths` page now has a top search bar that indexes live
+section and formula content, jumps directly to the best match, opens the
+correct accordion section, and highlights the selected entry. Active
+searches can also filter the visible science entries so the page is
+usable even as the reference catalogue grows.
+
+This pass also repaired broken formula rendering in the companion-flux
+section and added explicit reference-page wording that separates the
+automatic Oort-cloud science model from Guided and Manual worldbuilding
+overlays.
+
+**Tests** (tests/sciencePageReference.ui.test.js)
+
+- Added search/jump, filter/restore, Oort-overlay reference, and
+  formula-render regression coverage for the Science page.
 
 ### Gas Giant Eccentric Orbit Rendering
 

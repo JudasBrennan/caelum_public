@@ -46,6 +46,65 @@ function dataTable(headers, rows) {
   return `<table class="sci-data"><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
+function normalizeSearchText(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function scoreScienceSearchEntry(entry, query) {
+  if (!query) return 0;
+  const title = normalizeSearchText(entry.title);
+  if (title === query) return 120;
+  if (title.startsWith(query)) return 90;
+  if (title.includes(query)) return 70;
+
+  const sectionTitle = normalizeSearchText(entry.sectionTitle);
+  if (sectionTitle === query) return 52;
+  if (sectionTitle.includes(query)) return 40;
+
+  const text = normalizeSearchText(entry.text);
+  if (text.includes(query)) return 18;
+
+  return 0;
+}
+
+function buildScienceSearchIndex(root) {
+  return Array.from(root.querySelectorAll(".sci-section")).flatMap((sectionEl) => {
+    const sectionId = String(sectionEl.id || "").trim();
+    const sectionTitle =
+      sectionEl.querySelector(".sci-section__title")?.textContent?.trim() || "Science Section";
+    return Array.from(sectionEl.querySelectorAll(".sci-formula")).map((formulaEl, index) => {
+      const formulaId = `${sectionId}-formula-${index + 1}`;
+      formulaEl.id = formulaId;
+      formulaEl.setAttribute("tabindex", "-1");
+      return {
+        id: formulaId,
+        sectionId,
+        sectionTitle,
+        title: formulaEl.querySelector(".sci-formula__name")?.textContent?.trim() || "Formula",
+        text: formulaEl.textContent || "",
+      };
+    });
+  });
+}
+
+function findScienceSearchResults(index, query, limit = 8) {
+  const cleanQuery = normalizeSearchText(query);
+  if (!cleanQuery) return [];
+  return index
+    .map((entry) => ({ entry, score: scoreScienceSearchEntry(entry, cleanQuery) }))
+    .filter((entry) => entry.score > 0)
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.entry.sectionTitle.localeCompare(right.entry.sectionTitle) ||
+        left.entry.title.localeCompare(right.entry.title),
+    )
+    .slice(0, limit)
+    .map((entry) => entry.entry);
+}
+
 /* ── Section builders ────────────────────────────────────────── */
 
 function buildStellarPhysics() {
@@ -2137,6 +2196,73 @@ function buildDebrisDisks() {
     ),
 
     formula(
+      "Exo-Oort Cloud Hill Scaling",
+      `<div class="sci-formula__eq">${eq("r_{\\text{H,OC}} \\approx 1.5\\times10^5\\,\\left(\\frac{M_\\star}{M_\\odot}\\right)^{1/3}\\left(\\frac{R_{\\text{gal}}}{R_{\\text{gal},\\odot}}\\right)^{2/3}\\;\\text{AU}")}</div>
+      <p>WorldSmith scales exo-Oort cloud size from the parent system&rsquo;s Hill radius in the Galactic potential. This follows the same ${iq("M_\\star^{1/3} R_{\\text{gal}}^{2/3}")} dependence used in exo-Oort scaling work.</p>
+      ${vars([
+        ["r_{\\text{H,OC}}", "Characteristic Hill / tidal size of the exo-Oort reservoir"],
+        ["M_\\star", "Total mass of the host stellar system"],
+        ["R_{\\text{gal}}", "Galactocentric distance of the system"],
+        [
+          "R_{\\text{gal},\\odot}",
+          "Solar-circle reference radius used by WorldSmith's Local Cluster defaults",
+        ],
+      ])}
+      ${cite("Moro-Martín (2019, AJ 157, 86), following Hanse et al. (2018) and Veras et al. (2014)")}`,
+    ),
+
+    formula(
+      "Exo-Oort Cloud Edges",
+      `<div class="sci-formula__eq">${eq("a_{\\text{in}} \\approx 3\\times10^3\\,\\left(\\frac{r_{\\text{H,OC}}}{1.5\\times10^5\\;\\text{AU}}\\right)")}</div>
+      <div class="sci-formula__eq">${eq("a_{\\text{out}} \\approx 10^5\\,\\left(\\frac{r_{\\text{H,OC}}}{1.5\\times10^5\\;\\text{AU}}\\right)")}</div>
+      <div class="sci-formula__eq">${eq("a_{\\text{in,WS}} = \\max\\left(a_{\\text{in}},\\;80\\,a_{\\text{giant,max}}\\right)")}</div>
+      <p>The base inner and outer edges follow Solar Oort-cloud reference values scaled by Galactic Hill radius. WorldSmith then applies an outer-giant architecture floor so the detached cloud does not begin unrealistically close to the scattering giant-planet region.</p>
+      ${vars([
+        ["a_{\\text{in}}", "Hill-scaled inner edge before architecture adjustment"],
+        ["a_{\\text{out}}", "Hill-scaled outer edge"],
+        ["a_{\\text{giant,max}}", "Semi-major axis of the outermost giant planet in the system"],
+      ])}
+      ${cite("Solar reference extents from Moro-Martín (2019, AJ 157, 86); environment dependence of the inner edge from Kaib, Roškar & Quinn (2011, Icarus 215, 491)")}`,
+    ),
+
+    formula(
+      "Oort Cloud Mass And LPC Flux (WorldSmith Simplification)",
+      `<div class="sci-formula__eq">${eq("M_{\\text{OC}} \\approx 7\\,M_\\oplus\\,\\left(\\frac{M_\\star}{M_\\odot}\\right) F_{\\text{giants}} F_{\\text{outer}} F_{\\text{eject}} F_{\\text{age}} F_{\\text{ret}}")}</div>
+      <div class="sci-formula__eq">${eq("\\Gamma_{\\text{LPC}} \\approx 2.5\\,\\text{yr}^{-1}\\,\\left(\\frac{M_{\\text{OC}}}{5\\,M_\\oplus}\\right)\\left(\\frac{n_\\star}{0.004\\;\\text{ly}^{-3}}\\right)^{1/2}\\left(\\frac{3000\\;\\text{AU}}{a_{\\text{in,WS}}}\\right)^{0.35}")}</div>
+      <p>No single paper gives a closed-form exo-Oort mass or long-period-comet injection formula from authored system inputs. WorldSmith therefore uses a disclosed proxy: star-mass scaling from exo-Oort literature, an outer-giant architecture gate inspired by scattering-outcome maps, an inner-ejector penalty for Jupiter-dominated systems, an age saturation term, and an environmental retention factor for Galactic tides and stellar encounters.</p>
+      ${vars([
+        ["F_{\\text{giants}}", "Total giant-mass factor relative to the Solar giant planets"],
+        ["F_{\\text{outer}}", "Outermost-giant extent factor relative to Neptune's orbit"],
+        ["F_{\\text{eject}}", "Penalty for massive inner ejectors that deplete the cloud"],
+        ["F_{\\text{age}}", "Age saturation term for cloud emplacement"],
+        ["F_{\\text{ret}}", "Retention factor from galactocentric location and stellar density"],
+        ["\\Gamma_{\\text{LPC}}", "New long-period comet injection rate"],
+      ])}
+      <p>The Solar normalization targets a few Earth masses in the cloud and about 2&ndash;3 new LPCs per year, consistent with the broad literature ranges and with the commonly quoted Solar LPC flux.</p>
+      ${cite("Wyatt et al. (2017, MNRAS) for scattering outcomes; Brasser et al. (2010, A&A 516, A72) and Kaib et al. (2011, Icarus 215, 491) for environment dependence; Moro-Martín (2019, AJ 157, 86) for the Solar LPC flux reference")}`,
+    ),
+
+    formula(
+      "Oort Cloud Authoring Layers (WorldSmith Overlay)",
+      `<p><b>Automatic baseline science layer:</b> the Oort-cloud formulas above are the literature-inspired baseline model. WorldSmith resolves that automatic model first, then optionally layers authoring controls on top.</p>
+      <p><b>Guided mode:</b> Guided Oort controls are a <b>WorldSmith authoring overlay</b>. They are worldbuilding adjustments layered on top of the automatic Oort model, not a separate published exo-Oort inference.</p>
+      <div class="sci-formula__eq">${eq("M^{\\prime} = M_{\\text{auto}}\\,F_{\\text{form}}\\,F_{\\text{ret}}\\,F_{\\text{inst}}")}</div>
+      <div class="sci-formula__eq">${eq("a_{\\text{in}}^{\\prime} = a_{\\text{in,auto}}\\,F_{\\text{comp}}\\,F_{\\text{inst,in}}")}</div>
+      <div class="sci-formula__eq">${eq("a_{\\text{out}}^{\\prime} = \\mathrm{clamp}\\!\\left(a_{\\text{out,auto}}\\,F_{\\text{out}},\\;2.2\\,a_{\\text{in}}^{\\prime},\\;0.95\\,r_H\\right)")}</div>
+      <div class="sci-formula__eq">${eq("\\Gamma^{\\prime} = \\Gamma_{\\text{auto}}\\left(\\frac{M^{\\prime}}{M_{\\text{auto}}}\\right)\\left(\\frac{a_{\\text{in,auto}}}{a_{\\text{in}}^{\\prime}}\\right)^{0.35}F_{\\text{inst},\\Gamma}")}</div>
+      ${vars([
+        ["F_{\\text{form}}", "Guided formation-efficiency multiplier"],
+        ["F_{\\text{ret}}", "Guided retention / erosion multiplier"],
+        ["F_{\\text{comp}}", "Guided inner-cloud compactness multiplier"],
+        ["F_{\\text{inst}}", "Guided instability mass multiplier"],
+        ["F_{\\text{inst,in}}", "Guided instability inner-edge multiplier"],
+        ["F_{\\text{inst},\\Gamma}", "Guided instability LPC-flux multiplier"],
+      ])}
+      <p><b>Manual mode:</b> Manual Oort settings are direct user overrides of the displayed reservoir state. Manual mode is not a scientific inference; it is explicit authored world data.</p>
+      ${cite("Automatic baseline science: see the Oort-cloud entries above. Guided and manual controls are WorldSmith authoring overlays resolved in engine/oortCloud.js.")}`,
+    ),
+
+    formula(
       "IR Excess at 24 &mu;m",
       `<div class="sci-formula__eq">${eq("\\text{excess} = f \\cdot \\frac{B_\\nu(T_{\\text{disk}},\\,24\\,\\mu\\text{m})}{B_\\nu(T_\\star,\\,24\\,\\mu\\text{m})}")}</div>
       <p>Ratio of disk to stellar flux at 24 &mu;m via Planck functions.
@@ -2156,6 +2282,13 @@ function buildDivergences() {
     WorldSmith uses its own empirical fits, simplifications, or calibrations instead of
     (or in addition to) a single published formula. Items marked <b>WS-derived</b> are original
     to WorldSmith; items marked <b>Simplified</b> are reductions of published work.</p>`,
+
+    item(
+      "Oort Cloud Mass And LPC Flux Proxy (WS-derived / Simplified)",
+      `<p>WorldSmith&rsquo;s Oort-cloud mass and long-period-comet flux are not taken from a single published closed-form model. The edge scaling follows exo-Oort Hill-radius work, but the mass and LPC-rate outputs are WorldSmith proxies built from five factors: total giant mass, outer-giant extent, inner-ejector depletion, age saturation, and environmental retention.</p>
+      <p><b>Why diverge?</b> The literature provides pieces of the problem rather than one direct calculator. Moro-Martín (2019) scales cloud extent to the Galactic Hill radius, Wyatt et al. (2017) map which planet architectures favor Oort clouds versus prompt ejection, Brasser et al. (2010) and Kaib et al. (2011) show strong environmental dependence, and Veras et al. (2011/2014) quantify later clearing. WorldSmith combines those ingredients into a disclosed proxy calibrated so Sol lands near the canonical ${iq("a_{\\text{in}} \\sim 3000\\;\\text{AU}")}, ${iq("a_{\\text{out}} \\sim 10^5\\;\\text{AU}")}, and a few-Earth-mass cloud with a Solar LPC flux of order 2&ndash;3 per year.</p>
+      ${cite("Moro-Martín (2019), Wyatt et al. (2017), Brasser et al. (2010), Kaib et al. (2011), Veras et al. (2011, 2014).")}`,
+    ),
 
     item(
       "Greenhouse Optical Depth Coefficients (WS-derived)",
@@ -2679,7 +2812,7 @@ function buildSystemArchitecture() {
       `<p>Outer companion stars are sampled across their hierarchy orbits and their mean visible-light forcing is added to the active host frame as an extra heating term:</p>
       <div class="sci-formula__eq">${eq("S_{\\text{comp}} = \\sum_i \\frac{L_i}{d_i^2}")}</div>
       <p>WorldSmith then shifts the host frame&rsquo;s habitable-zone bounds by subtracting that companion flux from the required stellar-flux threshold:</p>
-      <div class="sci-formula__eq">${eq("d' = \\sqrt{\\frac{L_{\\text{host}}}{S_{\\text{eff}} - S_{\\text{comp}}}}}")}</div>
+      <div class="sci-formula__eq">${eq("d' = \\sqrt{\\frac{L_{\\text{host}}}{S_{\\text{eff}} - S_{\\text{comp}}}}")}</div>
       ${vars([
         ["S_{\\text{comp}}", "mean companion visible flux in Earth-flux units"],
         ["L_i", "luminosity of companion star i (solar units)"],
@@ -3010,11 +3143,11 @@ const SECTIONS = [
   { id: "cluster", title: "Local Cluster", count: 7, builder: buildLocalCluster },
   { id: "population", title: "Population Dynamics", count: 5, builder: buildPopulationDynamics },
   { id: "system", title: "System Architecture", count: 7, builder: buildSystemArchitecture },
-  { id: "debris", title: "Debris Disks", count: 9, builder: buildDebrisDisks },
+  { id: "debris", title: "Debris Disks", count: 12, builder: buildDebrisDisks },
   {
     id: "divergences",
     title: "Divergences from Published Science",
-    count: 35,
+    count: 36,
     builder: buildDivergences,
   },
 ];
@@ -3053,6 +3186,24 @@ export function initSciencePage(mountEl) {
         by the engine, with citations to the original papers. The final section,
         <em>Divergences from Published Science</em>, documents every place where
         WorldSmith uses its own empirical fits or simplifications.</p>
+        <div class="sci-search">
+          <label class="sci-search__field" for="sciencePageSearch">
+            <span>Find a formula or topic</span>
+            <input
+              id="sciencePageSearch"
+              type="search"
+              placeholder="Search for habitable zone, CMF, tectonics..."
+              autocomplete="off"
+            />
+          </label>
+          <div
+            id="sciencePageSearchStatus"
+            class="hint sci-search__status"
+            aria-live="polite"
+            hidden
+          ></div>
+          <div id="sciencePageSearchResults" class="sci-search__results" hidden></div>
+        </div>
         <div class="sci-toc">${tocHtml}</div>
       </div>
     </div>
@@ -3063,10 +3214,161 @@ export function initSciencePage(mountEl) {
   mountEl.appendChild(wrap);
 
   /* Accordion: only one section open at a time */
-  const allSections = wrap.querySelectorAll(".sci-section");
+  const allSections = Array.from(wrap.querySelectorAll(".sci-section"));
+  const allFormulas = Array.from(wrap.querySelectorAll(".sci-formula"));
+  const tocLinks = Array.from(wrap.querySelectorAll(".sci-toc__link"));
+  const searchInput = wrap.querySelector("#sciencePageSearch");
+  const searchStatus = wrap.querySelector("#sciencePageSearchStatus");
+  const searchResults = wrap.querySelector("#sciencePageSearchResults");
+  const searchIndex = buildScienceSearchIndex(wrap);
+  let searchHighlightTimer = null;
+  let searchFilteringActive = false;
+  let lastOpenSectionId =
+    allSections.find((section) => section.open)?.id || allSections[0]?.id || null;
+
+  const openScienceSection = (details, { exclusive = !searchFilteringActive } = {}) => {
+    if (!details) return;
+    if (exclusive) {
+      allSections.forEach((other) => {
+        other.open = other === details;
+      });
+    } else {
+      details.open = true;
+    }
+    if (!searchFilteringActive && details.id) lastOpenSectionId = details.id;
+  };
+
+  const clearSearchHighlight = () => {
+    if (searchHighlightTimer) {
+      clearTimeout(searchHighlightTimer);
+      searchHighlightTimer = null;
+    }
+    wrap.querySelectorAll(".sci-formula.is-search-hit").forEach((formulaEl) => {
+      formulaEl.classList.remove("is-search-hit");
+    });
+  };
+
+  const focusScienceEntry = (entryId) => {
+    if (!entryId) return;
+    const target = wrap.querySelector(`#${entryId}`);
+    if (!target) return;
+    const parentSection = target.closest(".sci-section");
+    openScienceSection(parentSection);
+    clearSearchHighlight();
+    target.classList.add("is-search-hit");
+    target.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    target.focus?.({ preventScroll: true });
+    searchHighlightTimer = window.setTimeout(() => {
+      target.classList.remove("is-search-hit");
+      searchHighlightTimer = null;
+    }, 2200);
+  };
+
+  const applyScienceSearchFilter = (query) => {
+    const cleanQuery = normalizeSearchText(query);
+    clearSearchHighlight();
+
+    if (!cleanQuery) {
+      searchFilteringActive = false;
+      wrap.classList.remove("is-search-filtering");
+
+      allFormulas.forEach((formulaEl) => {
+        formulaEl.hidden = false;
+        formulaEl.classList.remove("is-search-match", "is-search-filtered-out");
+      });
+      allSections.forEach((sectionEl) => {
+        sectionEl.hidden = false;
+        sectionEl.classList.remove("is-search-match", "is-search-filtered-out");
+      });
+      tocLinks.forEach((link) => {
+        link.hidden = false;
+        link.classList.remove("is-search-filtered-out");
+      });
+
+      const restoreSection =
+        allSections.find((section) => section.id === lastOpenSectionId) || allSections[0] || null;
+      openScienceSection(restoreSection, { exclusive: true });
+      return [];
+    }
+
+    const matches = findScienceSearchResults(searchIndex, cleanQuery, searchIndex.length);
+    const matchedFormulaIds = new Set(matches.map((entry) => entry.id));
+    const matchedSectionIds = new Set(matches.map((entry) => entry.sectionId));
+
+    searchFilteringActive = true;
+    wrap.classList.add("is-search-filtering");
+
+    allFormulas.forEach((formulaEl) => {
+      const isMatch = matchedFormulaIds.has(formulaEl.id);
+      formulaEl.hidden = !isMatch;
+      formulaEl.classList.toggle("is-search-match", isMatch);
+      formulaEl.classList.toggle("is-search-filtered-out", !isMatch);
+    });
+
+    allSections.forEach((sectionEl) => {
+      const isMatch = matchedSectionIds.has(sectionEl.id);
+      sectionEl.hidden = !isMatch;
+      sectionEl.open = isMatch;
+      sectionEl.classList.toggle("is-search-match", isMatch);
+      sectionEl.classList.toggle("is-search-filtered-out", !isMatch);
+    });
+
+    tocLinks.forEach((link) => {
+      const isMatch = matchedSectionIds.has(link.dataset.target || "");
+      link.hidden = !isMatch;
+      link.classList.toggle("is-search-filtered-out", !isMatch);
+    });
+
+    return matches;
+  };
+
+  const renderScienceSearchResults = (query, matches = null) => {
+    if (!searchResults || !searchStatus) return [];
+    const cleanQuery = normalizeSearchText(query);
+    if (!cleanQuery) {
+      searchResults.hidden = true;
+      searchResults.innerHTML = "";
+      searchStatus.hidden = true;
+      searchStatus.textContent = "";
+      return [];
+    }
+
+    const allMatches =
+      matches || findScienceSearchResults(searchIndex, cleanQuery, searchIndex.length);
+    const results = allMatches.slice(0, 8);
+    searchStatus.hidden = false;
+    searchStatus.textContent =
+      allMatches.length > 0
+        ? `${allMatches.length} match${allMatches.length === 1 ? "" : "es"}${allMatches.length > results.length ? `, showing top ${results.length}` : ""}`
+        : "No matches found";
+
+    if (allMatches.length === 0) {
+      searchResults.hidden = false;
+      searchResults.innerHTML =
+        '<div class="sci-search__empty">No formulas or topics matched that search.</div>';
+      return [];
+    }
+
+    searchResults.hidden = false;
+    searchResults.innerHTML = results
+      .map(
+        (entry) => `
+          <button class="sci-search__result" type="button" data-target-id="${entry.id}">
+            <span class="sci-search__result-title">${entry.title}</span>
+            <span class="sci-search__result-meta">${entry.sectionTitle}</span>
+          </button>`,
+      )
+      .join("");
+    return results;
+  };
+
   allSections.forEach((det) => {
     det.addEventListener("toggle", () => {
       if (det.open) {
+        if (!searchFilteringActive && det.id) {
+          lastOpenSectionId = det.id;
+        }
+        if (searchFilteringActive) return;
         allSections.forEach((other) => {
           if (other !== det) other.open = false;
         });
@@ -3075,19 +3377,36 @@ export function initSciencePage(mountEl) {
   });
 
   /* TOC click → open section + scroll */
-  wrap.querySelectorAll(".sci-toc__link").forEach((link) => {
+  tocLinks.forEach((link) => {
     link.addEventListener("click", (e) => {
       e.preventDefault();
       const id = link.dataset.target;
       const details = wrap.querySelector(`#${id}`);
       if (details) {
-        allSections.forEach((other) => {
-          if (other !== details) other.open = false;
-        });
-        details.open = true;
+        openScienceSection(details);
         details.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     });
+  });
+
+  searchInput?.addEventListener("input", () => {
+    const matches = applyScienceSearchFilter(searchInput.value);
+    renderScienceSearchResults(searchInput.value, matches);
+  });
+
+  searchInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    const matches = applyScienceSearchFilter(searchInput.value);
+    const [firstResult] = renderScienceSearchResults(searchInput.value, matches);
+    if (!firstResult) return;
+    event.preventDefault();
+    focusScienceEntry(firstResult.id);
+  });
+
+  searchResults?.addEventListener("click", (event) => {
+    const button = event.target.closest(".sci-search__result");
+    if (!button) return;
+    focusScienceEntry(button.getAttribute("data-target-id"));
   });
 
   /* Wire calculators */

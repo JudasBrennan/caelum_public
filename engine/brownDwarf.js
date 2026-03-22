@@ -58,14 +58,14 @@ function brownDwarfTempKFromMassAge(massMjup, ageGyr) {
 function classifyBrownDwarfSpectralFamily(tempK) {
   const t = clamp(toFinite(tempK, 1000), 250, 3200);
   if (t >= 1300) {
-    const subtype = clamp(Math.floor(((2400 - Math.min(t, 2400)) / 110)), 0, 9);
+    const subtype = clamp(Math.floor((2400 - Math.min(t, 2400)) / 110), 0, 9);
     return { family: "L", subtype };
   }
   if (t >= 700) {
-    const subtype = clamp(Math.floor(((1300 - t) / 60)), 0, 9);
+    const subtype = clamp(Math.floor((1300 - t) / 60), 0, 9);
     return { family: "T", subtype };
   }
-  const subtype = clamp(Math.floor(((700 - t) / 45)), 0, 9);
+  const subtype = clamp(Math.floor((700 - t) / 45), 0, 9);
   return { family: "Y", subtype };
 }
 
@@ -126,7 +126,11 @@ export function calcBrownDwarf({
   tempKOverride,
   metallicityFeH,
 } = {}) {
-  const resolvedMassMsol = clamp(toFinite(massMsol, BROWN_DWARF_MIN_MSOL), BROWN_DWARF_MIN_MSOL, BROWN_DWARF_MAX_MSOL);
+  const resolvedMassMsol = clamp(
+    toFinite(massMsol, BROWN_DWARF_MIN_MSOL),
+    BROWN_DWARF_MIN_MSOL,
+    BROWN_DWARF_MAX_MSOL,
+  );
   const age = clamp(toFinite(ageGyr, 4.6), 0, 20);
   const massMjup = massMsolToMjup(resolvedMassMsol);
   const radiusRsolAuto = brownDwarfRadiusRjFromMassAge(massMjup, age) * JUPITER_RADIUS_RSOL;
@@ -190,7 +194,8 @@ export function calcBrownDwarf({
   const zoneKind = getInsolationZoneKindForRegime("brownDwarf");
   const zoneLabel = getInsolationZoneLabelForRegime("brownDwarf");
   const xuvModel = computeBrownDwarfXuvModel();
-  const deuteriumBurningWindowGyr = massMjup >= 13 ? clamp(0.08 + ((massMjup - 13) / 62) * 0.35, 0.08, 0.43) : 0;
+  const deuteriumBurningWindowGyr =
+    massMjup >= 13 ? clamp(0.08 + ((massMjup - 13) / 62) * 0.35, 0.08, 0.43) : 0;
   const deuteriumBurningActive = age > 0 && age <= deuteriumBurningWindowGyr;
   const massKg = 1.989e30 * resolvedMassMsol;
   const radiusKm = SOLAR_RADIUS_KM * radiusRsol;
@@ -233,7 +238,8 @@ export function calcBrownDwarf({
       sIn: zone.sIn,
       sOut: zone.sOut,
       dT: zone.dT,
-      source: "Current temperate-zone estimate from brown-dwarf luminosity and effective temperature",
+      source:
+        "Current temperate-zone estimate from brown-dwarf luminosity and effective temperature",
     },
     zoneKind,
     zoneLabel,

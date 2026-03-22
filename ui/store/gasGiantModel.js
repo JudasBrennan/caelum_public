@@ -142,7 +142,9 @@ export function normalizeGasGiant(raw, idx = 1) {
   const eccentricity = Number.isFinite(rawEcc) && rawEcc >= 0 && rawEcc <= 0.99 ? rawEcc : null;
   const rawInc = Number(raw?.inclinationDeg ?? raw?.inclination);
   const inclinationDeg = Number.isFinite(rawInc) && rawInc >= 0 && rawInc <= 180 ? rawInc : null;
-  const rawLop = Number(raw?.longitudeOfPeriapsisDeg ?? raw?.longitudeOfPeriapsis ?? raw?.argPeriapsisDeg);
+  const rawLop = Number(
+    raw?.longitudeOfPeriapsisDeg ?? raw?.longitudeOfPeriapsis ?? raw?.argPeriapsisDeg,
+  );
   const longitudeOfPeriapsisDeg = Number.isFinite(rawLop) ? rawLop : null;
   const rawTilt = Number(raw?.axialTiltDeg ?? raw?.axialTilt ?? raw?.obliquity);
   const axialTiltDeg = Number.isFinite(rawTilt) && rawTilt >= 0 && rawTilt <= 180 ? rawTilt : null;

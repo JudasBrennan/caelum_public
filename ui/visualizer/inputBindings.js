@@ -348,7 +348,11 @@ export function bindVisualizerInputBindings({
     const allowBodyFocus = chkClickFocusBodies?.checked !== false;
     const allowStarFocus = chkClickFocusStar?.checked !== false;
     if (hit.kind === "star" && !allowStarFocus) return;
-    if ((hit.kind === "planet" || hit.kind === "gasGiant") && !allowBodyFocus) return;
+    if (
+      (hit.kind === "planet" || hit.kind === "gasGiant" || hit.kind === "comet") &&
+      !allowBodyFocus
+    )
+      return;
     if (clickTimer && lastClickHit?.id === hit.id && lastClickHit?.kind === hit.kind) {
       clearTimeout(clickTimer);
       clickTimer = null;

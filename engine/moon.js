@@ -25,20 +25,6 @@ import { calcStar, massToLuminosity, massToRadius } from "./star.js";
 
 export { compositionFromDensity } from "./moon/composition.js";
 
-function formatPressureDisplay(surfacePressurePa) {
-  if (surfacePressurePa <= 0) return "0 Pa";
-  if (surfacePressurePa < 1) return `${surfacePressurePa.toExponential(2)} Pa`;
-  if (surfacePressurePa < 1000) return `${fmt(surfacePressurePa, 2)} Pa`;
-  if (surfacePressurePa < 100000) return `${fmt(surfacePressurePa / 1000, 2)} kPa`;
-  return `${fmt(surfacePressurePa / 101325, 2)} atm`;
-}
-
-function formatHeatFluxDisplay(valueWm2) {
-  if (valueWm2 < 1e-6) return "Negligible";
-  if (valueWm2 < 0.001) return `${valueWm2.toExponential(2)} W/m²`;
-  return `${fmt(valueWm2, 4)} W/m²`;
-}
-
 function buildMoonInterior(hydrosphere, inputs, totalInternalHeatFluxWm2) {
   return {
     modelVersion: "moon-interior-v1",
@@ -805,7 +791,7 @@ export function calcMoonExact({
       : clamp(
           manualForcedEccentricity != null
             ? manualForcedEccentricity
-            : moonSystemContext?.forcedEccentricity ?? 0,
+            : (moonSystemContext?.forcedEccentricity ?? 0),
           0,
           0.2,
         );

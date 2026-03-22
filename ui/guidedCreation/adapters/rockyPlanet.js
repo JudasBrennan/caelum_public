@@ -933,7 +933,7 @@ function buildRockyDiagnostics(
   solved,
   answers = {},
   flowState = {},
-  context = {},
+  _context = {},
 ) {
   const diagnostics = [];
   const model = solved?.model || {};

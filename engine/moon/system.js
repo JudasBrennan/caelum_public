@@ -233,7 +233,9 @@ function analyseSystemCoupling({
           resonanceLabel: nearest.resonance.label,
           offsetPct: nearest.resonance.offsetPct,
           perturberMassMoon:
-            inner && nearest.partnerId === inner.id ? inner.inputs.massMoon : outer?.inputs.massMoon,
+            inner && nearest.partnerId === inner.id
+              ? inner.inputs.massMoon
+              : outer?.inputs.massMoon,
           parentMassEarth,
           semiMajorAxisKm: current.inputs.semiMajorAxisKm,
           perturberSemiMajorAxisKm:

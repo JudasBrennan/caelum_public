@@ -423,6 +423,11 @@ export function initImportExportPage(root) {
     addRow("Moon worlds", moonWorldText);
     addRow("Gas giants", `${m.gasCount} total${m.gas != null ? ` (outermost ${m.gas} AU)` : ""}`);
     addRow("Debris disks", debrisText);
+    addRow("Comets", `${m.cometCount || 0} total`);
+    addRow(
+      "Oort cloud",
+      `${m.oortCloudMode || "Auto"}${m.oortCloudCustomised ? " | customized" : ""}`,
+    );
     addRow("Tectonics", m.hasTectonics ? tecParts.join(", ") || "defaults" : "-");
     addRow("Population", m.hasPopulation ? m.popTechEra || "configured" : "-");
     addRow(

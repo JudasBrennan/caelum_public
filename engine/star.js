@@ -664,7 +664,11 @@ export function calcStar({
   metallicityFeH,
   evolutionMode,
 }) {
-  const resolvedMassMsol = clamp(toFinite(massMsol, BROWN_DWARF_MIN_MSOL), BROWN_DWARF_MIN_MSOL, 100);
+  const resolvedMassMsol = clamp(
+    toFinite(massMsol, BROWN_DWARF_MIN_MSOL),
+    BROWN_DWARF_MIN_MSOL,
+    100,
+  );
   if (classifyHostRegimeByMass({ massMsol: resolvedMassMsol }) === "brownDwarf") {
     return calcBrownDwarf({
       massMsol: resolvedMassMsol,

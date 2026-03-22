@@ -2,7 +2,9 @@ import { LOCAL_CLUSTER_DEFAULTS, normalizeLocalClusterInputs } from "../../engin
 import { normalizeRingMode } from "../../engine/planetaryRings.js";
 import { normalizeMoonInputs } from "../../engine/moon/config.js";
 import { normalizeRingStyleId } from "../ringAppearanceProfiles.js";
+import { getComets } from "./cometModel.js";
 import { sanitizeImportedValue } from "./importValidation.js";
+import { normalizeOortCloudConfig } from "./oortCloudModel.js";
 import { normalizeGasGiant } from "./gasGiantModel.js";
 import {
   canonicalizeSystemFeatures,
@@ -192,6 +194,15 @@ export function migrateWorld(world) {
         String(gasGiant.hostFrameId ?? "").trim() || defaultHostFrameId || null;
     }
   }
+
+  const prevSelectedCometId = String(world.system?.comets?.selectedId || "").trim() || null;
+  const comets = getComets(world, { fallbackHostFrameId: defaultHostFrameId });
+  world.system.comets = makeCollection(comets, "c");
+  world.system.comets.selectedId =
+    prevSelectedCometId && world.system.comets.byId[prevSelectedCometId]
+      ? prevSelectedCometId
+      : world.system.comets.order[0] || null;
+  world.system.oortCloud = normalizeOortCloudConfig(world.system?.oortCloud);
 
   if (world.planets && world.planets.byId) {
     for (const planetId of Object.keys(world.planets.byId)) {

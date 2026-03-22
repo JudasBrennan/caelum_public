@@ -34,6 +34,14 @@ import {
   normalizeDebrisDisk as normalizeDebrisDiskModel,
   normalizeClusterSystemNames,
 } from "./store/systemCollections.js";
+import {
+  getComets as getCometsModel,
+  normalizeComet as normalizeCometModel,
+} from "./store/cometModel.js";
+import {
+  getOortCloudConfig as getOortCloudConfigModel,
+  normalizeOortCloudConfig,
+} from "./store/oortCloudModel.js";
 import { migrateWorld, normalizeWorld } from "./store/worldMigration.js";
 import { SCHEMA_VERSION, defaultWorld, mergeWorldForMigration } from "./store/worldSchema.js";
 import {
@@ -481,6 +489,14 @@ export function applyGeneratedSystemDraft(draftEnvelope, options = {}) {
     draftWorld.system && typeof draftWorld.system === "object"
       ? deepMerge(nextWorld.system, draftWorld.system)
       : nextWorld.system;
+  nextWorld.system.comets =
+    currentWorld.system?.comets && typeof currentWorld.system.comets === "object"
+      ? structuredClone(currentWorld.system.comets)
+      : nextWorld.system.comets;
+  nextWorld.system.oortCloud =
+    currentWorld.system?.oortCloud && typeof currentWorld.system.oortCloud === "object"
+      ? structuredClone(currentWorld.system.oortCloud)
+      : nextWorld.system.oortCloud;
   nextWorld.planets =
     draftWorld.planets && typeof draftWorld.planets === "object"
       ? draftWorld.planets
@@ -613,6 +629,14 @@ export function listSystemDebrisDisks(world = loadWorld(), options = {}) {
   return getDebrisDisksModel(world, options);
 }
 
+export function listSystemComets(world = loadWorld(), options = {}) {
+  return getCometsModel(world, options);
+}
+
+export function getSystemOortCloudConfig(world = loadWorld()) {
+  return getOortCloudConfigModel(world);
+}
+
 export function saveSystemGasGiants(list) {
   const world = loadWorld();
   const prevSelectedGg = world.system.gasGiants?.selectedId ?? null;
@@ -660,6 +684,51 @@ export function saveSystemDebrisDisks(list) {
     ),
     "dd",
   );
+  const next = migrateWorld(world);
+  saveWorld(next);
+  return next;
+}
+
+export function saveSystemComets(list) {
+  const world = loadWorld();
+  const fallbackHostFrameId =
+    String(world?.stellarSystem?.defaultHostFrameId ?? "").trim() || "star_a";
+  const prevSelectedCometId = world.system.comets?.selectedId ?? null;
+  world.system.comets = makeCollection(
+    (list || []).map((comet, index) =>
+      normalizeCometModel(comet, index + 1, { fallbackHostFrameId }),
+    ),
+    "c",
+  );
+  world.system.comets.selectedId =
+    prevSelectedCometId && world.system.comets.byId[prevSelectedCometId]
+      ? prevSelectedCometId
+      : world.system.comets.order[0] || null;
+  const next = migrateWorld(world);
+  saveWorld(next);
+  return next;
+}
+
+export function getSelectedComet(world = loadWorld()) {
+  const id = world.system?.comets?.selectedId;
+  if (!id) return null;
+  const raw = world.system.comets.byId?.[id];
+  const fallbackHostFrameId =
+    String(world?.stellarSystem?.defaultHostFrameId ?? "").trim() || "star_a";
+  return raw ? normalizeCometModel(raw, 1, { fallbackHostFrameId }) : null;
+}
+
+export function selectComet(cometId) {
+  const world = loadWorld();
+  if (!world.system?.comets?.byId?.[cometId]) return world;
+  world.system.comets.selectedId = cometId;
+  saveWorld(world);
+  return world;
+}
+
+export function saveSystemOortCloudConfig(config) {
+  const world = loadWorld();
+  world.system.oortCloud = normalizeOortCloudConfig(config);
   const next = migrateWorld(world);
   saveWorld(next);
   return next;

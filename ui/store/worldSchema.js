@@ -1,8 +1,9 @@
 import { LOCAL_CLUSTER_DEFAULTS } from "../../engine/localCluster.js";
 import { mergeDefaults } from "./deepMerge.js";
+import { DEFAULT_OORT_CLOUD_CONFIG } from "./oortCloudModel.js";
 import { createSingleStarStellarSystem } from "./stellarSystemModel.js";
 
-export const SCHEMA_VERSION = 65;
+export const SCHEMA_VERSION = 67;
 
 function hasNonEmptyPlainObject(value) {
   return (
@@ -53,6 +54,13 @@ export function defaultWorld() {
       orbit1Au: 0.62,
       gasGiants: { selectedId: null, order: [], byId: {} },
       debrisDisks: { order: [], byId: {} },
+      comets: { selectedId: null, order: [], byId: {} },
+      oortCloud: {
+        mode: DEFAULT_OORT_CLOUD_CONFIG.mode,
+        guided: { ...DEFAULT_OORT_CLOUD_CONFIG.guided },
+        manual: { ...DEFAULT_OORT_CLOUD_CONFIG.manual },
+        seeding: { ...DEFAULT_OORT_CLOUD_CONFIG.seeding },
+      },
     },
     cluster: {
       galacticRadiusLy: LOCAL_CLUSTER_DEFAULTS.galacticRadiusLy,

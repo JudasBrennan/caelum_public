@@ -3060,7 +3060,8 @@ input.auto-value {
 }
 .gg-preview-canvas,
 .rocky-preview-canvas,
-.moon-preview-canvas {
+.moon-preview-canvas,
+.comet-preview-canvas {
   display: block;
   width: 180px;
   height: 180px;
@@ -3080,7 +3081,9 @@ input.auto-value {
 .kpi-wrap:hover > .kpi.kpi--preview .rocky-preview-canvas,
 .kpi-wrap:focus-within > .kpi.kpi--preview .rocky-preview-canvas,
 .kpi-wrap:hover > .kpi.kpi--preview .moon-preview-canvas,
-.kpi-wrap:focus-within > .kpi.kpi--preview .moon-preview-canvas {
+.kpi-wrap:focus-within > .kpi.kpi--preview .moon-preview-canvas,
+.kpi-wrap:hover > .kpi.kpi--preview .comet-preview-canvas,
+.kpi-wrap:focus-within > .kpi.kpi--preview .comet-preview-canvas {
   margin-top: 4px;
   margin-bottom: 6px;
 }
@@ -4908,13 +4911,15 @@ button.star-topology-node:focus-visible {
 }
 
 .gg-list,
-.dd-list {
+.dd-list,
+.comet-list {
   display: grid;
   gap: 10px;
   margin-top: 10px;
 }
 .gg-row,
-.dd-row {
+.dd-row,
+.comet-row {
   padding: 10px;
   border: 1px solid rgba(var(--overlay-color), 0.1);
   border-radius: 12px;
@@ -4937,6 +4942,145 @@ button.star-topology-node:focus-visible {
 }
 .dd-row--inner .dd-row__head {
   grid-template-columns: 180px 1fr;
+}
+.outer-objects-tabs {
+  margin: 4px 0 0;
+}
+.outer-objects-tabs .physics-trio-toggle label {
+  font-size: 11px;
+}
+.comet-row {
+  display: grid;
+  gap: 10px;
+}
+.comet-row.is-selected {
+  border-color: rgba(var(--accent-rgb), 0.42);
+  background: rgba(var(--accent-rgb), 0.08);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.12) inset;
+}
+.comet-row__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.comet-row__title {
+  display: grid;
+  gap: 4px;
+}
+.comet-row__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.comet-row__badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(226, 241, 255, 0.96);
+  background: rgba(var(--accent-rgb), 0.24);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+}
+.comet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 12px;
+}
+.comet-grid--advanced {
+  margin-top: 2px;
+}
+.comet-field {
+  margin-top: 0;
+}
+.comet-empty {
+  margin-top: 10px;
+}
+.oort-controls {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.oort-mode-row {
+  align-items: center;
+  gap: 12px;
+}
+.oort-mode-row > :last-child,
+.oort-field .pill-toggle-wrap {
+  width: 100%;
+}
+.oort-mode-toggle,
+.oort-instability-toggle {
+  max-width: 420px;
+}
+.oort-compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+.oort-compare-card {
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--overlay-color), 0.08);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.12);
+}
+.oort-compare-card__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.oort-compare-card__values {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.oort-compare-card__baseline {
+  color: rgba(var(--overlay-color), 0.72);
+}
+.oort-compare-card__arrow {
+  color: rgba(var(--overlay-color), 0.45);
+}
+.oort-compare-card__resolved {
+  color: rgba(235, 242, 255, 0.95);
+}
+.oort-panel {
+  margin-top: 2px;
+}
+.oort-panel__title-row {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+.oort-panel__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(235, 242, 255, 0.96);
+}
+.oort-panel__body {
+  margin-top: 8px;
+}
+.oort-control-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px 12px;
+}
+.oort-field {
+  margin-top: 0;
+}
+.oort-field--full {
+  grid-column: 1 / -1;
 }
 
 /* Debris disk suggestion preview */
@@ -6693,6 +6837,88 @@ button.star-topology-node:focus-visible {
   gap: 8px;
   margin: 12px 0 0;
 }
+.sci-search {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+.sci-search__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sci-search__field span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.sci-search__field input {
+  width: min(100%, 560px);
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(var(--overlay-color), 0.04);
+  color: var(--text);
+  font: inherit;
+}
+.sci-search__field input:focus {
+  outline: none;
+  border-color: rgba(var(--accent-rgb), 0.48);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12);
+}
+.sci-search__status {
+  min-height: 18px;
+}
+.sci-search__results {
+  display: grid;
+  gap: 8px;
+  max-width: 640px;
+}
+.sci-search__result,
+.sci-search__empty {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(var(--overlay-color), 0.035);
+}
+.sci-search__result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    transform 0.15s;
+}
+.sci-search__result:hover,
+.sci-search__result:focus-visible {
+  outline: none;
+  text-decoration: none;
+  border-color: rgba(var(--accent-rgb), 0.35);
+  background: rgba(var(--accent-rgb), 0.08);
+  transform: translateY(-1px);
+}
+.sci-search__result-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.sci-search__result-meta,
+.sci-search__empty {
+  font-size: 12px;
+  color: var(--muted);
+}
+.sci-search__result-meta {
+  white-space: nowrap;
+}
 .sci-toc__link {
   padding: 6px 12px;
   border-radius: var(--radius-sm, 8px);
@@ -6757,6 +6983,9 @@ button.star-topology-node:focus-visible {
   font-size: 12px;
   color: var(--muted);
 }
+.sci-section.is-search-match > .sci-section__summary {
+  background: rgba(var(--accent-rgb), 0.05);
+}
 .sci-section__body {
   padding: var(--pad, 16px);
 }
@@ -6768,9 +6997,22 @@ button.star-topology-node:focus-visible {
   border-radius: var(--radius-sm, 8px);
   background: rgba(var(--overlay-color), 0.02);
   margin-bottom: 12px;
+  transition:
+    border-color 0.18s,
+    background 0.18s,
+    box-shadow 0.18s;
 }
 .sci-formula:last-child {
   margin-bottom: 0;
+}
+.sci-formula.is-search-match {
+  border-color: rgba(var(--accent-rgb), 0.22);
+  background: rgba(var(--accent-rgb), 0.03);
+}
+.sci-formula.is-search-hit {
+  border-color: rgba(var(--accent-rgb), 0.42);
+  background: rgba(var(--accent-rgb), 0.07);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.14);
 }
 .sci-formula__name {
   font-size: 14px;

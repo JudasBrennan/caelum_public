@@ -255,8 +255,7 @@ function calcBrownDwarfMagnetic({ massMjup, radiusKm, orbitAu, ageGyr }) {
 
 function buildBrownDwarfJeansDisplay(escapeVelocityKms, exobaseTempK, xuvFluxRatioEarth) {
   const species = computeGasGiantJeansEscape(escapeVelocityKms, exobaseTempK);
-  let text =
-    `Retention check (T_exo ${fmt(round(exobaseTempK, 0), 0)} K, XUV ${fmt(round(xuvFluxRatioEarth, 2), 2)}x Earth):`;
+  let text = `Retention check (T_exo ${fmt(round(exobaseTempK, 0), 0)} K, XUV ${fmt(round(xuvFluxRatioEarth, 2), 2)}x Earth):`;
   for (const speciesEntry of Object.values(species)) {
     const nonThermalTag = speciesEntry.nonThermal ? " (non-thermal)" : "";
     text += `\n  ${speciesEntry.label}: lambda=${fmt(speciesEntry.lambda, 1)} - ${speciesEntry.status}${nonThermalTag}`;
@@ -331,7 +330,8 @@ function calcBrownDwarfCompanion({
   const escapeVelocityKms = escapeVelocityMs / 1000;
   const densityGcm3 = brownDwarf.densityGcm3;
   const intrinsicTempK = brownDwarf.tempK;
-  const bondAlbedo = brownDwarf.spectralFamily === "L" ? 0.08 : brownDwarf.spectralFamily === "T" ? 0.06 : 0.03;
+  const bondAlbedo =
+    brownDwarf.spectralFamily === "L" ? 0.08 : brownDwarf.spectralFamily === "T" ? 0.06 : 0.03;
 
   function totalLuminosityAtDistanceAu(distanceAu) {
     const orbitalDistanceAu = Math.max(toFinite(distanceAu, orbit), 0.01);
@@ -449,10 +449,16 @@ function calcBrownDwarfCompanion({
   });
   const dynamics = {
     bandCount: brownDwarf.spectralFamily === "L" ? 4 : brownDwarf.spectralFamily === "T" ? 3 : 2,
-    equatorialWindMs: brownDwarf.spectralFamily === "L" ? 220 : brownDwarf.spectralFamily === "T" ? 150 : 90,
+    equatorialWindMs:
+      brownDwarf.spectralFamily === "L" ? 220 : brownDwarf.spectralFamily === "T" ? 150 : 90,
     windDirection: brownDwarf.spectralFamily === "L" ? "Patchy eastward" : "Patchy variable",
   };
-  const oblateness = calcOblateness(Math.min(massMjup, 13), radiusKm, Math.min(rot, 100), densityGcm3);
+  const oblateness = calcOblateness(
+    Math.min(massMjup, 13),
+    radiusKm,
+    Math.min(rot, 100),
+    densityGcm3,
+  );
   const massLoss = {
     massLossRateKgS: 0,
     evaporationTimescaleGyr: 1e12,
@@ -476,7 +482,10 @@ function calcBrownDwarfCompanion({
   const tidallyEvolved = tidal.isTidallyLocked;
   const resonance = tidallyEvolved ? selectSpinOrbitResonance({ eccentricity }) : null;
   const resonanceRotationHours = resonance ? (orbitalPeriodDays * 24) / resonance.p : null;
-  const nearestResonance = findNearestResonance(orbit, Array.isArray(otherGiants) ? otherGiants : []);
+  const nearestResonance = findNearestResonance(
+    orbit,
+    Array.isArray(otherGiants) ? otherGiants : [],
+  );
 
   const hostFrameCriticalOuterAu = Number(hostFrame?.stability?.criticalOuterAu);
   const hostFrameCriticalInnerAu = Number(hostFrame?.stability?.criticalInnerAu);
@@ -523,7 +532,11 @@ function calcBrownDwarfCompanion({
         );
       }
     }
-    if (Number.isFinite(hostFrameDiskTruncationAu) && hostFrameDiskTruncationAu > 0 && orbit > hostFrameDiskTruncationAu) {
+    if (
+      Number.isFinite(hostFrameDiskTruncationAu) &&
+      hostFrameDiskTruncationAu > 0 &&
+      orbit > hostFrameDiskTruncationAu
+    ) {
       if (dynamicalStability === "Stable") dynamicalStability = "Disk-truncated";
       dynamicalStabilityNotes.push(
         `Orbit lies beyond the likely truncated outer circumbinary disk (${fmt(hostFrameDiskTruncationAu, 3)} AU).`,

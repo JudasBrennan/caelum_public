@@ -19,6 +19,8 @@ export const VISUALIZER_TIP_LABEL = {
     "Representative keeps bodies easy to read. 1:1 scales body radii against the star radius while keeping the star's on-screen size fixed.",
   "Habitable zone": "Show or hide the habitable-zone band (between HZ inner and HZ outer limits).",
   "Debris disks": "Show or hide debris disk bands and asteroid field particles.",
+  Comets:
+    "Show or hide authored comet nuclei, clipped orbit arcs, comae, and tails in Local Frame mode.",
   "Eccentric orbits":
     "When enabled, planet and gas giant orbits are drawn as ellipses using each body's eccentricity and periapsis orientation. Bodies also move faster near periapsis and slower near apoapsis (Kepler's second law via the eccentric anomaly).\n\nWhen disabled (default), orbits are drawn as perfect circles - cleaner for typical near-circular worlds.",
   "Pe / Ap markers":
@@ -35,7 +37,7 @@ export const VISUALIZER_TIP_LABEL = {
   "Axial tilt helpers":
     "Show or hide projected spin-axis helper overlays on planets and moons (based on axial tilt).",
   "Click zoom bodies":
-    "Click interaction for planets and gas giants. Single-click centres the body; double-click zooms to fit.",
+    "Click interaction for planets, gas giants, and comets. Single-click centres the body; double-click zooms to fit.",
   "Click zoom star":
     "Click interaction for the host star. Single-click centres; double-click zooms in.",
   "Multistar info":

@@ -2774,7 +2774,11 @@ export function initStarPage(mountEl, options = {}) {
       draftState.companionName = sanitiseCompanionName(systemInputs.companionName);
     }
     if (systemInputs.companionMassMsol != null) {
-      draftState.companionMassMsol = clamp(Number(systemInputs.companionMassMsol), HOST_COMPONENT_MASS_MIN, 100);
+      draftState.companionMassMsol = clamp(
+        Number(systemInputs.companionMassMsol),
+        HOST_COMPONENT_MASS_MIN,
+        100,
+      );
     }
     if (systemInputs.binarySemiMajorAxisAu != null) {
       draftState.binarySemiMajorAxisAu = Math.max(
@@ -2792,7 +2796,11 @@ export function initStarPage(mountEl, options = {}) {
       draftState.tertiaryName = sanitiseTertiaryName(systemInputs.tertiaryName);
     }
     if (systemInputs.tertiaryMassMsol != null) {
-      draftState.tertiaryMassMsol = clamp(Number(systemInputs.tertiaryMassMsol), HOST_COMPONENT_MASS_MIN, 100);
+      draftState.tertiaryMassMsol = clamp(
+        Number(systemInputs.tertiaryMassMsol),
+        HOST_COMPONENT_MASS_MIN,
+        100,
+      );
     }
     if (systemInputs.tripleOuterSemiMajorAxisAu != null) {
       draftState.tripleOuterSemiMajorAxisAu = Math.max(
@@ -2818,7 +2826,11 @@ export function initStarPage(mountEl, options = {}) {
       draftState.quaternaryName = sanitiseQuaternaryName(systemInputs.quaternaryName);
     }
     if (systemInputs.quaternaryMassMsol != null) {
-      draftState.quaternaryMassMsol = clamp(Number(systemInputs.quaternaryMassMsol), HOST_COMPONENT_MASS_MIN, 100);
+      draftState.quaternaryMassMsol = clamp(
+        Number(systemInputs.quaternaryMassMsol),
+        HOST_COMPONENT_MASS_MIN,
+        100,
+      );
     }
     if (systemInputs.quadOuterSemiMajorAxisAu != null) {
       draftState.quadOuterSemiMajorAxisAu = Math.max(
@@ -3144,7 +3156,7 @@ export function initStarPage(mountEl, options = {}) {
     return `Showing outputs for ${focusedLabel}. Click another star to switch the main preview and derived outputs.`;
   }
 
-  function createOutputStarPreviewCard(descriptor, isActive, draftState = state) {
+  function createOutputStarPreviewCard(descriptor, isActive) {
     const buttonEl = createElement("button", {
       className: `star-output-strip__card${isActive ? " is-active" : ""}`,
       attrs: {
@@ -3834,7 +3846,11 @@ export function initStarPage(mountEl, options = {}) {
       state.companionName = sanitiseCompanionName(systemInputs.companionName);
     }
     if (systemInputs.companionMassMsol != null) {
-      state.companionMassMsol = clamp(Number(systemInputs.companionMassMsol), HOST_COMPONENT_MASS_MIN, 100);
+      state.companionMassMsol = clamp(
+        Number(systemInputs.companionMassMsol),
+        HOST_COMPONENT_MASS_MIN,
+        100,
+      );
     }
     if (systemInputs.binarySemiMajorAxisAu != null) {
       state.binarySemiMajorAxisAu = Math.max(Number(systemInputs.binarySemiMajorAxisAu), 0.001);
@@ -3855,7 +3871,11 @@ export function initStarPage(mountEl, options = {}) {
       state.tertiaryName = sanitiseTertiaryName(systemInputs.tertiaryName);
     }
     if (systemInputs.tertiaryMassMsol != null) {
-      state.tertiaryMassMsol = clamp(Number(systemInputs.tertiaryMassMsol), HOST_COMPONENT_MASS_MIN, 100);
+      state.tertiaryMassMsol = clamp(
+        Number(systemInputs.tertiaryMassMsol),
+        HOST_COMPONENT_MASS_MIN,
+        100,
+      );
     }
     if (systemInputs.tripleOuterSemiMajorAxisAu != null) {
       state.tripleOuterSemiMajorAxisAu = Math.max(
@@ -3891,7 +3911,11 @@ export function initStarPage(mountEl, options = {}) {
       state.quaternaryName = sanitiseQuaternaryName(systemInputs.quaternaryName);
     }
     if (systemInputs.quaternaryMassMsol != null) {
-      state.quaternaryMassMsol = clamp(Number(systemInputs.quaternaryMassMsol), HOST_COMPONENT_MASS_MIN, 100);
+      state.quaternaryMassMsol = clamp(
+        Number(systemInputs.quaternaryMassMsol),
+        HOST_COMPONENT_MASS_MIN,
+        100,
+      );
     }
     if (systemInputs.quadOuterSemiMajorAxisAu != null) {
       state.quadOuterSemiMajorAxisAu = Math.max(
@@ -4282,9 +4306,14 @@ export function initStarPage(mountEl, options = {}) {
               tipLabel: "Star Colour",
             },
           ),
-          starKpi(classLabel, classValue, isBrownDwarfModel(model) ? regimeDisplayLabel(model.regime) : "", {
-            tipLabel: isBrownDwarfModel(model) ? "Brown Dwarf Class" : "Class",
-          }),
+          starKpi(
+            classLabel,
+            classValue,
+            isBrownDwarfModel(model) ? regimeDisplayLabel(model.regime) : "",
+            {
+              tipLabel: isBrownDwarfModel(model) ? "Brown Dwarf Class" : "Class",
+            },
+          ),
           starKpi(
             "Radius",
             fmt(model.radiusRsol, 3),
@@ -4344,9 +4373,7 @@ export function initStarPage(mountEl, options = {}) {
         id: "star-environment",
         title: "Environment",
         density: "compact",
-        items: [
-          starKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" }),
-        ],
+        items: [starKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" })],
       },
       {
         id: "star-system",

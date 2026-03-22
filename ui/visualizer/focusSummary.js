@@ -69,9 +69,7 @@ function summarizePlanet(planet) {
 function summarizeGasGiant(gasGiant) {
   const classLabel = gasGiant?.classLabel || "Gas giant";
   const isBrownDwarf = String(gasGiant?.companionClass || gasGiant?.regime || "") === "brownDwarf";
-  const lines = [
-    { label: "Radius", value: `${fmtNumber(gasGiant?.radiusRj, 2)} RJ` },
-  ];
+  const lines = [{ label: "Radius", value: `${fmtNumber(gasGiant?.radiusRj, 2)} RJ` }];
   if (isBrownDwarf) {
     if (gasGiant?.gasCalc?.classification?.substellarClass) {
       lines.push({
@@ -101,6 +99,29 @@ function summarizeGasGiant(gasGiant) {
     title: gasGiant?.name || classLabel,
     subtitle: `${classLabel} | ${fmtNumber(gasGiant?.au, 2)} AU`,
     lines,
+  };
+}
+
+function summarizeComet(comet) {
+  if (!comet) return null;
+  const comaValue =
+    Number(comet.comaRadiusKm) > 0 ? `${fmtNumber(comet.comaRadiusKm, 0)} km` : "None";
+  const dustTailValue =
+    Number(comet.dustTailLengthAu) > 0 ? `${fmtNumber(comet.dustTailLengthAu, 3)} AU` : "None";
+  const ionTailValue =
+    Number(comet.ionTailLengthAu) > 0 ? `${fmtNumber(comet.ionTailLengthAu, 3)} AU` : "None";
+  return {
+    title: comet.name || "Comet",
+    subtitle: `${comet.dynamicalClass || "Comet"} | ${fmtNumber(comet.currentRadiusAu, 2)} AU`,
+    lines: [
+      { label: "Source", value: comet.sourceLabel || comet.sourceReservoir || "Manual" },
+      { label: "Activity", value: comet.activityState || "Dormant" },
+      { label: "Current radius", value: `${fmtNumber(comet.currentRadiusAu, 3)} AU` },
+      { label: "Coma", value: comaValue },
+      { label: "Dust tail", value: dustTailValue },
+      { label: "Ion tail", value: ionTailValue },
+    ],
+    note: "Long-period comet orbits are clipped to the inner system in Local Frame so they do not distort scene scale.",
   };
 }
 
@@ -307,6 +328,10 @@ export function getFocusedBodySummary(snapshot, kind, id) {
   if (kind === "moon") {
     const result = findMoon(snapshot, id);
     return result ? summarizeMoon(result.parent, result.moon) : null;
+  }
+  if (kind === "comet") {
+    const comet = (snapshot.comets || []).find((entry) => entry?.id === id);
+    return comet ? summarizeComet(comet) : null;
   }
   return null;
 }

@@ -1,4 +1,8 @@
-import { isBrownDwarfRegime, massMjupToMsol, normalizeGiantCompanionClass } from "./substellarRegime.js";
+import {
+  isBrownDwarfRegime,
+  massMjupToMsol,
+  normalizeGiantCompanionClass,
+} from "./substellarRegime.js";
 
 const BROWN_DWARF_STYLE_FALLBACKS = Object.freeze({
   "brown-dwarf-l": Object.freeze({ tempK: 1800, colourHex: "#b64a33" }),
@@ -30,7 +34,13 @@ function normalizeHex(hex, fallback = "#6d2945") {
 }
 
 function resolveBrownDwarfFallbackStyle(styleId) {
-  return BROWN_DWARF_STYLE_FALLBACKS[String(styleId || "").trim().toLowerCase()] || null;
+  return (
+    BROWN_DWARF_STYLE_FALLBACKS[
+      String(styleId || "")
+        .trim()
+        .toLowerCase()
+    ] || null
+  );
 }
 
 export function isBrownDwarfCompanionVisual(input = {}) {
@@ -48,7 +58,7 @@ export function isBrownDwarfCompanionVisual(input = {}) {
   const rawRegime =
     input?.renderModel === "brownDwarfStar"
       ? "brownDwarf"
-      : input?.regime ?? input?.gasCalc?.regime ?? input?.model?.regime ?? "";
+      : (input?.regime ?? input?.gasCalc?.regime ?? input?.model?.regime ?? "");
   return isBrownDwarfRegime(rawRegime);
 }
 
@@ -74,9 +84,10 @@ export function buildBrownDwarfStarVisual(input = {}, options = {}) {
     input?.starColourHex ?? input?.colourHex ?? gasCalc?.appearance?.colourHex,
     styleFallback?.colourHex || "#6d2945",
   );
-  const starName = String(
-    options?.name ?? input?.starName ?? input?.name ?? gasCalc?.inputs?.name ?? "Brown Dwarf",
-  ).trim() || "Brown Dwarf";
+  const starName =
+    String(
+      options?.name ?? input?.starName ?? input?.name ?? gasCalc?.inputs?.name ?? "Brown Dwarf",
+    ).trim() || "Brown Dwarf";
 
   return {
     regime: "brownDwarf",

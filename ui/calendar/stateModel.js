@@ -874,7 +874,7 @@ export function analyzeHolidayRelativeIssues(holidays) {
 export function createCalendarStateStoreBindings({
   getSelectedMoon = () => null,
   getSelectedPlanet = () => null,
-  getStarOverrides = () => ({}),
+  getStarOverrides: _getStarOverrides = () => ({}),
   listMoons = () => [],
   listPlanets = () => [],
   solveMoonModelForWorld = solveMoonForWorld,

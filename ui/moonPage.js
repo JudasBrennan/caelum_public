@@ -206,7 +206,9 @@ const TIP_LABEL = {
   "Ammonia (NH3)":
     "Manual ammonia fraction for the moon atmosphere in percent.\n\nUseful for cold reducing atmospheres, but ammonia is usually chemically fragile and difficult to keep at the surface over long timescales.",
   "Forced Eccentricity":
-    "Minimum eccentricity maintained by resonant forcing. In Full mode the solver can derive this from sibling resonances; in Manual mode you can set the floor directly.",
+    "Minimum orbital eccentricity sustained by gravitational perturbations from a neighbouring moon in or near a mean-motion resonance (MMR). Acts as a floor \u2014 the effective eccentricity is whichever is larger: this value or the user-set eccentricity." +
+    "\n\nIn Full coupling mode the solver derives this automatically from the mass ratio, semi-major-axis ratio, and resonance proximity of sibling moons; in Manual mode you can set it directly. Laplace chains (three consecutive 2:1 MMRs) impose a floor of 0.0035. Values \u2265 0.003 flag sustained tidal heating, which prevents eccentricity from damping to zero over geological time \u2014 the mechanism behind Io\u2019s volcanism." +
+    "\n\nRange: 0\u20130.2. Capped at 0.02 by the auto solver; higher values require manual entry.",
   "Resonance Group":
     "Manual resonance-chain identifier for moons that should be treated as part of the same forced-eccentricity group.",
   "Resonance & Rotation":

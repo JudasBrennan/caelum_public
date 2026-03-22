@@ -123,6 +123,79 @@ export function computeGasGiantPlacement(
   return { r, baseAngle, angle, ox, oy: oyFlat, oyVert };
 }
 
+function trueAnomalyToEccentricAnomaly(trueAnomalyRad, eccentricity) {
+  const e = clamp(Number(eccentricity) || 0, 0, 0.9999);
+  if (!(e > 0)) return trueAnomalyRad;
+  return (
+    2 *
+    Math.atan2(
+      Math.sqrt(1 - e) * Math.sin(trueAnomalyRad * 0.5),
+      Math.sqrt(1 + e) * Math.cos(trueAnomalyRad * 0.5),
+    )
+  );
+}
+
+export function computeCometPlacement(
+  comet,
+  metrics,
+  starMassMsol,
+  { mapAuToPx, simTime = 0, solveKeplerEquation },
+) {
+  const semiMajorAxisAu = Math.max(Number(comet?.semiMajorAxisAu) || 0, 0.05);
+  const eccentricity = clamp(Number(comet?.eccentricity) || 0, 0, 0.9999);
+  const semiMajorPx = mapAuToPx(semiMajorAxisAu, metrics.minAu, metrics.maxAu, metrics.maxR);
+  const periodDays =
+    Math.sqrt(semiMajorAxisAu ** 3 / Math.max(Number(starMassMsol) || 1, 0.08)) * 365.256;
+  const meanMotion = periodDays > 0 ? (2 * Math.PI) / periodDays : (2 * Math.PI) / 365.256;
+  const trueAnomalyRad = ((Number(comet?.trueAnomalyDeg) || 0) * Math.PI) / 180;
+  const meanAnomaly0 =
+    eccentricity > 0
+      ? (() => {
+          const eccentricAnomaly0 = trueAnomalyToEccentricAnomaly(trueAnomalyRad, eccentricity);
+          return eccentricAnomaly0 - eccentricity * Math.sin(eccentricAnomaly0);
+        })()
+      : trueAnomalyRad;
+  const meanAnomaly = meanAnomaly0 + meanMotion * simTime;
+  const eccentricAnomaly =
+    eccentricity > 0 && typeof solveKeplerEquation === "function"
+      ? solveKeplerEquation(meanAnomaly, eccentricity)
+      : meanAnomaly;
+  const semiMinorPx = semiMajorPx * Math.sqrt(1 - eccentricity * eccentricity);
+  const cFocusPx = semiMajorPx * eccentricity;
+  const radiusAu =
+    eccentricity > 0
+      ? semiMajorAxisAu * (1 - eccentricity * Math.cos(eccentricAnomaly))
+      : semiMajorAxisAu;
+  const argPeriapsisRad = ((Number(comet?.longitudeOfPeriapsisDeg) || 0) * Math.PI) / 180;
+  const cosW = Math.cos(argPeriapsisRad);
+  const sinW = Math.sin(argPeriapsisRad);
+  const xf = semiMajorPx * Math.cos(eccentricAnomaly) - cFocusPx;
+  const zf = semiMinorPx * Math.sin(eccentricAnomaly);
+  const ox = xf * cosW - zf * sinW;
+  const oy = xf * sinW + zf * cosW;
+  const angle = Math.atan2(oy, ox);
+  const incDeg = Number(comet?.inclinationDeg) || 0;
+  const incRad = (incDeg * Math.PI) / 180;
+  const oyVert = oy * Math.sin(incRad);
+  const oyFlat = oy * Math.cos(incRad);
+  const radiusPx = Math.hypot(xf, zf);
+
+  return {
+    semiMajorPx,
+    semiMinorPx,
+    eccentricity,
+    radiusAu,
+    radiusPx,
+    meanAnomaly0,
+    meanMotion,
+    periodDays,
+    angle,
+    ox,
+    oy: oyFlat,
+    oyVert,
+  };
+}
+
 export function estimateMoonOrbitMaxPx(moons, parentRadiusPx) {
   const parentR = Math.max(0, Number(parentRadiusPx) || 0);
   const list = Array.isArray(moons) ? moons : [];
@@ -165,8 +238,10 @@ export function desiredFocusZoom({
   metrics,
   snapshot,
   zoomMin,
+  computeCometPlacement,
   computeGasGiantPlacement,
   computePlanetPlacement,
+  mapAuToPx,
   getGasGiantRadiusPx,
 }) {
   const minDim = Math.min(metrics.W, metrics.H);
@@ -204,6 +279,33 @@ export function desiredFocusZoom({
       Number(placement?.r) ? Math.min(placement.r, gasR * 3) : 0,
     );
     targetExtentPx = (Array.isArray(g.moons) && g.moons.length ? 0.3 : 0.2) * minDim;
+  } else if (kind === "comet") {
+    const comet = snapshot.comets?.find((entry) => entry?.id === id);
+    if (!comet) {
+      return clamp(Math.max(safeCurrentZoom * 1.28, focusMinZoom), focusMinZoom, getFocusMaxZoom());
+    }
+    const placement = computeCometPlacement(comet, metrics, snapshot.starMassMsol);
+    const nucleusPx = clamp((Number(comet.nucleusRadiusKm) || 1) * 0.55, 4, 18);
+    const currentRadiusAu = Math.max(Number(comet.currentRadiusAu) || 0.001, 0.001);
+    const tailMaxAu = Math.max(
+      Number(comet.dustTailLengthAu) || 0,
+      Number(comet.ionTailLengthAu) || 0,
+      0,
+    );
+    const tailExtentPx =
+      tailMaxAu > 0
+        ? Math.max(
+            0,
+            mapAuToPx(currentRadiusAu + tailMaxAu, metrics.minAu, metrics.maxAu, metrics.maxR) -
+              mapAuToPx(currentRadiusAu, metrics.minAu, metrics.maxAu, metrics.maxR),
+          )
+        : 0;
+    currentExtentPx = Math.max(
+      nucleusPx * 2.2,
+      tailExtentPx + nucleusPx * 1.5,
+      placement.semiMajorPx * 0.08,
+    );
+    targetExtentPx = tailMaxAu > 0 ? 0.24 * minDim : 0.16 * minDim;
   } else {
     return clamp(Math.max(safeCurrentZoom * 1.28, focusMinZoom), focusMinZoom, getFocusMaxZoom());
   }
@@ -245,6 +347,7 @@ export function hitTestLabelUi(labelHitRegions, x, y) {
 
 export function syncFocusPan({
   clearFocusTarget,
+  computeCometPlacement,
   computeGasGiantPlacement,
   computePlanetPlacement,
   metrics,
@@ -276,6 +379,13 @@ export function syncFocusPan({
       return;
     }
     placement = computeGasGiantPlacement(gasGiants[idx], idx, metrics, snapshot.starMassMsol);
+  } else if (state.focusTargetKind === "comet") {
+    const comet = snapshot.comets?.find((entry) => entry?.id === state.focusTargetId);
+    if (!comet) {
+      clearFocusTarget();
+      return;
+    }
+    placement = computeCometPlacement(comet, metrics, snapshot.starMassMsol);
   } else {
     clearFocusTarget();
     return;

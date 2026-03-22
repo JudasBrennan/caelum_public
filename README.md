@@ -1,11 +1,15 @@
-# WorldSmith Web 1.27.0
+# WorldSmith Web 2.0.0
 
-WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, planetary systems, planets, moons, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
+WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
 This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Brown dwarfs now work as first-class objects across host-star authoring, orbiting giant companions, shared outputs, and the visualizer.
+- Editable comets now have dedicated authoring, appearance previews, import/export support, and Local Frame rendering.
+- System-wide Oort clouds now use a paper-backed baseline model with `Auto / Guided / Manual` controls and seeded long-period comet generation.
+- The Science and Maths page now has search and live filtering, making the growing reference catalogue much easier to navigate.
 - Multistar home systems now work as a normalized first-class feature across binary, triple, and quad layouts, including paired quads, host-frame-aware editing, and whole-system visualizer overviews.
 - Seeded random system generation can now draft complete star systems with curated names, AU-safe orbit allocation, and preserve/reroll strategies.
 - Star modelling with metallicity, advanced R/L/T overrides, stellar evolution, and animated flare/CME preview.

@@ -21,11 +21,12 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 1.27.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
-          Design stars, planetary systems, rocky worlds, gas giants, moons, and debris disks with
-          real astrophysics. Model tectonics, climate zones, atmospheres, populations, and calendars.
-          Explore your creations in an interactive 3D visualiser with procedural textures, or study
-          the underlying science through a living Science &amp; Maths reference and a 20-lesson curriculum.
+          <b>WorldSmith Web 2.0.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
+          Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
+          atmospheres, populations, and calendars. Explore your creations in an interactive 3D
+          visualiser with procedural textures, or study the underlying science through a living
+          Science &amp; Maths reference and a 20-lesson curriculum.
         </p>
 
         <p>
@@ -307,6 +308,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Tracked the orbits of stars around the Milky Way's center, showing how precise motion mapping can reveal hidden mass and system structure.",
   },
+  "2.0.0": {
+    name: "Roger Penrose",
+    born: 1931,
+    died: null,
+    country: "England",
+    summary:
+      "Showed how geometry, gravity, and careful mathematical structure can reveal the hidden behaviour of complex astrophysical systems.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -346,6 +355,20 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.0.0",
+      "(from 1.27.0)",
+      [
+        "<b>Brown Dwarfs Everywhere</b> &mdash; Brown dwarfs now work as true first-class objects across the Star page, giant-companion workflows, Moon context, Visualiser, poster, and apparent-sky views. You can place them as host objects or orbiting companions and still get class-aware visuals, labels, and current temperate-zone outputs.",
+        "<b>Moon Tidal Accuracy</b> &mdash; Moon orbital-fate outputs now use integrated tidal timescales instead of the old linear shortcut. Resonant moons also gained mass-aware forced eccentricity and a visible converging or diverging migration trend.",
+        "<b>Rocky Photochemistry</b> &mdash; Rocky planets now report photochemical stability, ozone-column estimates, and UV shielding directly on the Planet page. This makes fragile or strongly irradiated atmospheres much easier to read honestly.",
+        "<b>Editable Comets</b> &mdash; The Other Objects page can now store, name, duplicate, and edit comets instead of treating them as derived flavour. Comets now carry live orbit, activity, and appearance outputs and render directly in the Local Frame visualizer.",
+        "<b>Oort Clouds</b> &mdash; WorldSmith now estimates a system-wide Oort cloud and lets you keep it automatic or tune it with Guided and Manual controls. You can also seed long-period comets straight from the resolved reservoir.",
+        "<b>Science Page Search</b> &mdash; The Science &amp; Maths reference now has a search bar and live filtering, so large sections are much easier to navigate. Matching entries jump open and highlight directly instead of leaving you to scan the whole page.",
+        "<b>Visualizer Orbit Polish</b> &mdash; Gas giants and comets now keep their eccentric orbit geometry, orientation, and appearance more consistently in the Local Frame visualizer. Complex outer-system scenes read much more cleanly as a result.",
+      ],
+      { open: true },
+    ),
+    release(
       "1.27.0",
       "(from 1.26.0)",
       [
@@ -355,7 +378,7 @@ function changelogHTML() {
         "<b>Science Surfaces Synced</b> &mdash; The Science &amp; Maths page, Lesson 07, and the Science Visualiser now explain the current multistar host-frame model, companion flux, stability limits, and hierarchy guardrails instead of lagging behind the live engine.",
         "<b>Tooltip Audit Completed</b> &mdash; The remaining unlabeled controls on Apparent, Calendar, Import/Export, Local Cluster, Moon, Science Visualiser, and Visualiser pages now carry proper explanatory tooltips, including science context where it helps.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "1.26.0",

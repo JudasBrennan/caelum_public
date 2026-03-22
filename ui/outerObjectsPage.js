@@ -1,15 +1,34 @@
+import { calcComet } from "../engine/comet.js";
 import { calcDebrisDisk, calcDebrisDiskSuggestions } from "../engine/debrisDisk.js";
 import { buildHomeSystemContext, resolveHostFrameContext } from "../engine/homeSystem/context.js";
+import { calcOortCloud, resolveOortCloudModel } from "../engine/oortCloud.js";
 import { fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
+import { paintCometPreview, resolveCometAppearance } from "./cometAppearance.js";
 import { createElement, replaceChildren } from "./domHelpers.js";
+import { enableKpiInteractions } from "./planet/outputRender.js";
+import { COMET_SOURCE_RESERVOIRS, COMET_VOLATILE_CLASSES } from "./store/cometModel.js";
+import {
+  DEFAULT_OORT_CLOUD_CONFIG,
+  OORT_CLOUD_SEED_INCLINATIONS,
+  OORT_CLOUD_SEED_NUCLEUS_BIASES,
+  OORT_CLOUD_SEED_PROFILES,
+  OORT_CLOUD_SEED_VOLATILES,
+} from "./store/oortCloudModel.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { createTutorial } from "./tutorial.js";
 import {
+  getSelectedComet,
+  getSystemOortCloudConfig,
+  listSystemComets,
   loadWorld,
   listSystemGasGiants,
   listSystemDebrisDisks,
+  saveSystemComets,
   saveSystemDebrisDisks,
+  saveSystemOortCloudConfig,
+  saveWorld,
+  selectComet,
 } from "./store.js";
 
 const TIP_LABEL = {
@@ -76,14 +95,171 @@ const TIP_LABEL = {
 
   // ── Summary KPIs ──
   "Debris disks count": "Total number of debris disk zones in the selected host frame.",
+  Comets:
+    "Named, user-authored comets for the selected host frame. Keep these separate from debris disks so you can model specific short-period or long-period passages without changing the surrounding belt architecture.",
+  "Comets count": "Total number of authored comets in the selected host frame.",
+  "Oort Cloud":
+    "System-wide long-period comet reservoir. Auto mode uses the WorldSmith paper-backed baseline estimate. Guided mode applies authoring adjustments on top of that baseline. Manual mode directly overrides the displayed reservoir values without creating a literal shell object in the system model.",
+  "Reservoir Class":
+    "Qualitative reservoir strength from the inferred Oort-cloud mass proxy. Robust systems should sustain a meaningful long-period comet population; Negligible systems should not.",
+  "Inner Boundary":
+    "Inner edge of the inferred Oort reservoir in AU. WorldSmith starts from the Solar Oort cloud inner edge scaled by Galactic Hill radius, then applies an outer-giant architecture floor so the cloud remains detached from the scattered-planet region.",
+  "Outer Boundary":
+    "Outer edge of the inferred Oort reservoir in AU. WorldSmith scales the Solar Oort cloud outer edge by the system's Galactic Hill radius, so more massive systems or systems farther from the Galactic centre can retain larger clouds.",
+  "Oort Estimated Mass":
+    "Estimated total Oort-cloud reservoir mass in Earth masses. This is a Solar-calibrated proxy that combines stellar mass, total giant-planet mass, outer-giant extent, inner-ejector depletion, age, and environmental retention.",
+  "LPC Injection Rate":
+    "Approximate long-period comet injection rate in new comets per year. The Solar anchor is ~2 to 3 new long-period comets per year, then scaled by inferred reservoir mass, local stellar density, and how compact the surviving inner cloud is.",
+  Confidence:
+    "Confidence in the inferred Oort reservoir. Mature systems with wide, substantial giant-planet architectures support a stronger inference than young or giant-poor systems.",
+  "Seed from Oort":
+    "Create a deterministic long-period comet template from the inferred Oort-cloud reservoir and attach it to the current host frame.",
+  "Oort Cloud Mode":
+    "Choose how WorldSmith resolves the Oort reservoir. Auto uses the baseline literature-inspired model. Guided applies controlled authoring adjustments on top. Manual directly overrides the reservoir fields shown on this page.",
+  "Baseline vs Resolved":
+    "Read-only comparison between the automatic Oort baseline and the final resolved reservoir after Guided or Manual adjustments.",
+  "Formation Efficiency":
+    "Guided multiplier for how efficiently scattered outer-system material ended up trapped in the Oort reservoir. Higher values increase the resolved reservoir mass.",
+  "Retention / Erosion":
+    "Guided multiplier for how much of the formed cloud survives stellar encounters, tides, and long-term stripping. Lower values reduce resolved mass and can slightly trim the outer edge.",
+  "Inner Cloud Compactness":
+    "Guided multiplier on the inner Oort edge. Lower values pack the cloud inward; higher values push the effective inner edge outward and reduce long-period injection.",
+  "Late Instability History":
+    "Guided history flag for how violent the system's late giant-planet evolution was. Quiet systems retain more mass and a tighter inner edge. Violent systems lose mass and push the inner cloud outward.",
+  "Manual Present":
+    "Manual override for whether the reservoir should be treated as present. Auto follows the resolved mass threshold. Present and Not inferred force the status directly.",
+  "Manual Inner Boundary":
+    "Manual override for the Oort cloud inner boundary in AU. Leave empty to use the automatic baseline.",
+  "Manual Outer Boundary":
+    "Manual override for the Oort cloud outer boundary in AU. Leave empty to use the automatic baseline.",
+  "Manual Estimated Mass":
+    "Manual override for the Oort cloud estimated mass in Earth masses. Leave empty to use the automatic baseline.",
+  "Manual LPC Injection Rate":
+    "Manual override for the long-period comet injection rate in new comets per year. Leave empty to use the automatic baseline.",
+  "Oort Seeding":
+    "Controls for the deterministic comet template created by Seed from Oort. These settings affect only newly seeded comets and do not retroactively change existing authored comets.",
+  "Seed Profile":
+    "Template family used when creating a new comet from the resolved Oort reservoir. Different profiles change the seeded semi-major axis, eccentricity, and default orbit class.",
+  "Default Volatiles":
+    "Override the volatile inventory assigned to newly seeded Oort comets. Auto follows the selected seed profile.",
+  "Inclination Profile":
+    "Override the inclination family for newly seeded Oort comets. Auto follows the selected seed profile.",
+  "Nucleus Size Bias": "Choose the default nucleus size class for newly seeded Oort comets.",
+  "Source reservoir":
+    "Source label for this authored comet. Manual is fully user-defined, Debris Disk implies an inner-system scattered source, and Oort Cloud is reserved for long-period seeding and derived context.",
+  "Semi-major axis":
+    "Orbital semi-major axis in AU. Larger semi-major axes produce longer orbital periods and larger aphelia at fixed eccentricity.",
+  Eccentricity:
+    "Orbital eccentricity (0 to <1). Higher eccentricity drives stronger perihelion heating and much larger aphelion distance.",
+  Inclination:
+    "Orbital inclination in degrees. This also controls the tilt of the comet orbit in the Local Frame visualizer.",
+  "Longitude of periapsis":
+    "Periapsis orientation of the comet orbit within the local orbital plane.",
+  Phase:
+    "Current orbital phase as mean anomaly in degrees. This sets the comet's present position at sim time zero.",
+  "Nucleus radius":
+    "Radius of the solid comet nucleus in kilometers. Larger nuclei support larger active areas and larger visible comae and tails.",
+  "Volatile class":
+    "Dominant volatile inventory controlling how far from the star the comet can become active.",
+  Density: "Bulk nucleus density in g/cm^3. Low values are typical for porous icy comet nuclei.",
+  Albedo:
+    "Reflectivity proxy for the comet nucleus. Darker nuclei absorb more sunlight and tend to support higher sublimation rates.",
+  "Active surface fraction": "Fraction of the nucleus surface that is actively sublimating.",
+  "Dust-to-gas ratio":
+    "Relative dust production compared with gas outflow. Higher values bias the visible tail toward the dust component.",
+  Orbit:
+    "Current orbit summary derived from the authored elements: perihelion distance, aphelion distance, and orbital period.",
+  Perihelion: "Closest distance between the comet and its host star during the orbit.",
+  Aphelion: "Farthest distance between the comet and its host star during the orbit.",
+  "Orbital Period": "Time required for the comet to complete one full orbit around its host star.",
+  Activity: "Present activity state from the comet solver: Dormant, Weakly active, or Active.",
+  "Current Radius": "Instantaneous star-comet distance at the authored orbital phase.",
+  "Current Speed": "Instantaneous orbital speed from the vis-viva relation.",
+  "Coma Radius": "Approximate coma radius from the current sublimation-driven gas production rate.",
+  "Dust Tail":
+    "Approximate dust-tail length. Dust tails are broader and more curved than ion tails.",
+  "Ion Tail":
+    "Approximate ion-tail length. Ion tails track the anti-solar direction more directly.",
+  "Source Reservoir": "Display label for the comet's selected source reservoir.",
+  Appearance:
+    "Visualizer-facing appearance preview for the selected comet. Volatile class sets the core coma and tail palette, while the current activity state controls how vivid that plume appears.",
 };
+
+const DEFAULT_NEW_COMET = Object.freeze({
+  name: "New comet",
+  sourceReservoir: "manual",
+  semiMajorAxisAu: 8,
+  eccentricity: 0.65,
+  inclinationDeg: 15,
+  longitudeOfPeriapsisDeg: 0,
+  meanAnomalyDeg: 0,
+  nucleusRadiusKm: 4,
+  densityGcm3: 0.6,
+  albedo: 0.04,
+  activeFraction: 0.08,
+  dustToGasRatio: 1.2,
+  volatileClass: "waterRich",
+});
+
+const COMET_SOURCE_LABELS = Object.freeze({
+  manual: "Manual",
+  debrisDisk: "Debris Disk",
+  oortCloud: "Oort Cloud",
+});
+
+const COMET_VOLATILE_LABELS = Object.freeze({
+  waterRich: "H2O-dominated",
+  mixed: "Mixed H2O/CO2",
+  co2Rich: "CO2-rich",
+  coRich: "CO-rich",
+});
+
+const OORT_MODE_LABELS = Object.freeze({
+  auto: "Auto",
+  guided: "Guided",
+  manual: "Manual",
+});
+
+const OORT_INSTABILITY_LABELS = Object.freeze({
+  quiet: "Quiet",
+  mild: "Mild",
+  violent: "Violent",
+});
+
+const OORT_SEED_PROFILE_LABELS = Object.freeze({
+  typicalLongPeriod: "Typical long-period",
+  extremeLongPeriod: "Extreme long-period",
+  sunSkimmer: "Sun-skimmer",
+  isotropicSample: "Isotropic sample",
+});
+
+const OORT_SEED_VOLATILE_LABELS = Object.freeze({
+  auto: "Auto from profile",
+  waterRich: "Water-rich",
+  mixed: "Mixed H2O/CO2",
+  co2Rich: "CO2-rich",
+  coRich: "CO-rich",
+});
+
+const OORT_SEED_INCLINATION_LABELS = Object.freeze({
+  auto: "Auto from profile",
+  isotropic: "Isotropic",
+  mildlyPrograde: "Mildly prograde",
+  retrogradeHeavy: "Retrograde-heavy",
+});
+
+const OORT_SEED_SIZE_LABELS = Object.freeze({
+  small: "Small",
+  medium: "Medium",
+  large: "Large",
+});
 
 const TUTORIAL_STEPS = [
   {
     title: "Getting Started",
     body:
       "The Other Objects page models debris disks \u2014 asteroid belts, " +
-      "Kuiper-belt analogs, and other non-planetary material orbiting your star.",
+      "Kuiper-belt analogs, authored comets, and other non-planetary material orbiting your star.",
   },
   {
     title: "Disk Geometry",
@@ -103,8 +279,8 @@ const TUTORIAL_STEPS = [
     title: "Derived Properties",
     body:
       "Review collision velocities, ice-to-rock ratios, and infrared " +
-      "detectability. These help determine whether a disk is visible and " +
-      "how it interacts with planet formation.",
+      "detectability for debris, or switch to the Comets tab to inspect " +
+      "named nuclei, orbital state, and present activity.",
   },
 ];
 
@@ -141,6 +317,24 @@ function buildHostFrameOptions(homeSystemContext, selectedHostFrameId = null) {
     label: formatHostFrameOptionLabel(hostFrame),
     selected: hostFrame.id === normalizedSelectedId,
   }));
+}
+
+function cloneOortCloudConfig(config = DEFAULT_OORT_CLOUD_CONFIG) {
+  return {
+    mode: config?.mode || DEFAULT_OORT_CLOUD_CONFIG.mode,
+    guided: {
+      ...DEFAULT_OORT_CLOUD_CONFIG.guided,
+      ...(config?.guided || {}),
+    },
+    manual: {
+      ...DEFAULT_OORT_CLOUD_CONFIG.manual,
+      ...(config?.manual || {}),
+    },
+    seeding: {
+      ...DEFAULT_OORT_CLOUD_CONFIG.seeding,
+      ...(config?.seeding || {}),
+    },
+  };
 }
 
 function buildSelectedHostReadout(solveContext) {
@@ -188,6 +382,20 @@ function replaceDebrisDisksForHostFrame(world, nextHostDisks, hostFrameId, fallb
   ];
 }
 
+function replaceCometsForHostFrame(world, nextHostComets, hostFrameId, fallbackHostFrameId) {
+  const targetHostFrameId = normalizeHostFrameId(hostFrameId, fallbackHostFrameId);
+  const otherComets = listSystemComets(world, { fallbackHostFrameId }).filter(
+    (comet) => normalizeHostFrameId(comet?.hostFrameId, fallbackHostFrameId) !== targetHostFrameId,
+  );
+  return [
+    ...otherComets,
+    ...(nextHostComets || []).map((comet) => ({
+      ...comet,
+      hostFrameId: targetHostFrameId,
+    })),
+  ];
+}
+
 export function initOuterObjectsPage(mountEl) {
   const wrap = document.createElement("div");
   wrap.className = "page";
@@ -198,7 +406,7 @@ export function initOuterObjectsPage(mountEl) {
         <button id="outerTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        <div class="hint">Configure debris disks and other non-planetary system components. Derived physical properties are computed from the selected host frame, so multistar systems can keep separate belt architectures.</div>
+        <div class="hint">Configure debris disks, authored comets, and other non-planetary system components. Derived physical properties are computed from the selected host frame, so multistar systems can keep separate belt architectures.</div>
       </div>
     </div>
 
@@ -224,7 +432,23 @@ export function initOuterObjectsPage(mountEl) {
 
           <div style="height:10px"></div>
 
+          <div class="pill-toggle-wrap outer-objects-tabs">
+            <div class="physics-trio-toggle" data-toggle="outer-object-tab">
+              <input type="radio" name="outerObjectTab" id="outerTabDebris" value="debris" checked />
+              <label for="outerTabDebris">Debris Disks</label>
+              <input type="radio" name="outerObjectTab" id="outerTabComets" value="comets" />
+              <label for="outerTabComets">Comets</label>
+              <input type="radio" name="outerObjectTab" id="outerTabOort" value="oort" />
+              <label for="outerTabOort">Oort Cloud</label>
+              <span></span>
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
           <div id="debrisDisksEditor"></div>
+          <div id="cometsEditor" style="display:none"></div>
+          <div id="oortEditor" style="display:none"></div>
         </div>
       </div>
 
@@ -247,14 +471,20 @@ export function initOuterObjectsPage(mountEl) {
 
   const summaryEl = wrap.querySelector("#outerSummary");
   const debrisEditorEl = wrap.querySelector("#debrisDisksEditor");
+  const cometsEditorEl = wrap.querySelector("#cometsEditor");
+  const oortEditorEl = wrap.querySelector("#oortEditor");
   const hostFrameSelectEl = wrap.querySelector("#outerHostFrameSelect");
   const hostFrameHintEl = wrap.querySelector("#outerHostFrameHint");
   const hostReadoutEl = wrap.querySelector("#outerHostReadout");
+  const debrisTabEl = wrap.querySelector("#outerTabDebris");
+  const cometsTabEl = wrap.querySelector("#outerTabComets");
+  const oortTabEl = wrap.querySelector("#outerTabOort");
   const state = {
     activeHostFrameId: normalizeHostFrameId(
       loadWorld()?.stellarSystem?.defaultHostFrameId,
       "star_a",
     ),
+    activeTab: "debris",
   };
 
   let isRendering = false;
@@ -282,6 +512,85 @@ export function initOuterObjectsPage(mountEl) {
       hostFrameId,
       fallbackHostFrameId,
     });
+  }
+
+  function getComets(world, { hostFrameId = null, fallbackHostFrameId = null } = {}) {
+    return listSystemComets(world, {
+      hostFrameId,
+      fallbackHostFrameId,
+    });
+  }
+
+  function getSystemStarMassMsol(world, homeSystemContext) {
+    const starMasses = Object.values(homeSystemContext?.starsById || {})
+      .map((starContext) => Number(starContext?.config?.massMsol))
+      .filter(Number.isFinite);
+    if (starMasses.length) {
+      return starMasses.reduce((sum, mass) => sum + Math.max(0, mass), 0);
+    }
+    return Number(homeSystemContext?.primaryStarConfig?.massMsol ?? world?.star?.massMsol) || 1;
+  }
+
+  function getSystemStarAgeGyr(world, homeSystemContext) {
+    const sharedAgeGyr = Number(world?.stellarSystem?.shared?.ageGyr);
+    if (Number.isFinite(sharedAgeGyr)) return sharedAgeGyr;
+    const starAges = Object.values(homeSystemContext?.starsById || {})
+      .map((starContext) => Number(starContext?.config?.ageGyr))
+      .filter(Number.isFinite);
+    if (starAges.length) {
+      return starAges.reduce((sum, age) => sum + Math.max(0, age), 0) / starAges.length;
+    }
+    return Number(homeSystemContext?.primaryStarConfig?.ageGyr ?? world?.star?.ageGyr) || 4.6;
+  }
+
+  function calcSystemOortCloud(world, homeSystemContext) {
+    const autoModel = calcOortCloud({
+      starMassMsol: getSystemStarMassMsol(world, homeSystemContext),
+      starAgeGyr: getSystemStarAgeGyr(world, homeSystemContext),
+      locationLy: Number(world?.cluster?.locationLy),
+      stellarDensityPerLy3: Number(world?.cluster?.stellarDensityPerLy3),
+      gasGiants: listSystemGasGiants(world).map((gasGiant) => ({
+        au: gasGiant?.au,
+        massMjup: gasGiant?.massMjup,
+      })),
+    });
+    return resolveOortCloudModel({
+      autoModel,
+      config: getSystemOortCloudConfig(world),
+    });
+  }
+
+  function updateOortCloudConfig(mutator) {
+    const nextConfig = cloneOortCloudConfig(getSystemOortCloudConfig(loadWorld()));
+    mutator?.(nextConfig);
+    saveSystemOortCloudConfig(nextConfig);
+    scheduleRender();
+  }
+
+  function parseOptionalNumber(value) {
+    return String(value ?? "").trim() === "" ? undefined : Number(value);
+  }
+
+  function setSelectedCometId(cometId) {
+    const world = loadWorld();
+    if (!world.system?.comets) return world;
+    world.system.comets.selectedId = cometId || null;
+    saveWorld(world);
+    return loadWorld();
+  }
+
+  function ensureVisibleCometSelection(world, { hostFrameId, fallbackHostFrameId }) {
+    const visibleComets = getComets(world, {
+      hostFrameId,
+      fallbackHostFrameId,
+    });
+    const selectedComet = getSelectedComet(world);
+    if (selectedComet && visibleComets.some((comet) => comet.id === selectedComet.id)) {
+      return world;
+    }
+    const nextSelectedId = visibleComets[0]?.id || null;
+    if ((world.system?.comets?.selectedId ?? null) === nextSelectedId) return world;
+    return setSelectedCometId(nextSelectedId);
   }
 
   /* ── Debris Disks Editor ────────────────────────────────────────── */
@@ -613,6 +922,1102 @@ export function initOuterObjectsPage(mountEl) {
         createElement("div", { className: "kpi__meta", text: meta || "" }),
       ]),
     ]);
+  }
+
+  function createOuterPreviewKpiCard(label, meta, tipText, canvasClass = "comet-preview-canvas") {
+    return createElement("div", { className: "kpi-wrap kpi-wrap--expandable" }, [
+      createElement("div", { className: "kpi kpi--preview" }, [
+        createElement("div", { className: "kpi__label" }, [
+          label,
+          tipText ? " " : "",
+          tipIconNode(tipText),
+        ]),
+        createElement("button", {
+          className: "kpi__toggle",
+          attrs: {
+            type: "button",
+            "aria-expanded": "false",
+            "aria-label": `Show details for ${label}`,
+            title: `Show details for ${label}`,
+          },
+          text: "\u25be",
+        }),
+        createElement("canvas", {
+          className: canvasClass,
+          attrs: { width: 180, height: 180, "aria-label": `${label} preview` },
+        }),
+        createElement("div", { className: "kpi__meta", text: meta || "" }),
+      ]),
+    ]);
+  }
+
+  function createOortModeToggle(mode) {
+    const normalizedMode =
+      mode === "guided" || mode === "manual" ? mode : DEFAULT_OORT_CLOUD_CONFIG.mode;
+    return createElement("div", { className: "physics-trio-toggle oort-mode-toggle" }, [
+      ...["auto", "guided", "manual"].flatMap((value) => {
+        const id = `oortMode${value[0].toUpperCase()}${value.slice(1)}`;
+        return [
+          createElement("input", {
+            attrs: {
+              type: "radio",
+              id,
+              name: "oortCloudMode",
+              value,
+              ...(normalizedMode === value ? { checked: "checked" } : {}),
+            },
+          }),
+          createElement("label", {
+            attrs: { for: id },
+            text: OORT_MODE_LABELS[value] || value,
+          }),
+        ];
+      }),
+      createElement("span"),
+    ]);
+  }
+
+  function createOortCompareCard({ field, label, baseline, resolved }) {
+    return createElement(
+      "div",
+      { className: "oort-compare-card", dataset: { oortCompare: field } },
+      [
+        createElement("div", { className: "oort-compare-card__label", text: label }),
+        createElement("div", { className: "oort-compare-card__values" }, [
+          createElement("span", { className: "oort-compare-card__baseline", text: baseline }),
+          createElement("span", { className: "oort-compare-card__arrow", text: "->" }),
+          createElement("span", { className: "oort-compare-card__resolved", text: resolved }),
+        ]),
+      ],
+    );
+  }
+
+  function createOortGuidedSliderField({
+    label,
+    tipText,
+    unit = null,
+    numberClass,
+    sliderClass,
+    value,
+    step,
+    min,
+    max,
+    rangeMinLabel,
+    rangeMaxLabel,
+  }) {
+    return createElement("div", { className: "form-row oort-field" }, [
+      createElement("div", {}, [labelWithTipNode(label, tipText, { unit })]),
+      numberSliderPairNode({
+        inputClass: numberClass,
+        sliderClass,
+        value,
+        step,
+        min,
+        max,
+        rangeMinLabel,
+        rangeMaxLabel,
+      }),
+    ]);
+  }
+
+  function createOortManualNumberField({
+    label,
+    tipText,
+    unit = null,
+    className,
+    value = "",
+    placeholder = "Auto",
+    step = "0.1",
+    min = null,
+    max = null,
+  }) {
+    return createElement("div", { className: "form-row oort-field" }, [
+      createElement("div", {}, [labelWithTipNode(label, tipText, { unit })]),
+      createElement("div", { className: "input-pair" }, [
+        createElement("input", {
+          className,
+          attrs: {
+            type: "number",
+            step,
+            ...(min != null ? { min } : {}),
+            ...(max != null ? { max } : {}),
+            placeholder,
+            value: value == null ? "" : String(value),
+          },
+        }),
+      ]),
+    ]);
+  }
+
+  function createOortManualPresentField(value) {
+    const selectEl = createElement("select", { className: "oort-manual-present" }, [
+      createElement("option", { attrs: { value: "" }, text: "Auto" }),
+      createElement("option", { attrs: { value: "present" }, text: "Present" }),
+      createElement("option", { attrs: { value: "absent" }, text: "Not inferred" }),
+    ]);
+    selectEl.value = value === true ? "present" : value === false ? "absent" : "";
+    return createElement("div", { className: "form-row oort-field" }, [
+      createElement("div", {}, [labelWithTipNode("Present", TIP_LABEL["Manual Present"])]),
+      createElement("div", { className: "input-pair" }, [selectEl]),
+    ]);
+  }
+
+  function createOortSummarySection(oortCloud, { marginBottom = 0 } = {}) {
+    const resolved = oortCloud?.resolved || oortCloud || {};
+    return createElement(
+      "div",
+      {
+        attrs: {
+          id: "outerOortSummary",
+          ...(marginBottom > 0 ? { style: `margin-bottom:${marginBottom}px` } : {}),
+        },
+      },
+      [
+        createElement("div", { className: "kpi-grid" }, [
+          createOuterKpiCard(
+            "Oort Cloud",
+            resolved.present ? "Present" : "Not inferred",
+            "",
+            TIP_LABEL["Oort Cloud"],
+          ),
+          createOuterKpiCard(
+            "Reservoir Class",
+            resolved.formationClass,
+            "",
+            TIP_LABEL["Reservoir Class"],
+          ),
+          createOuterKpiCard(
+            "Inner Boundary",
+            `${fmt(resolved.innerBoundaryAu, 0)} AU`,
+            "",
+            TIP_LABEL["Inner Boundary"],
+          ),
+          createOuterKpiCard(
+            "Outer Boundary",
+            `${fmt(resolved.outerBoundaryAu, 0)} AU`,
+            "",
+            TIP_LABEL["Outer Boundary"],
+          ),
+          createOuterKpiCard(
+            "Estimated Mass",
+            `${fmt(resolved.estimatedMassMearth, 1)} M\u2295`,
+            "",
+            TIP_LABEL["Oort Estimated Mass"],
+          ),
+          createOuterKpiCard(
+            "LPC Injection Rate",
+            `${fmt(resolved.injectionRatePerYear, 1)}/yr`,
+            "",
+            TIP_LABEL["LPC Injection Rate"],
+          ),
+          createOuterKpiCard("Confidence", resolved.confidence, "", TIP_LABEL.Confidence),
+        ]),
+        !resolved.present
+          ? createElement("div", {
+              className: "derived-readout",
+              attrs: { style: "margin-top:14px" },
+              text: "No robust Oort cloud reservoir is inferred for this system yet. Switch to Guided or Manual mode on the left to author a different reservoir state.",
+            })
+          : null,
+      ],
+    );
+  }
+
+  function renderOortSummaryCard(oortCloud, oortConfig) {
+    if (!oortEditorEl) return;
+    const baseline = oortCloud?.baseline || oortCloud || {};
+    const resolved = oortCloud?.resolved || oortCloud || {};
+    const mode = oortCloud?.mode || oortConfig?.mode || DEFAULT_OORT_CLOUD_CONFIG.mode;
+    const config = cloneOortCloudConfig(oortConfig);
+    const modeHint =
+      mode === "guided"
+        ? "Guided mode keeps the automatic Oort model visible, then applies authoring adjustments on top of it."
+        : mode === "manual"
+          ? "Manual mode directly overrides the reservoir shown here. The automatic baseline stays visible in the comparison strip."
+          : "Auto mode shows the literature-inspired baseline Oort estimate with no authoring adjustments.";
+    oortCloud = resolved;
+    replaceChildren(summaryEl, [
+      createElement("div", { attrs: { id: "outerOortSummary" } }, [
+        createElement("div", { className: "kpi-grid" }, [
+          createOuterKpiCard(
+            "Oort Cloud",
+            resolved.present ? "Present" : "Not inferred",
+            "",
+            TIP_LABEL["Oort Cloud"],
+          ),
+          createOuterKpiCard(
+            "Reservoir Class",
+            resolved.formationClass,
+            "",
+            TIP_LABEL["Reservoir Class"],
+          ),
+          createOuterKpiCard(
+            "Inner Boundary",
+            `${fmt(resolved.innerBoundaryAu, 0)} AU`,
+            "",
+            TIP_LABEL["Inner Boundary"],
+          ),
+          createOuterKpiCard(
+            "Outer Boundary",
+            `${fmt(resolved.outerBoundaryAu, 0)} AU`,
+            "",
+            TIP_LABEL["Outer Boundary"],
+          ),
+          createOuterKpiCard(
+            "Estimated Mass",
+            `${fmt(oortCloud.estimatedMassMearth, 1)} M\u2295`,
+            "",
+            TIP_LABEL["Oort Estimated Mass"],
+          ),
+          createOuterKpiCard(
+            "LPC Injection Rate",
+            `${fmt(oortCloud.injectionRatePerYear, 1)}/yr`,
+            "",
+            TIP_LABEL["LPC Injection Rate"],
+          ),
+          createOuterKpiCard("Confidence", oortCloud.confidence, "", TIP_LABEL.Confidence),
+        ]),
+        !oortCloud.present
+          ? createElement("div", {
+              className: "derived-readout",
+              attrs: { style: "margin-top:14px" },
+              text: "No robust Oort cloud reservoir is inferred for this system yet. Switch to Guided or Manual mode on the left to author a different reservoir state.",
+            })
+          : null,
+      ]),
+    ]);
+    replaceChildren(oortEditorEl, [
+      createElement("div", { className: "subsection" }, [
+        createElement("div", { className: "subsection__title" }, [
+          "Oort Cloud",
+          " ",
+          tipIconNode(TIP_LABEL["Oort Cloud"]),
+        ]),
+        createElement("div", {
+          className: "hint",
+          text: "System-wide long-period comet reservoir inferred from the whole giant-planet architecture and the local galactic environment.",
+        }),
+        createElement("div", { className: "kpi-grid", attrs: { style: "display:none" } }, [
+          createOuterKpiCard(
+            "Oort Cloud",
+            resolved.present ? "Present" : "Not inferred",
+            "",
+            TIP_LABEL["Oort Cloud"],
+          ),
+          createOuterKpiCard(
+            "Reservoir Class",
+            resolved.formationClass,
+            "",
+            TIP_LABEL["Reservoir Class"],
+          ),
+          createOuterKpiCard(
+            "Inner Boundary",
+            `${fmt(resolved.innerBoundaryAu, 0)} AU`,
+            "",
+            TIP_LABEL["Inner Boundary"],
+          ),
+          createOuterKpiCard(
+            "Outer Boundary",
+            `${fmt(resolved.outerBoundaryAu, 0)} AU`,
+            "",
+            TIP_LABEL["Outer Boundary"],
+          ),
+          createOuterKpiCard(
+            "Estimated Mass",
+            `${fmt(oortCloud.estimatedMassMearth, 1)} M\u2295`,
+            "",
+            TIP_LABEL["Oort Estimated Mass"],
+          ),
+          createOuterKpiCard(
+            "LPC Injection Rate",
+            `${fmt(oortCloud.injectionRatePerYear, 1)}/yr`,
+            "",
+            TIP_LABEL["LPC Injection Rate"],
+          ),
+          createOuterKpiCard("Confidence", oortCloud.confidence, "", TIP_LABEL.Confidence),
+        ]),
+        createElement("div", { className: "oort-controls" }, [
+          createElement("div", { className: "form-row oort-mode-row" }, [
+            createElement("div", {}, [
+              labelWithTipNode("Oort Cloud Mode", TIP_LABEL["Oort Cloud Mode"]),
+            ]),
+            createElement("div", { className: "pill-toggle-wrap" }, [createOortModeToggle(mode)]),
+          ]),
+          createElement("div", {
+            className: "hint",
+            attrs: { style: "margin-top:8px" },
+            text: modeHint,
+          }),
+          createElement("div", { className: "oort-compare-grid" }, [
+            createOortCompareCard({
+              field: "mass",
+              label: "Mass",
+              baseline: `${fmt(baseline.estimatedMassMearth, 1)} M\u2295`,
+              resolved: `${fmt(resolved.estimatedMassMearth, 1)} M\u2295`,
+            }),
+            createOortCompareCard({
+              field: "innerEdge",
+              label: "Inner Edge",
+              baseline: `${fmt(baseline.innerBoundaryAu, 0)} AU`,
+              resolved: `${fmt(resolved.innerBoundaryAu, 0)} AU`,
+            }),
+            createOortCompareCard({
+              field: "lpcRate",
+              label: "LPC Rate",
+              baseline: `${fmt(baseline.injectionRatePerYear, 1)}/yr`,
+              resolved: `${fmt(resolved.injectionRatePerYear, 1)}/yr`,
+            }),
+          ]),
+          mode === "guided"
+            ? createElement("div", { className: "oort-panel", attrs: { id: "oortGuidedPanel" } }, [
+                createElement("div", { className: "oort-panel__title-row" }, [
+                  createElement("span", {
+                    className: "oort-panel__title",
+                    text: "Adjust Reservoir",
+                  }),
+                ]),
+                createElement("div", { className: "oort-panel__body" }, [
+                  createElement("div", { className: "oort-control-grid" }, [
+                    createOortGuidedSliderField({
+                      label: "Formation Efficiency",
+                      tipText: TIP_LABEL["Formation Efficiency"],
+                      unit: "×",
+                      numberClass: "oort-guided-formation",
+                      sliderClass: "oort-guided-formation-slider",
+                      value: config.guided.formationEfficiency,
+                      step: "0.01",
+                      min: "0.25",
+                      max: "2.5",
+                      rangeMinLabel: "0.25×",
+                      rangeMaxLabel: "2.50×",
+                    }),
+                    createOortGuidedSliderField({
+                      label: "Retention / Erosion",
+                      tipText: TIP_LABEL["Retention / Erosion"],
+                      unit: "×",
+                      numberClass: "oort-guided-retention",
+                      sliderClass: "oort-guided-retention-slider",
+                      value: config.guided.retention,
+                      step: "0.01",
+                      min: "0.25",
+                      max: "2",
+                      rangeMinLabel: "0.25×",
+                      rangeMaxLabel: "2.00×",
+                    }),
+                    createOortGuidedSliderField({
+                      label: "Inner Cloud Compactness",
+                      tipText: TIP_LABEL["Inner Cloud Compactness"],
+                      unit: "×",
+                      numberClass: "oort-guided-inner",
+                      sliderClass: "oort-guided-inner-slider",
+                      value: config.guided.innerCompactness,
+                      step: "0.01",
+                      min: "0.6",
+                      max: "1.8",
+                      rangeMinLabel: "0.60×",
+                      rangeMaxLabel: "1.80×",
+                    }),
+                    createElement("div", { className: "form-row oort-field oort-field--full" }, [
+                      createElement("div", {}, [
+                        labelWithTipNode(
+                          "Late Instability History",
+                          TIP_LABEL["Late Instability History"],
+                        ),
+                      ]),
+                      createElement("div", { className: "pill-toggle-wrap" }, [
+                        createElement(
+                          "div",
+                          { className: "physics-trio-toggle oort-instability-toggle" },
+                          [
+                            ...["quiet", "mild", "violent"].flatMap((value) => {
+                              const id = `oortInstability${value[0].toUpperCase()}${value.slice(1)}`;
+                              return [
+                                createElement("input", {
+                                  attrs: {
+                                    type: "radio",
+                                    id,
+                                    name: "oortInstabilityHistory",
+                                    value,
+                                    ...(config.guided.instabilityHistory === value
+                                      ? { checked: "checked" }
+                                      : {}),
+                                  },
+                                }),
+                                createElement("label", {
+                                  attrs: { for: id },
+                                  text: OORT_INSTABILITY_LABELS[value] || value,
+                                }),
+                              ];
+                            }),
+                            createElement("span"),
+                          ],
+                        ),
+                      ]),
+                    ]),
+                  ]),
+                ]),
+              ])
+            : null,
+          mode === "manual"
+            ? createElement("div", { className: "oort-panel", attrs: { id: "oortManualPanel" } }, [
+                createElement("div", { className: "oort-panel__title-row" }, [
+                  createElement("span", {
+                    className: "oort-panel__title",
+                    text: "Manual Overrides",
+                  }),
+                ]),
+                createElement("div", { className: "oort-panel__body" }, [
+                  createElement("div", { className: "oort-control-grid" }, [
+                    createOortManualPresentField(config.manual.present),
+                    createOortManualNumberField({
+                      label: "Inner Boundary",
+                      tipText: TIP_LABEL["Manual Inner Boundary"],
+                      unit: "AU",
+                      className: "oort-manual-inner",
+                      value: config.manual.innerBoundaryAu,
+                      step: "1",
+                      min: "1000",
+                      max: "300000",
+                    }),
+                    createOortManualNumberField({
+                      label: "Outer Boundary",
+                      tipText: TIP_LABEL["Manual Outer Boundary"],
+                      unit: "AU",
+                      className: "oort-manual-outer",
+                      value: config.manual.outerBoundaryAu,
+                      step: "1",
+                      min: "2500",
+                      max: "500000",
+                    }),
+                    createOortManualNumberField({
+                      label: "Estimated Mass",
+                      tipText: TIP_LABEL["Manual Estimated Mass"],
+                      unit: "M\u2295",
+                      className: "oort-manual-mass",
+                      value: config.manual.estimatedMassMearth,
+                      step: "0.1",
+                      min: "0",
+                      max: "200",
+                    }),
+                    createOortManualNumberField({
+                      label: "LPC Injection Rate",
+                      tipText: TIP_LABEL["Manual LPC Injection Rate"],
+                      className: "oort-manual-rate",
+                      value: config.manual.injectionRatePerYear,
+                      step: "0.1",
+                      min: "0",
+                      max: "100",
+                    }),
+                  ]),
+                ]),
+              ])
+            : null,
+        ]),
+        !oortCloud.present
+          ? createElement("div", {
+              className: "hint",
+              attrs: { style: "margin-top:10px" },
+              text: "No robust Oort cloud reservoir is inferred for this system yet.",
+            })
+          : null,
+      ]),
+    ]);
+
+    const massKpi = [...oortEditorEl.querySelectorAll(".kpi-wrap")].find((card) =>
+      /Estimated Mass/i.test(card.querySelector(".kpi__label")?.textContent || ""),
+    );
+    const massValueEl = massKpi?.querySelector(".kpi__value");
+    if (massValueEl) {
+      massValueEl.textContent = `${fmt(resolved.estimatedMassMearth, 1)} M\u2295`;
+    }
+
+    for (const input of oortEditorEl.querySelectorAll('input[name="oortCloudMode"]')) {
+      input.addEventListener("change", () => {
+        if (!input.checked) return;
+        updateOortCloudConfig((next) => {
+          next.mode = input.value;
+        });
+      });
+    }
+
+    if (mode === "guided") {
+      const bindGuidedField = ({ numberSelector, sliderSelector, key, min, max, step }) => {
+        const numberEl = oortEditorEl.querySelector(numberSelector);
+        const sliderEl = oortEditorEl.querySelector(sliderSelector);
+        bindNumberAndSlider({
+          numberEl,
+          sliderEl,
+          min,
+          max,
+          step,
+          mode: "linear",
+          commitOnInput: false,
+          onChange: (value) => {
+            updateOortCloudConfig((next) => {
+              next.mode = "guided";
+              next.guided[key] = value;
+            });
+          },
+        });
+      };
+
+      bindGuidedField({
+        numberSelector: ".oort-guided-formation",
+        sliderSelector: ".oort-guided-formation-slider",
+        key: "formationEfficiency",
+        min: 0.25,
+        max: 2.5,
+        step: 0.01,
+      });
+      bindGuidedField({
+        numberSelector: ".oort-guided-retention",
+        sliderSelector: ".oort-guided-retention-slider",
+        key: "retention",
+        min: 0.25,
+        max: 2,
+        step: 0.01,
+      });
+      bindGuidedField({
+        numberSelector: ".oort-guided-inner",
+        sliderSelector: ".oort-guided-inner-slider",
+        key: "innerCompactness",
+        min: 0.6,
+        max: 1.8,
+        step: 0.01,
+      });
+
+      for (const input of oortEditorEl.querySelectorAll('input[name="oortInstabilityHistory"]')) {
+        input.addEventListener("change", () => {
+          if (!input.checked) return;
+          updateOortCloudConfig((next) => {
+            next.mode = "guided";
+            next.guided.instabilityHistory = input.value;
+          });
+        });
+      }
+    }
+
+    if (mode === "manual") {
+      const presentEl = oortEditorEl.querySelector(".oort-manual-present");
+      presentEl?.addEventListener("change", () => {
+        updateOortCloudConfig((next) => {
+          next.mode = "manual";
+          next.manual.present =
+            presentEl.value === "present" ? true : presentEl.value === "absent" ? false : null;
+        });
+      });
+
+      const bindManualNumber = (selector, key) => {
+        const input = oortEditorEl.querySelector(selector);
+        input?.addEventListener("change", () => {
+          updateOortCloudConfig((next) => {
+            next.mode = "manual";
+            const raw = String(input.value ?? "").trim();
+            next.manual[key] = raw === "" ? null : Number(raw);
+          });
+        });
+      };
+
+      bindManualNumber(".oort-manual-inner", "innerBoundaryAu");
+      bindManualNumber(".oort-manual-outer", "outerBoundaryAu");
+      bindManualNumber(".oort-manual-mass", "estimatedMassMearth");
+      bindManualNumber(".oort-manual-rate", "injectionRatePerYear");
+    }
+  }
+
+  function formatCometOrbitPeriod(periodYears) {
+    const years = Number(periodYears);
+    if (!Number.isFinite(years)) return "n/a";
+    return `${fmt(years, 1)} ${Math.abs(years - 1) < 1e-9 ? "year" : "years"}`;
+  }
+
+  function cometFieldNode({
+    label,
+    tipText,
+    unit = null,
+    className,
+    type = "number",
+    step = null,
+    min = null,
+    max = null,
+    value = "",
+  }) {
+    return createElement("div", { className: "form-row comet-field" }, [
+      createElement("div", {}, [labelWithTipNode(label, tipText, { unit })]),
+      createElement("div", { className: "input-pair" }, [
+        createElement("input", {
+          className,
+          attrs: {
+            type,
+            ...(step != null ? { step } : {}),
+            ...(min != null ? { min } : {}),
+            ...(max != null ? { max } : {}),
+            value: value == null ? "" : String(value),
+          },
+        }),
+      ]),
+    ]);
+  }
+
+  function cometSelectFieldNode({ label, tipText, className, value, options }) {
+    const selectEl = createElement(
+      "select",
+      { className },
+      options.map((option) =>
+        createElement("option", {
+          attrs: { value: option.value },
+          text: option.label,
+        }),
+      ),
+    );
+    selectEl.value = value == null ? "" : String(value);
+    return createElement("div", { className: "form-row comet-field" }, [
+      createElement("div", {}, [labelWithTipNode(label, tipText)]),
+      createElement("div", { className: "input-pair" }, [selectEl]),
+    ]);
+  }
+
+  function cometRowNode(comet, index, isSelected) {
+    const sourceOptions = COMET_SOURCE_RESERVOIRS.map((value) => ({
+      value,
+      label: COMET_SOURCE_LABELS[value] || value,
+    }));
+    const volatileOptions = COMET_VOLATILE_CLASSES.map((value) => ({
+      value,
+      label: COMET_VOLATILE_LABELS[value] || value,
+    }));
+    return createElement(
+      "div",
+      {
+        className: `comet-row${isSelected ? " is-selected" : ""}`,
+        dataset: { cometId: comet.id },
+      },
+      [
+        createElement("div", { className: "comet-row__head" }, [
+          createElement("div", { className: "comet-row__title" }, [
+            createElement("div", { className: "label" }, [
+              `Comet ${index + 1}`,
+              isSelected
+                ? createElement("span", {
+                    className: "comet-row__badge",
+                    text: "Selected",
+                  })
+                : null,
+            ]),
+            createElement("div", {
+              className: "hint",
+              text: "Named comet scoped to the active host frame.",
+            }),
+          ]),
+          createElement("div", { className: "comet-row__actions" }, [
+            createElement("button", {
+              className: "small comet-select",
+              attrs: { type: "button" },
+              text: isSelected ? "Selected" : "Select",
+            }),
+            createElement("button", {
+              className: "small comet-duplicate",
+              attrs: { type: "button" },
+              text: "Duplicate",
+            }),
+            createElement("button", {
+              className: "small danger comet-remove",
+              attrs: { type: "button" },
+              text: "Delete",
+            }),
+          ]),
+        ]),
+        createElement("div", { className: "form-row", attrs: { style: "margin-top:8px" } }, [
+          createElement("div", {}, [labelWithTipNode("Name", TIP_LABEL.Comets)]),
+          createElement("div", { className: "input-pair" }, [
+            createElement("input", {
+              className: "comet-name",
+              attrs: { type: "text", value: comet.name || `Comet ${index + 1}` },
+            }),
+          ]),
+        ]),
+        createElement("div", { className: "comet-grid" }, [
+          cometSelectFieldNode({
+            label: "Source reservoir",
+            tipText: TIP_LABEL["Source reservoir"],
+            className: "comet-source",
+            value: comet.sourceReservoir,
+            options: sourceOptions,
+          }),
+          cometFieldNode({
+            label: "Semi-major axis",
+            tipText: TIP_LABEL["Semi-major axis"],
+            unit: "AU",
+            className: "comet-a",
+            step: "0.01",
+            min: "0.05",
+            max: "100000",
+            value: comet.semiMajorAxisAu,
+          }),
+          cometFieldNode({
+            label: "Eccentricity",
+            tipText: TIP_LABEL.Eccentricity,
+            className: "comet-e",
+            step: "0.0001",
+            min: "0",
+            max: "0.9999",
+            value: comet.eccentricity,
+          }),
+          cometFieldNode({
+            label: "Inclination",
+            tipText: TIP_LABEL.Inclination,
+            unit: "\u00b0",
+            className: "comet-inc",
+            step: "0.1",
+            min: "0",
+            max: "180",
+            value: comet.inclinationDeg,
+          }),
+          cometFieldNode({
+            label: "Longitude of periapsis",
+            tipText: TIP_LABEL["Longitude of periapsis"],
+            unit: "\u00b0",
+            className: "comet-argw",
+            step: "0.1",
+            min: "0",
+            max: "360",
+            value: comet.longitudeOfPeriapsisDeg,
+          }),
+          cometFieldNode({
+            label: "Phase",
+            tipText: TIP_LABEL.Phase,
+            unit: "\u00b0",
+            className: "comet-ma",
+            step: "0.1",
+            min: "0",
+            max: "360",
+            value: comet.meanAnomalyDeg,
+          }),
+          cometFieldNode({
+            label: "Nucleus radius",
+            tipText: TIP_LABEL["Nucleus radius"],
+            unit: "km",
+            className: "comet-radius",
+            step: "0.1",
+            min: "0.5",
+            max: "50",
+            value: comet.nucleusRadiusKm,
+          }),
+          cometSelectFieldNode({
+            label: "Volatile class",
+            tipText: TIP_LABEL["Volatile class"],
+            className: "comet-volatile",
+            value: comet.volatileClass,
+            options: volatileOptions,
+          }),
+        ]),
+        createElement("details", { className: "derived-details comet-advanced" }, [
+          createElement("summary", { className: "derived-details__summary" }, [
+            createElement("span", { className: "derived-details__title", text: "Advanced" }),
+          ]),
+          createElement("div", { className: "derived-details__body" }, [
+            createElement("div", { className: "comet-grid comet-grid--advanced" }, [
+              cometFieldNode({
+                label: "Density",
+                tipText: TIP_LABEL.Density,
+                unit: "g/cm^3",
+                className: "comet-density",
+                step: "0.01",
+                min: "0.2",
+                max: "1",
+                value: comet.densityGcm3,
+              }),
+              cometFieldNode({
+                label: "Albedo",
+                tipText: TIP_LABEL.Albedo,
+                className: "comet-albedo",
+                step: "0.001",
+                min: "0.01",
+                max: "0.12",
+                value: comet.albedo,
+              }),
+              cometFieldNode({
+                label: "Active surface fraction",
+                tipText: TIP_LABEL["Active surface fraction"],
+                className: "comet-active",
+                step: "0.001",
+                min: "0.005",
+                max: "0.5",
+                value: comet.activeFraction,
+              }),
+              cometFieldNode({
+                label: "Dust-to-gas ratio",
+                tipText: TIP_LABEL["Dust-to-gas ratio"],
+                className: "comet-dustgas",
+                step: "0.01",
+                min: "0.5",
+                max: "4",
+                value: comet.dustToGasRatio,
+              }),
+            ]),
+          ]),
+        ]),
+      ],
+    );
+  }
+
+  function renderCometsEditor(world, _model, context) {
+    const { activeHostFrame, activeHostFrameId, fallbackHostFrameId, oortCloud } = context;
+    const resolvedOortCloud = oortCloud?.resolved || oortCloud || {};
+    const oortCloudConfig = getSystemOortCloudConfig(world);
+    const seedProfileOptions = OORT_CLOUD_SEED_PROFILES.map((value) => ({
+      value,
+      label: OORT_SEED_PROFILE_LABELS[value] || value,
+    }));
+    const seedVolatileOptions = OORT_CLOUD_SEED_VOLATILES.map((value) => ({
+      value,
+      label: OORT_SEED_VOLATILE_LABELS[value] || value,
+    }));
+    const seedInclinationOptions = OORT_CLOUD_SEED_INCLINATIONS.map((value) => ({
+      value,
+      label: OORT_SEED_INCLINATION_LABELS[value] || value,
+    }));
+    const seedSizeOptions = OORT_CLOUD_SEED_NUCLEUS_BIASES.map((value) => ({
+      value,
+      label: OORT_SEED_SIZE_LABELS[value] || value,
+    }));
+    const comets = getComets(world, {
+      hostFrameId: activeHostFrameId,
+      fallbackHostFrameId,
+    });
+    const selectedComet = getSelectedComet(world);
+    const selectedCometId =
+      selectedComet && comets.some((comet) => comet.id === selectedComet.id)
+        ? selectedComet.id
+        : comets[0]?.id || null;
+
+    replaceChildren(cometsEditorEl, [
+      createElement("div", { className: "subsection" }, [
+        createElement("div", { className: "subsection__title" }, [
+          "Comets",
+          " ",
+          tipIconNode(TIP_LABEL.Comets),
+        ]),
+        createElement("div", {
+          className: "hint",
+          text: `Author named comets for ${activeHostFrame?.label || "this host frame"} without changing the debris-disk architecture.`,
+        }),
+        createElement(
+          "details",
+          {
+            className: "derived-details",
+            attrs: { id: "oortSeedingPanel", style: "margin-top:10px" },
+          },
+          [
+            createElement("summary", { className: "derived-details__summary" }, [
+              createElement("span", { className: "derived-details__title", text: "Oort Seeding" }),
+            ]),
+            createElement("div", { className: "derived-details__body" }, [
+              createElement("div", { className: "comet-grid comet-grid--advanced" }, [
+                cometSelectFieldNode({
+                  label: "Seed Profile",
+                  tipText: TIP_LABEL["Seed Profile"],
+                  className: "oort-seeding-profile",
+                  value: oortCloudConfig.seeding.profile,
+                  options: seedProfileOptions,
+                }),
+                cometSelectFieldNode({
+                  label: "Default Volatiles",
+                  tipText: TIP_LABEL["Default Volatiles"],
+                  className: "oort-seeding-volatile",
+                  value: oortCloudConfig.seeding.volatileClass,
+                  options: seedVolatileOptions,
+                }),
+                cometSelectFieldNode({
+                  label: "Inclination Profile",
+                  tipText: TIP_LABEL["Inclination Profile"],
+                  className: "oort-seeding-inclination",
+                  value: oortCloudConfig.seeding.inclinationMode,
+                  options: seedInclinationOptions,
+                }),
+                cometSelectFieldNode({
+                  label: "Nucleus Size Bias",
+                  tipText: TIP_LABEL["Nucleus Size Bias"],
+                  className: "oort-seeding-size",
+                  value: oortCloudConfig.seeding.nucleusSizeBias,
+                  options: seedSizeOptions,
+                }),
+              ]),
+            ]),
+          ],
+        ),
+        createElement(
+          "div",
+          { className: "row", attrs: { style: "margin-top:10px; gap:8px; flex-wrap:wrap;" } },
+          [
+            createElement("button", {
+              className: "small",
+              attrs: { id: "btn-comet-add", type: "button" },
+              text: "Add comet",
+            }),
+            createElement("button", {
+              className: "small",
+              attrs: {
+                id: "btn-comet-seed-oort",
+                type: "button",
+                ...(resolvedOortCloud?.present ? {} : { disabled: "disabled" }),
+                title: TIP_LABEL["Seed from Oort"],
+              },
+              text: "Seed from Oort",
+            }),
+          ],
+        ),
+        createElement("div", {
+          className: "hint",
+          attrs: { id: "cometOortSeedHint", style: "margin-top:8px" },
+          text: resolvedOortCloud?.present
+            ? "Create a deterministic long-period comet template from the inferred Oort reservoir and attach it to this host frame."
+            : "No robust Oort cloud reservoir is inferred for this system yet.",
+        }),
+        comets.length
+          ? createElement(
+              "div",
+              { className: "comet-list" },
+              comets.map((comet, index) =>
+                cometRowNode(comet, index, comet.id === selectedCometId),
+              ),
+            )
+          : createElement("div", {
+              className: "derived-readout comet-empty",
+              text: "No authored comets in this host frame yet. Add a comet to start modeling a named short-period or long-period visitor.",
+            }),
+      ]),
+    ]);
+
+    function saveFromEditor() {
+      const rows = [...cometsEditorEl.querySelectorAll(".comet-row")];
+      const result = rows.map((row) => ({
+        id: row.getAttribute("data-comet-id"),
+        name: row.querySelector(".comet-name")?.value,
+        hostFrameId: activeHostFrameId,
+        sourceReservoir: row.querySelector(".comet-source")?.value,
+        semiMajorAxisAu: parseOptionalNumber(row.querySelector(".comet-a")?.value),
+        eccentricity: parseOptionalNumber(row.querySelector(".comet-e")?.value),
+        inclinationDeg: parseOptionalNumber(row.querySelector(".comet-inc")?.value),
+        longitudeOfPeriapsisDeg: parseOptionalNumber(row.querySelector(".comet-argw")?.value),
+        meanAnomalyDeg: parseOptionalNumber(row.querySelector(".comet-ma")?.value),
+        nucleusRadiusKm: parseOptionalNumber(row.querySelector(".comet-radius")?.value),
+        densityGcm3: parseOptionalNumber(row.querySelector(".comet-density")?.value),
+        albedo: parseOptionalNumber(row.querySelector(".comet-albedo")?.value),
+        activeFraction: parseOptionalNumber(row.querySelector(".comet-active")?.value),
+        dustToGasRatio: parseOptionalNumber(row.querySelector(".comet-dustgas")?.value),
+        volatileClass: row.querySelector(".comet-volatile")?.value,
+      }));
+      saveSystemComets(
+        replaceCometsForHostFrame(world, result, activeHostFrameId, fallbackHostFrameId),
+      );
+      scheduleRender();
+    }
+
+    cometsEditorEl.querySelector("#btn-comet-add")?.addEventListener("click", () => {
+      const currentWorld = loadWorld();
+      const now = getComets(currentWorld, {
+        hostFrameId: activeHostFrameId,
+        fallbackHostFrameId,
+      });
+      const nextId = `c${Math.random().toString(36).slice(2, 9)}`;
+      now.push({
+        id: nextId,
+        ...DEFAULT_NEW_COMET,
+        hostFrameId: activeHostFrameId,
+      });
+      saveSystemComets(
+        replaceCometsForHostFrame(currentWorld, now, activeHostFrameId, fallbackHostFrameId),
+      );
+      selectComet(nextId);
+      scheduleRender();
+    });
+
+    const bindSeedingPreference = (selector, key) => {
+      const input = cometsEditorEl.querySelector(selector);
+      input?.addEventListener("change", () => {
+        updateOortCloudConfig((next) => {
+          next.seeding[key] = input.value;
+        });
+      });
+    };
+
+    bindSeedingPreference(".oort-seeding-profile", "profile");
+    bindSeedingPreference(".oort-seeding-volatile", "volatileClass");
+    bindSeedingPreference(".oort-seeding-inclination", "inclinationMode");
+    bindSeedingPreference(".oort-seeding-size", "nucleusSizeBias");
+
+    cometsEditorEl.querySelector("#btn-comet-seed-oort")?.addEventListener("click", () => {
+      if (!resolvedOortCloud?.present) return;
+      const currentWorld = loadWorld();
+      const now = getComets(currentWorld, {
+        hostFrameId: activeHostFrameId,
+        fallbackHostFrameId,
+      });
+      const nextId = `c${Math.random().toString(36).slice(2, 9)}`;
+      now.push({
+        id: nextId,
+        ...resolvedOortCloud.seedCometDefaults,
+        hostFrameId: activeHostFrameId,
+      });
+      saveSystemComets(
+        replaceCometsForHostFrame(currentWorld, now, activeHostFrameId, fallbackHostFrameId),
+      );
+      selectComet(nextId);
+      scheduleRender();
+    });
+
+    for (const row of cometsEditorEl.querySelectorAll(".comet-row")) {
+      const cometId = row.getAttribute("data-comet-id");
+      for (const field of row.querySelectorAll("input, select")) {
+        field.addEventListener("change", saveFromEditor);
+      }
+
+      row.querySelector(".comet-select")?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        selectComet(cometId);
+        scheduleRender();
+      });
+
+      row.querySelector(".comet-duplicate")?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const currentWorld = loadWorld();
+        const now = getComets(currentWorld, {
+          hostFrameId: activeHostFrameId,
+          fallbackHostFrameId,
+        });
+        const source = now.find((comet) => comet.id === cometId);
+        if (!source) return;
+        const nextId = `c${Math.random().toString(36).slice(2, 9)}`;
+        now.push({
+          ...source,
+          id: nextId,
+          name: `${source.name || "Comet"} Copy`,
+        });
+        saveSystemComets(
+          replaceCometsForHostFrame(currentWorld, now, activeHostFrameId, fallbackHostFrameId),
+        );
+        selectComet(nextId);
+        scheduleRender();
+      });
+
+      row.querySelector(".comet-remove")?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const currentWorld = loadWorld();
+        const now = getComets(currentWorld, {
+          hostFrameId: activeHostFrameId,
+          fallbackHostFrameId,
+        }).filter((comet) => comet.id !== cometId);
+        saveSystemComets(
+          replaceCometsForHostFrame(currentWorld, now, activeHostFrameId, fallbackHostFrameId),
+        );
+        setSelectedCometId(now[0]?.id || null);
+        scheduleRender();
+      });
+    }
   }
 
   function renderDebrisDisksEditor(world, model, context) {
@@ -966,6 +2371,145 @@ export function initOuterObjectsPage(mountEl) {
 
   function renderSummary(world, model, context) {
     const { activeHostFrame, activeHostFrameId, activeSolveContext, fallbackHostFrameId } = context;
+    const oortSummaryBlock = createOortSummarySection(context.oortCloud, {
+      marginBottom: state.activeTab === "oort" ? 0 : 18,
+    });
+
+    if (state.activeTab === "oort") {
+      replaceChildren(summaryEl, [oortSummaryBlock]);
+      enableKpiInteractions(summaryEl);
+      return;
+    }
+
+    if (state.activeTab === "comets") {
+      const comets = getComets(world, {
+        hostFrameId: activeHostFrameId,
+        fallbackHostFrameId,
+      });
+      const selectedComet = getSelectedComet(world);
+      const visibleSelectedComet =
+        selectedComet && comets.some((comet) => comet.id === selectedComet.id)
+          ? selectedComet
+          : comets[0] || null;
+      const cometModel = visibleSelectedComet
+        ? calcComet({
+            comet: visibleSelectedComet,
+            starMassMsol: Number(activeSolveContext?.starConfig?.massMsol) || 1,
+            starLuminosityLsol: Number(model?.star?.luminosityLsol) || 1,
+          })
+        : null;
+      const cometAppearance =
+        visibleSelectedComet && cometModel
+          ? resolveCometAppearance({ comet: visibleSelectedComet, cometModel })
+          : null;
+
+      replaceChildren(summaryEl, [
+        oortSummaryBlock,
+        createElement("div", { className: "kpi-grid" }, [
+          createOuterKpiCard(
+            "Comets",
+            comets.length,
+            activeHostFrame?.label || "",
+            TIP_LABEL["Comets count"],
+          ),
+        ]),
+        visibleSelectedComet && cometModel
+          ? [
+              createElement("div", {
+                className: "label",
+                attrs: { style: "margin-top:18px" },
+                text: visibleSelectedComet.name,
+              }),
+              createElement("div", { className: "kpi-grid" }, [
+                createOuterKpiCard(
+                  "Perihelion",
+                  `${fmt(cometModel.orbit.perihelionAu, 2)} AU`,
+                  "",
+                  TIP_LABEL.Perihelion,
+                ),
+                createOuterKpiCard(
+                  "Aphelion",
+                  `${fmt(cometModel.orbit.aphelionAu, 2)} AU`,
+                  "",
+                  TIP_LABEL.Aphelion,
+                ),
+                createOuterKpiCard(
+                  "Orbital Period",
+                  formatCometOrbitPeriod(cometModel.orbit.orbitalPeriodYears),
+                  cometModel.classification.dynamicalClass,
+                  TIP_LABEL["Orbital Period"],
+                ),
+                createOuterKpiCard(
+                  "Activity",
+                  cometModel.display.activityState,
+                  cometModel.classification.volatileLabel,
+                  TIP_LABEL.Activity,
+                ),
+                createOuterPreviewKpiCard(
+                  "Appearance",
+                  cometAppearance
+                    ? `${cometAppearance.label} | ${cometAppearance.meta}. ${cometAppearance.description}`
+                    : "",
+                  TIP_LABEL.Appearance,
+                ),
+                createOuterKpiCard(
+                  "Current Radius",
+                  `${fmt(cometModel.orbit.currentRadiusAu, 3)} AU`,
+                  "",
+                  TIP_LABEL["Current Radius"],
+                ),
+                createOuterKpiCard(
+                  "Current Speed",
+                  `${fmt(cometModel.orbit.currentSpeedKms, 2)} km/s`,
+                  "",
+                  TIP_LABEL["Current Speed"],
+                ),
+                createOuterKpiCard(
+                  "Coma Radius",
+                  cometModel.activity.comaRadiusKm > 0
+                    ? `${fmt(cometModel.activity.comaRadiusKm, 0)} km`
+                    : "None",
+                  "",
+                  TIP_LABEL["Coma Radius"],
+                ),
+                createOuterKpiCard(
+                  "Dust Tail",
+                  cometModel.activity.dustTailLengthAu > 0
+                    ? `${fmt(cometModel.activity.dustTailLengthAu, 3)} AU`
+                    : "None",
+                  "",
+                  TIP_LABEL["Dust Tail"],
+                ),
+                createOuterKpiCard(
+                  "Ion Tail",
+                  cometModel.activity.ionTailLengthAu > 0
+                    ? `${fmt(cometModel.activity.ionTailLengthAu, 3)} AU`
+                    : "None",
+                  "",
+                  TIP_LABEL["Ion Tail"],
+                ),
+                createOuterKpiCard(
+                  "Source Reservoir",
+                  cometModel.display.sourceReservoir,
+                  cometModel.classification.sourceReservoir,
+                  TIP_LABEL["Source Reservoir"],
+                ),
+              ]),
+            ]
+          : createElement("div", {
+              className: "derived-readout",
+              attrs: { style: "margin-top:16px" },
+              text: "Select or add a comet in this host frame to see current orbit and activity outputs.",
+            }),
+      ]);
+      const previewCanvas = summaryEl.querySelector(".comet-preview-canvas");
+      if (previewCanvas && cometAppearance) {
+        paintCometPreview(previewCanvas, cometAppearance);
+      }
+      enableKpiInteractions(summaryEl);
+      return;
+    }
+
     const disks = getDebrisDisks(world, {
       hostFrameId: activeHostFrameId,
       fallbackHostFrameId,
@@ -1003,6 +2547,7 @@ export function initOuterObjectsPage(mountEl) {
     );
 
     replaceChildren(summaryEl, [
+      oortSummaryBlock,
       createElement("div", { className: "kpi-grid" }, [
         createOuterKpiCard(
           "Debris disks",
@@ -1144,6 +2689,7 @@ export function initOuterObjectsPage(mountEl) {
         ];
       }),
     ]);
+    enableKpiInteractions(summaryEl);
   }
 
   /* ── Main render ────────────────────────────────────────────────── */
@@ -1169,6 +2715,8 @@ export function initOuterObjectsPage(mountEl) {
         activeSolveContext?.hostFrame || homeSystemContext?.hostFramesById?.[activeHostFrameId];
       state.activeHostFrameId = activeHostFrameId;
       const model = activeHostFrame?.system || homeSystemContext?.primarySystem;
+      const oortCloud = calcSystemOortCloud(world, homeSystemContext);
+      const oortCloudConfig = getSystemOortCloudConfig(world);
 
       const hostFrameOptions = buildHostFrameOptions(homeSystemContext, activeHostFrameId);
       replaceChildren(
@@ -1187,6 +2735,9 @@ export function initOuterObjectsPage(mountEl) {
           ? "Suggestions and temperatures use the host pair's combined light."
           : "Suggestions and temperatures use the selected star's local orbit family.";
       hostReadoutEl.textContent = buildSelectedHostReadout(activeSolveContext);
+      debrisTabEl.checked = state.activeTab === "debris";
+      cometsTabEl.checked = state.activeTab === "comets";
+      oortTabEl.checked = state.activeTab === "oort";
 
       // Auto-sync: when gas giants change, update any suggested debris disks
       const gg = getGasGiants(world, {
@@ -1234,15 +2785,30 @@ export function initOuterObjectsPage(mountEl) {
           activeSolveContext?.hostFrame || homeSystemContext?.hostFramesById?.[activeHostFrameId];
       }
 
+      world = ensureVisibleCometSelection(world, {
+        hostFrameId: activeHostFrameId,
+        fallbackHostFrameId,
+      });
+
       const renderContext = {
         homeSystemContext,
         fallbackHostFrameId,
         activeHostFrameId,
         activeHostFrame,
         activeSolveContext,
+        oortCloud,
       };
 
-      renderDebrisDisksEditor(world, model, renderContext);
+      debrisEditorEl.style.display = state.activeTab === "debris" ? "" : "none";
+      cometsEditorEl.style.display = state.activeTab === "comets" ? "" : "none";
+      oortEditorEl.style.display = state.activeTab === "oort" ? "" : "none";
+      if (state.activeTab === "debris") {
+        renderDebrisDisksEditor(world, model, renderContext);
+      } else if (state.activeTab === "comets") {
+        renderCometsEditor(world, model, renderContext);
+      } else {
+        renderOortSummaryCard(oortCloud, oortCloudConfig);
+      }
       renderSummary(world, model, renderContext);
     } finally {
       isRendering = false;
@@ -1254,6 +2820,24 @@ export function initOuterObjectsPage(mountEl) {
       hostFrameSelectEl.value,
       state.activeHostFrameId || "star_a",
     );
+    render();
+  });
+
+  debrisTabEl?.addEventListener("change", () => {
+    if (!debrisTabEl.checked) return;
+    state.activeTab = "debris";
+    render();
+  });
+
+  cometsTabEl?.addEventListener("change", () => {
+    if (!cometsTabEl.checked) return;
+    state.activeTab = "comets";
+    render();
+  });
+
+  oortTabEl?.addEventListener("change", () => {
+    if (!oortTabEl.checked) return;
+    state.activeTab = "oort";
     render();
   });
 

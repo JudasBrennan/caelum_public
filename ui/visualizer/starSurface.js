@@ -74,9 +74,13 @@ export function inferStarVisualRegime({
   if (explicit === "brownDwarf") return "brownDwarf";
 
   const resolvedTempK = Number.isFinite(Number(tempK)) ? Number(tempK) : Number(starTempK);
-  const resolvedMassMsol = Number.isFinite(Number(massMsol)) ? Number(massMsol) : Number(starMassMsol);
+  const resolvedMassMsol = Number.isFinite(Number(massMsol))
+    ? Number(massMsol)
+    : Number(starMassMsol);
   if (
-    (Number.isFinite(resolvedTempK) && resolvedTempK > 0 && resolvedTempK < BROWN_DWARF_MAX_TEMP_K) ||
+    (Number.isFinite(resolvedTempK) &&
+      resolvedTempK > 0 &&
+      resolvedTempK < BROWN_DWARF_MAX_TEMP_K) ||
     (Number.isFinite(resolvedMassMsol) &&
       resolvedMassMsol > 0 &&
       resolvedMassMsol < HYDROGEN_BURNING_MASS_FLOOR_MSOL)
@@ -147,7 +151,14 @@ function drawSoftBlob(cctx, x, y, r, rgb, alphaInner, alphaOuter = 0) {
 export function paintStarSurfaceTexture(
   cctx,
   size,
-  { baseHex = "#fff4dc", seed = "star", tempK = 5776, activity = 0.2, regime = null, massMsol = null } = {},
+  {
+    baseHex = "#fff4dc",
+    seed = "star",
+    tempK = 5776,
+    activity = 0.2,
+    regime = null,
+    massMsol = null,
+  } = {},
 ) {
   const s = Math.max(64, Number(size) || 512);
   const cx = s * 0.5;

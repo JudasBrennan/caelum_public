@@ -18,6 +18,7 @@ import {
   regimeDisplayLabel,
 } from "./substellarRegime.js";
 import { suggestStyles } from "../ui/gasGiantStyles.js";
+import { getOortCloudConfig } from "../ui/store/oortCloudModel.js";
 import { computeRockyVisualProfile } from "../ui/rockyPlanetStyles.js";
 import { resolveRingAppearance } from "../ui/ringAppearanceProfiles.js";
 
@@ -77,7 +78,9 @@ function resolveGiantCompanionStyle(raw, model) {
 
 function giantCompanionGeometricAlbedo(raw, model) {
   const companionClass = resolveGiantCompanionClass(raw, model);
-  const explicitStyle = String(raw?.style || "").trim().toLowerCase();
+  const explicitStyle = String(raw?.style || "")
+    .trim()
+    .toLowerCase();
   const styleId = String(resolveGiantCompanionStyle(raw, model) || "").toLowerCase();
   if (companionClass === "brownDwarf") {
     switch (styleId) {
@@ -286,12 +289,22 @@ export function buildImportPreviewSummary(world, { rawWorld = world } = {}) {
   const debrisRanges = buildDebrisRanges(world, rawWorld, {
     hostFramesById: snapshot.hostFramesById,
   });
+  const cometEntries = Array.isArray(world?.system?.comets)
+    ? world.system.comets.filter(Boolean)
+    : orderedCollectionValues(world?.system?.comets);
   const tectonics =
     world?.tectonics && typeof world.tectonics === "object" ? world.tectonics : null;
   const population =
     world?.population && typeof world.population === "object" ? world.population : null;
   const climate = world?.climate && typeof world.climate === "object" ? world.climate : null;
   const calendar = world?.calendar && typeof world.calendar === "object" ? world.calendar : null;
+  const oortCloudConfig = getOortCloudConfig(world);
+  const oortCloudMode =
+    oortCloudConfig.mode === "guided"
+      ? "Guided"
+      : oortCloudConfig.mode === "manual"
+        ? "Manual"
+        : "Auto";
   const assigned = planets.filter((planet) => planet?.slotIndex != null).length;
   const gasAuList = gasGiants
     .map((entry) => Number(entry?.orbitAu))
@@ -350,6 +363,9 @@ export function buildImportPreviewSummary(world, { rawWorld = world } = {}) {
     gas: gasAuList.length ? Math.max(...gasAuList) : null,
     debrisCount: debrisRanges.length,
     debrisRanges,
+    cometCount: cometEntries.length,
+    oortCloudMode,
+    oortCloudCustomised: oortCloudConfig.mode !== "auto",
     hasTectonics: !!tectonics,
     tecRanges: Array.isArray(tectonics?.mountainRanges) ? tectonics.mountainRanges.length : 0,
     tecVolcanoes: Array.isArray(tectonics?.shieldVolcanoes) ? tectonics.shieldVolcanoes.length : 0,

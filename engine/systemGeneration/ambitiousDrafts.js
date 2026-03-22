@@ -13,7 +13,6 @@ import {
   getSelectedPlanetEntry,
   listExistingDebrisDisks,
   listExistingGasGiants,
-  listExistingMoons,
   listExistingPlanets,
   renameExistingWorldBodies,
   reservePrimaryBodyNames,
