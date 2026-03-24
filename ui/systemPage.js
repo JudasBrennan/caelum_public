@@ -10,7 +10,7 @@ import {
   renderUnassignedMoons,
   renderUnassignedPlanets,
 } from "./system/domRender.js";
-import { drawSystemPosterNative, disposeSystemPosterNative } from "./systemPosterNativeThree.js";
+import { drawSystemPosterNative, disposeSystemPosterNative } from "./lazySystemPosterNative.js";
 import {
   loadWorld,
   updateWorld,

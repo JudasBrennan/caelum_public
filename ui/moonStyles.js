@@ -11,8 +11,16 @@
 import { clamp } from "../engine/utils.js";
 import { calcMoonExact } from "../engine/moon.js";
 import { tintPalette } from "./renderUtils.js";
-import { renderMoonPreviewNative } from "./threeNativePreview.js";
 import { buildMoonDisplayModel } from "./moon/displayModel.js";
+
+let moonPreviewModulePromise = null;
+
+function loadMoonPreviewModule() {
+  if (!moonPreviewModulePromise) {
+    moonPreviewModulePromise = import("./threeNativePreview.js");
+  }
+  return moonPreviewModulePromise;
+}
 
 // ── Constants ─────────────────────────────────────────────────────
 
@@ -280,7 +288,13 @@ function fallbackProfile(seed) {
  */
 export function drawMoonPreview(canvas, profile, opts = {}) {
   if (!canvas || !profile) return;
-  renderMoonPreviewNative(canvas, profile, opts);
+  void loadMoonPreviewModule()
+    .then((mod) => {
+      mod.renderMoonPreviewNative(canvas, profile, opts);
+    })
+    .catch((error) => {
+      console.error("[WorldSmith] Failed to load moon preview runtime:", error);
+    });
 }
 /* ── Moon Recipes ─────────────────────────────────────────────────── */
 

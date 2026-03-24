@@ -17,7 +17,15 @@ import {
   hydrosphereStateFromPlanet,
 } from "../engine/habitability/hydrosphere.js";
 import { tintPalette } from "./renderUtils.js";
-import { renderRockyPreviewNative } from "./threeNativePreview.js";
+
+let rockyPreviewModulePromise = null;
+
+function loadRockyPreviewModule() {
+  if (!rockyPreviewModulePromise) {
+    rockyPreviewModulePromise = import("./threeNativePreview.js");
+  }
+  return rockyPreviewModulePromise;
+}
 
 // ── Constants ─────────────────────────────────────────────────────
 
@@ -227,7 +235,13 @@ export function computeRockyVisualProfile(derived, inputs) {
 
 export function drawRockyPlanetPreview(canvas, profile, opts = {}) {
   if (!canvas || !profile) return;
-  renderRockyPreviewNative(canvas, profile, opts);
+  void loadRockyPreviewModule()
+    .then((mod) => {
+      mod.renderRockyPreviewNative(canvas, profile, opts);
+    })
+    .catch((error) => {
+      console.error("[WorldSmith] Failed to load rocky preview runtime:", error);
+    });
 }
 
 // ── Rocky planet recipe presets ──────────────────────────────────

@@ -21,7 +21,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.0.1</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.1.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, and calendars. Explore your creations in an interactive 3D
@@ -316,6 +316,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Showed how geometry, gravity, and careful mathematical structure can reveal the hidden behaviour of complex astrophysical systems.",
   },
+  "2.1.0": {
+    name: "Katherine Johnson",
+    born: 1918,
+    died: 2020,
+    country: "United States",
+    summary:
+      "Calculated launch windows, trajectories, and return paths for early spaceflight, showing how precise navigation can turn complex motion into something safe and usable.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -355,12 +363,23 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.1.0",
+      "(from 2.0.1)",
+      [
+        "<b>Safer Deletes</b> &mdash; Deleting planets, moons, topology branches, calendar profiles, cluster items, or replacing world data now opens a shared confirmation dialog that tells you exactly what the fallout will be before anything changes.",
+        "<b>Accessibility Pass</b> &mdash; Blocking dialogs and the mobile nav drawer now behave more consistently for keyboard and screen-reader users, while the tutorial panel stays a non-modal helper instead of competing with real dialogs.",
+        "<b>Clearer Editors</b> &mdash; The Star and Calendar pages now show current-state summaries and more inline guidance, so you can understand topology, host ownership, profile scope, and rule counts without scanning every dense section.",
+        "<b>Touch And Navigation Polish</b> &mdash; Sidebar controls, tooltip triggers, and tutorial interactions are easier to hit on touch devices, the desktop nav now starts expanded for first-time orientation, and the sidebar footer stays cleaner on smaller screens.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.0.1",
       "(from 2.0.0)",
       [
         "<b>Apparent Moon Texture Fix</b> &mdash; The Apparent Size canvas no longer reuses the same moon texture for different moons that happen to share a broad moon class. Moon previews now key from the computed moon visual profile, so distinct moons stay visually distinct in the sky view.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.0.0",

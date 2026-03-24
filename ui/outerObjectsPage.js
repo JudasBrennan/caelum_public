@@ -5,8 +5,11 @@ import { calcOortCloud, resolveOortCloudModel } from "../engine/oortCloud.js";
 import { fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { paintCometPreview, resolveCometAppearance } from "./cometAppearance.js";
+import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import { createElement, replaceChildren } from "./domHelpers.js";
+import { buildPageIntroHtml } from "./pageIntro.js";
 import { enableKpiInteractions } from "./planet/outputRender.js";
+import { buildDeleteCometPlan, buildDeleteDebrisDiskPlan } from "./store/destructiveActions.js";
 import { COMET_SOURCE_RESERVOIRS, COMET_VOLATILE_CLASSES } from "./store/cometModel.js";
 import {
   DEFAULT_OORT_CLOUD_CONFIG,
@@ -406,7 +409,16 @@ export function initOuterObjectsPage(mountEl) {
         <button id="outerTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        <div class="hint">Configure debris disks, authored comets, and other non-planetary system components. Derived physical properties are computed from the selected host frame, so multistar systems can keep separate belt architectures.</div>
+        ${buildPageIntroHtml({
+          summary:
+            "Configure debris disks, authored comets, and Oort-cloud context for the selected host frame.",
+          controls:
+            "Belts, comet orbits, and reservoir assumptions for the current star or pair rather than the whole system at once.",
+          affects:
+            "Visualizer context, host-specific belt architecture, and long-period comet expectations across the system.",
+          primaryAction:
+            "Choose the host frame first so the suggestions, temperatures, and stability checks use the right stellar context.",
+        })}
       </div>
     </div>
 
@@ -2003,10 +2015,17 @@ export function initOuterObjectsPage(mountEl) {
         scheduleRender();
       });
 
-      row.querySelector(".comet-remove")?.addEventListener("click", (event) => {
+      row.querySelector(".comet-remove")?.addEventListener("click", async (event) => {
         event.preventDefault();
         event.stopPropagation();
         const currentWorld = loadWorld();
+        const deletePlan = buildDeleteCometPlan(currentWorld, cometId, {
+          hostFrameId: activeHostFrameId,
+          fallbackHostFrameId,
+        });
+        if (!deletePlan) return;
+        const confirmed = await confirmDestructiveAction(deletePlan);
+        if (!confirmed) return;
         const now = getComets(currentWorld, {
           hostFrameId: activeHostFrameId,
           fallbackHostFrameId,
@@ -2294,8 +2313,15 @@ export function initOuterObjectsPage(mountEl) {
       });
 
       row.querySelector(".dd-name").addEventListener("change", saveFromEditor);
-      row.querySelector(".dd-remove").addEventListener("click", () => {
+      row.querySelector(".dd-remove").addEventListener("click", async () => {
         const currentWorld = loadWorld();
+        const deletePlan = buildDeleteDebrisDiskPlan(currentWorld, id, {
+          hostFrameId: activeHostFrameId,
+          fallbackHostFrameId,
+        });
+        if (!deletePlan) return;
+        const confirmed = await confirmDestructiveAction(deletePlan);
+        if (!confirmed) return;
         const now = getDebrisDisks(currentWorld, {
           hostFrameId: activeHostFrameId,
           fallbackHostFrameId,

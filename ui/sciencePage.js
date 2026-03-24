@@ -15,6 +15,7 @@ import {
   renderScienceText,
 } from "./science/domRender.js";
 import { loadKaTeX, renderAllMath } from "./katexLoader.js";
+import { scrollIntoViewRespectingMotion } from "./motion.js";
 
 /* ── KaTeX lazy loader ──────────────────────────────────────── */
 
@@ -3256,7 +3257,7 @@ export function initSciencePage(mountEl) {
     openScienceSection(parentSection);
     clearSearchHighlight();
     target.classList.add("is-search-hit");
-    target.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    scrollIntoViewRespectingMotion(target, { block: "center" });
     target.focus?.({ preventScroll: true });
     searchHighlightTimer = window.setTimeout(() => {
       target.classList.remove("is-search-hit");
@@ -3384,7 +3385,7 @@ export function initSciencePage(mountEl) {
       const details = wrap.querySelector(`#${id}`);
       if (details) {
         openScienceSection(details);
-        details.scrollIntoView({ behavior: "smooth", block: "start" });
+        scrollIntoViewRespectingMotion(details, { block: "start" });
       }
     });
   });

@@ -40,11 +40,18 @@ export function createTutorial({ steps, storageKey, container, triggerBtn }) {
   }
 
   const state = load();
+  const panelId = `wsTutorial-${Math.random().toString(36).slice(2, 8)}`;
+  const titleId = `${panelId}Title`;
 
   /* ── Panel DOM ──────────────────────────────────────────────── */
 
   const panel = document.createElement("div");
   panel.className = "ws-tutorial";
+  panel.id = panelId;
+  panel.setAttribute("role", "region");
+  panel.setAttribute("aria-labelledby", titleId);
+  panel.dataset.helpPattern = "tutorial";
+  panel.dataset.overlayMode = "non-modal";
   panel.style.display = "none";
   panel.setAttribute("aria-hidden", "true");
   panel.innerHTML = [
@@ -56,7 +63,7 @@ export function createTutorial({ steps, storageKey, container, triggerBtn }) {
     '<p class="ws-tutorial__body"></p>',
     '<div class="ws-tutorial__nav">',
     '  <button class="ws-tutorial__nav-btn ws-tutorial__prev" type="button">\u2190 Prev</button>',
-    '  <button class="ws-tutorial__nav-btn ws-tutorial__next" type="button">Next \u2192</button>',
+    '  <button class="ws-tutorial__nav-btn ws-tutorial__next primary" type="button">Next \u2192</button>',
     "</div>",
   ].join("");
 
@@ -68,6 +75,9 @@ export function createTutorial({ steps, storageKey, container, triggerBtn }) {
   const prevBtn = panel.querySelector(".ws-tutorial__prev");
   const nextBtn = panel.querySelector(".ws-tutorial__next");
   const closeBtn = panel.querySelector(".ws-tutorial__close");
+  title.id = titleId;
+  triggerBtn?.setAttribute("aria-controls", panelId);
+  triggerBtn?.setAttribute("aria-expanded", "false");
 
   /* ── Render / Show / Hide ───────────────────────────────────── */
 
@@ -86,6 +96,7 @@ export function createTutorial({ steps, storageKey, container, triggerBtn }) {
     panel.style.display = "";
     panel.setAttribute("aria-hidden", "false");
     triggerBtn?.classList.add("is-active");
+    triggerBtn?.setAttribute("aria-expanded", "true");
     render();
     save();
   }
@@ -95,6 +106,7 @@ export function createTutorial({ steps, storageKey, container, triggerBtn }) {
     panel.style.display = "none";
     panel.setAttribute("aria-hidden", "true");
     triggerBtn?.classList.remove("is-active");
+    triggerBtn?.setAttribute("aria-expanded", "false");
     save();
   }
 
@@ -144,6 +156,8 @@ export function createTutorial({ steps, storageKey, container, triggerBtn }) {
     toggle,
     destroy() {
       triggerBtn?.removeEventListener("click", toggle);
+      triggerBtn?.removeAttribute("aria-controls");
+      triggerBtn?.removeAttribute("aria-expanded");
       document.removeEventListener("keydown", onEsc);
       panel.remove();
     },

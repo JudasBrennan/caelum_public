@@ -6,7 +6,14 @@
  * visualizerPage.
  */
 
-import { renderGasPreviewNative } from "./threeNativePreview.js";
+let gasPreviewModulePromise = null;
+
+function loadGasPreviewModule() {
+  if (!gasPreviewModulePromise) {
+    gasPreviewModulePromise = import("./threeNativePreview.js");
+  }
+  return gasPreviewModulePromise;
+}
 
 // ── Style definitions ───────────────────────────────────────────────
 
@@ -953,7 +960,13 @@ export function suggestStyles(ggCalc) {
  */
 export function drawGasGiantPreview(canvas, styleId, opts = {}) {
   if (!canvas) return;
-  renderGasPreviewNative(canvas, styleId, opts);
+  void loadGasPreviewModule()
+    .then((mod) => {
+      mod.renderGasPreviewNative(canvas, styleId, opts);
+    })
+    .catch((error) => {
+      console.error("[WorldSmith] Failed to load gas giant preview runtime:", error);
+    });
 }
 
 // ── Physics-driven visual profile ───────────────────────────────────

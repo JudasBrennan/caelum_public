@@ -3433,7 +3433,9 @@ function createBodyVisualPreviewController({ speedDaysPerSec = DEFAULT_SPEED_DAY
     state.running = false;
     state.lastTs = 0;
     if (state.rafId != null) {
-      cancelAnimationFrame(state.rafId);
+      if (typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(state.rafId);
+      }
       state.rafId = null;
     }
   }
@@ -3491,11 +3493,16 @@ function createBodyVisualPreviewController({ speedDaysPerSec = DEFAULT_SPEED_DAY
       }
       renderBodyFrame(state, dtSec);
     }
+    if (typeof requestAnimationFrame !== "function") {
+      stopLoop();
+      return;
+    }
     state.rafId = requestAnimationFrame(tick);
   }
 
   function startLoop() {
     if (state.running || !state.canvas) return;
+    if (typeof requestAnimationFrame !== "function") return;
     state.running = true;
     state.rafId = requestAnimationFrame(tick);
   }
@@ -3596,6 +3603,7 @@ let _recipeRuntimeInit = null;
 let _recipeQueue = Promise.resolve();
 
 async function ensureRecipeRuntime() {
+  if (typeof document === "undefined") return null;
   if (_recipeRuntime && !_recipeRuntime.disposed) return _recipeRuntime;
   if (_recipeRuntimeInit) return _recipeRuntimeInit;
   const offscreen = document.createElement("canvas");
@@ -3744,10 +3752,19 @@ function snapshotCacheKey(model) {
 export async function renderCelestialRecipeBatch(items, onProgress) {
   const total = items.length;
   let done = 0;
+  const shouldContinue = () =>
+    typeof document !== "undefined" &&
+    typeof requestAnimationFrame === "function" &&
+    items.some(({ canvas }) => canvas && canvas.isConnected !== false);
 
   /* First pass — paint cached items instantly */
   const uncached = [];
   for (const { canvas, model } of items) {
+    if (!shouldContinueWork(shouldContinue)) return;
+    if (!canvas || !canvas.isConnected) {
+      done++;
+      continue;
+    }
     const key = snapshotCacheKey(model);
     const cached = _snapshotCache.get(key);
     if (cached) {
@@ -3765,21 +3782,26 @@ export async function renderCelestialRecipeBatch(items, onProgress) {
     }
   }
   if (onProgress) onProgress(done, total);
-  if (!uncached.length) return;
+  if (!uncached.length || !shouldContinueWork(shouldContinue)) return;
 
   /* Warm up the shared WebGL runtime before timing the loop */
+  if (!shouldContinueWork(shouldContinue)) return;
   await ensureRecipeRuntime();
+  if (!shouldContinueWork(shouldContinue)) return;
 
   /* Second pass — render uncached, yielding between frames */
   for (const { canvas, model, key } of uncached) {
-    if (!canvas.isConnected) {
+    if (!shouldContinueWork(shouldContinue)) return;
+    if (!canvas || !canvas.isConnected) {
       done++;
       if (onProgress) onProgress(done, total);
       continue;
     }
-    const ok = await doRecipeSnapshot(canvas, model);
+    const ok = await doRecipeSnapshot(canvas, model, { shouldContinue });
+    if (!shouldContinueWork(shouldContinue)) return;
     if (ok) {
       try {
+        if (!shouldContinueWork(shouldContinue)) return;
         const w = Number(canvas.width) || 90;
         const h = Number(canvas.height) || 90;
         const c = document.createElement("canvas");
@@ -3795,6 +3817,7 @@ export async function renderCelestialRecipeBatch(items, onProgress) {
     done++;
     if (onProgress) onProgress(done, total);
     /* Yield to browser so it paints the latest thumbnail */
+    if (!shouldContinueWork(shouldContinue)) return;
     await new Promise((r) => requestAnimationFrame(r));
   }
 }

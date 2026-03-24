@@ -4,6 +4,121 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.1.0 - 2026-03-24
+
+### Consequence-Aware Destructive Confirmations
+
+**Added a shared destructive-action confirmation dialog across body deletion, star-topology collapse, calendar profile deletion, outer-object removal, local-cluster adjustment clearing, and import/export replacement flows**
+(ui/destructiveActionDialog.js, ui/store/destructiveActions.js, ui/store.js,
+ui/starPage.js, ui/planetPage.js, ui/moonPage.js, ui/calendarPage.js,
+ui/outerObjectsPage.js, ui/localClusterPage.js, ui/importExportPage.js,
+styles.css, tests/deleteConfirmation.ui.test.js,
+tests/starTopologyAuthoring.ui.test.js, tests/planetStore.test.js,
+tests/calendarPage.ui.test.js, tests/outerObjectsComets.ui.test.js,
+tests/localClusterActions.ui.test.js, tests/importExportPage.ui.test.js)
+
+Deleting planets, gas giants, moons, comets, debris disks, and calendar
+profiles now opens a shared confirmation dialog that explains the exact
+fallout before the mutation happens. The dialog calls out downstream
+effects like dependent moons becoming unassigned, selection fallback,
+host-frame-specific debris/comet fallout, and browser data loss for
+clear-data/import replacement flows instead of relying on terse native
+`confirm()` prompts.
+
+Star topology changes now use the same destructive-action planning layer.
+When collapsing a multi-star layout would remove stars or invalidate host
+frames, the Star page now explains the surviving default host frame,
+counts the planets, gas giants, moons, debris disks, and comets that
+will be reassigned, and notes when moved planets or giant companions
+lose their orbit-slot bindings. The store save path now keeps those
+reassignments in sync automatically instead of leaving stale host-frame
+ownership behind after topology changes.
+
+This pass also fixed a calendar profile deletion bug where deleting the
+active profile could accidentally re-save it during fallback activation.
+
+**Tests** (tests/deleteConfirmation.ui.test.js,
+tests/starTopologyAuthoring.ui.test.js, tests/planetStore.test.js,
+tests/calendarPage.ui.test.js, tests/outerObjectsComets.ui.test.js,
+tests/localClusterActions.ui.test.js, tests/importExportPage.ui.test.js)
+
+- Added store and UI regressions for star-topology reassignment,
+  destructive dialog confirm/cancel flows, calendar profile deletion,
+  comet/debris deletion, local-cluster destructive actions, and import
+  replacement/clear-data confirmation paths.
+
+### UI / UX Accessibility And Orientation Pass
+
+**Improved shell accessibility, first-run navigation orientation, dense-editor guidance, and touch ergonomics across the app shell, Star page, and Calendar page**
+(index.html, app.js, styles.css, ui/overlayController.js, ui/pageIntro.js,
+ui/tutorial.js, ui/tooltip.js, ui/motion.js, ui/star/contextSummary.js,
+ui/starPage.js, ui/calendarPage.js, ui/lessonsPage.js, ui/sciencePage.js,
+tests/appShellMarkup.test.js, tests/appStorageUi.ui.test.js,
+tests/pageIntroPanels.ui.test.js, tests/starTopologyAuthoring.ui.test.js,
+tests/calendarPage.ui.test.js, tests/tooltipBehavior.ui.test.js,
+tests/lessonsPage.ui.test.js, tests/sciencePageReference.ui.test.js,
+tests/tutorial.ui.test.js)
+
+Blocking overlays and the mobile nav drawer now share a consistent
+interaction model with focus trapping, focus restore, explicit drawer
+state, and background hiding, while the tutorial panel remains a
+deliberately non-modal helper surface. The main app outlet no longer
+acts like a giant live region, first-run desktop navigation now opens
+expanded instead of as a mystery icon rail, and active routes expose
+`aria-current` so orientation is clearer for both keyboard and
+screen-reader users.
+
+The Star and Calendar editors now surface more of their key state
+inline instead of forcing users to infer it from dense controls and
+tooltip hunting. Star gained a persistent current-system summary for
+topology, default host, and orbit-ownership impact, while Calendar now
+shows an active-profile summary, rule counts, and visible rule
+interaction/import-export guidance near the controls they affect.
+
+Touch and microinteraction polish landed across the shell at the same
+time. Global control targets were enlarged, tooltips now work through
+click and keyboard instead of hover only, reduced-motion users no
+longer get forced smooth scrolling, and the sidebar footer/navigation
+shell were tightened so the footer controls stay on one row and the
+full nav remains inside the viewport on smaller displays.
+
+**Tests** (tests/appShellMarkup.test.js, tests/appStorageUi.ui.test.js,
+tests/pageIntroPanels.ui.test.js, tests/starTopologyAuthoring.ui.test.js,
+tests/calendarPage.ui.test.js, tests/tooltipBehavior.ui.test.js,
+tests/lessonsPage.ui.test.js, tests/sciencePageReference.ui.test.js,
+tests/tutorial.ui.test.js)
+
+- Added regressions for nav drawer ARIA state and focus return, app-shell
+  live-region semantics, route-intro rendering, Star/Calendar summary
+  behavior, touch-friendly tooltip interaction, reduced-motion scroll
+  behavior, and tutorial non-modal behavior.
+
+### UX Guardrails And Help-Pattern Rules
+
+**Documented the new help-system rules and added an automated UX guardrail check to keep the accessibility and guidance pass from drifting**
+(STYLE_GUIDE.md, README.md, RELEASE_CHECKLIST.md, package.json,
+.github/workflows/ci.yml, scripts/check-ux-guardrails.mjs,
+ui/destructiveActionDialog.js, ui/tutorial.js, ui/tooltip.js,
+tests/deleteConfirmation.ui.test.js, tests/tutorial.ui.test.js)
+
+The style guide now explicitly says when to use inline hints, tooltips,
+tutorial panels, and destructive confirmations, so future copy and help
+surfaces do not collapse back into tooltip-only guidance. The shared
+tutorial, tooltip, and destructive-dialog components also now mark
+their own help pattern and overlay mode in source, which makes the
+contracts visible instead of relying on contributor memory.
+
+`npm run check:ux-guardrails` is now part of local checks, CI, and the
+release gate. It fails fast if the app shell regains a broad live
+region, if core icon-only controls lose accessible names, if tutorial
+panels drift back toward modal behavior, or if destructive confirms stop
+using the shared overlay controller.
+
+**Tests** (tests/deleteConfirmation.ui.test.js, tests/tutorial.ui.test.js)
+
+- Added explicit UX-contract coverage for destructive-dialog focus
+  return/shared metadata and tutorial non-modal behavior.
+
 ## 2.0.1 - 2026-03-22
 
 ### Apparent Moon Texture Cache Fix

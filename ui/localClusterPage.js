@@ -6,12 +6,18 @@ import {
 import { clamp, fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { normalizeClusterObjectKey } from "./clusterObjectVisuals.js";
+import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import {
   renderClusterContextMenuItems,
   renderClusterKpis,
   renderClusterObjectsBody,
   renderClusterSystemsBody,
 } from "./localCluster/domRender.js";
+import {
+  buildClearClusterAdjustmentsPlan,
+  buildRemoveClusterCompanionPlan,
+  buildRemoveClusterSystemPlan,
+} from "./store/destructiveActions.js";
 import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
 import { createTutorial } from "./tutorial.js";
 import {
@@ -654,20 +660,26 @@ export function initLocalClusterPage(mountEl) {
     });
   }
 
-  function hasAdjustments() {
+  function getAdjustmentSummary() {
     const adj = getClusterAdjustments();
-    return (
-      adj.addedSystems.length > 0 ||
-      adj.removedSystemIds.length > 0 ||
-      Object.keys(adj.componentOverrides).length > 0
-    );
+    return {
+      addedSystemCount: Array.isArray(adj?.addedSystems) ? adj.addedSystems.length : 0,
+      hiddenSystemCount: Array.isArray(adj?.removedSystemIds) ? adj.removedSystemIds.length : 0,
+      modifiedSystemCount:
+        adj?.componentOverrides && typeof adj.componentOverrides === "object"
+          ? Object.keys(adj.componentOverrides).length
+          : 0,
+    };
   }
 
-  function confirmClearAdjustments() {
-    if (!hasAdjustments()) return true;
-    return confirm(
-      "You have manually added or modified star systems. This action will discard those changes. Continue?",
-    );
+  async function confirmClearAdjustments(actionLabel, finalConsequence) {
+    const clearPlan = buildClearClusterAdjustmentsPlan({
+      actionLabel,
+      finalConsequence,
+      ...getAdjustmentSummary(),
+    });
+    if (!clearPlan) return true;
+    return confirmDestructiveAction(clearPlan);
   }
 
   function clearAdjustments() {
@@ -678,16 +690,24 @@ export function initLocalClusterPage(mountEl) {
     });
   }
 
-  function applyChanges() {
-    if (!confirmClearAdjustments()) return;
+  async function applyChanges() {
+    const confirmed = await confirmClearAdjustments(
+      "Apply cluster changes",
+      "The cluster will regenerate from the current galactic inputs.",
+    );
+    if (!confirmed) return;
     readStateFromInputs();
     updateClusterInputs(state);
     clearAdjustments();
     renderOutputs();
   }
 
-  function resetToDefaults() {
-    if (!confirmClearAdjustments()) return;
+  async function resetToDefaults() {
+    const confirmed = await confirmClearAdjustments(
+      "Reset to defaults",
+      "All local-cluster inputs will reset to their default values.",
+    );
+    if (!confirmed) return;
     Object.assign(state, LOCAL_CLUSTER_DEFAULTS);
     syncInputsFromState();
     updateClusterInputs(state);
@@ -744,8 +764,12 @@ export function initLocalClusterPage(mountEl) {
   });
 
   // Random seed button
-  wrap.querySelector("#btnRandomSeed")?.addEventListener("click", () => {
-    if (!confirmClearAdjustments()) return;
+  wrap.querySelector("#btnRandomSeed")?.addEventListener("click", async () => {
+    const confirmed = await confirmClearAdjustments(
+      "Randomise seed",
+      "The cluster will regenerate from a new random seed.",
+    );
+    if (!confirmed) return;
     seedEl.value = String(1 + Math.floor(Math.random() * 2147483645));
     readStateFromInputs();
     updateClusterInputs(state);
@@ -775,7 +799,7 @@ export function initLocalClusterPage(mountEl) {
   });
 
   // +/- buttons on breakdown table
-  objectsBodyEl?.addEventListener("click", (event) => {
+  objectsBodyEl?.addEventListener("click", async (event) => {
     const btn = event.target?.closest?.(".cluster-adjust-btn");
     if (!btn) return;
     const classKey = btn.dataset.class;
@@ -803,8 +827,23 @@ export function initLocalClusterPage(mountEl) {
         ...pos,
       });
     } else if (action === "remove") {
-      // Prefer removing from addedSystems first
+      const classLabel =
+        btn.closest("tr")?.querySelector("td")?.textContent?.trim() || String(classKey).trim();
       const addedIdx = findLastIndex(adj.addedSystems, (s) => s.objectClassKey === classKey);
+      const removePlan =
+        addedIdx >= 0
+          ? buildRemoveClusterSystemPlan({
+              classLabel,
+              sourceKind: "manual",
+            })
+          : buildRemoveClusterSystemPlan({
+              classLabel,
+              sourceKind: "generated",
+            });
+      const confirmed = await confirmDestructiveAction(removePlan);
+      if (!confirmed) return;
+
+      // Prefer removing from addedSystems first
       if (addedIdx >= 0) {
         adj.addedSystems.splice(addedIdx, 1);
       } else if (lastModel) {
@@ -865,7 +904,7 @@ export function initLocalClusterPage(mountEl) {
     showContextMenu(event.clientX, event.clientY, systemId);
   });
 
-  contextMenuEl?.addEventListener("click", (event) => {
+  contextMenuEl?.addEventListener("click", async (event) => {
     const item = event.target?.closest?.(".cluster-context-menu__item");
     if (!item) return;
     const action = item.dataset.action;
@@ -902,6 +941,23 @@ export function initLocalClusterPage(mountEl) {
     } else if (action === "remove-companion") {
       const compIndex = Number(item.dataset.compIndex);
       if (!Number.isFinite(compIndex) || compIndex < 1) return;
+      const system = lastFinalSystems.find((entry) => entry.id === systemId);
+      if (!system) return;
+      const components = Array.isArray(system?.components)
+        ? system.components
+        : [{ objectClassKey: system?.objectClassKey }];
+      const companion = components[compIndex];
+      const companionKey = normalizeClusterObjectKey(companion?.objectClassKey);
+      const companionLabel = companionKey === "LTY" ? "L/T/Y" : companionKey;
+      const systemLabel = resolveSystemDisplayName(system, "Home") || formatSystemLabel(system);
+      const confirmed = await confirmDestructiveAction(
+        buildRemoveClusterCompanionPlan({
+          systemLabel,
+          companionLabel,
+          beforeComponentCount: components.length,
+        }),
+      );
+      if (!confirmed) return;
       const isAdded = systemId.startsWith("added-");
       if (isAdded) {
         const sys = adj.addedSystems.find((s) => s.id === systemId);

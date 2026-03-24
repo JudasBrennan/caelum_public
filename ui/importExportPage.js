@@ -1,9 +1,11 @@
 import * as store from "./store.js";
+import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import { isXlsxFile, importLegacyWorldsmithWorkbook } from "./legacyXlsxImport.js";
 import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
 import { createSolPresetEnvelope } from "./solPreset.js";
 import { createRealmspacePresetEnvelope } from "./realmspacePreset.js";
 import { createArrakisPresetEnvelope } from "./arrakisPreset.js";
+import { buildPageIntroHtml } from "./pageIntro.js";
 import { createTutorial } from "./tutorial.js";
 import {
   assertImportFileWithinLimit,
@@ -14,6 +16,10 @@ import {
   nextImportTurn,
 } from "./importSafety.js";
 import { createElement, replaceChildren } from "./domHelpers.js";
+import {
+  buildClearSavedDataPlan,
+  buildReplaceCurrentWorldPlan,
+} from "./store/destructiveActions.js";
 import { buildImportPreviewSummary } from "../engine/worldAdapters.js";
 
 const { exportEnvelope, validateEnvelope, importWorld, createBackup, listBackups, restoreBackup } =
@@ -147,6 +153,23 @@ function clearAllSavedDataSafe() {
   }
 }
 
+async function confirmClearSavedData() {
+  return confirmDestructiveAction(
+    buildClearSavedDataPlan({
+      hasBackups: (listBackups() || []).length > 0,
+    }),
+  );
+}
+
+async function confirmReplaceCurrentWorld(sourceLabel, confirmLabel = "Replace current world") {
+  return confirmDestructiveAction(
+    buildReplaceCurrentWorldPlan({
+      sourceLabel,
+      confirmLabel,
+    }),
+  );
+}
+
 const TUTORIAL_STEPS = [
   {
     title: "Getting Started",
@@ -184,14 +207,22 @@ export function initImportExportPage(root) {
   root.innerHTML = `
     <div class="page">
       <div class="panel">
-        <div class="panel__header">
-          <h1 class="panel__title"><span class="ws-icon icon--import-export" aria-hidden="true"></span><span>Import/Export</span></h1>
-          <button id="ioTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
-        </div>
-        <div class="panel__body">
-          <div class="hint">Export your full world as JSON, or validate and import saved worlds. Imports replace current data after confirmation and automatic backup.</div>
-        </div>
+      <div class="panel__header">
+        <h1 class="panel__title"><span class="ws-icon icon--import-export" aria-hidden="true"></span><span>Import/Export</span></h1>
+        <button id="ioTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
+      <div class="panel__body">
+        ${buildPageIntroHtml({
+          summary: "Back up, restore, and replace the full world model stored in this browser.",
+          controls:
+            "Current export JSON, browser backups, import validation, and the built-in preset entry points.",
+          affects:
+            "The entire saved world, including stars, bodies, calendars, assignments, and settings.",
+          primaryAction:
+            "Export before risky changes, then validate an import before replacing the current world.",
+        })}
+      </div>
+    </div>
 
       <div class="grid-2">
         <div class="panel">
@@ -521,13 +552,8 @@ export function initImportExportPage(root) {
     );
   });
 
-  btnClearData?.addEventListener("click", () => {
-    const shouldClear =
-      typeof window?.confirm !== "function"
-        ? true
-        : window.confirm(
-            "Clear all WorldSmith saved data from this browser, including backups?\nThis cannot be undone.",
-          );
+  btnClearData?.addEventListener("click", async () => {
+    const shouldClear = await confirmClearSavedData();
     if (!shouldClear) {
       setStatus(statusExport, "Clear saved data cancelled.", "info");
       return;
@@ -557,7 +583,7 @@ export function initImportExportPage(root) {
     showImportPreview(v.world);
   });
 
-  btnSolPreset.addEventListener("click", () => {
+  btnSolPreset.addEventListener("click", async () => {
     const envelope = createSolPresetEnvelope();
     txtImport.value = JSON.stringify(envelope, null, 2);
 
@@ -569,12 +595,7 @@ export function initImportExportPage(root) {
     }
 
     if (!showImportPreview(v.world)) return;
-    const shouldApply =
-      typeof window?.confirm !== "function"
-        ? true
-        : window.confirm(
-            "Import Sol preset and replace the current world?\nA backup will be created automatically first.",
-          );
+    const shouldApply = await confirmReplaceCurrentWorld("the Sol preset", "Import preset");
 
     if (!shouldApply) {
       setStatus(
@@ -593,7 +614,7 @@ export function initImportExportPage(root) {
     setStatus(statusImport, "Sol preset imported (a backup was created first).", "ok");
   });
 
-  btnRealmspacePreset.addEventListener("click", () => {
+  btnRealmspacePreset.addEventListener("click", async () => {
     const envelope = createRealmspacePresetEnvelope();
     txtImport.value = JSON.stringify(envelope, null, 2);
 
@@ -609,12 +630,7 @@ export function initImportExportPage(root) {
     }
 
     if (!showImportPreview(v.world)) return;
-    const shouldApply =
-      typeof window?.confirm !== "function"
-        ? true
-        : window.confirm(
-            "Import Realmspace preset and replace the current world?\nA backup will be created automatically first.",
-          );
+    const shouldApply = await confirmReplaceCurrentWorld("the Realmspace preset", "Import preset");
 
     if (!shouldApply) {
       setStatus(
@@ -633,7 +649,7 @@ export function initImportExportPage(root) {
     setStatus(statusImport, "Realmspace preset imported (a backup was created first).", "ok");
   });
 
-  btnArrakisPreset.addEventListener("click", () => {
+  btnArrakisPreset.addEventListener("click", async () => {
     const envelope = createArrakisPresetEnvelope();
     txtImport.value = JSON.stringify(envelope, null, 2);
 
@@ -649,12 +665,10 @@ export function initImportExportPage(root) {
     }
 
     if (!showImportPreview(v.world)) return;
-    const shouldApply =
-      typeof window?.confirm !== "function"
-        ? true
-        : window.confirm(
-            "Import Arrakis (Dune) preset and replace the current world?\nA backup will be created automatically first.",
-          );
+    const shouldApply = await confirmReplaceCurrentWorld(
+      "the Arrakis (Dune) preset",
+      "Import preset",
+    );
 
     if (!shouldApply) {
       setStatus(
@@ -727,8 +741,13 @@ export function initImportExportPage(root) {
     }
   });
 
-  btnApplyImport.addEventListener("click", () => {
+  btnApplyImport.addEventListener("click", async () => {
     if (!pendingImport?.world) return;
+    const confirmed = await confirmReplaceCurrentWorld("the validated import");
+    if (!confirmed) {
+      setStatus(statusImport, "Import cancelled.", "info");
+      return;
+    }
     createBackup(5);
     importWorld(pendingImport.world);
     hideImportPreview();

@@ -6,35 +6,31 @@ import { computeStellarActivityModel } from "../engine/stellarActivity.js";
 import { clamp, fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { appendChildren, createElement } from "./domHelpers.js";
-import { createCelestialVisualPreviewController } from "./celestialVisualPreview.js";
+import { createCelestialVisualPreviewController } from "./lazyCelestialVisualPreview.js";
+import { buildPageIntroHtml } from "./pageIntro.js";
 import { renderDerivedDetails } from "./derivedDetails.js";
 import { renderKpiSections } from "./kpiSections.js";
-import { createGuidedFlowController } from "./guidedCreation/flowController.js";
-import { createGuidedPanel } from "./guidedCreation/components/guidedPanel.js";
 import { createGoalTextAssist } from "./guidedCreation/components/goalTextAssist.js";
-import { createGuidedCreationOverlay } from "./guidedCreation/components/overlay.js";
-import { ensureStarGuidedAdapterRegistered } from "./guidedCreation/adapters/star.js";
 import { getGoalTextAliasHelp } from "./guidedCreation/goalAliases.js";
 import { listStellarSystemHostFrames } from "./store/stellarSystemModel.js";
 import {
   applyGuidedGoalTextInterpretation,
   clearGuidedGoalTextInterpretation,
 } from "./guidedCreation/goalTextInterpretation.js";
-import {
-  buildGuidedSessionSnapshot,
-  clearGuidedSession,
-  createGuidedContextFingerprint,
-  loadGuidedSession,
-  saveGuidedSession,
-} from "./guidedCreation/sessionState.js";
+import { loadGuidedSession } from "./guidedCreation/sessionState.js";
 import { getGuidedEntryModeTooltip } from "./guidedCreation/tooltips.js";
 import { attachTooltips, tipAttr, tipIcon, tipIconNode } from "./tooltip.js";
+import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import {
   getProjectedPrimaryStar,
   getStellarSystem,
   loadWorld,
+  planStellarSystemChange,
   saveStellarSystem,
 } from "./store.js";
+import { createStarGuidedFlows } from "./star/guidedFlows.js";
+import { renderStarCurrentStateSummary } from "./star/contextSummary.js";
+import { createStarPresetActions } from "./star/presetActions.js";
 import { createTutorial } from "./tutorial.js";
 
 const TIP_LABEL = {
@@ -1475,7 +1471,26 @@ export function initStarPage(mountEl, options = {}) {
         <button id="starTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        <div class="hint">Set the home-system layout, then edit the shared stellar context and the selected star or pair. These values drive linked system, planet, and moon calculations.</div>
+        ${buildPageIntroHtml({
+          summary:
+            "Define the home-system layout and shared stellar context before editing later body pages.",
+          controls:
+            "The system topology, default orbit host, and whichever star or shared pair is currently selected.",
+          affects:
+            "System slots, host-frame context, stellar flux, and stability assumptions used across planet and moon workflows.",
+          primaryAction:
+            "Choose the topology first, then confirm the default orbit host before tuning stellar properties.",
+        })}
+        <div id="starCurrentStatePanel" class="context-summary" aria-label="Current star system context">
+          <div class="context-summary__header">
+            <div>
+              <div class="context-summary__title">Current System Context</div>
+              <div id="starCurrentStateCopy" class="context-summary__copy"></div>
+            </div>
+          </div>
+          <div id="starCurrentStateGrid" class="context-summary__grid"></div>
+          <div id="starCurrentStateNotes" class="context-summary__notes"></div>
+        </div>
       </div>
     </div>
 
@@ -1505,6 +1520,7 @@ export function initStarPage(mountEl, options = {}) {
 
           <div class="subsection">
             <div class="subsection__title">Home System Layout ${tipIcon(TIP_LABEL["Home System Architecture"] || "")}</div>
+            <div id="starTopologyGuidance" class="context-summary__note context-summary__note--accent"></div>
 
             <div class="form-row">
               <div>
@@ -1947,13 +1963,16 @@ export function initStarPage(mountEl, options = {}) {
     container: wrap,
     triggerBtn: wrap.querySelector("#starTutorials"),
   });
-
   const nameEl = wrap.querySelector("#starName");
   const massEl = wrap.querySelector("#mass");
   const ageEl = wrap.querySelector("#age");
   const metallicityEl = wrap.querySelector("#metallicity");
   const kpisEl = wrap.querySelector("#kpis");
   const detailsEl = wrap.querySelector("#details");
+  const starCurrentStateCopyEl = wrap.querySelector("#starCurrentStateCopy");
+  const starCurrentStateGridEl = wrap.querySelector("#starCurrentStateGrid");
+  const starCurrentStateNotesEl = wrap.querySelector("#starCurrentStateNotes");
+  const starTopologyGuidanceEl = wrap.querySelector("#starTopologyGuidance");
   const topologyKindEl = wrap.querySelector("#topologyKind");
   const topologyHintEl = wrap.querySelector("#topologyHint");
   const quadLayoutRowEl = wrap.querySelector("#quadLayoutRow");
@@ -3729,29 +3748,6 @@ export function initStarPage(mountEl, options = {}) {
     };
   }
 
-  function getStarGuidedSessionTarget() {
-    const targetStarId = getFocusedStarEditorId();
-    const activeStar = getStarDraftState(targetStarId, state);
-    return {
-      objectKey: targetStarId,
-      contextFingerprint: createGuidedContextFingerprint({
-        name: activeStar.name,
-        massMsol: activeStar.massMsol,
-        ageGyr: state.ageGyr,
-        metallicityFeH: state.metallicityFeH,
-        physicsMode: activeStar.physicsMode,
-        advancedDerivationMode: activeStar.advancedDerivationMode,
-        radiusRsolOverride: activeStar.radiusRsolOverride,
-        luminosityLsolOverride: activeStar.luminosityLsolOverride,
-        tempKOverride: activeStar.tempKOverride,
-        evolutionMode: state.evolutionMode,
-        activityModelVersion: state.activityModelVersion,
-        topologyKind: state.topologyKind,
-        defaultHostFrameId: state.defaultHostFrameId,
-      }),
-    };
-  }
-
   function createStarGuidedPreviewMetric(label, value, meta = "") {
     const displayValue =
       value == null || value === ""
@@ -3977,59 +3973,6 @@ export function initStarPage(mountEl, options = {}) {
     };
   }
 
-  function applyStarPresetInputs(
-    nextInputs,
-    { noticeLabel = "Star preset", systemInputs = null } = {},
-  ) {
-    const targetStarId = getFocusedStarEditorId();
-    const fallbackStar = getStarDraftState(targetStarId, state);
-    assignStarDraftState(targetStarId, {
-      name: String(nextInputs?.name || fallbackStar.name || defaults.name),
-      massMsol: Number(nextInputs?.massMsol ?? fallbackStar.massMsol),
-      radiusRsolOverride: null,
-      luminosityLsolOverride: null,
-      tempKOverride: null,
-      physicsMode: "simple",
-      advancedDerivationMode: "rl",
-    });
-    state.ageGyr = Number(nextInputs?.ageGyr ?? state.ageGyr);
-    state.metallicityFeH = Number(nextInputs?.metallicityFeH ?? state.metallicityFeH) || 0;
-    state.evolutionMode = nextInputs?.evolutionMode === "evolved" ? "evolved" : "zams";
-    state.activityModelVersion = "v2";
-    applyStarSystemInputs(systemInputs);
-    syncFocusedStarEditorInputs();
-    setDerivMode("rl");
-    persistState();
-    render();
-    const appliedStar = getStarDraftState(targetStarId, state);
-    return {
-      appliedInputs: {
-        name: appliedStar.name,
-        massMsol: appliedStar.massMsol,
-        ageGyr: state.ageGyr,
-        metallicityFeH: state.metallicityFeH,
-        physicsMode: appliedStar.physicsMode,
-        advancedDerivationMode: appliedStar.advancedDerivationMode,
-        radiusRsolOverride: appliedStar.radiusRsolOverride,
-        luminosityLsolOverride: appliedStar.luminosityLsolOverride,
-        tempKOverride: appliedStar.tempKOverride,
-        evolutionMode: state.evolutionMode,
-        activityModelVersion: state.activityModelVersion,
-      },
-      noticeLabel,
-    };
-  }
-
-  function applyStarGuidedRecommendation(recommendation, { noticeLabel = "Guided star" } = {}) {
-    const applied = applyStarPresetInputs(recommendation?.applyPayload?.objectInputs || {}, {
-      noticeLabel,
-      systemInputs: recommendation?.applyPayload?.systemInputs || null,
-    });
-    return {
-      appliedInputs: applied?.appliedInputs || null,
-    };
-  }
-
   function getDerivMode() {
     for (const r of physicsDerivRadios) {
       if (r.checked) return r.value;
@@ -4146,6 +4089,10 @@ export function initStarPage(mountEl, options = {}) {
     const activeHostFrameLabel = activeHostFrameRecord
       ? buildHostFrameOptionText(activeHostFrameRecord)
       : "Star A";
+    const activeHostFrameModeLabel =
+      activeHostFrameRecord?.frameKind === "pair"
+        ? "Pair host (P-type barycentric default)"
+        : "Star host (S-type circumstellar default)";
     const tertiaryPairLabel =
       state.topologyKind === "quad" && state.quadLayoutKind === "paired"
         ? "Inner Pair C+D"
@@ -4290,6 +4237,20 @@ export function initStarPage(mountEl, options = {}) {
         meta: "Fischer & Valenti (2005); Johnson et al. (2010)",
       },
     ];
+
+    renderStarCurrentStateSummary({
+      copyEl: starCurrentStateCopyEl,
+      gridEl: starCurrentStateGridEl,
+      notesEl: starCurrentStateNotesEl,
+      guidanceEl: starTopologyGuidanceEl,
+      isMulti,
+      topologyLabel,
+      hostFrameCount: hostFrameRecords.length,
+      activeHostFrameLabel,
+      activeHostFrameModeLabel,
+      topologyHealth,
+      defaultOrbitHostSummary: buildDefaultOrbitHostSummary(activeHostFrameRecord),
+    });
 
     syncFocusedStarEditorInputs({ syncVisibleInputs: !preserveFocusedDraft });
     renderKpiSections(kpisEl, [
@@ -4797,6 +4758,50 @@ export function initStarPage(mountEl, options = {}) {
     hydrating = false;
   }
 
+  function buildDraftStateForTopologyChange({
+    topologyKind = state.topologyKind,
+    quadLayoutKind = state.quadLayoutKind,
+  } = {}) {
+    const nextTopologyKind = ["binary", "triple", "quad"].includes(topologyKind)
+      ? topologyKind
+      : "single";
+    const nextQuadLayoutKind = normalizeQuadLayoutKind(quadLayoutKind, state.quadLayoutKind);
+    return {
+      ...state,
+      topologyKind: nextTopologyKind,
+      quadLayoutKind: nextQuadLayoutKind,
+      defaultHostFrameId: normalizeTopologyHostFrameId(
+        activeHostFrameEl?.value || state.defaultHostFrameId,
+        nextTopologyKind,
+        nextQuadLayoutKind,
+      ),
+    };
+  }
+
+  async function commitTopologyChangeIfConfirmed({
+    topologyKind = state.topologyKind,
+    quadLayoutKind = state.quadLayoutKind,
+  } = {}) {
+    const nextDraftState = buildDraftStateForTopologyChange({
+      topologyKind,
+      quadLayoutKind,
+    });
+    const previewWorld = buildPreviewWorldFromDraft(state);
+    const changePlan = planStellarSystemChange(buildStellarSystemFromDraft(nextDraftState), {
+      world: previewWorld,
+      currentStellarSystem: previewWorld.stellarSystem,
+    });
+    if (changePlan) {
+      const confirmed = await confirmDestructiveAction(changePlan);
+      if (!confirmed) {
+        render({ preserveFocusedDraft: true });
+        return false;
+      }
+    }
+    applyFromInputs({ commit: true });
+    return true;
+  }
+
   function applyCompatStarInputs(starId, { commit = false } = {}) {
     const config = {
       star_b: {
@@ -4977,341 +4982,37 @@ export function initStarPage(mountEl, options = {}) {
     };
   }
 
-  const starGuidedSteps = Object.freeze([
-    { id: "type", label: "Goal" },
-    { id: "stellar-context", label: "Setup" },
-    { id: "goal-details", label: "Traits" },
-    { id: "recommendation", label: "Recommendation" },
-  ]);
+  const { applyStarGuidedRecommendation, getStarGuidedSessionTarget } = createStarPresetActions({
+    defaults,
+    state,
+    getFocusedStarEditorId,
+    getStarDraftState,
+    assignStarDraftState,
+    applyStarSystemInputs,
+    syncFocusedStarEditorInputs,
+    setDerivMode,
+    persistState,
+    render,
+  });
 
-  function starGuidedStepIndex(stepId) {
-    const index = starGuidedSteps.findIndex((step) => step.id === String(stepId || ""));
-    return index >= 0 ? index : 0;
-  }
+  const extractedStarGuidedFlows = createStarGuidedFlows({
+    overlayClosers,
+    buildStarGuidedContext,
+    getStarGuidedSessionTarget,
+    buildStarGoalTextAssist,
+    buildStarGoalQuestionValues,
+    buildStarGoalStatus,
+    setStarGoalDraftValue,
+    createStarGuidedPreviewContent,
+    applyStarGuidedRecommendation,
+  });
 
   function openStarGuidedQuickPicker(restoredSession = null, dedicatedBaseHash = "") {
-    const adapter = ensureStarGuidedAdapterRegistered();
-    const context = buildStarGuidedContext();
-    const sessionTarget = getStarGuidedSessionTarget();
-    const { overlayEl, contentEl, closeButtonEl } = createGuidedCreationOverlay({
-      overlayClassName: "guided-overlay--star",
-      dialogClassName: "guided-dialog--star",
-      closeLabel: "Close star quick types",
-    });
-    let controller = null;
-
-    function teardownOverlay(preserveSession = false) {
-      controller?.cancelSearch?.("overlay-closed");
-      overlayClosers.delete(preserveClose);
-      if (!preserveSession) clearGuidedSession("star");
-      overlayEl.remove();
-      document.removeEventListener("keydown", onKey);
-    }
-
-    function close() {
-      teardownOverlay(false);
-      if (dedicatedBaseHash && location.hash !== dedicatedBaseHash) {
-        location.hash = dedicatedBaseHash;
-      }
-    }
-
-    const preserveClose = () => teardownOverlay(true);
-
-    function onKey(e) {
-      if (e.key === "Escape") close();
-    }
-
-    controller = createGuidedFlowController({
-      adapter,
-      context,
-      initialState: {
-        objectType: "star",
-        uxMode: "quick",
-        selectedArchetypeId: restoredSession?.selectedArchetypeId || "",
-        answers: restoredSession?.answers || {},
-      },
-      onUpdate: ({ state: flowState, questions, recommendation, archetypes }) => {
-        const panel = createGuidedPanel({
-          title: "Star Quick Types",
-          subtitle:
-            "Pick a stellar starting point. Each option re-solves the star and its activity outputs in the current editor context.",
-          archetypes: (archetypes || []).filter((entry) => entry?.quickEnabled !== false),
-          selectedArchetypeId: flowState.selectedArchetypeId || "",
-          questions,
-          answers: flowState.answers,
-          recommendation,
-          previewContent: createStarGuidedPreviewContent(recommendation),
-          actions: [
-            {
-              id: "apply",
-              label: recommendation?.diagnostics?.some((entry) => entry?.severity === "warning")
-                ? "Apply Starting Point"
-                : "Apply Quick Type",
-              disabled: !recommendation,
-            },
-          ],
-          onArchetypeSelect: (archetypeId) => controller?.selectArchetype(archetypeId),
-          onQuestionChange: (questionId, value) => controller?.setAnswer(questionId, value),
-          onAction: (actionId) => {
-            if (actionId !== "apply" || !recommendation) return;
-            controller?.apply({
-              applyStarRecommendation: (nextRecommendation) =>
-                applyStarGuidedRecommendation(nextRecommendation, {
-                  noticeLabel: recommendation.title || "Star quick type",
-                }),
-            });
-            close();
-          },
-        });
-        contentEl.replaceChildren(panel);
-        saveGuidedSession("star", {
-          ...sessionTarget,
-          uxMode: "quick",
-          ...buildGuidedSessionSnapshot(flowState),
-        });
-      },
-    });
-
-    overlayClosers.add(preserveClose);
-    closeButtonEl.addEventListener("click", close);
-    overlayEl.addEventListener("click", (e) => {
-      if (e.target === overlayEl) close();
-    });
-    document.addEventListener("keydown", onKey);
-    document.body.appendChild(overlayEl);
+    extractedStarGuidedFlows.openStarGuidedQuickPicker(restoredSession, dedicatedBaseHash);
   }
 
   function openStarGuidedFlow(restoredSession = null, dedicatedBaseHash = "") {
-    const adapter = ensureStarGuidedAdapterRegistered();
-    const context = buildStarGuidedContext();
-    const sessionTarget = getStarGuidedSessionTarget();
-    const { overlayEl, contentEl, closeButtonEl } = createGuidedCreationOverlay({
-      overlayClassName: "guided-overlay--star",
-      dialogClassName: "guided-dialog--star",
-      closeLabel: "Close star guided creation",
-    });
-    let controller = null;
-
-    function teardownOverlay(preserveSession = false) {
-      controller?.cancelSearch?.("overlay-closed");
-      overlayClosers.delete(preserveClose);
-      if (!preserveSession) clearGuidedSession("star");
-      overlayEl.remove();
-      document.removeEventListener("keydown", onKey);
-    }
-
-    function close() {
-      teardownOverlay(false);
-      if (dedicatedBaseHash && location.hash !== dedicatedBaseHash) {
-        location.hash = dedicatedBaseHash;
-      }
-    }
-
-    const preserveClose = () => teardownOverlay(true);
-
-    function onKey(e) {
-      if (e.key === "Escape") close();
-    }
-
-    function nextStarGuidedStepId(flowState, questions = []) {
-      const currentId = String(flowState?.currentStepId || "type");
-      if (currentId === "type") return "stellar-context";
-      if (currentId === "stellar-context") {
-        return questions.some((question) => question?.stepId === "goal-details")
-          ? "goal-details"
-          : "recommendation";
-      }
-      return "recommendation";
-    }
-
-    function previousStarGuidedStepId(flowState, questions = []) {
-      const currentId = String(flowState?.currentStepId || "type");
-      if (currentId === "recommendation") {
-        return questions.some((question) => question?.stepId === "goal-details")
-          ? "goal-details"
-          : "stellar-context";
-      }
-      if (currentId === "goal-details") return "stellar-context";
-      if (currentId === "stellar-context") return "type";
-      return "type";
-    }
-
-    controller = createGuidedFlowController({
-      adapter,
-      context,
-      searchMode: "manual",
-      initialState: {
-        objectType: "star",
-        uxMode: "guided",
-        currentStepId: restoredSession?.currentStepId || "type",
-        selectedArchetypeId: restoredSession?.selectedGoalTemplateId || "",
-        selectedGoalTemplateId: restoredSession?.selectedGoalTemplateId || "",
-        goalDraft: restoredSession?.goalDraft || {},
-        compiledGoal: restoredSession?.compiledGoal || null,
-        searchStatus: restoredSession?.searchStatus || "idle",
-        lastSearchResult: restoredSession?.lastSearchResult || null,
-        lastSearchContextFingerprint: restoredSession?.lastSearchContextFingerprint || "",
-        lastSearchEngineFingerprint: restoredSession?.lastSearchEngineFingerprint || "",
-      },
-      onUpdate: ({ state: flowState, questions, recommendation, archetypes }) => {
-        const currentStepId = String(flowState.currentStepId || "type");
-        const currentStepIndex = starGuidedStepIndex(currentStepId);
-        const filteredQuestions = (questions || []).filter(
-          (question) => String(question?.stepId || "goal-details") === currentStepId,
-        );
-        const questionValues = buildStarGoalQuestionValues(flowState, filteredQuestions);
-        const hasGoalStep = (questions || []).some(
-          (question) => question?.stepId === "goal-details",
-        );
-        const steps = starGuidedSteps.map((step, index) => ({
-          ...step,
-          disabled:
-            (step.id !== "type" && !flowState.selectedGoalTemplateId) ||
-            (step.id === "goal-details" && !hasGoalStep) ||
-            (step.id === "recommendation" &&
-              (!flowState.selectedGoalTemplateId || index > currentStepIndex + 1)),
-        }));
-
-        const panel = createGuidedPanel({
-          title: "Star Goal Builder",
-          subtitle:
-            "Choose the stellar outcome you want, set scope and search budget, then compile and run a seeded goal search before applying the recommendation.",
-          steps,
-          currentStepId,
-          archetypes: (archetypes || []).filter((entry) => entry?.guidedEnabled !== false),
-          selectedArchetypeId: flowState.selectedGoalTemplateId || "",
-          typeSupplement:
-            currentStepId === "type" ? buildStarGoalTextAssist(() => controller, flowState) : null,
-          questions: filteredQuestions,
-          answers: questionValues,
-          recommendation,
-          status: currentStepId === "recommendation" ? buildStarGoalStatus(flowState) : null,
-          previewContent:
-            currentStepId === "recommendation"
-              ? createStarGuidedPreviewContent(recommendation)
-              : null,
-          visibleSections: {
-            type: currentStepId === "type",
-            questions: currentStepId === "stellar-context" || currentStepId === "goal-details",
-            status: currentStepId === "recommendation",
-            recommendation: currentStepId === "recommendation",
-            diagnostics: currentStepId === "recommendation",
-          },
-          typeSectionTitle: "Star Goal",
-          questionSectionTitle:
-            currentStepId === "stellar-context" ? "Search Setup" : "Goal Traits",
-          recommendationSectionTitle: "Best Stellar Fit",
-          diagnosticSectionTitle: "Search Diagnostics",
-          actions: [
-            ...(currentStepId !== "type" ? [{ id: "back", label: "Back" }] : []),
-            ...(currentStepId !== "recommendation"
-              ? [
-                  {
-                    id: "next",
-                    label: currentStepId === "goal-details" ? "Review Goal Search" : "Next",
-                    disabled: currentStepId === "type" && !flowState.selectedGoalTemplateId,
-                  },
-                ]
-              : [
-                  {
-                    id: "compile",
-                    label: "Compile Goal",
-                    disabled:
-                      !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
-                  },
-                  {
-                    id: "run-search",
-                    label: flowState.searchStatus === "searching" ? "Searching..." : "Run Search",
-                    disabled:
-                      !flowState.selectedGoalTemplateId || flowState.searchStatus === "searching",
-                  },
-                  {
-                    id: "apply",
-                    label: "Apply",
-                    disabled:
-                      !recommendation ||
-                      recommendation.hasBlockingDiagnostics ||
-                      flowState.searchStatus !== "complete",
-                  },
-                  {
-                    id: "apply-advanced",
-                    label: "Apply and open Advanced",
-                    disabled:
-                      !recommendation ||
-                      recommendation.hasBlockingDiagnostics ||
-                      flowState.searchStatus !== "complete",
-                  },
-                ]),
-            { id: "reset", label: "Reset", className: "is-secondary" },
-          ],
-          onArchetypeSelect: (goalTemplateId) =>
-            controller?.reset({
-              objectType: "star",
-              uxMode: "guided",
-              currentStepId: "type",
-              selectedArchetypeId: goalTemplateId,
-              selectedGoalTemplateId: goalTemplateId,
-            }),
-          onQuestionChange: (questionId, value) =>
-            setStarGoalDraftValue(controller, flowState, questionId, value),
-          onStepSelect: (stepId, step) => {
-            if (step?.disabled) return;
-            controller?.setStep(stepId);
-          },
-          onAction: (actionId) => {
-            if (actionId === "reset") {
-              controller?.reset({
-                objectType: "star",
-                uxMode: "guided",
-                currentStepId: "type",
-              });
-              return;
-            }
-            if (actionId === "back") {
-              controller?.setStep(previousStarGuidedStepId(flowState, questions));
-              return;
-            }
-            if (actionId === "next") {
-              controller?.setStep(nextStarGuidedStepId(flowState, questions));
-              return;
-            }
-            if (actionId === "compile") {
-              controller?.compileGoal();
-              return;
-            }
-            if (actionId === "run-search") {
-              void controller?.startSearch();
-              return;
-            }
-            if ((actionId === "apply" || actionId === "apply-advanced") && recommendation) {
-              controller?.apply({
-                applyStarRecommendation: (nextRecommendation) =>
-                  applyStarGuidedRecommendation(nextRecommendation, {
-                    noticeLabel: recommendation.title || "Guided star",
-                  }),
-              });
-              close();
-            }
-          },
-        });
-        contentEl.replaceChildren(panel);
-        saveGuidedSession("star", {
-          ...sessionTarget,
-          uxMode: "guided",
-          ...buildGuidedSessionSnapshot(flowState, {
-            currentStepId: flowState.currentStepId || "type",
-          }),
-        });
-      },
-    });
-
-    overlayClosers.add(preserveClose);
-    closeButtonEl.addEventListener("click", close);
-    overlayEl.addEventListener("click", (e) => {
-      if (e.target === overlayEl) close();
-    });
-    document.addEventListener("keydown", onKey);
-    document.body.appendChild(overlayEl);
+    extractedStarGuidedFlows.openStarGuidedFlow(restoredSession, dedicatedBaseHash);
   }
 
   // Initial population
@@ -5440,31 +5141,41 @@ export function initStarPage(mountEl, options = {}) {
     el?.addEventListener("change", () => applyCompatStarInputs("star_d", { commit: true })),
   );
 
-  topologyKindEl?.addEventListener("change", () => {
-    applyFromInputs({ commit: true });
+  topologyKindEl?.addEventListener("change", async () => {
+    await commitTopologyChangeIfConfirmed({
+      topologyKind: topologyKindEl.value,
+      quadLayoutKind: state.quadLayoutKind,
+    });
   });
-  topologyCardGridEl?.addEventListener("click", (event) => {
+  topologyCardGridEl?.addEventListener("click", async (event) => {
     const buttonEl = event.target?.closest?.('button[data-architecture-kind="topology"]');
     const nextTopologyKind = String(buttonEl?.dataset?.value || "");
     if (!["single", "binary", "triple", "quad"].includes(nextTopologyKind)) return;
     topologyKindEl.value = nextTopologyKind;
-    applyFromInputs({ commit: true });
-  });
-  quadLayoutRadios.forEach((radio) => {
-    radio.addEventListener("change", () => {
-      state.quadLayoutKind = normalizeQuadLayoutKind(radio.value, state.quadLayoutKind);
-      applyFromInputs({ commit: true });
+    await commitTopologyChangeIfConfirmed({
+      topologyKind: nextTopologyKind,
+      quadLayoutKind: state.quadLayoutKind,
     });
   });
-  quadLayoutCardGridEl?.addEventListener("click", (event) => {
+  quadLayoutRadios.forEach((radio) => {
+    radio.addEventListener("change", async () => {
+      await commitTopologyChangeIfConfirmed({
+        topologyKind: state.topologyKind,
+        quadLayoutKind: radio.value,
+      });
+    });
+  });
+  quadLayoutCardGridEl?.addEventListener("click", async (event) => {
     const buttonEl = event.target?.closest?.('button[data-architecture-kind="quad-layout"]');
     const nextLayoutKind = normalizeQuadLayoutKind(buttonEl?.dataset?.value, state.quadLayoutKind);
     const nextQuadLayoutRadio = wrap.querySelector(
       `#${nextLayoutKind === "paired" ? "quadLayoutPaired" : "quadLayoutChain"}`,
     );
     if (nextQuadLayoutRadio) nextQuadLayoutRadio.checked = true;
-    state.quadLayoutKind = nextLayoutKind;
-    applyFromInputs({ commit: true });
+    await commitTopologyChangeIfConfirmed({
+      topologyKind: state.topologyKind,
+      quadLayoutKind: nextLayoutKind,
+    });
   });
   editorInspectorModeEl?.addEventListener("click", (event) => {
     const buttonEl = event.target?.closest?.("button[data-editor-mode]");

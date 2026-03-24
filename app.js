@@ -1,18 +1,7 @@
-import { initStarPage } from "./ui/starPage.js";
-import { initSystemPage } from "./ui/systemPage.js";
-import { initOuterObjectsPage } from "./ui/outerObjectsPage.js";
-import { initPlanetPage } from "./ui/planetPage.js";
-import { initMoonPage } from "./ui/moonPage.js";
-import { initLocalClusterPage } from "./ui/localClusterPage.js";
-import { initImportExportPage } from "./ui/importExportPage.js";
-import { initAboutPage } from "./ui/aboutPage.js";
-import { initApparentPage } from "./ui/apparentPage.js";
-import { initTectonicsPage } from "./ui/tectonicsPage.js";
-import { initClimatePage } from "./ui/climatePage.js";
-import { initPopulationPage } from "./ui/populationPage.js";
 import { parseGuidedRoute } from "./ui/guidedCreation/routeState.js";
 import * as store from "./ui/store.js";
 import { createSolPresetEnvelope } from "./ui/solPreset.js";
+import { createBlockingOverlayController } from "./ui/overlayController.js";
 import { showSplashOverlay } from "./ui/splashOverlay.js";
 import { escapeHtml } from "./ui/uiHelpers.js";
 
@@ -24,10 +13,11 @@ let activeRouteToken = 0;
 let dismissedStorageErrorKey = "";
 let dismissedLoadFailureOverlayKey = "";
 let storageRecoveryOverlay = null;
+let storageRecoveryOverlayController = null;
 
 const THEME_KEY = "worldsmith.theme";
 const SPLASH_ENABLED_KEY = "worldsmith.splash.enabled";
-const NAV_LOCK_KEY = "worldsmith.nav.locked";
+const NAV_DISPLAY_KEY = "worldsmith.nav.display";
 const RELEASE_META_SELECTOR = 'meta[name="worldsmith-release"]';
 const RELEASE_SYNC_SESSION_KEY = "worldsmith.release.sync";
 const RELEASE_RELOAD_PARAM = "ws_release";
@@ -135,14 +125,16 @@ function downloadTextFile(filename, text, mimeType = "application/json") {
   URL.revokeObjectURL(url);
 }
 
-function closeStorageRecoveryOverlay() {
+function closeStorageRecoveryOverlay({ restoreFocus = true } = {}) {
+  storageRecoveryOverlayController?.deactivate({ restoreFocus });
+  storageRecoveryOverlayController = null;
   if (!storageRecoveryOverlay) return;
   storageRecoveryOverlay.remove();
   storageRecoveryOverlay = null;
 }
 
 function openImportExportRoute() {
-  closeStorageRecoveryOverlay();
+  closeStorageRecoveryOverlay({ restoreFocus: false });
   if (location.hash === "#/io") {
     void route();
     return;
@@ -286,6 +278,21 @@ function renderStorageAlerts() {
   appAlertsEl.appendChild(card);
 }
 
+function getAppBlockingBackgroundElements() {
+  return [document.querySelector(".app-header"), document.querySelector(".app-main")].filter(
+    Boolean,
+  );
+}
+
+function getNavBlockingBackgroundElements() {
+  return [
+    document.querySelector(".app-header"),
+    document.getElementById("appAlerts"),
+    document.getElementById("app"),
+    document.querySelector(".app-footer"),
+  ].filter(Boolean);
+}
+
 function showStorageRecoveryOverlay(force = false) {
   const failure = currentWorldLoadFailure();
   if (!failure) {
@@ -404,14 +411,20 @@ function showStorageRecoveryOverlay(force = false) {
   body.appendChild(actions);
   dialog.append(header, body);
   overlay.appendChild(dialog);
-  overlay.addEventListener("click", (event) => {
-    if (event.target !== overlay) return;
-    dismissedLoadFailureOverlayKey = failureKey;
-    closeStorageRecoveryOverlay();
-  });
-
   storageRecoveryOverlay = overlay;
   document.body.appendChild(overlay);
+  storageRecoveryOverlayController = createBlockingOverlayController({
+    overlayEl: overlay,
+    focusRoot: dialog,
+    initialFocus: () => dismissBtn,
+    backgroundElements: getAppBlockingBackgroundElements(),
+    dismissTarget: overlay,
+    onDismiss: () => {
+      dismissedLoadFailureOverlayKey = failureKey;
+      closeStorageRecoveryOverlay();
+    },
+  });
+  storageRecoveryOverlayController.activate();
 }
 
 function syncStorageUi() {
@@ -506,14 +519,6 @@ function importWorldData(world) {
   return false;
 }
 
-function eagerPage(init, label) {
-  return {
-    label,
-    lazy: false,
-    load: async () => init,
-  };
-}
-
 function lazyPage(load, label) {
   return {
     label,
@@ -522,44 +527,70 @@ function lazyPage(load, label) {
   };
 }
 
+function modulePage(loadModule, exportName, label, mapInit = null) {
+  return lazyPage(async () => {
+    const mod = await loadModule();
+    const init = mod?.[exportName];
+    if (typeof init !== "function") {
+      throw new Error(`Missing page initializer "${exportName}" for ${label}.`);
+    }
+    return typeof mapInit === "function" ? mapInit(init, mod) : init;
+  }, label);
+}
+
 const PAGE_MAP = {
-  star: eagerPage(initStarPage, "Star"),
-  system: eagerPage(initSystemPage, "Planetary System"),
-  outer: eagerPage(initOuterObjectsPage, "Other Objects"),
-  planet: eagerPage(initPlanetPage, "Planets"),
-  moon: eagerPage(initMoonPage, "Moons"),
-  viz: lazyPage(async () => {
-    const mod = await import("./ui/visualizerPage.js");
-    return mod.initVisualiserPage;
-  }, "System Visualiser"),
-  cluster: eagerPage(initLocalClusterPage, "Local Cluster"),
-  galaxy: eagerPage(initLocalClusterPage, "Local Cluster"),
-  "cluster-viz": lazyPage(async () => {
-    const mod = await import("./ui/visualizerPage.js");
-    return (el) => mod.initVisualiserPage(el, { startMode: "cluster" });
-  }, "Cluster Visualiser"),
-  io: eagerPage(initImportExportPage, "Import/Export"),
-  apparent: eagerPage(initApparentPage, "Apparent Size and Brightness"),
-  calendar: lazyPage(async () => {
-    const mod = await import("./ui/calendarPage.js");
-    return mod.initCalendarPage;
-  }, "Calendar"),
-  about: eagerPage(initAboutPage, "About WorldSmith"),
-  science: lazyPage(async () => {
-    const mod = await import("./ui/sciencePage.js");
-    return mod.initSciencePage;
-  }, "Science and Maths"),
-  tectonics: eagerPage(initTectonicsPage, "Tectonics"),
-  climate: eagerPage(initClimatePage, "Climate Zones"),
-  population: eagerPage(initPopulationPage, "Population"),
-  lessons: lazyPage(async () => {
-    const mod = await import("./ui/lessonsPage.js");
-    return mod.initLessonsPage;
-  }, "Lessons"),
-  "science-viz": lazyPage(async () => {
-    const mod = await import("./ui/scienceVisualiserPage.js");
-    return mod.initScienceVisualiserPage;
-  }, "Science Visualiser"),
+  star: modulePage(() => import("./ui/starPage.js"), "initStarPage", "Star"),
+  system: modulePage(() => import("./ui/systemPage.js"), "initSystemPage", "Planetary System"),
+  outer: modulePage(
+    () => import("./ui/outerObjectsPage.js"),
+    "initOuterObjectsPage",
+    "Other Objects",
+  ),
+  planet: modulePage(() => import("./ui/planetPage.js"), "initPlanetPage", "Planets"),
+  moon: modulePage(() => import("./ui/moonPage.js"), "initMoonPage", "Moons"),
+  viz: modulePage(
+    () => import("./ui/visualizerPage.js"),
+    "initVisualiserPage",
+    "System Visualiser",
+  ),
+  cluster: modulePage(
+    () => import("./ui/localClusterPage.js"),
+    "initLocalClusterPage",
+    "Local Cluster",
+  ),
+  galaxy: modulePage(
+    () => import("./ui/localClusterPage.js"),
+    "initLocalClusterPage",
+    "Local Cluster",
+  ),
+  "cluster-viz": modulePage(
+    () => import("./ui/visualizerPage.js"),
+    "initVisualiserPage",
+    "Cluster Visualiser",
+    (init) => (el) => init(el, { startMode: "cluster" }),
+  ),
+  io: modulePage(() => import("./ui/importExportPage.js"), "initImportExportPage", "Import/Export"),
+  apparent: modulePage(
+    () => import("./ui/apparentPage.js"),
+    "initApparentPage",
+    "Apparent Size and Brightness",
+  ),
+  calendar: modulePage(() => import("./ui/calendarPage.js"), "initCalendarPage", "Calendar"),
+  about: modulePage(() => import("./ui/aboutPage.js"), "initAboutPage", "About WorldSmith"),
+  science: modulePage(() => import("./ui/sciencePage.js"), "initSciencePage", "Science and Maths"),
+  tectonics: modulePage(() => import("./ui/tectonicsPage.js"), "initTectonicsPage", "Tectonics"),
+  climate: modulePage(() => import("./ui/climatePage.js"), "initClimatePage", "Climate Zones"),
+  population: modulePage(
+    () => import("./ui/populationPage.js"),
+    "initPopulationPage",
+    "Population",
+  ),
+  lessons: modulePage(() => import("./ui/lessonsPage.js"), "initLessonsPage", "Lessons"),
+  "science-viz": modulePage(
+    () => import("./ui/scienceVisualiserPage.js"),
+    "initScienceVisualiserPage",
+    "Science Visualiser",
+  ),
 };
 
 function cleanupCurrentPage() {
@@ -588,6 +619,14 @@ function renderRouteLoading(label) {
   `;
 }
 
+function armRouteLoading(label, routeToken) {
+  const timerId = window.setTimeout(() => {
+    if (routeToken !== activeRouteToken) return;
+    renderRouteLoading(label);
+  }, 120);
+  return () => window.clearTimeout(timerId);
+}
+
 async function route() {
   const hash = location.hash || "#/star";
   const routeState = parseGuidedRoute(hash);
@@ -602,7 +641,13 @@ async function route() {
   const navKey = key === "cluster-viz" ? "viz" : key;
   document.querySelectorAll(".side-nav__item").forEach((link) => {
     if (!link.getAttribute("href")) return;
-    link.classList.toggle("is-active", link.getAttribute("href") === `#/${navKey}`);
+    const isActive = link.getAttribute("href") === `#/${navKey}`;
+    link.classList.toggle("is-active", isActive);
+    if (isActive) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
   });
 
   cleanupCurrentPage();
@@ -610,17 +655,19 @@ async function route() {
 
   const pageSpec = PAGE_MAP[key];
   if (pageSpec) {
-    if (pageSpec.lazy) {
-      renderRouteLoading(pageSpec.label || key);
-    }
+    const stopLoadingIndicator = pageSpec.lazy
+      ? armRouteLoading(pageSpec.label || key, routeToken)
+      : null;
 
     try {
       const initFn = await pageSpec.load();
+      stopLoadingIndicator?.();
       if (routeToken !== activeRouteToken) return;
       appEl.innerHTML = "";
       const maybeCleanup = initFn(appEl, { routeContext: routeState });
       currentPageCleanup = typeof maybeCleanup === "function" ? maybeCleanup : null;
     } catch (err) {
+      stopLoadingIndicator?.();
       if (routeToken !== activeRouteToken) return;
       console.error(`[WorldSmith] Failed to load page "${key}":`, err);
       currentPageCleanup = null;
@@ -675,30 +722,32 @@ function showStartupSolPresetPrompt() {
     </div>
   `;
 
-  function close() {
-    overlay.remove();
-    window.removeEventListener("keydown", onKeyDown);
-  }
-
-  function onKeyDown(event) {
-    if (event.key === "Escape") close();
-  }
-
+  const dialog = overlay.querySelector(".startup-sol-dialog");
   const btnYes = overlay.querySelector("#startup-sol-yes");
   const btnNo = overlay.querySelector("#startup-sol-no");
-  btnNo?.addEventListener("click", close);
+  const overlayController = createBlockingOverlayController({
+    overlayEl: overlay,
+    focusRoot: dialog,
+    initialFocus: () => btnNo,
+    backgroundElements: getAppBlockingBackgroundElements(),
+    dismissTarget: overlay,
+    onDismiss: () => close(),
+  });
+
+  function close({ restoreFocus = true } = {}) {
+    overlayController.deactivate({ restoreFocus });
+    overlay.remove();
+  }
+
+  btnNo?.addEventListener("click", () => close());
   btnYes?.addEventListener("click", () => {
     const envelope = createSolPresetEnvelope();
     importWorldData(envelope.world);
-    close();
+    close({ restoreFocus: false });
     void route();
   });
-
-  overlay.addEventListener("click", (event) => {
-    if (event.target === overlay) close();
-  });
-  window.addEventListener("keydown", onKeyDown);
   document.body.appendChild(overlay);
+  overlayController.activate();
 }
 
 function maybeShowStartupSolPresetPrompt() {
@@ -732,73 +781,83 @@ function initNav() {
   const sideNav = document.querySelector(".side-nav");
   const hamburger = document.getElementById("navHamburger");
   const backdrop = document.getElementById("navBackdrop");
-  const navLockToggle = document.getElementById("navLockToggle");
+  const navViewToggle = document.getElementById("navViewToggle");
+  let mobileNavController = null;
 
   function isMobileViewport() {
     return window.matchMedia("(max-width: 980px)").matches;
   }
 
-  function readNavLocked() {
+  function readNavDisplayPreference() {
     try {
-      return localStorage.getItem(NAV_LOCK_KEY) === "1";
+      const value = localStorage.getItem(NAV_DISPLAY_KEY);
+      return value === "collapsed" ? "collapsed" : value === "expanded" ? "expanded" : "";
     } catch {
-      return false;
+      return "";
     }
   }
 
-  function writeNavLocked(locked) {
+  function writeNavDisplayPreference(display) {
     try {
-      localStorage.setItem(NAV_LOCK_KEY, locked ? "1" : "0");
+      if (display === "collapsed" || display === "expanded") {
+        localStorage.setItem(NAV_DISPLAY_KEY, display);
+      } else {
+        localStorage.removeItem(NAV_DISPLAY_KEY);
+      }
     } catch {
       // Ignore storage errors.
     }
   }
 
-  function syncNavLockToggle() {
-    if (!navLockToggle || !sideNav) return;
-    const locked = sideNav.classList.contains("is-locked");
-    const hidden = isMobileViewport() || sideNav.classList.contains("is-collapsed");
-    navLockToggle.hidden = hidden;
-    navLockToggle.setAttribute("aria-pressed", locked ? "true" : "false");
-    navLockToggle.setAttribute(
-      "aria-label",
-      locked ? "Unlock expanded navigation" : "Lock navigation open",
-    );
-    navLockToggle.title = locked ? "Unlock expanded navigation" : "Lock navigation open";
+  function syncNavViewToggle() {
+    if (!navViewToggle || !sideNav) return;
+    const collapsed = sideNav.classList.contains("is-collapsed");
+    const hidden = isMobileViewport() || collapsed;
+    navViewToggle.hidden = hidden;
+    navViewToggle.textContent = collapsed ? "\u00bb" : "\u00ab";
+    const actionLabel = collapsed ? "Expand navigation" : "Collapse navigation";
+    navViewToggle.setAttribute("aria-label", actionLabel);
+    navViewToggle.title = actionLabel;
   }
 
-  function expandDesktopNav() {
+  function syncMobileNavState() {
+    if (!hamburger || !sideNav || !backdrop) return;
+    const isOpen = sideNav.classList.contains("is-open");
+    hamburger.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    backdrop.setAttribute("aria-hidden", isOpen ? "false" : "true");
+  }
+
+  function expandDesktopNav({ persist = true } = {}) {
     if (!sideNav || isMobileViewport()) return;
     sideNav.classList.remove("is-collapsed");
-    syncNavLockToggle();
-  }
-
-  function collapseDesktopNav() {
-    if (!sideNav || isMobileViewport() || sideNav.classList.contains("is-locked")) return;
-    sideNav.classList.add("is-collapsed");
-    syncNavLockToggle();
-  }
-
-  function setNavLocked(locked) {
-    if (!sideNav) return;
-    sideNav.classList.toggle("is-locked", locked);
-    writeNavLocked(locked);
-    if (locked) {
-      sideNav.classList.remove("is-collapsed");
+    if (persist) {
+      writeNavDisplayPreference("expanded");
     }
-    syncNavLockToggle();
+    syncNavViewToggle();
+  }
+
+  function collapseDesktopNav({ persist = true } = {}) {
+    if (!sideNav || isMobileViewport()) return;
+    sideNav.classList.add("is-collapsed");
+    if (persist) {
+      writeNavDisplayPreference("collapsed");
+    }
+    syncNavViewToggle();
+  }
+
+  function applyStoredDesktopNavState() {
+    if (!sideNav || isMobileViewport()) return;
+    const displayPreference = readNavDisplayPreference();
+    sideNav.classList.remove("is-locked");
+    sideNav.classList.toggle("is-collapsed", displayPreference === "collapsed");
+    syncNavViewToggle();
   }
 
   if (sideNav) {
-    if (readNavLocked()) {
-      sideNav.classList.add("is-locked");
-      sideNav.classList.remove("is-collapsed");
-    } else {
-      sideNav.classList.remove("is-locked");
-      sideNav.classList.add("is-collapsed");
-    }
-    syncNavLockToggle();
+    applyStoredDesktopNavState();
   }
+  syncNavViewToggle();
+  syncMobileNavState();
 
   sideNav?.addEventListener("click", (event) => {
     if (isMobileViewport()) return;
@@ -807,44 +866,68 @@ function initNav() {
     expandDesktopNav();
   });
 
-  document.addEventListener("click", (event) => {
-    if (!sideNav || isMobileViewport() || sideNav.classList.contains("is-collapsed")) return;
-    if (sideNav.contains(event.target)) return;
-    collapseDesktopNav();
-  });
+  function ensureMobileNavController() {
+    if (mobileNavController || !sideNav || !backdrop) return;
+    mobileNavController = createBlockingOverlayController({
+      overlayEl: sideNav,
+      focusRoot: sideNav,
+      initialFocus: () => sideNav.querySelector(".side-nav__item"),
+      backgroundElements: getNavBlockingBackgroundElements(),
+      dismissTarget: backdrop,
+      onDismiss: () => closeMobileNav(),
+    });
+  }
 
-  sideNav?.addEventListener("click", (event) => {
-    if (!event.target.closest(".side-nav__item")) return;
-    collapseDesktopNav();
-  });
-
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      collapseDesktopNav();
-      closeMobileNav();
-    }
-  });
-
-  function closeMobileNav() {
+  function closeMobileNav({ restoreFocus = true } = {}) {
+    mobileNavController?.deactivate({ restoreFocus });
     sideNav?.classList.remove("is-open");
     backdrop?.classList.remove("is-visible");
+    syncMobileNavState();
+  }
+
+  function openMobileNav() {
+    if (!isMobileViewport()) return;
+    ensureMobileNavController();
+    sideNav?.classList.add("is-open");
+    backdrop?.classList.add("is-visible");
+    syncMobileNavState();
+    mobileNavController?.activate();
   }
 
   hamburger?.addEventListener("click", () => {
-    sideNav?.classList.add("is-open");
-    backdrop?.classList.add("is-visible");
+    if (sideNav?.classList.contains("is-open")) {
+      closeMobileNav();
+      return;
+    }
+    openMobileNav();
   });
 
-  navLockToggle?.addEventListener("click", (event) => {
+  navViewToggle?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const locked = !sideNav?.classList.contains("is-locked");
-    setNavLocked(locked);
+    if (!sideNav) return;
+    if (sideNav.classList.contains("is-collapsed")) {
+      expandDesktopNav();
+    } else {
+      collapseDesktopNav();
+    }
   });
 
-  backdrop?.addEventListener("click", closeMobileNav);
-  window.addEventListener("hashchange", closeMobileNav);
-  window.addEventListener("resize", syncNavLockToggle);
+  sideNav?.addEventListener("click", (event) => {
+    if (!isMobileViewport()) return;
+    if (!event.target.closest(".side-nav__item")) return;
+    closeMobileNav({ restoreFocus: false });
+  });
+
+  window.addEventListener("hashchange", () => closeMobileNav({ restoreFocus: false }));
+  window.addEventListener("resize", () => {
+    if (!isMobileViewport()) {
+      closeMobileNav({ restoreFocus: false });
+      applyStoredDesktopNavState();
+    }
+    syncNavViewToggle();
+    syncMobileNavState();
+  });
 }
 
 async function startApp() {

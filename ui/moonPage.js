@@ -16,6 +16,7 @@ import {
 import { fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { createElement } from "./domHelpers.js";
+import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import { createGuidedFlowController } from "./guidedCreation/flowController.js";
 import { createGuidedPanel } from "./guidedCreation/components/guidedPanel.js";
 import { createGoalTextAssist } from "./guidedCreation/components/goalTextAssist.js";
@@ -41,7 +42,7 @@ import { computeMoonVisualProfile, MOON_RECIPES } from "./moonStyles.js";
 import {
   createCelestialVisualPreviewController,
   renderCelestialRecipeBatch,
-} from "./celestialVisualPreview.js";
+} from "./lazyCelestialVisualPreview.js";
 import {
   createMoonGuidedCreationOverlay,
   createMoonRecipePickerOverlay,
@@ -50,6 +51,7 @@ import {
   renderMoonParentSelector,
   renderMoonSelector,
 } from "./moon/domRender.js";
+import { buildPageIntroHtml } from "./pageIntro.js";
 import {
   loadWorld,
   updateWorld,
@@ -63,6 +65,7 @@ import {
   selectMoon,
   createMoonFromInputs,
   deleteMoon,
+  planDeleteMoon,
   updateMoon,
   assignMoonToPlanet,
   applyMoonSiblingPatch,
@@ -559,7 +562,16 @@ export function initMoonPage(mountEl, options = {}) {
         <button id="moonTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        <div class="hint">Create moons for selected planets and tune orbit/physical inputs. Use outputs to check periods, lock state, and tides.</div>
+        ${buildPageIntroHtml({
+          summary:
+            "Author moons for selected planets and gas giants, then validate their orbit and environment outputs.",
+          controls:
+            "The selected moon, its parent assignment, and the orbit, interior, atmosphere, and coupling inputs.",
+          affects:
+            "Planet tides, calendar moon phases, and moon-specific habitability and visual outputs.",
+          primaryAction:
+            "Choose a parent world or leave the moon unassigned, then set orbit distance before fine-tuning the deeper modes.",
+        })}
       </div>
     </div>
 
@@ -2185,10 +2197,14 @@ export function initMoonPage(mountEl, options = {}) {
     render();
   });
 
-  moonDeleteEl.addEventListener("click", (e) => {
+  moonDeleteEl.addEventListener("click", async (e) => {
     e.preventDefault();
     const w = loadWorld();
     if (w.moons.order.length <= 1) return;
+    const plan = planDeleteMoon(w.moons.selectedId, w);
+    if (!plan) return;
+    const confirmed = await confirmDestructiveAction(plan);
+    if (!confirmed) return;
     deleteMoon(w.moons.selectedId);
     loadIntoInputs();
     render();

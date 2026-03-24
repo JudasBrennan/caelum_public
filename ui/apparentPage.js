@@ -12,7 +12,7 @@ import {
   renderApparentStarRows,
 } from "./apparent/domRender.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
-import { drawSkyCanvasNative, disposeSkyCanvasNative } from "./apparentSkyNativeThree.js";
+import { drawSkyCanvasNative, disposeSkyCanvasNative } from "./lazyApparentSkyNative.js";
 import { getSelectedPlanet, loadWorld } from "./store.js";
 import { createTutorial } from "./tutorial.js";
 

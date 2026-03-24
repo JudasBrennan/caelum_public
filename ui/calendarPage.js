@@ -39,6 +39,14 @@ import {
   utcStampCompact,
 } from "./calendar/calendarIo.js";
 import {
+  createCalendarDetailOverlayActions,
+  renderCalendarMoonLegend,
+  renderCalendarSelectedDay,
+} from "./calendar/detailOverlay.js";
+import { createCalendarRuleEditorFlows } from "./calendar/ruleEditorFlows.js";
+import { createCalendarTransferFlows } from "./calendar/transferFlows.js";
+import { confirmDestructiveAction } from "./destructiveActionDialog.js";
+import {
   analyzeHolidayRelativeIssues,
   astronomyMarkerAggregateKey,
   astronomyMarkerLabel,
@@ -58,32 +66,24 @@ import {
   holidayColorOptionsHtml,
   holidayFilterControlsHtml,
   holidayRelativeKeyLabel,
-  intListText,
   moonsForPlanet,
   monthLengthOverridesText,
   namesText,
   normEraRules,
-  normFestivalRule,
   normFestivalRules,
-  normHolidayRule,
   normHolidayRules,
   normalizeAstronomySettings,
   normalizeHolidayCategory,
   normalizeHolidayCategoryFilters,
-  normalizeHolidayColorTag,
   normalizeIcsIncludes,
   normalizeIsoDate,
   normalizeWeekendDayIndexes,
   normalizeWeekendRule,
-  normWorkCycleRule,
   normWorkCycleRules,
   moonColorClass,
-  parseIntList,
-  parseStringList,
   phaseClass,
   pickMoonStateForHoliday,
   recursInMonth,
-  sanitizeCycleShort,
   splitMonthLengths,
   splitNames,
   toLinearMonthOrdinal,
@@ -92,6 +92,8 @@ import {
   weekdayOccurrence,
 } from "./calendar/stateModel.js";
 import { createElement, replaceChildren, replaceSelectOptions } from "./domHelpers.js";
+import { buildPageIntroHtml } from "./pageIntro.js";
+import { buildDeleteCalendarProfilePlan } from "./store/destructiveActions.js";
 import { createTutorial } from "./tutorial.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import {
@@ -2583,6 +2585,14 @@ function sliderField(id, label, unit, hint, min, max, step, tip) {
   return `<div class="form-row"><div><div class="label">${label}${u} ${tipIcon(tip || "")}</div><div class="hint">${hint || ""}</div></div><div class="input-pair"><input id="${id}" type="number" step="${step}" aria-label="${label}" /><input id="${id}_slider" type="range" aria-label="${label} slider" /><div class="range-meta"><span id="${id}_min"></span><span id="${id}_max"></span></div></div></div>`;
 }
 
+function createContextSummaryCard(label, value, meta = "") {
+  return createElement("div", { className: "context-summary__card" }, [
+    createElement("div", { className: "context-summary__label", text: label }),
+    createElement("div", { className: "context-summary__value", text: value }),
+    meta ? createElement("div", { className: "context-summary__meta", text: meta }) : null,
+  ]);
+}
+
 function bindPair(root, id, min, max, step) {
   const n = root.querySelector(`#${id}`);
   const s = root.querySelector(`#${id}_slider`);
@@ -2601,7 +2611,18 @@ export function initCalendarPage(mountEl) {
   const wrap = document.createElement("div");
   wrap.className = "page";
   wrap.innerHTML = `
-    <div class="panel"><div class="panel__header"><h1 class="panel__title"><span class="ws-icon icon--calendar" aria-hidden="true"></span><span>Calendar</span></h1><button id="calTutorials" type="button" class="ws-tutorial-trigger" data-tip="${esc(TIPS.Tutorials || "")}">Tutorials</button></div><div class="panel__body"><div class="hint">Build a usable calendar from selected planet/moons, then inspect compact and detailed views.</div></div></div>
+    <div class="panel"><div class="panel__header"><h1 class="panel__title"><span class="ws-icon icon--calendar" aria-hidden="true"></span><span>Calendar</span></h1><button id="calTutorials" type="button" class="ws-tutorial-trigger" data-tip="${esc(TIPS.Tutorials || "")}">Tutorials</button></div><div class="panel__body">${buildPageIntroHtml(
+      {
+        summary:
+          "Build a usable calendar from the selected planet and moons, then inspect compact and detailed views.",
+        controls:
+          "Profiles, calendar structure, identity rules, holidays, festivals, cycles, and export settings.",
+        affects:
+          "Printable calendars, ICS export, and any world-specific moon-phase timing exposed elsewhere in the app.",
+        primaryAction:
+          "Choose or create a profile, sync from the selected planet and moons, then shape the rules and outputs.",
+      },
+    )}<div id="calProfileSummaryPanel" class="context-summary" aria-label="Active calendar profile summary"><div class="context-summary__header"><div><div class="context-summary__title">Active Profile Summary</div><div id="calProfileSummaryCopy" class="context-summary__copy"></div></div></div><div id="calProfileSummaryGrid" class="context-summary__grid"></div><div id="calProfileSummaryNotes" class="context-summary__notes"></div></div></div></div>
     <div class="calendar-workspace">
       <div class="calendar-toolbar">
         <div class="calendar-toolbar__left">
@@ -2681,7 +2702,7 @@ export function initCalendarPage(mountEl) {
         </section>
         <section data-drawer-section="output" class="calendar-drawer__section" hidden>
         <div class="panel"><div class="panel__header"><h2>Calendar Data</h2><div class="calendar-section-info">${tipIcon(TIPS["Calendar Data section"] || "")}</div></div><div class="panel__body">
-          <div class="hint">Export or import calendar settings only (does not replace world generation data).</div>
+          <div class="hint" id="calOutputScopeHint">Calendar JSON here is profile-only. It updates calendar settings without replacing star, planet, moon, or world-generation data.</div>
           <div style="height:10px"></div>
           <div class="io-actions">
             <button id="calExportDownload" type="button" data-tip="${esc(TIPS["Download calendar JSON"] || "")}">Download calendar JSON</button>
@@ -2730,6 +2751,8 @@ export function initCalendarPage(mountEl) {
           <button class="calendar-drawer__subtab" data-rules-tab="leap">Leap Years</button>
           <button class="calendar-drawer__subtab" data-rules-tab="cycles">Cycles</button>
         </div>
+        <div id="calRulesSummary" class="calendar-rules-summary"></div>
+        <div id="calRulesGuidance" class="context-summary__note">Leap rules change month lengths first. Holidays and festivals are then matched on the resolved dates, and work/rest cycles add shared weekend handling across the active profile.</div>
         <div data-rules-section="holidays">
         <div class="panel"><div class="panel__header"><h2>Special Days</h2><div class="calendar-section-info">${tipIcon(TIPS["Special Days section"] || "")}</div></div><div class="panel__body">
           <div id="calHolidayList" class="calendar-item-list" data-tip="${esc(TIPS.Holidays || "")}"></div>
@@ -2852,6 +2875,10 @@ export function initCalendarPage(mountEl) {
 
   const $ = (sel) => wrap.querySelector(sel);
   const els = {
+    profileSummaryCopy: $("#calProfileSummaryCopy"),
+    profileSummaryGrid: $("#calProfileSummaryGrid"),
+    profileSummaryNotes: $("#calProfileSummaryNotes"),
+    rulesSummary: $("#calRulesSummary"),
     drawerToggle: $("#calDrawerToggle"),
     profileSelect: $("#calProfileSelect"),
     profileNew: $("#calProfileNew"),
@@ -3080,8 +3107,11 @@ export function initCalendarPage(mountEl) {
   }
 
   const syncSliders = () => binders.forEach((b) => b?.syncFromNumber?.());
-  const closeDetail = () => els.detailOverlay.classList.add("is-hidden");
-  const openDetail = () => els.detailOverlay.classList.remove("is-hidden");
+  const { bindDetailOverlayEvents, closeDetail } = createCalendarDetailOverlayActions({
+    els,
+    render,
+    shiftMonth,
+  });
 
   function ensureProfileStore() {
     if (!Array.isArray(state._allProfiles) || !state._allProfiles.length) {
@@ -3119,9 +3149,9 @@ export function initCalendarPage(mountEl) {
     }));
   }
 
-  function activateProfile(profileId) {
+  function activateProfile(profileId, { saveCurrent = true } = {}) {
     ensureProfileStore();
-    saveActiveProfileSnapshot();
+    if (saveCurrent) saveActiveProfileSnapshot();
     const target = state._allProfiles.find((p) => String(p?.id) === String(profileId));
     if (!target) return;
     const normalized = normalizeSingleProfile(loadWorld(), target);
@@ -3212,485 +3242,64 @@ export function initCalendarPage(mountEl) {
     els.leapStatus.dataset.kind = kind === "bad" ? "error" : kind;
   }
 
-  function formatIcsDate(date) {
-    const yyyy = String(date.getUTCFullYear()).padStart(4, "0");
-    const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
-    const dd = String(date.getUTCDate()).padStart(2, "0");
-    return `${yyyy}${mm}${dd}`;
-  }
+  const {
+    currentCalendarJsonText,
+    downloadIcs,
+    importCalendarJsonText,
+    loadCurrentJsonToTextarea,
+    openPrintableCalendar,
+  } = createCalendarTransferFlows({
+    state,
+    els,
+    runtime,
+    buildContext,
+    buildMonthModel,
+    applyHolidayFiltersToMonthModel,
+    formatDisplayedYear,
+    normalizeIcsIncludes,
+    normalizeIsoDate,
+    normalizeAstronomySettings,
+    astronomyMarkerLabel,
+    HOLIDAY_CATEGORIES,
+    holidayColorClass,
+    holidayCategoryLabel,
+    createCalendarExportEnvelope,
+    clonePlain,
+    readCalendarCandidate,
+    readState,
+    loadWorld,
+    render,
+    setJsonStatus,
+    setOutputStatus,
+    downloadJsonFile,
+    utcStampCompact,
+    fmt,
+    esc,
+    I,
+    clampI,
+  });
 
-  function parseAnchorDateUtc(anchorDate) {
-    const safe = normalizeIsoDate(anchorDate);
-    const parts = safe.split("-").map((v) => Number(v));
-    if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) {
-      const d = new Date();
-      return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-    }
-    return Date.UTC(parts[0], parts[1] - 1, parts[2]);
-  }
-
-  function toGregorianDateFromAbsolute(absoluteDay, anchorDate) {
-    const baseMs = parseAnchorDateUtc(anchorDate);
-    return new Date(baseMs + Math.max(0, I(absoluteDay, 0)) * 86400000);
-  }
-
-  function escapeIcsText(text) {
-    return String(text || "")
-      .replace(/\\/g, "\\\\")
-      .replace(/\n/g, "\\n")
-      .replace(/;/g, "\\;")
-      .replace(/,/g, "\\,");
-  }
-
-  function buildScopeMonthModels(ctx, scope) {
-    const months =
-      scope === "year"
-        ? Array.from({ length: ctx.metrics.monthsPerYear }, (_, i) => i)
-        : [ctx.monthModel.monthIndex];
-    return months.map((monthIndex) =>
-      buildMonthModel({
-        metrics: ctx.metrics,
-        year: state.ui.year,
-        monthIndex,
-        firstYearStartDayIndex: state.ui.startDayOfYear,
-        weekStartDayIndex: state.ui.weekStartsOn,
-        leapRules: ctx.leapRules,
-        monthLengthOverrides: ctx.monthLengthOverrides,
-        dayNames: ctx.dayNames,
-        weekNames: state.ui.weekNames,
-        monthNames: ctx.monthNames,
-        moonDefs: ctx.moonDefs,
-        moonEpochOffsetDays: state.ui.moonEpochOffsetDays,
-        holidays: ctx.holidays,
-        festivals: ctx.festivals,
-        astronomySettings: ctx.astronomySettings,
-        workCycles: ctx.workCycles,
-      }),
-    );
-  }
-
-  function openPrintableCalendar(scope) {
-    const ctx = buildContext(loadWorld(), state);
-    const models = buildScopeMonthModels(ctx, scope).map((model) =>
-      applyHolidayFiltersToMonthModel(model, state.ui.holidayCategoryFilters),
-    );
-    const yearLabel = formatDisplayedYear(state.ui.year, state.ui);
-    const moonLegendItems = ctx.moonDefs
-      .map(
-        (moon, idx) =>
-          `<span class="ws-moon-key-item"><span class="ws-moon-dot ws-moon-c${idx}"></span>${esc(moon.name)} (${fmt(moon.synodicDays, 3)} d)</span>`,
-      )
-      .join("");
-    const enabledCategoryLabels = HOLIDAY_CATEGORIES.filter(
-      ([category]) => state.ui.holidayCategoryFilters?.[category],
-    )
-      .map(([, label]) => label)
-      .join(", ");
-    const docTitle =
-      scope === "year"
-        ? `${state.ui.calendarName || "Calendar"} - Year ${yearLabel}`
-        : `${state.ui.calendarName || "Calendar"} - ${models[0]?.monthName || ""} ${yearLabel}`;
-    const monthBlocks = models
-      .map((model, idx) => {
-        const head =
-          `<th class="ws-week-col">Week</th>` +
-          model.headers.map((h) => `<th>${esc(h)}</th>`).join("");
-        const rows = model.rows
-          .map((row) => {
-            const tds = row.cells
-              .map((cell) => {
-                if (!cell) return `<td class="ws-cell-empty"></td>`;
-                if (cell.kind === "festival") {
-                  const seq =
-                    I(cell.festival?.segmentCount, 1) > 1
-                      ? ` ${I(cell.festival?.segment, 1)}/${I(cell.festival?.segmentCount, 1)}`
-                      : "";
-                  return `<td><div class="ws-day-card ws-festival-card"><div class="ws-day-top"><span class="ws-day-num">F</span><span class="ws-festival-title">${esc(cell.festival?.name || "Festival")}${seq}</span></div><div class="ws-day-events">${esc(cell.festival?.outsideWeekFlow ? "Outside weekday flow" : "Festival day")}</div></div></td>`;
-                }
-                const moons = (cell.moonStates || [])
-                  .map(
-                    (moonState, moonIdx) =>
-                      `<span class="ws-moon-pill ws-moon-c${moonIdx}" data-moon="${esc(
-                        moonState?.name || `Moon ${moonIdx + 1}`,
-                      )}">${esc(String(moonState?.phase?.phaseShort || "N").toUpperCase())}</span>`,
-                  )
-                  .join("");
-                const holidays = (cell.holidays || [])
-                  .map(
-                    (holiday) =>
-                      `<span class="ws-event-pill ${holidayColorClass(holiday.colorTag)}">H ${esc(
-                        holiday.name,
-                      )} (${esc(holidayCategoryLabel(holiday.category))})</span>`,
-                  )
-                  .join("");
-                const markers = (cell.markers || [])
-                  .map(
-                    (marker) =>
-                      `<span class="ws-event-pill ws-marker-pill">A ${esc(
-                        astronomyMarkerLabel(marker),
-                      )}</span>`,
-                  )
-                  .join("");
-                const cycles = (cell.cycles || [])
-                  .map(
-                    (cycle) =>
-                      `<span class="ws-event-pill ws-cycle-pill">${esc(
-                        String(cycle.short || "C").toUpperCase(),
-                      )} ${esc(cycle.ruleName || cycle.label || "Cycle")}</span>`,
-                  )
-                  .join("");
-                return `<td><div class="ws-day-card"><div class="ws-day-top"><span class="ws-day-num">${cell.dayNumber}</span></div><div class="ws-day-moons">${moons || `<span class="ws-muted">-</span>`}</div><div class="ws-day-events">${holidays || `<span class="ws-muted">No holidays</span>`}</div><div class="ws-day-events">${markers || `<span class="ws-muted">No astronomy</span>`}</div><div class="ws-day-events">${cycles || `<span class="ws-muted">No cycles</span>`}</div></div></td>`;
-              })
-              .join("");
-            return `<tr><th class="ws-week-col">${esc(row.weekName || "")}</th>${tds}</tr>`;
-          })
-          .join("");
-        const outsideFlowFestivals = (model.outsideWeekFlowFestivals || [])
-          .slice(0, 10)
-          .map((festival) => festival.name)
-          .join(", ");
-        return `<section class="ws-print-month ${scope === "year" && idx > 0 ? "ws-break" : ""}"><h2>${esc(model.monthName)} - ${esc(yearLabel)} (${model.monthLength} days)</h2><div class="ws-chip-row"><span class="ws-chip"><b>Calendar:</b> ${esc(
-          String(state.ui.calendarName || "Calendar"),
-        )}</span><span class="ws-chip"><b>Full Moon:</b> ${esc(
-          model.fullMoonDays.length ? model.fullMoonDays.join(", ") : "None",
-        )}</span><span class="ws-chip"><b>New Moon:</b> ${esc(
-          model.newMoonDays.length ? model.newMoonDays.join(", ") : "None",
-        )}</span><span class="ws-chip"><b>Holidays:</b> ${model.holidaysInMonth.reduce(
-          (sum, [, count]) => sum + count,
-          0,
-        )}</span><span class="ws-chip"><b>Astronomy:</b> ${model.markersInMonth.reduce(
-          (sum, marker) => sum + (marker.count || 0),
-          0,
-        )}</span></div><div class="ws-moon-key"><b>Moon key:</b> ${moonLegendItems}</div><div class="ws-print-grid-wrap"><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>${
-          outsideFlowFestivals
-            ? `<div class="ws-foot-note"><b>Outside-week-flow festivals:</b> ${esc(outsideFlowFestivals)}</div>`
-            : ""
-        }</section>`;
-      })
-      .join("");
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${esc(
-      docTitle,
-    )}</title><style>@page{size:landscape;margin:10mm;}body{font-family:Segoe UI,Arial,sans-serif;color:#0f1628;margin:0;}h1{margin:0 0 10px;font-size:22px;}h2{margin:0 0 10px;font-size:16px;}.ws-intro{margin:0 0 12px;font-size:12px;color:#304161;}.ws-print-month{margin:0 0 14px;}.ws-chip-row{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px;}.ws-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;border:1px solid #d6dfef;background:#f5f8ff;color:#13203f;font-size:11px;}.ws-moon-key{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;font-size:11px;color:#2a3651;}.ws-moon-key-item{display:inline-flex;align-items:center;gap:6px;}.ws-moon-dot{width:10px;height:10px;border-radius:999px;display:inline-block;border:1px solid #96a8ca;}.ws-moon-c0{background:#86cbff;}.ws-moon-c1{background:#ffc98f;}.ws-moon-c2{background:#d5b7ff;}.ws-moon-c3{background:#9eeab8;}.ws-print-grid-wrap{overflow:hidden;border:1px solid #d6dfef;border-radius:10px;}table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;}thead th{background:#edf3ff;font-weight:700;color:#1f2f50;border-bottom:1px solid #d6dfef;}th,td{padding:6px;border-right:1px solid #e3e9f5;border-bottom:1px solid #e3e9f5;vertical-align:top;font-size:11px;line-height:1.25;}thead th:last-child,tbody td:last-child{border-right:0;}tbody tr:last-child td,tbody tr:last-child th{border-bottom:0;}.ws-week-col{width:92px;background:#f7faff;color:#2a3651;font-weight:700;}.ws-cell-empty{background:#fbfdff;}.ws-day-card{min-height:74px;border:1px solid #dbe4f5;border-radius:8px;background:#ffffff;padding:4px 6px;display:flex;flex-direction:column;gap:4px;}.ws-festival-card{background:#f1f6ff;border-color:#cddbf4;}.ws-day-top{display:flex;align-items:center;justify-content:space-between;gap:6px;}.ws-day-num{font-size:13px;font-weight:700;color:#13203f;}.ws-festival-title{font-size:11px;font-weight:600;color:#203359;}.ws-day-moons{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}.ws-moon-pill{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:16px;padding:0 5px;border-radius:999px;border:1px solid #c4d2eb;font-size:10px;font-weight:700;color:#13203f;background:#eef4ff;}.ws-day-events{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}.ws-event-pill{display:inline-flex;align-items:center;padding:1px 6px;border-radius:999px;border:1px solid #d2dcf0;background:#f7f9ff;font-size:10px;color:#13203f;}.ws-marker-pill{border-color:#bfd4f7;background:#edf4ff;color:#1c3f7a;}.ws-cycle-pill{border-color:#b8dfc8;background:#eefaf3;color:#1a5a35;}.ws-event-pill.holiday-tag-gold{background:#fff3df;border-color:#f0cf9f;}.ws-event-pill.holiday-tag-azure{background:#eaf6ff;border-color:#b9dfff;}.ws-event-pill.holiday-tag-emerald{background:#ecfdf2;border-color:#bdeccc;}.ws-event-pill.holiday-tag-violet{background:#f2ecff;border-color:#d4c2ff;}.ws-event-pill.holiday-tag-rose{background:#ffedf4;border-color:#f4bfd2;}.ws-event-pill.holiday-tag-slate{background:#edf0f7;border-color:#cad3e5;}.ws-foot-note{margin-top:8px;font-size:11px;color:#304161;}.ws-muted{color:#7385a7;}.ws-break{page-break-before:always;}@media print{body{margin:0;} .ws-print-root{margin:0;} }</style></head><body><div class="ws-print-root"><h1>${esc(
-      docTitle,
-    )}</h1><div class="ws-intro">Styled detailed export. Visible holiday categories: ${esc(
-      enabledCategoryLabels || "None",
-    )}.</div>${monthBlocks}</div></body></html>`;
-    const win = window.open("", "_blank");
-    if (!win) {
-      const fallbackName =
-        scope === "year"
-          ? `worldsmith-calendar-${state.ui.year}-printable.html`
-          : `worldsmith-calendar-${state.ui.year}-m${state.ui.monthIndex + 1}-printable.html`;
-      downloadJsonFile(fallbackName, html, "text/html;charset=utf-8");
-      setOutputStatus(
-        "Popup was blocked, so a printable HTML file was downloaded instead. Open it and print to PDF.",
-        "warn",
-      );
-      return;
-    }
-    try {
-      win.opener = null;
-    } catch {
-      // no-op: some browsers block assigning opener.
-    }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    let hasPrinted = false;
-    const printView = () => {
-      if (hasPrinted) return;
-      hasPrinted = true;
-      try {
-        win.focus();
-        win.print();
-      } catch {
-        // no-op: user can still print manually from opened view.
-      }
-    };
-    if (typeof win.addEventListener === "function") {
-      win.addEventListener("load", () => window.setTimeout(printView, 50), { once: true });
-    }
-    window.setTimeout(printView, 400);
-    setOutputStatus("Opened printable view. Use your browser print dialog to save as PDF.", "ok");
-  }
-
-  function buildIcs(scope) {
-    const ctx = buildContext(loadWorld(), state);
-    const models = buildScopeMonthModels(ctx, scope);
-    const include = normalizeIcsIncludes(state.ui.icsIncludes);
-    const anchorDate = normalizeIsoDate(state.ui.exportAnchorDate);
-    const yearLabel = formatDisplayedYear(state.ui.year, state.ui);
-    const stamp = new Date();
-    const dtStamp = `${formatIcsDate(stamp)}T${String(stamp.getUTCHours()).padStart(2, "0")}${String(stamp.getUTCMinutes()).padStart(2, "0")}${String(stamp.getUTCSeconds()).padStart(2, "0")}Z`;
-    const events = [];
-
-    const pushEvent = (absoluteDay, summary, description) => {
-      const start = toGregorianDateFromAbsolute(absoluteDay, anchorDate);
-      const end = toGregorianDateFromAbsolute(absoluteDay + 1, anchorDate);
-      const uid = `${absoluteDay}-${events.length + 1}@worldsmith-web`;
-      events.push(
-        [
-          "BEGIN:VEVENT",
-          `UID:${uid}`,
-          `DTSTAMP:${dtStamp}`,
-          `DTSTART;VALUE=DATE:${formatIcsDate(start)}`,
-          `DTEND;VALUE=DATE:${formatIcsDate(end)}`,
-          `SUMMARY:${escapeIcsText(summary)}`,
-          `DESCRIPTION:${escapeIcsText(description)}`,
-          "END:VEVENT",
-        ].join("\r\n"),
-      );
-    };
-
-    for (const model of models) {
-      const rows = model.rows.flatMap((r) => r.cells).filter(Boolean);
-      for (const cell of rows) {
-        if (cell.kind === "festival") {
-          if (!include.festivals) continue;
-          const dayNumber = Math.max(1, clampI(cell.festival?.afterDay, 1, model.monthLength));
-          const absoluteDay = model.absoluteMonthStart + dayNumber - 1;
-          pushEvent(
-            absoluteDay,
-            `Festival: ${cell.festival?.name || "Festival"}`,
-            `${model.monthName} ${dayNumber}, ${yearLabel} (calendar ${state.ui.calendarName || "Calendar"})`,
-          );
-          continue;
-        }
-
-        const dayLabel = `${model.monthName} ${cell.dayNumber}, ${yearLabel}`;
-        if (include.holidays) {
-          for (const h of cell.holidays || []) {
-            pushEvent(
-              cell.absoluteDay,
-              `Holiday: ${h.name}`,
-              `${dayLabel} (calendar ${state.ui.calendarName || "Calendar"})`,
-            );
-          }
-        }
-        if (include.markers && normalizeAstronomySettings(state.ui.astronomy).enabled) {
-          for (const marker of cell.markers || []) {
-            const markerLabel = astronomyMarkerLabel(marker);
-            pushEvent(
-              cell.absoluteDay,
-              `Astronomy: ${markerLabel}`,
-              `${dayLabel} (calendar ${state.ui.calendarName || "Calendar"})`,
-            );
-          }
-        }
-      }
-
-      if (include.festivals) {
-        for (const fest of model.outsideWeekFlowFestivals || []) {
-          const dayNumber = Math.max(1, clampI(fest.afterDay, 1, model.monthLength));
-          const absoluteDay = model.absoluteMonthStart + dayNumber - 1;
-          pushEvent(
-            absoluteDay,
-            `Festival: ${fest.name}`,
-            `${model.monthName} ${dayNumber}, ${yearLabel} (outside weekday flow)`,
-          );
-        }
-      }
-    }
-
-    const calName = String(state.ui.calendarName || "Calendar").trim() || "Calendar";
-    const lines = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//WorldSmith Web//Calendar Export//EN",
-      "CALSCALE:GREGORIAN",
-      `X-WORLDSMITH-CALENDAR:${escapeIcsText(calName)}`,
-      `X-WORLDSMITH-YEAR:${escapeIcsText(String(yearLabel))}`,
-      ...events,
-      "END:VCALENDAR",
-      "",
-    ];
-    return { text: lines.join("\r\n"), count: events.length };
-  }
-
-  function currentCalendarJsonText() {
-    return JSON.stringify(createCalendarExportEnvelope(state, clonePlain), null, 2);
-  }
-
-  function loadCurrentJsonToTextarea() {
-    if (!els.jsonText) return;
-    els.jsonText.value = currentCalendarJsonText();
-    setJsonStatus(`Ready. ${els.jsonText.value.length.toLocaleString("en-GB")} characters.`, "ok");
-  }
-
-  function applyCalendarPayload(payload) {
-    const candidate = readCalendarCandidate(payload);
-    if (!candidate) throw new Error("JSON does not contain a calendar payload.");
-    const next = readState({ ...loadWorld(), calendar: candidate });
-    state.inputs = next.inputs;
-    state.ui = next.ui;
-    state.profileId = next.profileId;
-    state.profileName = next.profileName;
-    state.profiles = next.profiles;
-    state._allProfiles = next._allProfiles;
-    state.ui.monthIndex = 0;
-    state.ui.selectedDay = 1;
-    runtime.editingHolidayId = null;
-    runtime.editingFestivalId = null;
-    runtime.editingCycleId = null;
-    render();
-    setJsonStatus("Calendar settings imported.", "ok");
-  }
-
-  function updateHolidayEnables() {
-    const oneOff = els.holidayRecurrence.value === "one-off";
-    const useRelative = !!els.holidayUseRelative.checked;
-    const useAdvanced = !!els.holidayAdvancedToggle.checked;
-    state.ui.holidayAdvanced = useAdvanced;
-    wrap.querySelectorAll(".calendar-holiday-advanced").forEach((row) => {
-      row.hidden = !useAdvanced;
-    });
-    if (oneOff && !useRelative) {
-      els.holidayUseDate.checked = true;
-    }
-    if (useRelative) {
-      els.holidayUseDate.checked = false;
-      els.holidayUseWeekday.checked = false;
-      els.holidayUseMoon.checked = false;
-    }
-    els.holidayUseDate.disabled = oneOff || useRelative;
-    els.holidayUseWeekday.disabled = useRelative;
-    els.holidayUseMoon.disabled = useRelative;
-    els.holidayDayOfMonth.disabled = useRelative || !els.holidayUseDate.checked;
-    els.holidayDuration.disabled = false;
-    els.holidayWeekday.disabled = useRelative || !els.holidayUseWeekday.checked;
-    els.holidayOccurrence.disabled = useRelative || !els.holidayUseWeekday.checked;
-    els.holidayMoonSlot.disabled = useRelative || !els.holidayUseMoon.checked;
-    els.holidayMoonPhase.disabled = useRelative || !els.holidayUseMoon.checked;
-    els.holidayRelativeType.disabled = !useRelative;
-    els.holidayRelativeOffset.disabled = !useRelative;
-    const relativeType = String(els.holidayRelativeType.value || "none");
-    const usesMoonRelative = useRelative && relativeType === "moon-phase";
-    const usesMarkerRelative = useRelative && relativeType === "astronomy-marker";
-    const usesHolidayRelative = useRelative && relativeType === "holiday";
-    els.holidayRelativeMoonSlot.disabled = !usesMoonRelative;
-    els.holidayRelativeMoonPhase.disabled = !usesMoonRelative;
-    els.holidayRelativeMarker.disabled = !usesMarkerRelative;
-    els.holidayRelativeHoliday.disabled = !usesHolidayRelative;
-    els.holidayYear.disabled = !oneOff;
-
-    const anchorType = String(els.holidayAnchorType.value || "fixed-date");
-    const anchorUsesMoon = useAdvanced && anchorType === "moon-phase";
-    const anchorUsesMarker = useAdvanced && anchorType === "astronomy-marker";
-    const anchorUsesHoliday = useAdvanced && anchorType === "holiday";
-    const anchorUsesAlgorithm = useAdvanced && anchorType === "algorithmic";
-    const conflictScope = String(els.holidayConflictScope.value || "all");
-
-    els.holidayAnchorType.disabled = !useAdvanced;
-    els.holidayAlgorithm.disabled = !anchorUsesAlgorithm;
-    els.holidayAnchorMoonSlot.disabled = !anchorUsesMoon;
-    els.holidayAnchorMoonPhase.disabled = !anchorUsesMoon;
-    els.holidayAnchorMarker.disabled = !anchorUsesMarker;
-    els.holidayAnchorHoliday.disabled = !anchorUsesHoliday;
-    els.holidayAnchorOffset.disabled = !useAdvanced;
-    els.holidayConflictRule.disabled = !useAdvanced;
-    els.holidayMaxShiftDays.disabled = !useAdvanced;
-    els.holidayStayInMonth.disabled = !useAdvanced;
-    els.holidayConflictScope.disabled = !useAdvanced;
-    els.holidayConflictCategories.disabled = !useAdvanced || conflictScope !== "category";
-    els.holidayConflictHolidayIds.disabled = !useAdvanced || conflictScope !== "ids";
-  }
-
-  function resetHolidayForm() {
-    runtime.editingHolidayId = null;
-    els.holidayName.value = "";
-    els.holidayCategory.value = "civic";
-    els.holidayColorTag.value = "gold";
-    els.holidayRecurrence.value = "yearly";
-    els.holidayYear.value = String(Math.max(1, I(state.ui.year, 1)));
-    els.holidayUseDate.checked = true;
-    els.holidayUseWeekday.checked = false;
-    els.holidayUseMoon.checked = false;
-    els.holidayUseRelative.checked = false;
-    els.holidayRelativeType.value = "none";
-    els.holidayRelativeOffset.value = "0";
-    els.holidayRelativeMoonSlot.value = "0";
-    els.holidayRelativeMoonPhase.value = "F";
-    els.holidayRelativeMarker.value = HOLIDAY_RELATIVE_MARKERS[0]?.[0] || "vernal-equinox";
-    els.holidayRelativeHoliday.value = "";
-    els.holidayAnchorType.value = "fixed-date";
-    els.holidayAlgorithm.value = "none";
-    els.holidayAnchorMoonSlot.value = "0";
-    els.holidayAnchorMoonPhase.value = "F";
-    els.holidayAnchorMarker.value = HOLIDAY_RELATIVE_MARKERS[0]?.[0] || "vernal-equinox";
-    els.holidayAnchorHoliday.value = "";
-    els.holidayAnchorOffset.value = "0";
-    els.holidayConflictRule.value = "merge";
-    els.holidayMaxShiftDays.value = "7";
-    els.holidayStayInMonth.checked = false;
-    els.holidayConflictScope.value = "all";
-    els.holidayConflictCategories.value = "";
-    els.holidayConflictHolidayIds.value = "";
-    els.holidayDayOfMonth.value = "1";
-    els.holidayDuration.value = "1";
-    els.holidayPriority.value = "0";
-    els.holidayMergeMode.value = "merge";
-    els.holidayOccurrence.value = "any";
-    els.holidayMoonPhase.value = "F";
-    els.holidayExceptYears.value = "";
-    els.holidayExceptMonths.value = "";
-    els.holidayExceptDays.value = "";
-    els.holidaySave.textContent = "Add holiday";
-    els.holidayCancel.style.display = "none";
-    els.holidayAdvancedToggle.checked = !!state.ui.holidayAdvanced;
-    updateHolidayEnables();
-  }
-
-  function updateFestivalEnables() {
-    const oneOff = els.festivalRecurrence.value === "one-off";
-    els.festivalYear.disabled = !oneOff;
-  }
-
-  function resetFestivalForm() {
-    runtime.editingFestivalId = null;
-    els.festivalName.value = "";
-    els.festivalRecurrence.value = "yearly";
-    els.festivalYear.value = String(Math.max(1, I(state.ui.year, 1)));
-    els.festivalStartMonth.value = String(Math.max(0, I(state.ui.monthIndex, 0)));
-    els.festivalAfterDay.value = "0";
-    els.festivalDuration.value = "1";
-    els.festivalOutsideWeek.checked = false;
-    els.festivalSave.textContent = "Add festival";
-    els.festivalCancel.style.display = "none";
-    updateFestivalEnables();
-  }
-
-  function updateCycleEnables() {
-    const mode = String(els.cycleMode.value || "duty");
-    const isDuty = mode === "duty";
-    els.cycleOnDays.disabled = !isDuty;
-    els.cycleOffDays.disabled = !isDuty;
-    els.cycleActiveLabel.disabled = !isDuty;
-    els.cycleRestLabel.disabled = !isDuty;
-    els.cycleActiveShort.disabled = !isDuty;
-    els.cycleRestShort.disabled = !isDuty;
-    els.cycleIntervalDays.disabled = isDuty;
-    els.cycleMarkerLabel.disabled = isDuty;
-    els.cycleMarkerShort.disabled = isDuty;
-  }
-
-  function resetCycleForm() {
-    runtime.editingCycleId = null;
-    els.cycleName.value = "";
-    els.cycleMode.value = "duty";
-    els.cycleStartDay.value = "0";
-    els.cycleOnDays.value = "6";
-    els.cycleOffDays.value = "1";
-    els.cycleIntervalDays.value = "5";
-    els.cycleActiveLabel.value = "Work";
-    els.cycleRestLabel.value = "Rest";
-    els.cycleMarkerLabel.value = "Market";
-    els.cycleActiveShort.value = "W";
-    els.cycleRestShort.value = "R";
-    els.cycleMarkerShort.value = "M";
-    els.cycleSave.textContent = "Add cycle rule";
-    els.cycleCancel.style.display = "none";
-    updateCycleEnables();
-  }
+  const {
+    bindRuleEditorEvents,
+    resetCycleForm,
+    resetFestivalForm,
+    resetHolidayForm,
+    updateCycleEnables,
+    updateFestivalEnables,
+    updateHolidayEnables,
+  } = createCalendarRuleEditorFlows({
+    wrap,
+    state,
+    els,
+    runtime,
+    render,
+    buildContext,
+    loadWorld,
+    recommendLeapRuleFromOrbit,
+    setLeapStatus,
+    I,
+    clampI,
+  });
 
   function render() {
     ensureProfileStore();
@@ -3957,6 +3566,68 @@ export function initCalendarPage(mountEl) {
       "No cycle rules configured.",
     );
 
+    const sourcePlanet = findById(ctx.planets, ctx.sourcePlanetId);
+    const sourcePlanetLabel =
+      sourcePlanet?.name || sourcePlanet?.inputs?.name || sourcePlanet?.label || "No source planet";
+    const primaryMoonLabel = ctx.moonDefs[0]?.name || "Primary moon";
+    const profileNameLabel =
+      String(state.profileName || state.ui.calendarName || "Calendar").trim() || "Calendar";
+    els.profileSummaryCopy.textContent = `${profileNameLabel} is built from ${sourcePlanetLabel} and ${primaryMoonLabel}. These rules reshape calendar views and exports without changing the world model itself.`;
+    els.profileSummaryGrid.replaceChildren(
+      createContextSummaryCard(
+        "Active Profile",
+        profileNameLabel,
+        `${state.profiles.length} saved profile(s) in this world`,
+      ),
+      createContextSummaryCard(
+        "Source Context",
+        `${sourcePlanetLabel} -> ${primaryMoonLabel}`,
+        `${ctx.moonDefs.length} moon reference${ctx.moonDefs.length === 1 ? "" : "s"} available`,
+      ),
+      createContextSummaryCard(
+        "Holidays",
+        String(holidays.length),
+        holidays.length ? "Visible in month, detailed, and export views." : "No holiday rules yet.",
+      ),
+      createContextSummaryCard(
+        "Festivals",
+        String(festivals.length),
+        festivals.length
+          ? "Intercalary or festival days layered into current views."
+          : "No festival days configured.",
+      ),
+      createContextSummaryCard(
+        "Leap Rules",
+        String(leaps.length),
+        leaps.length
+          ? "Month lengths change before holiday and festival matching runs."
+          : "No leap-year adjustments configured.",
+      ),
+      createContextSummaryCard(
+        "Cycles",
+        String(workCycles.length),
+        workCycles.length
+          ? "Weekend handling and duty markers apply across the active profile."
+          : "No work/rest cycles configured.",
+      ),
+    );
+    els.profileSummaryNotes.replaceChildren(
+      createElement("div", { className: "context-summary__note" }, [
+        createElement("strong", { text: "Import/export scope. " }),
+        "Calendar JSON here is profile-only. Use the Import/Export route when you want to replace or transfer an entire world instead.",
+      ]),
+      createElement("div", { className: "context-summary__note" }, [
+        createElement("strong", { text: "Rule order. " }),
+        "Leap rules resolve month lengths first, holidays and festivals then match against those resolved dates, and work/rest cycles add global weekend handling and cycle markers.",
+      ]),
+    );
+    els.rulesSummary.textContent = [
+      `${holidays.length} holiday${holidays.length === 1 ? "" : "s"}`,
+      `${festivals.length} festival${festivals.length === 1 ? "" : "s"}`,
+      `${leaps.length} leap rule${leaps.length === 1 ? "" : "s"}`,
+      `${workCycles.length} cycle${workCycles.length === 1 ? "" : "s"}`,
+    ].join(" • ");
+
     const model = applyHolidayFiltersToMonthModel(ctx.monthModel, state.ui.holidayCategoryFilters);
     const allDays = model.rows
       .flatMap((r) => r.cells)
@@ -4081,26 +3752,26 @@ export function initCalendarPage(mountEl) {
     replaceChildren(els.detailSeasonBand, buildSeasonBandContent(model, ctx.astronomySettings));
     els.detailSeasonBand.hidden = !seasonBandContent.length;
 
-    const renderMoonLegend = (node) =>
-      replaceChildren(node, [
-        createElement("div", { className: "calendar-moon-legend__title" }, [
-          "Moon key ",
-          tipIconNode(TIPS["Moon key"] || ""),
-        ]),
-        createElement(
-          "div",
-          { className: "calendar-moon-legend__items" },
-          ctx.moonDefs.map((moonDef, index) =>
-            createElement("span", { className: "calendar-moon-legend__item" }, [
-              moonIconNode({ phase: { phaseShort: "F" } }, index),
-              " ",
-              `${moonDef.name} (${fmt(moonDef.synodicDays, 3)} d)`,
-            ]),
-          ),
-        ),
-      ]);
-    renderMoonLegend(els.moonLegend);
-    renderMoonLegend(els.detailMoonLegend);
+    renderCalendarMoonLegend({
+      node: els.moonLegend,
+      moonDefs: ctx.moonDefs,
+      moonIconNode,
+      tipIconNode,
+      fmt,
+      replaceChildren,
+      createElement,
+      tipText: TIPS["Moon key"] || "",
+    });
+    renderCalendarMoonLegend({
+      node: els.detailMoonLegend,
+      moonDefs: ctx.moonDefs,
+      moonIconNode,
+      tipIconNode,
+      fmt,
+      replaceChildren,
+      createElement,
+      tipText: TIPS["Moon key"] || "",
+    });
 
     const trace = selected
       ? traceRulesForDay({
@@ -4115,97 +3786,48 @@ export function initCalendarPage(mountEl) {
           weekendDayIndexes: state.ui.weekendDayIndexes,
         })
       : null;
-    const renderSelectedDay = (node) => {
-      if (!selected) {
-        replaceChildren(
-          node,
-          createElement("div", {
-            className: "calendar-selected-day__title",
-            text: "No day selected",
-          }),
-        );
-        return;
-      }
-      const holidayItems = (selected.holidays || []).map((holiday) => {
-        const detail = holidayDetailById.get(String(holiday?.id || ""));
-        const continuation = detail
-          ? [
-              detail.continuesFromPrev ? "continues from previous day" : "",
-              detail.continuesToNext ? "continues to next day" : "",
-            ]
-              .filter(Boolean)
-              .join(", ")
-          : "";
-        return createElement(
-          "span",
-          {
-            className: `calendar-selected-day__holiday-item ${holidayColorClass(holiday.colorTag)}`,
-          },
-          [
-            createElement("span", {
-              className: "calendar-selected-day__holiday-mark",
-              attrs: { "aria-hidden": "true" },
-              text: "H",
-            }),
-            holiday.name,
-            " ",
-            createElement("span", {
-              className: "calendar-selected-day__holiday-cat",
-              text: `(${holidayCategoryLabel(holiday.category)}${continuation ? ` | ${continuation}` : ""})`,
-            }),
-          ],
-        );
-      });
-      const markerItems = (selected.markers || []).map((marker) =>
-        createElement("span", { className: "calendar-selected-day__astro-item" }, [
-          astroIconNode(marker),
-          " ",
-          astronomyMarkerLabel(marker),
-        ]),
-      );
-      const cycleItems = (selected.cycles || []).map((cycle) =>
-        createElement(
-          "span",
-          { className: `calendar-selected-day__cycle-item ${cycleKindClass(cycle)}` },
-          [
-            cycleIconNode(cycle),
-            " ",
-            createElement("b", { text: cycle.ruleName || "Cycle" }),
-            ": ",
-            cycle.label || "Marker",
-          ],
-        ),
-      );
-      const moonLines = (selected.moonStates || []).map((moonState, index) =>
-        createElement(
-          "div",
-          { className: "calendar-selected-day__line calendar-selected-day__line--moon" },
-          [
-            moonIconNode(moonState, index),
-            " ",
-            createElement("b", { text: moonState.name }),
-            `: ${moonState.phase.phaseName} (${fmt(moonState.phase.illuminationPct, 1)}%), age ${fmt(
-              moonState.phase.ageDays,
-              0,
-            )} / ${fmt(moonState.synodicDays, 3)} days`,
-          ],
-        ),
-      );
-      const traceNode = buildTraceNode(trace);
-      replaceChildren(node, [
-        createElement("div", {
-          className: "calendar-selected-day__title",
-          text: `Day ${selected.dayNumber}, ${model.monthName}, ${yearLabel} (Day ${selected.absoluteDay + 1})`,
-        }),
-        moonLines,
-        selectedDayLine("Holidays", interleaveNodes(holidayItems)),
-        selectedDayLine("Astronomy", interleaveNodes(markerItems)),
-        selectedDayLine("Cycles", interleaveNodes(cycleItems)),
-        traceNode,
-      ]);
-    };
-    renderSelectedDay(els.selectedDay);
-    renderSelectedDay(els.detailSelectedDay);
+    renderCalendarSelectedDay({
+      node: els.selectedDay,
+      selected,
+      model,
+      yearLabel,
+      holidayDetailById,
+      trace,
+      fmt,
+      holidayColorClass,
+      holidayCategoryLabel,
+      astroIconNode,
+      astronomyMarkerLabel,
+      cycleIconNode,
+      cycleKindClass,
+      moonIconNode,
+      createElement,
+      replaceChildren,
+      selectedDayLine,
+      interleaveNodes,
+      buildTraceNode,
+    });
+    renderCalendarSelectedDay({
+      node: els.detailSelectedDay,
+      selected,
+      model,
+      yearLabel,
+      holidayDetailById,
+      trace,
+      fmt,
+      holidayColorClass,
+      holidayCategoryLabel,
+      astroIconNode,
+      astronomyMarkerLabel,
+      cycleIconNode,
+      cycleKindClass,
+      moonIconNode,
+      createElement,
+      replaceChildren,
+      selectedDayLine,
+      interleaveNodes,
+      buildTraceNode,
+    });
 
     replaceChildren(
       els.compactGrid,
@@ -4373,21 +3995,6 @@ export function initCalendarPage(mountEl) {
     state.ui.selectedDay = safeDay;
   }
 
-  async function importCalendarJsonText(rawText, label = "JSON") {
-    const text = String(rawText || "").trim();
-    if (!text) {
-      setJsonStatus("No JSON provided.", "warn");
-      return;
-    }
-    try {
-      const parsed = JSON.parse(text);
-      applyCalendarPayload(parsed);
-      setJsonStatus(`Imported calendar from ${label}.`, "ok");
-    } catch (err) {
-      setJsonStatus(`Import failed: ${err?.message || "Invalid JSON."}`, "error");
-    }
-  }
-
   resetHolidayForm();
   resetFestivalForm();
   resetCycleForm();
@@ -4477,16 +4084,23 @@ export function initCalendarPage(mountEl) {
     render();
   });
 
-  els.profileDelete.addEventListener("click", () => {
+  els.profileDelete.addEventListener("click", async () => {
     saveActiveProfileSnapshot();
     if ((state._allProfiles || []).length <= 1) return;
-    if (!window.confirm(`Delete calendar profile "${state.profileName}"?`)) return;
+    const deletePlan = buildDeleteCalendarProfilePlan({
+      profiles: state._allProfiles || [],
+      profileId: state.profileId,
+      profileName: state.profileName,
+    });
+    if (!deletePlan) return;
+    const confirmed = await confirmDestructiveAction(deletePlan);
+    if (!confirmed) return;
     state._allProfiles = state._allProfiles.filter(
       (p) => String(p?.id) !== String(state.profileId),
     );
     const fallback = state._allProfiles[0];
     if (!fallback) return;
-    activateProfile(fallback.id);
+    activateProfile(fallback.id, { saveCurrent: false });
     render();
   });
 
@@ -4676,31 +4290,11 @@ export function initCalendarPage(mountEl) {
   });
   els.icsMonth.addEventListener("click", () => {
     updateOutputStateFromControls();
-    const { text, count } = buildIcs("month");
-    const safeName = String(state.ui.calendarName || "calendar")
-      .trim()
-      .replace(/[^a-z0-9_-]+/gi, "-")
-      .replace(/^-+|-+$/g, "");
-    downloadJsonFile(
-      `${safeName || "calendar"}-${state.ui.year}-m${state.ui.monthIndex + 1}-${utcStampCompact()}.ics`,
-      text,
-      "text/calendar;charset=utf-8",
-    );
-    setOutputStatus(`Exported month ICS with ${count} events.`, "ok");
+    downloadIcs("month");
   });
   els.icsYear.addEventListener("click", () => {
     updateOutputStateFromControls();
-    const { text, count } = buildIcs("year");
-    const safeName = String(state.ui.calendarName || "calendar")
-      .trim()
-      .replace(/[^a-z0-9_-]+/gi, "-")
-      .replace(/^-+|-+$/g, "");
-    downloadJsonFile(
-      `${safeName || "calendar"}-${state.ui.year}-${utcStampCompact()}.ics`,
-      text,
-      "text/calendar;charset=utf-8",
-    );
-    setOutputStatus(`Exported year ICS with ${count} events.`, "ok");
+    downloadIcs("year");
   });
 
   els.basis.addEventListener("change", () => {
@@ -4795,440 +4389,7 @@ export function initCalendarPage(mountEl) {
     render();
   });
 
-  [
-    els.holidayUseDate,
-    els.holidayUseWeekday,
-    els.holidayUseMoon,
-    els.holidayUseRelative,
-    els.holidayRelativeType,
-    els.holidayAdvancedToggle,
-    els.holidayAnchorType,
-    els.holidayConflictScope,
-    els.holidayRecurrence,
-  ].forEach((el) => el.addEventListener("change", updateHolidayEnables));
-  els.festivalRecurrence.addEventListener("change", updateFestivalEnables);
-  els.cycleMode.addEventListener("change", updateCycleEnables);
-  els.cycleWeekendRule.addEventListener("change", () => {
-    state.ui.workWeekendRule = normalizeWeekendRule(els.cycleWeekendRule.value);
-    render();
-  });
-  els.weekendDays.addEventListener("change", (event) => {
-    const input = event.target.closest("input[data-cal-weekend-day]");
-    if (!input) return;
-    const selected = [
-      ...els.weekendDays.querySelectorAll("input[data-cal-weekend-day]:checked"),
-    ].map((el) => I(el.getAttribute("data-cal-weekend-day"), 0));
-    const daysPerWeek = Math.max(
-      1,
-      els.weekendDays.querySelectorAll("input[data-cal-weekend-day]").length,
-    );
-    state.ui.weekendDayIndexes = normalizeWeekendDayIndexes(selected, daysPerWeek);
-    render();
-  });
-
-  els.holidaySave.addEventListener("click", () => {
-    const ctx = buildContext(loadWorld(), state);
-    const recurrence = els.holidayRecurrence.value;
-    const oneOff = recurrence === "one-off";
-    const useRelative = !!els.holidayUseRelative.checked;
-    const relativeType = String(els.holidayRelativeType.value || "none");
-    const useAdvanced = !!els.holidayAdvancedToggle.checked;
-    const anchorType = String(els.holidayAnchorType.value || "fixed-date");
-    const relativeAnchorType =
-      !useAdvanced && useRelative && relativeType !== "none"
-        ? relativeType === "moon-phase"
-          ? "moon-phase"
-          : relativeType === "astronomy-marker"
-            ? "astronomy-marker"
-            : relativeType === "holiday"
-              ? "holiday"
-              : "fixed-date"
-        : anchorType;
-    const anchorMoonSlot = Math.max(0, I(els.holidayAnchorMoonSlot.value, 0));
-    const anchorMoonId = els.holidayAnchorMoonSlot.selectedOptions?.[0]?.dataset?.moonId || "";
-    const anchorMoonPhase = String(els.holidayAnchorMoonPhase.value || "F");
-    const anchorMarker = String(els.holidayAnchorMarker.value || "").trim();
-    const anchorHoliday = String(els.holidayAnchorHoliday.value || "").trim();
-    const relativeMoonSlot = Math.max(0, I(els.holidayRelativeMoonSlot.value, 0));
-    const relativeMoonId = els.holidayRelativeMoonSlot.selectedOptions?.[0]?.dataset?.moonId || "";
-    const relativeMoonPhase = String(els.holidayRelativeMoonPhase.value || "F");
-    const relativeMarker = String(els.holidayRelativeMarker.value || "").trim();
-    const relativeHoliday = String(els.holidayRelativeHoliday.value || "").trim();
-    const draft = {
-      id: runtime.editingHolidayId || `holiday-${Math.random().toString(36).slice(2, 9)}`,
-      name: String(els.holidayName.value || "").trim(),
-      category: normalizeHolidayCategory(els.holidayCategory.value),
-      colorTag: normalizeHolidayColorTag(els.holidayColorTag.value),
-      recurrence,
-      startMonth: Math.max(0, I(els.holidayStartMonth.value, 0)),
-      year: Math.max(1, I(els.holidayYear.value, state.ui.year)),
-      attrs: {
-        useDate: useRelative ? false : oneOff ? true : !!els.holidayUseDate.checked,
-        useWeekday: useRelative ? false : !!els.holidayUseWeekday.checked,
-        useMoonPhase: useRelative ? false : !!els.holidayUseMoon.checked,
-      },
-      dayOfMonth: Math.max(1, I(els.holidayDayOfMonth.value, 1)),
-      durationDays: Math.max(1, I(els.holidayDuration.value, 1)),
-      priority: I(els.holidayPriority.value, 0),
-      mergeMode: els.holidayMergeMode.value,
-      weekday: Math.max(0, I(els.holidayWeekday.value, 0)),
-      occurrence: els.holidayOccurrence.value,
-      moonSlot: Math.max(0, I(els.holidayMoonSlot.value, 0)),
-      moonId: els.holidayMoonSlot.selectedOptions?.[0]?.dataset?.moonId || "",
-      moonPhase: els.holidayMoonPhase.value,
-      relative: {
-        enabled: useRelative && relativeType !== "none",
-        type: relativeType,
-        offsetDays: I(els.holidayRelativeOffset.value, 0),
-        moonSlot: relativeMoonSlot,
-        moonId: relativeMoonId,
-        moonPhase: relativeMoonPhase,
-        markerKey: relativeMarker,
-        holidayId: relativeHoliday,
-      },
-      anchor: {
-        type: HOLIDAY_ANCHOR_TYPES.some(([value]) => value === relativeAnchorType)
-          ? relativeAnchorType
-          : "fixed-date",
-        algorithmKey: String(els.holidayAlgorithm.value || "none"),
-        moonSlot: !useAdvanced && useRelative ? relativeMoonSlot : anchorMoonSlot,
-        moonId: !useAdvanced && useRelative ? relativeMoonId : anchorMoonId,
-        moonPhase: !useAdvanced && useRelative ? relativeMoonPhase : anchorMoonPhase,
-        markerKey: !useAdvanced && useRelative ? relativeMarker : anchorMarker,
-        holidayId: !useAdvanced && useRelative ? relativeHoliday : anchorHoliday,
-      },
-      offsetDays: useAdvanced
-        ? I(els.holidayAnchorOffset.value, 0)
-        : useRelative && relativeType !== "none"
-          ? I(els.holidayRelativeOffset.value, 0)
-          : 0,
-      observance: {
-        weekendRule: normalizeWeekendRule(state.ui.workWeekendRule),
-        holidayConflictRule: String(els.holidayConflictRule.value || "merge"),
-        maxShiftDays: Math.max(0, I(els.holidayMaxShiftDays.value, 7)),
-        stayInMonth: !!els.holidayStayInMonth.checked,
-      },
-      conflictScope: {
-        appliesAgainst: String(els.holidayConflictScope.value || "all"),
-        categories: parseStringList(els.holidayConflictCategories.value),
-        holidayIds: parseStringList(els.holidayConflictHolidayIds.value),
-      },
-      exceptYears: parseIntList(els.holidayExceptYears.value, 1, 1000000),
-      exceptMonths: parseIntList(els.holidayExceptMonths.value, 1, ctx.metrics.monthsPerYear),
-      exceptDays: parseIntList(els.holidayExceptDays.value, 1, 500),
-    };
-    state.ui.holidayAdvanced = useAdvanced;
-    if (
-      !draft.relative.enabled &&
-      !draft.attrs.useDate &&
-      !draft.attrs.useWeekday &&
-      !draft.attrs.useMoonPhase
-    ) {
-      draft.attrs.useDate = true;
-    }
-    if (!draft.name) return;
-    const h = normHolidayRule(draft, 0, ctx.metrics.monthsPerYear);
-    const list = normHolidayRules(state.ui.holidays, ctx.metrics.monthsPerYear);
-    const i = list.findIndex((x) => x.id === h.id);
-    if (i >= 0) list[i] = h;
-    else list.push(h);
-    state.ui.holidays = list;
-    resetHolidayForm();
-    render();
-  });
-
-  els.holidayCancel.addEventListener("click", () => {
-    resetHolidayForm();
-    render();
-  });
-
-  els.holidayList.addEventListener("click", (event) => {
-    const editBtn = event.target.closest("button[data-cal-holiday-edit]");
-    if (editBtn) {
-      const id = editBtn.getAttribute("data-cal-holiday-edit");
-      const ctx = buildContext(loadWorld(), state);
-      const h = ctx.holidays.find((x) => x.id === id);
-      if (!h) return;
-      runtime.editingHolidayId = h.id;
-      els.holidayName.value = h.name;
-      els.holidayCategory.value = normalizeHolidayCategory(h.category);
-      els.holidayColorTag.value = normalizeHolidayColorTag(h.colorTag);
-      els.holidayRecurrence.value = h.recurrence;
-      els.holidayStartMonth.value = String(h.startMonth);
-      els.holidayYear.value = String(Math.max(1, I(h.year, 1)));
-      els.holidayUseDate.checked = !!h.attrs.useDate;
-      els.holidayUseWeekday.checked = !!h.attrs.useWeekday;
-      els.holidayUseMoon.checked = !!h.attrs.useMoonPhase;
-      els.holidayUseRelative.checked = !!h.relative?.enabled;
-      els.holidayRelativeType.value = h.relative?.type || "none";
-      els.holidayRelativeOffset.value = String(I(h.relative?.offsetDays, 0));
-      els.holidayRelativeMoonSlot.value = String(clampI(h.relative?.moonSlot ?? 0, 0, 3));
-      els.holidayRelativeMoonPhase.value = String(h.relative?.moonPhase || "F");
-      els.holidayRelativeMarker.value = String(
-        h.relative?.markerKey || HOLIDAY_RELATIVE_MARKERS[0]?.[0] || "vernal-equinox",
-      );
-      els.holidayRelativeHoliday.value = String(h.relative?.holidayId || "");
-      els.holidayAnchorType.value = String(h.anchor?.type || "fixed-date");
-      els.holidayAlgorithm.value = String(h.anchor?.algorithmKey || "none");
-      els.holidayAnchorMoonSlot.value = String(clampI(h.anchor?.moonSlot ?? 0, 0, 3));
-      els.holidayAnchorMoonPhase.value = String(h.anchor?.moonPhase || "F");
-      els.holidayAnchorMarker.value = String(
-        h.anchor?.markerKey || HOLIDAY_RELATIVE_MARKERS[0]?.[0] || "vernal-equinox",
-      );
-      els.holidayAnchorHoliday.value = String(h.anchor?.holidayId || "");
-      els.holidayAnchorOffset.value = String(I(h.offsetDays, I(h.relative?.offsetDays, 0)));
-      els.holidayConflictRule.value = String(
-        h.observance?.holidayConflictRule ||
-          (String(h.mergeMode || "") === "override" ? "override" : "merge"),
-      );
-      els.holidayMaxShiftDays.value = String(Math.max(0, I(h.observance?.maxShiftDays, 7)));
-      els.holidayStayInMonth.checked = !!h.observance?.stayInMonth;
-      els.holidayConflictScope.value = String(h.conflictScope?.appliesAgainst || "all");
-      els.holidayConflictCategories.value = (h.conflictScope?.categories || []).join(", ");
-      els.holidayConflictHolidayIds.value = (h.conflictScope?.holidayIds || []).join(", ");
-      els.holidayDayOfMonth.value = String(h.dayOfMonth);
-      els.holidayDuration.value = String(Math.max(1, I(h.durationDays, 1)));
-      els.holidayPriority.value = String(I(h.priority, 0));
-      els.holidayMergeMode.value = h.mergeMode || "merge";
-      els.holidayWeekday.value = String(h.weekday);
-      els.holidayOccurrence.value = String(h.occurrence);
-      els.holidayMoonSlot.value = String(h.moonSlot);
-      els.holidayMoonPhase.value = String(h.moonPhase);
-      els.holidayExceptYears.value = intListText(h.exceptYears);
-      els.holidayExceptMonths.value = intListText(h.exceptMonths);
-      els.holidayExceptDays.value = intListText(h.exceptDays);
-      els.holidaySave.textContent = "Save holiday";
-      els.holidayCancel.style.display = "";
-      const hasAdvancedRule =
-        String(h.anchor?.type || "fixed-date") !== "fixed-date" ||
-        I(h.offsetDays, 0) !== 0 ||
-        String(h.observance?.holidayConflictRule || "merge") !== "merge" ||
-        !!h.observance?.stayInMonth ||
-        String(h.conflictScope?.appliesAgainst || "all") !== "all" ||
-        (Array.isArray(h.conflictScope?.holidayIds) && h.conflictScope.holidayIds.length > 0) ||
-        (Array.isArray(h.conflictScope?.categories) && h.conflictScope.categories.length > 0);
-      if (hasAdvancedRule) state.ui.holidayAdvanced = true;
-      els.holidayAdvancedToggle.checked = !!state.ui.holidayAdvanced;
-      updateHolidayEnables();
-      return;
-    }
-    const delBtn = event.target.closest("button[data-cal-holiday-del]");
-    if (!delBtn) return;
-    const id = delBtn.getAttribute("data-cal-holiday-del");
-    state.ui.holidays = (Array.isArray(state.ui.holidays) ? state.ui.holidays : []).filter(
-      (x) => String(x?.id) !== String(id),
-    );
-    if (runtime.editingHolidayId === id) resetHolidayForm();
-    render();
-  });
-
-  els.festivalSave.addEventListener("click", () => {
-    const ctx = buildContext(loadWorld(), state);
-    const draft = {
-      id: runtime.editingFestivalId || `festival-${Math.random().toString(36).slice(2, 9)}`,
-      name: String(els.festivalName.value || "").trim(),
-      recurrence: els.festivalRecurrence.value,
-      year: Math.max(1, I(els.festivalYear.value, state.ui.year)),
-      startMonth: Math.max(0, I(els.festivalStartMonth.value, 0)),
-      afterDay: Math.max(0, I(els.festivalAfterDay.value, 0)),
-      durationDays: Math.max(1, I(els.festivalDuration.value, 1)),
-      outsideWeekFlow: !!els.festivalOutsideWeek.checked,
-    };
-    if (!draft.name) return;
-    const f = normFestivalRule(draft, 0, ctx.metrics.monthsPerYear);
-    const list = normFestivalRules(state.ui.festivalRules, ctx.metrics.monthsPerYear);
-    const i = list.findIndex((x) => x.id === f.id);
-    if (i >= 0) list[i] = f;
-    else list.push(f);
-    state.ui.festivalRules = list;
-    resetFestivalForm();
-    render();
-  });
-
-  els.festivalCancel.addEventListener("click", () => {
-    resetFestivalForm();
-    render();
-  });
-
-  els.festivalList.addEventListener("click", (event) => {
-    const editBtn = event.target.closest("button[data-cal-festival-edit]");
-    if (editBtn) {
-      const id = editBtn.getAttribute("data-cal-festival-edit");
-      const ctx = buildContext(loadWorld(), state);
-      const f = ctx.festivals.find((x) => x.id === id);
-      if (!f) return;
-      runtime.editingFestivalId = f.id;
-      els.festivalName.value = f.name;
-      els.festivalRecurrence.value = f.recurrence;
-      els.festivalYear.value = String(Math.max(1, I(f.year, 1)));
-      els.festivalStartMonth.value = String(clampI(f.startMonth, 0, ctx.metrics.monthsPerYear - 1));
-      els.festivalAfterDay.value = String(Math.max(0, I(f.afterDay, 0)));
-      els.festivalDuration.value = String(Math.max(1, I(f.durationDays, 1)));
-      els.festivalOutsideWeek.checked = !!f.outsideWeekFlow;
-      els.festivalSave.textContent = "Save festival";
-      els.festivalCancel.style.display = "";
-      updateFestivalEnables();
-      return;
-    }
-    const delBtn = event.target.closest("button[data-cal-festival-del]");
-    if (!delBtn) return;
-    const id = delBtn.getAttribute("data-cal-festival-del");
-    state.ui.festivalRules = (
-      Array.isArray(state.ui.festivalRules) ? state.ui.festivalRules : []
-    ).filter((x) => String(x?.id) !== String(id));
-    if (runtime.editingFestivalId === id) resetFestivalForm();
-    render();
-  });
-
-  els.cycleSave.addEventListener("click", () => {
-    const draft = {
-      id: runtime.editingCycleId || `cycle-${Math.random().toString(36).slice(2, 9)}`,
-      name: String(els.cycleName.value || "").trim(),
-      mode: String(els.cycleMode.value || "duty"),
-      startAbsoluteDay: Math.max(0, I(els.cycleStartDay.value, 0)),
-      onDays: Math.max(1, I(els.cycleOnDays.value, 1)),
-      offDays: Math.max(1, I(els.cycleOffDays.value, 1)),
-      intervalDays: Math.max(1, I(els.cycleIntervalDays.value, 1)),
-      activeLabel: String(els.cycleActiveLabel.value || "Work").trim() || "Work",
-      restLabel: String(els.cycleRestLabel.value || "Rest").trim() || "Rest",
-      intervalLabel: String(els.cycleMarkerLabel.value || "Marker").trim() || "Marker",
-      activeShort: sanitizeCycleShort(els.cycleActiveShort.value, "W"),
-      restShort: sanitizeCycleShort(els.cycleRestShort.value, "R"),
-      intervalShort: sanitizeCycleShort(els.cycleMarkerShort.value, "M"),
-    };
-    if (!draft.name) return;
-    const rule = normWorkCycleRule(draft, 0);
-    const list = normWorkCycleRules(state.ui.workCycles);
-    const idx = list.findIndex((entry) => entry.id === rule.id);
-    if (idx >= 0) list[idx] = rule;
-    else list.push(rule);
-    state.ui.workCycles = list;
-    resetCycleForm();
-    render();
-  });
-
-  els.cycleCancel.addEventListener("click", () => {
-    resetCycleForm();
-    render();
-  });
-
-  els.cycleList.addEventListener("click", (event) => {
-    const editBtn = event.target.closest("button[data-cal-cycle-edit]");
-    if (editBtn) {
-      const id = editBtn.getAttribute("data-cal-cycle-edit");
-      const list = normWorkCycleRules(state.ui.workCycles);
-      const rule = list.find((entry) => String(entry.id) === String(id));
-      if (!rule) return;
-      runtime.editingCycleId = rule.id;
-      els.cycleName.value = String(rule.name || "");
-      els.cycleMode.value = String(rule.mode || "duty");
-      els.cycleStartDay.value = String(Math.max(0, I(rule.startAbsoluteDay, 0)));
-      els.cycleOnDays.value = String(Math.max(1, I(rule.onDays, 1)));
-      els.cycleOffDays.value = String(Math.max(1, I(rule.offDays, 1)));
-      els.cycleIntervalDays.value = String(Math.max(1, I(rule.intervalDays, 1)));
-      els.cycleActiveLabel.value = String(rule.activeLabel || "Work");
-      els.cycleRestLabel.value = String(rule.restLabel || "Rest");
-      els.cycleMarkerLabel.value = String(rule.intervalLabel || "Marker");
-      els.cycleActiveShort.value = sanitizeCycleShort(rule.activeShort, "W");
-      els.cycleRestShort.value = sanitizeCycleShort(rule.restShort, "R");
-      els.cycleMarkerShort.value = sanitizeCycleShort(rule.intervalShort, "M");
-      els.cycleSave.textContent = "Save cycle rule";
-      els.cycleCancel.style.display = "";
-      updateCycleEnables();
-      return;
-    }
-    const delBtn = event.target.closest("button[data-cal-cycle-del]");
-    if (!delBtn) return;
-    const id = delBtn.getAttribute("data-cal-cycle-del");
-    state.ui.workCycles = (Array.isArray(state.ui.workCycles) ? state.ui.workCycles : []).filter(
-      (entry) => String(entry?.id) !== String(id),
-    );
-    if (runtime.editingCycleId === id) resetCycleForm();
-    render();
-  });
-
-  els.leapAdd.addEventListener("click", () => {
-    const ctx = buildContext(loadWorld(), state);
-    const rule = {
-      id: `leap-${Math.random().toString(36).slice(2, 9)}`,
-      name: String(els.leapName.value || "").trim() || "Leap Rule",
-      cycleYears: clampI(els.leapCycle.value || 4, 1, 400),
-      offsetYear: clampI(els.leapOffset.value || 1, 1, 400),
-      monthIndex: clampI(els.leapMonth.value || 0, 0, ctx.metrics.monthsPerYear - 1),
-      dayDelta: clampI(els.leapDelta.value || 1, -30, 30),
-    };
-    if (rule.dayDelta === 0) return;
-    state.ui.leapRules = normalizeLeapRules(
-      [...(Array.isArray(state.ui.leapRules) ? state.ui.leapRules : []), rule],
-      ctx.metrics.monthsPerYear,
-    );
-    els.leapName.value = "";
-    els.leapCycle.value = "";
-    els.leapOffset.value = "";
-    els.leapDelta.value = "";
-    setLeapStatus("Leap rule added.", "ok");
-    render();
-  });
-
-  els.leapSuggest.addEventListener("click", () => {
-    const ctx = buildContext(loadWorld(), state);
-    const suggestion = recommendLeapRuleFromOrbit(ctx);
-    if (!suggestion?.ok) {
-      setLeapStatus(suggestion?.message || "Could not compute a leap rule suggestion.", "warn");
-      return;
-    }
-
-    const rule = {
-      id: `leap-${Math.random().toString(36).slice(2, 9)}`,
-      name: suggestion.ruleName || "Recommended Leap Rule",
-      cycleYears: Math.max(1, I(suggestion.cycleYears, 1)),
-      offsetYear: 1,
-      monthIndex: clampI(suggestion.monthIndex, 0, Math.max(0, ctx.metrics.monthsPerYear - 1)),
-      dayDelta: clampI(suggestion.dayDelta, -30, 30),
-    };
-    if (!rule.dayDelta) {
-      setLeapStatus("Suggested leap correction resolved to 0 days; no rule added.", "warn");
-      return;
-    }
-
-    const existingRules = normalizeLeapRules(state.ui.leapRules, ctx.metrics.monthsPerYear);
-    const duplicate = existingRules.some(
-      (existingRule) =>
-        existingRule.cycleYears === rule.cycleYears &&
-        existingRule.offsetYear === rule.offsetYear &&
-        existingRule.monthIndex === rule.monthIndex &&
-        existingRule.dayDelta === rule.dayDelta,
-    );
-    if (duplicate) {
-      setLeapStatus(
-        `Recommended rule already exists: ${suggestion.message}`,
-        suggestion.quality === "low" ? "warn" : "info",
-      );
-      return;
-    }
-
-    state.ui.leapRules = normalizeLeapRules([...existingRules, rule], ctx.metrics.monthsPerYear);
-    render();
-    els.leapName.value = rule.name;
-    els.leapCycle.value = String(rule.cycleYears);
-    els.leapOffset.value = String(rule.offsetYear);
-    els.leapMonth.value = String(rule.monthIndex);
-    els.leapDelta.value = String(rule.dayDelta);
-    setLeapStatus(
-      `Suggested and added: ${suggestion.message}`,
-      suggestion.quality === "low" ? "warn" : "ok",
-    );
-  });
-
-  els.leapList.addEventListener("click", (event) => {
-    const delBtn = event.target.closest("button[data-cal-leap-del]");
-    if (!delBtn) return;
-    const id = delBtn.getAttribute("data-cal-leap-del");
-    state.ui.leapRules = (Array.isArray(state.ui.leapRules) ? state.ui.leapRules : []).filter(
-      (x) => String(x?.id) !== String(id),
-    );
-    render();
-  });
+  bindRuleEditorEvents();
 
   els.prevMonth.addEventListener("click", () => {
     shiftMonth(-1);
@@ -5238,20 +4399,7 @@ export function initCalendarPage(mountEl) {
     shiftMonth(1);
     render();
   });
-  els.detailPrev.addEventListener("click", () => {
-    shiftMonth(-1);
-    render();
-  });
-  els.detailNext.addEventListener("click", () => {
-    shiftMonth(1);
-    render();
-  });
-
-  els.openDetail.addEventListener("click", openDetail);
-  els.closeDetail.addEventListener("click", closeDetail);
-  els.detailOverlay.addEventListener("click", (event) => {
-    if (event.target === els.detailOverlay) closeDetail();
-  });
+  bindDetailOverlayEvents();
 
   wrap.addEventListener("click", (event) => {
     const copyBtn = event.target.closest(".calendar-rule-trace__copy");

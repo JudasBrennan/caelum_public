@@ -1,4 +1,4 @@
-# WorldSmith Web 2.0.1
+# WorldSmith Web 2.1.0
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -6,6 +6,10 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Consequence-aware destructive confirmations now explain what will change before deleting planets, moons, stars, calendar profiles, cluster items, or replacing browser data.
+- The shell interaction model now treats dialogs and the mobile nav drawer consistently, with better focus handling, clearer route orientation, and a quieter accessibility surface.
+- Star and Calendar now surface current-state summaries and inline guidance so dense editor workflows are easier to scan without tooltip hunting.
+- Touch targets, tooltip behavior, and reduced-motion handling are now more usable across the sidebar, tutorials, and reference-heavy pages.
 - Brown dwarfs now work as first-class objects across host-star authoring, orbiting giant companions, shared outputs, and the visualizer.
 - Editable comets now have dedicated authoring, appearance previews, import/export support, and Local Frame rendering.
 - System-wide Oort clouds now use a paper-backed baseline model with `Auto / Guided / Manual` controls and seeded long-period comet generation.
@@ -30,7 +34,7 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Apparent size and brightness modelling for stars, planets, and moons.
 - Calendar builder for solar, lunar, and lunisolar systems.
 - Local cluster generator with editable nearby systems.
-- Desktop sidebar with collapsible rail, persistent lock-open control, light/dark mode toggle, and splash-screen toggle.
+- Desktop sidebar with an expanded-by-default collapsible rail, light/dark mode toggle, and splash-screen toggle.
 - Lessons page with 20-lesson progressive curriculum, Basic/Advanced toggle, and embedded mini-calculators.
 - Science and Maths reference page with equations and interactive calculators.
 - Import/export with JSON, legacy WorldSmith 8.x XLSX import, and built-in presets.
@@ -100,18 +104,15 @@ Install dependencies:
 npm install
 ```
 
-Install the Playwright browser once for local browser smoke tests:
-
-```bash
-npx playwright install chromium
-```
-
 ## NPM Scripts
 
 - `npm run check:syntax` - Validate JavaScript syntax across the project.
+- `npm run check:repo-integrity` - Verify required repo files are tracked and that `scripts/` and `tests/` do not hide untracked source files.
 - `npm run check:runtime-deps` - Validate bundled runtime dependency configuration.
 - `npm run check:mojibake` - Detect UTF-8 mojibake and replacement-character corruption in text files.
-- `npm run check:bundle-budget` - Verify the built entry bundle and largest lazy chunk stay within budget.
+- `npm run check:maintainability` - Verify the largest route shells stay under line-count budgets and that the extracted Phase 3 seam modules still exist.
+- `npm run check:ux-guardrails` - Verify the shell accessibility, overlay, and help-pattern contracts that keep the UX pass from drifting.
+- `npm run check:bundle-budget` - Verify the built entry bundle, largest app-owned lazy chunk, and largest vendor-only lazy chunk stay within budget.
 - `npm run lint` - Run ESLint.
 - `npm run lint:fix` - Run ESLint with auto-fixes.
 - `npm run format:check` - Check formatting with Prettier.
@@ -121,15 +122,16 @@ npx playwright install chromium
 - `npm run dev` - Build, serve, and rebuild `dist/` automatically for local development.
 - `npm run test:engine` - Run engine-focused tests.
 - `npm run test:ui` - Run UI-focused tests.
+- `npm run test:browser:install` - Install the Playwright Chromium browser used by smoke tests.
 - `npm run test:browser` - Run Playwright smoke tests against the built production app.
 - `npm run test` - Run the full test suite with custom reporter output.
 - `npm run test:report` - Generate `test-results.md`.
-- `npm run check` - Run syntax, runtime dependency, mojibake, lint, format, and test checks.
+- `npm run check` - Run repo integrity, syntax, runtime dependency, mojibake, lint, format, and test checks.
 - `npm run assets:runtime` - Sync KaTeX and Draco runtime assets into `assets/vendor/`.
 - `npm run build` - Bundle production files into `dist/`.
 - `npm run backup:live` - Create a zip backup of live deploy files in `Backup/`.
 - `npm run profile:engine` - Run the engine profiling harness and compare against the checked-in baseline.
-- `npm run release:verify` - Run checks, build, bundle budget verification, and browser smoke tests.
+- `npm run release:verify` - Run checks, build, bundle budget verification, install Chromium if needed, and run browser smoke tests.
 
 ## Build Output
 
@@ -138,7 +140,8 @@ npx playwright install chromium
 - Bundled production JavaScript (`app.js`, route chunks as needed, worker bundle)
 - Copied only the runtime files and assets needed for deployment
 - `index.html` stamped with the current release and release-busted top-level runtime URLs
-- `build-summary.json` with machine-readable entry and lazy-chunk size metadata for release verification
+- `build-summary.json` with machine-readable entry and chunk-budget metadata for release verification
+- `build-metafile.json` and `chunk-provenance.json` for chunk-level bundle analysis and provenance
 
 ## Data Storage and Safety
 
@@ -153,7 +156,34 @@ npx playwright install chromium
 ## Release Verification
 
 - `npm run release:verify` is the automated pre-release gate.
+- `npm run release:verify` now starts by validating repo integrity so CI fails early if required tracked files are missing from the pushed commit.
+- `npm run release:verify` now includes the maintainability guardrail check, so oversized route shells and missing refactor seams fail before a release candidate is built.
+- `npm run release:verify` now includes the UX guardrail check, so live-region misuse, unlabeled shell controls, and overlay/help contract drift fail before release.
+- `npm run release:verify` is intended to work from a clean clone on Windows, macOS, and Linux without relying on machine-specific Git line-ending settings.
 - `RELEASE_CHECKLIST.md` covers the manual clean-install, build-output, and browser-pass steps.
+
+## Repository Hygiene
+
+- Active files under `scripts/` and `tests/` are expected to be tracked in source control.
+- Ignore rules are reserved for generated or machine-local outputs such as `dist/`, `dist-dev/`, `playwright-report/`, `test-results/`, and visual-regression failure artifacts like `tests/snapshots/*.actual.png` and `tests/snapshots/*.diff.png`.
+- Visual regression reference fixtures in `tests/snapshots/*.raw` are part of the tracked test suite.
+- If `npm run release:verify` depends on a local file that is not tracked, treat that as a repo bug and fix the repository state rather than relying on local drift.
+
+## Maintainer Contract
+
+- `npm run release:verify` is the ship gate. If it fails, fix the repo or runtime state before merging or releasing.
+- New routes in `app.js` should default to lazy loading. Keep eager loading only when there is a measured startup reason, and extend direct-route smoke coverage when a route is added or reshaped.
+- When a change touches a known large route shell, prefer landing it in the extracted seam modules first and let the route file remain orchestration.
+- `npm run check:maintainability` is the fast source-level guardrail for those seam locations and hotspot budgets. It also runs inside `npm run check` and CI.
+- `npm run check:ux-guardrails` is the fast source-level guardrail for shell accessibility and help-pattern contracts. Keep blocking overlays on `ui/overlayController.js`, keep tutorial panels non-modal, and do not reintroduce broad live regions on the app shell.
+
+## Refactor Map
+
+- `ui/starPage.js` is the route shell. Guided creation and preset actions live under `ui/star/`.
+- `ui/planetPage.js` is the route shell. Guided flows, preset actions, and render helpers live under `ui/planet/`.
+- `ui/calendarPage.js` is the route shell. Transfer/export flows, detail overlay logic, and rule-editor flows live under `ui/calendar/`.
+- `ui/visualizerPage.js` is the route shell. Route chrome, focus summary rendering, and lower-level rendering helpers live under `ui/visualizer/`.
+- `ui/worldStorage.js` remains the public persistence boundary. IndexedDB, legacy storage, and lifecycle flushing helpers live under `ui/worldStorage/`.
 
 ## Runtime Dependencies
 

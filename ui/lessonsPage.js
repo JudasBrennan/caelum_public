@@ -1,28 +1,25 @@
 /**
- * Lessons page — progressive curriculum teaching the scientific concepts
+ * Lessons page - progressive curriculum teaching the scientific concepts
  * behind every WorldSmith calculator.
  *
  * Architecture mirrors sciencePage.js: lazy KaTeX, collapsible accordion,
- * TOC with unit groupings, and embedded mini-calculators.  A global
+ * TOC with unit groupings, and embedded mini-calculators. A global
  * Basic / Advanced toggle switches every lesson between plain-language
  * explainers and equation-level deep-dives.
  */
 
 import { CURRICULUM } from "./lessons/curriculum.js";
 import { loadKaTeX, renderAllMath } from "./katexLoader.js";
-
-/* ── KaTeX lazy loader (shared pattern with sciencePage) ────── */
-
-/* ── Persistence ──────────────────────────────────────────────── */
+import { scrollIntoViewRespectingMotion } from "./motion.js";
 
 const MODE_KEY = "worldsmith.lessons.mode";
 
 function savedMode() {
   try {
-    const v = localStorage.getItem(MODE_KEY);
-    if (v === "advanced") return "advanced";
+    const value = localStorage.getItem(MODE_KEY);
+    if (value === "advanced") return "advanced";
   } catch {
-    /* ignore */
+    // Ignore localStorage access errors and fall back to the default mode.
   }
   return "basic";
 }
@@ -31,19 +28,17 @@ function saveMode(mode) {
   try {
     localStorage.setItem(MODE_KEY, mode);
   } catch {
-    /* ignore */
+    // Ignore localStorage access errors and keep the mode in memory only.
   }
 }
 
-/* ── HTML builders ────────────────────────────────────────────── */
-
 function buildToc() {
   return CURRICULUM.map(
-    (u) => `
+    (unit) => `
     <div class="les-toc__unit">
-      <div class="les-toc__unit-title">${u.unit}</div>
+      <div class="les-toc__unit-title">${unit.unit}</div>
       <div class="les-toc__links">
-        ${u.lessons.map((l) => `<a class="les-toc__link" data-target="${l.id}">${l.num}. ${l.title}</a>`).join("")}
+        ${unit.lessons.map((lesson) => `<a class="les-toc__link" data-target="${lesson.id}">${lesson.num}. ${lesson.title}</a>`).join("")}
       </div>
     </div>`,
   ).join("");
@@ -51,28 +46,27 @@ function buildToc() {
 
 function buildSections() {
   return CURRICULUM.map(
-    (u) =>
-      `<div class="les-unit-divider">${u.unit}</div>` +
-      u.lessons
+    (unit) =>
+      `<div class="les-unit-divider">${unit.unit}</div>` +
+      unit.lessons
         .map(
-          (l) => `
-      <details class="les-section" id="les-${l.id}">
+          (lesson) => `
+      <details class="les-section" id="les-${lesson.id}">
         <summary class="les-section__summary">
-          <span class="les-section__number">${l.num}</span>
-          <span class="les-section__title">${l.title}</span>
-          <span class="les-section__meta">${l.subtitle}</span>
+          <span class="les-section__number">${lesson.num}</span>
+          <span class="les-section__title">${lesson.title}</span>
+          <span class="les-section__meta">${lesson.subtitle}</span>
         </summary>
-        <div class="les-section__body" data-lesson="${l.id}"></div>
+        <div class="les-section__body" data-lesson="${lesson.id}"></div>
       </details>`,
         )
         .join(""),
   ).join("");
 }
 
-/* ── Page init ────────────────────────────────────────────────── */
-
 export function initLessonsPage(mountEl) {
   let mode = savedMode();
+  let renderSequence = 0;
 
   const wrap = document.createElement("div");
   wrap.className = "page";
@@ -110,66 +104,90 @@ export function initLessonsPage(mountEl) {
   mountEl.innerHTML = "";
   mountEl.appendChild(wrap);
 
-  /* ── Lookup helpers ──────────────────────────────────────── */
+  const allLessons = CURRICULUM.flatMap((unit) => unit.lessons);
+  const lessonById = Object.fromEntries(allLessons.map((lesson) => [lesson.id, lesson]));
 
-  const allLessons = CURRICULUM.flatMap((u) => u.lessons);
-  const lessonById = Object.fromEntries(allLessons.map((l) => [l.id, l]));
-
-  function renderLesson(id) {
+  async function renderLesson(id) {
     const lesson = lessonById[id];
     if (!lesson) return;
+
     const body = wrap.querySelector(`.les-section__body[data-lesson="${id}"]`);
     if (!body) return;
-    body.innerHTML = lesson.build(mode);
-    if (mode === "advanced") {
-      loadKaTeX().then((katex) => renderAllMath(body, katex));
-    }
-    if (lesson.wire) lesson.wire(body);
-  }
 
-  /* ── Accordion (one open at a time) ─────────────────────── */
+    const renderToken = ++renderSequence;
+    body.dataset.lessonState = "loading";
+    body.innerHTML = `<div class="hint">Loading lesson...</div>`;
+
+    let lessonRuntime;
+    try {
+      lessonRuntime = await lesson.load();
+    } catch (error) {
+      if (renderToken !== renderSequence || !body.isConnected) return;
+      body.dataset.lessonState = "error";
+      body.innerHTML = `<div class="hint">Lesson content failed to load.</div>`;
+      console.error(`[WorldSmith] Failed to load lesson ${id}:`, error);
+      return;
+    }
+
+    if (renderToken !== renderSequence || !body.isConnected) return;
+
+    body.innerHTML = lessonRuntime.build(mode);
+    body.dataset.lessonState = "ready";
+
+    try {
+      lessonRuntime.wire?.(body);
+    } catch (error) {
+      console.error(`[WorldSmith] Failed to wire lesson ${id}:`, error);
+    }
+
+    if (mode === "advanced") {
+      void loadKaTeX()
+        .then((katex) => {
+          if (renderToken !== renderSequence || !body.isConnected) return;
+          renderAllMath(body, katex);
+        })
+        .catch((error) => {
+          console.error(`[WorldSmith] Failed to load KaTeX for lesson ${id}:`, error);
+        });
+    }
+  }
 
   const sections = wrap.querySelectorAll(".les-section");
 
-  sections.forEach((det) => {
-    det.addEventListener("toggle", () => {
-      if (!det.open) return;
-      // Close other sections
+  sections.forEach((section) => {
+    section.addEventListener("toggle", () => {
+      if (!section.open) return;
+
       sections.forEach((other) => {
-        if (other !== det && other.open) other.open = false;
+        if (other !== section && other.open) other.open = false;
       });
-      // Render content on first open (or re-render after mode change)
-      const id = det.id.replace("les-", "");
-      renderLesson(id);
-      // Scroll into view
-      det.scrollIntoView({ behavior: "smooth", block: "start" });
+
+      const id = section.id.replace("les-", "");
+      void renderLesson(id);
+      scrollIntoViewRespectingMotion(section, { block: "start" });
     });
   });
 
-  /* ── TOC links ──────────────────────────────────────────── */
-
   wrap.querySelectorAll(".les-toc__link").forEach((link) => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
       const target = link.dataset.target;
-      const det = wrap.querySelector(`#les-${target}`);
-      if (det) {
-        det.open = true;
-        // toggle event handles rendering and scrolling
+      const section = wrap.querySelector(`#les-${target}`);
+      if (section) {
+        section.open = true;
+        // The toggle handler renders the lesson when the section opens.
       }
     });
   });
 
-  /* ── Mode toggle ────────────────────────────────────────── */
-
-  wrap.querySelector("#lessonModeToggle").addEventListener("change", (e) => {
-    mode = e.target.value;
+  wrap.querySelector("#lessonModeToggle").addEventListener("change", (event) => {
+    mode = event.target.value;
     saveMode(mode);
-    // Re-render the currently open section
+
     const openSection = wrap.querySelector(".les-section[open]");
     if (openSection) {
       const id = openSection.id.replace("les-", "");
-      renderLesson(id);
+      void renderLesson(id);
     }
   });
 }
