@@ -27,6 +27,7 @@ export function createCalendarRuleEditorFlows({
   els,
   runtime,
   render,
+  readRenderSnapshot,
   buildContext,
   loadWorld,
   recommendLeapRuleFromOrbit,
@@ -34,6 +35,14 @@ export function createCalendarRuleEditorFlows({
   I,
   clampI,
 }) {
+  const getRenderSnapshot = () =>
+    typeof readRenderSnapshot === "function"
+      ? readRenderSnapshot()
+      : (() => {
+          const world = loadWorld();
+          return { world, ctx: buildContext(world, state) };
+        })();
+
   function updateHolidayEnables() {
     const oneOff = els.holidayRecurrence.value === "one-off";
     const useRelative = !!els.holidayUseRelative.checked;
@@ -461,7 +470,7 @@ export function createCalendarRuleEditorFlows({
     });
 
     els.holidaySave.addEventListener("click", () => {
-      const ctx = buildContext(loadWorld(), state);
+      const { ctx } = getRenderSnapshot();
       const draft = buildHolidayDraft(ctx);
       if (!draft.name) return;
       const holiday = normHolidayRule(draft, 0, ctx.metrics.monthsPerYear);
@@ -483,7 +492,7 @@ export function createCalendarRuleEditorFlows({
       const editBtn = event.target.closest("button[data-cal-holiday-edit]");
       if (editBtn) {
         const id = editBtn.getAttribute("data-cal-holiday-edit");
-        const ctx = buildContext(loadWorld(), state);
+        const { ctx } = getRenderSnapshot();
         const holiday = ctx.holidays.find((entry) => entry.id === id);
         if (!holiday) return;
         loadHolidayIntoForm(holiday);
@@ -500,7 +509,7 @@ export function createCalendarRuleEditorFlows({
     });
 
     els.festivalSave.addEventListener("click", () => {
-      const ctx = buildContext(loadWorld(), state);
+      const { ctx } = getRenderSnapshot();
       const draft = buildFestivalDraft();
       if (!draft.name) return;
       const festival = normFestivalRule(draft, 0, ctx.metrics.monthsPerYear);
@@ -522,7 +531,7 @@ export function createCalendarRuleEditorFlows({
       const editBtn = event.target.closest("button[data-cal-festival-edit]");
       if (editBtn) {
         const id = editBtn.getAttribute("data-cal-festival-edit");
-        const ctx = buildContext(loadWorld(), state);
+        const { ctx } = getRenderSnapshot();
         const festival = ctx.festivals.find((entry) => entry.id === id);
         if (!festival) return;
         loadFestivalIntoForm(festival, ctx);
@@ -577,7 +586,7 @@ export function createCalendarRuleEditorFlows({
     });
 
     els.leapAdd.addEventListener("click", () => {
-      const ctx = buildContext(loadWorld(), state);
+      const { ctx } = getRenderSnapshot();
       const rule = {
         id: createId("leap"),
         name: String(els.leapName.value || "").trim() || "Leap Rule",
@@ -600,7 +609,7 @@ export function createCalendarRuleEditorFlows({
     });
 
     els.leapSuggest.addEventListener("click", () => {
-      const ctx = buildContext(loadWorld(), state);
+      const { ctx } = getRenderSnapshot();
       const suggestion = recommendLeapRuleFromOrbit(ctx);
       if (!suggestion?.ok) {
         setLeapStatus(suggestion?.message || "Could not compute a leap rule suggestion.", "warn");

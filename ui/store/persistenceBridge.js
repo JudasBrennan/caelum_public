@@ -16,8 +16,23 @@ import {
 } from "../worldStorage.js";
 
 const WORLD_CHANGED_EVENT = "worldsmith:worldChanged";
+const GUIDED_SESSION_STORAGE_PREFIX = "worldsmith.guidedCreation.session.";
+const GUIDED_LAUNCH_SESSION_KEY = "worldsmith.guidedCreation.launch";
 
 let volatileWorldRaw = null;
+let volatileWorldRevision = 0;
+
+function setVolatileWorldRaw(raw) {
+  volatileWorldRaw = typeof raw === "string" && raw ? raw : null;
+  volatileWorldRevision += 1;
+  return volatileWorldRevision;
+}
+
+function restoreVolatileWorldRawIfUnchanged(revision) {
+  if (revision !== volatileWorldRevision) return false;
+  setVolatileWorldRaw(readStoredWorldRawSync().raw);
+  return true;
+}
 
 function dispatchWorldChanged() {
   try {
@@ -39,6 +54,41 @@ function clearLegacyWorldsmithLocalStorageKeys() {
       } catch {}
     }
   } catch {}
+}
+
+export function clearOwnedSessionStorageKeys() {
+  try {
+    if (
+      typeof sessionStorage?.length !== "number" ||
+      typeof sessionStorage?.key !== "function" ||
+      typeof sessionStorage?.removeItem !== "function"
+    ) {
+      return 0;
+    }
+
+    const toRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (!key) continue;
+      if (
+        key === GUIDED_LAUNCH_SESSION_KEY ||
+        String(key).startsWith(GUIDED_SESSION_STORAGE_PREFIX)
+      ) {
+        toRemove.push(key);
+      }
+    }
+
+    let removedCount = 0;
+    for (const key of toRemove) {
+      try {
+        sessionStorage.removeItem(key);
+        removedCount += 1;
+      } catch {}
+    }
+    return removedCount;
+  } catch {
+    return 0;
+  }
 }
 
 export function hasSavedWorldInLocalStorage() {
@@ -65,7 +115,7 @@ export function readWorldRaw() {
 }
 
 export function saveWorldRaw(raw, options = {}) {
-  volatileWorldRaw = raw;
+  setVolatileWorldRaw(raw);
   void setStoredWorldRaw(raw, { immediate: options.immediate === true });
   dispatchWorldChanged();
   return true;
@@ -90,29 +140,42 @@ export function createBackup(maxKeep = 5) {
 export function restoreBackup(id) {
   const restored = restoreStoredBackup(id);
   if (!restored) return false;
-  volatileWorldRaw = readStoredWorldRawSync().raw;
+  setVolatileWorldRaw(readStoredWorldRawSync().raw);
   dispatchWorldChanged();
   return true;
 }
 
-export function clearAllSavedData() {
-  const removed = clearStoredWorldData();
-  clearLegacyWorldsmithLocalStorageKeys();
-  volatileWorldRaw = null;
+export async function clearAllSavedData() {
+  const clearRevision = setVolatileWorldRaw(null);
+  const result = await clearStoredWorldData();
+  if (!result?.ok) {
+    restoreVolatileWorldRawIfUnchanged(clearRevision);
+    return result;
+  }
+  const shouldClearLegacyKeys = clearRevision === volatileWorldRevision;
+  if (shouldClearLegacyKeys) {
+    clearLegacyWorldsmithLocalStorageKeys();
+  }
+  const clearedSessionStorageCount = shouldClearLegacyKeys ? clearOwnedSessionStorageKeys() : 0;
   dispatchWorldChanged();
-  return removed;
+  return {
+    ...result,
+    clearedSessionStorageCount,
+  };
 }
 
 export async function clearCurrentSavedWorld() {
+  const clearRevision = setVolatileWorldRaw(null);
   const result = await clearStoredCurrentWorldData();
   if (result?.ok) {
-    volatileWorldRaw = null;
     dispatchWorldChanged();
+  } else {
+    restoreVolatileWorldRawIfUnchanged(clearRevision);
   }
   return result;
 }
 
 export async function resetStorePersistenceForTests(options = {}) {
-  volatileWorldRaw = null;
+  setVolatileWorldRaw(null);
   await __resetWorldStorageForTests(options);
 }

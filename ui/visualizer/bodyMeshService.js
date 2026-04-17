@@ -2,23 +2,30 @@ import { clamp } from "../../engine/utils.js";
 import { normalizeAxialTiltDeg } from "./projectionMath.js";
 import {
   previewPbrMaterial,
-  createCanvasTexture,
   generateCelestialTextureCanvasesLocal,
-  buildDescriptorSignature,
+  buildCelestialTextureSignature,
   getCachedTextures,
   cacheTextures,
-  makeFlatMapCanvas,
   hasLayer,
   shouldFlattenStyleMaps,
   loadFromIDBToCache,
 } from "../celestialVisualPreview.js";
 import {
-  requestCelestialTextureBundle,
-  canvasFromMapPayload,
-  supportsCelestialTextureWorker,
-} from "../celestialTextureWorkerClient.js";
+  isCelestialTextureJobCanceledError,
+  requestQueuedCelestialTextureMaps,
+} from "../celestialTextureJobQueue.js";
+import {
+  acquireRendererTextureBundle,
+  disposeRendererTextureBundleCache,
+  releaseRendererTextureBundle,
+} from "../rendererTextureBundleCache.js";
 import { composeCelestialDescriptor } from "../celestialComposer.js";
-import { renderRingStripTextures } from "../ringTextureGenerator.js";
+import {
+  acquireRingTextureBundle,
+  disposeRendererRingTextureBundleCache,
+  getOrCreateRingTexturePayload,
+  releaseRingTextureBundle,
+} from "../ringTextureCache.js";
 import {
   createRingLightingMaterial,
   updateRingLightingMaterial,
@@ -29,6 +36,7 @@ import {
   clearRingShadowBodyPatch,
   updateRingShadowBodyUniforms,
 } from "../ringShadowBodyPatch.js";
+import { recordCelestialTextureFulfillment } from "../celestialPerfDebug.js";
 
 export const BODY_MESH_MIN_PX = 4;
 
@@ -41,7 +49,7 @@ export function vizBodyCacheKey(type, body) {
 }
 
 export function collectBodyMeshWarmItems(snapshot, options = {}) {
-  const { hasKey = () => false } = options;
+  const { hasKey = () => false, includeMoons = true } = options;
   const needed = [];
 
   for (const planet of snapshot.planetNodes || []) {
@@ -74,24 +82,86 @@ export function collectBodyMeshWarmItems(snapshot, options = {}) {
     needed.push({ key, model });
   }
 
-  for (const parent of [...(snapshot.planetNodes || []), ...(snapshot.gasGiants || [])]) {
-    for (const moon of parent.moons || []) {
-      if (!moon.moonCalc) continue;
-      const key = vizBodyCacheKey("moon", moon);
-      const model = {
-        bodyType: "moon",
-        moonCalc: moon.moonCalc,
-        axialTiltDeg: normalizeAxialTiltDeg(moon.axialTiltDeg),
-      };
-      if (hasKey(key, model)) continue;
-      needed.push({ key, model });
+  if (includeMoons) {
+    for (const parent of [...(snapshot.planetNodes || []), ...(snapshot.gasGiants || [])]) {
+      for (const moon of parent.moons || []) {
+        if (!moon.moonCalc) continue;
+        const key = vizBodyCacheKey("moon", moon);
+        const model = {
+          bodyType: "moon",
+          moonCalc: moon.moonCalc,
+          axialTiltDeg: normalizeAxialTiltDeg(moon.axialTiltDeg),
+        };
+        if (hasKey(key, model)) continue;
+        needed.push({ key, model });
+      }
     }
   }
 
   return needed;
 }
 
-function buildBodyModelSignature(model) {
+function normalizeExplicitWarmItems(items, hasKey = () => false) {
+  const list = Array.isArray(items) ? items : [];
+  const needed = [];
+  const seen = new Set();
+  for (const item of list) {
+    const key = String(item?.key || "");
+    const model = item?.model || null;
+    if (!key || !model || seen.has(key)) continue;
+    seen.add(key);
+    if (hasKey(key, model)) continue;
+    needed.push({ key, model });
+  }
+  return needed;
+}
+
+function createEntryReadyPromise() {
+  let resolveReady = null;
+  const promise = new Promise((resolve) => {
+    resolveReady = resolve;
+  });
+  return { promise, resolveReady };
+}
+
+function settleEntryTexturesReady(entry, ready = true) {
+  if (!entry || entry._texturesReadySettled) return;
+  entry._texturesReadySettled = true;
+  entry._resolveTexturesReady?.(ready === true);
+  entry._resolveTexturesReady = null;
+}
+
+function waitForWarmBatchYield(options = {}) {
+  const delayMsRaw = Number(options.yieldDelayMs);
+  const delayMs = Number.isFinite(delayMsRaw) && delayMsRaw > 0 ? delayMsRaw : 0;
+  return new Promise((resolve) => {
+    const finish = () => {
+      if (delayMs > 0 && typeof setTimeout === "function") {
+        setTimeout(resolve, delayMs);
+      } else {
+        resolve();
+      }
+    };
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => finish());
+      return;
+    }
+    if (typeof setTimeout === "function") {
+      setTimeout(resolve, delayMs);
+      return;
+    }
+    resolve();
+  });
+}
+
+function buildWarmItemsSignature(items) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => String(item?.key || ""))
+    .filter(Boolean)
+    .join("|");
+}
+
+export function buildBodyStructuralSignature(model) {
   return JSON.stringify({
     bodyType: model?.bodyType || "",
     styleId: model?.styleId || "",
@@ -102,7 +172,6 @@ function buildBodyModelSignature(model) {
     gasCalc: model?.gasCalc || null,
     visualProfile: model?.visualProfile || null,
     moonCalc: model?.moonCalc || null,
-    axialTiltDeg: Number(model?.axialTiltDeg) || 0,
   });
 }
 
@@ -128,20 +197,19 @@ function createRingGeometry(THREE, inner, outer, segments = 192) {
   return remapRingGeometryUv(geometry, inner, outer);
 }
 
-function createRingTextures(THREE, ringDescriptor) {
-  if (!ringDescriptor) return { colorTex: null, alphaTex: null };
-  const maps = renderRingStripTextures({
-    appearance: ringDescriptor,
+function createRingTextureBundle(nativeThree, ringDescriptor) {
+  if (!nativeThree?.renderer || !nativeThree?.THREE || !ringDescriptor) return null;
+  const ringTextures = getOrCreateRingTexturePayload(ringDescriptor, {
     width: 1024,
     height: 32,
   });
-  const colorTex = createCanvasTexture(THREE, maps.colourCanvas, { srgb: true });
-  const alphaTex = createCanvasTexture(THREE, maps.alphaCanvas);
-  colorTex.wrapS = THREE.ClampToEdgeWrapping;
-  colorTex.wrapT = THREE.RepeatWrapping;
-  alphaTex.wrapS = THREE.ClampToEdgeWrapping;
-  alphaTex.wrapT = THREE.RepeatWrapping;
-  return { colorTex, alphaTex };
+  if (!ringTextures?.signature || !ringTextures.payload) return null;
+  return acquireRingTextureBundle({
+    renderer: nativeThree.renderer,
+    THREE: nativeThree.THREE,
+    ringTextureSignature: ringTextures.signature,
+    payload: ringTextures.payload,
+  });
 }
 
 function refreshRingLightingForEntry(entry, nativeThree, lightDirectionWorld = null) {
@@ -257,6 +325,8 @@ export function createBodyMeshService(options = {}) {
 
   let sharedGeo = null;
   let bodyMeshWarmGen = 0;
+  let activeWarmPromise = null;
+  let activeWarmSignature = "";
   const bodyMeshCache = new Map();
   const posHelpers = {
     axisQuat: null,
@@ -319,45 +389,37 @@ export function createBodyMeshService(options = {}) {
     entry.haze.geometry = lod === "high" ? sharedGeo.hazeHigh : sharedGeo.hazeLow;
   }
 
-  function applyMapsToEntry(THREE, entry, maps, descriptor) {
+  function applyMapsToEntry(THREE, entry, textureSignature, maps, descriptor) {
     const nativeThree = getRuntime();
     if (!nativeThree || isDisposed()) return;
-    const textureSize = maps.surface?.width || descriptor.textureSize || 128;
-    const normalCanvas =
-      maps.normal || makeFlatMapCanvas(textureSize, textureSize, [128, 128, 255, 255]);
-    const roughnessCanvas =
-      maps.roughness || makeFlatMapCanvas(textureSize, textureSize, [180, 180, 180, 255]);
-    const emissiveCanvas =
-      maps.emissive || makeFlatMapCanvas(textureSize, textureSize, [0, 0, 0, 255]);
+    if (entry.textureBundle?.signature === textureSignature) {
+      entry.pendingTextureSignature = textureSignature;
+      entry.texturesReady = true;
+      if (textureSignature === entry.finalTextureSignature) settleEntryTexturesReady(entry, true);
+      return;
+    }
     const maxAniso = nativeThree.renderer?.capabilities?.getMaxAnisotropy?.() || 1;
     const aniso = clamp(Math.round(maxAniso), 1, 8);
+    const nextBundle = acquireRendererTextureBundle({
+      renderer: nativeThree.renderer,
+      THREE,
+      textureSignature,
+      maps,
+      anisotropy: aniso,
+    });
+    if (!nextBundle) return;
 
-    if (entry._textures) {
-      for (const texture of entry._textures) {
-        try {
-          texture?.dispose?.();
-        } catch {}
-      }
-    }
-
-    const surfTex = createCanvasTexture(THREE, maps.surface, { srgb: true });
-    const cloudTex = createCanvasTexture(THREE, maps.cloud, { srgb: true });
-    const normTex = createCanvasTexture(THREE, normalCanvas);
-    const roughTex = createCanvasTexture(THREE, roughnessCanvas);
-    const emisTex = createCanvasTexture(THREE, emissiveCanvas, { srgb: true });
-    for (const texture of [surfTex, cloudTex, normTex, roughTex, emisTex]) {
-      texture.anisotropy = aniso;
-      texture.premultiplyAlpha = false;
-    }
-
-    entry._textures = [surfTex, cloudTex, normTex, roughTex, emisTex];
+    const prevBundle = entry.textureBundle;
+    entry.textureBundle = nextBundle;
+    entry.textureBundleSignature = nextBundle.signature;
+    entry.textureBundleRenderer = nativeThree.renderer;
 
     const mat = entry.bodyMat;
     mat.color.set(0xffffff);
-    mat.map = surfTex;
-    mat.normalMap = normTex;
-    mat.roughnessMap = roughTex;
-    mat.emissiveMap = emisTex;
+    mat.map = nextBundle.surface;
+    mat.normalMap = nextBundle.normal;
+    mat.roughnessMap = nextBundle.roughness;
+    mat.emissiveMap = nextBundle.emissive;
     mat.emissive?.set?.("#ffffff");
     mat.needsUpdate = true;
 
@@ -403,23 +465,36 @@ export function createBodyMeshService(options = {}) {
     }
     mat.emissiveIntensity = warmEmissive ? 0.72 : coolEmissive ? 0.48 : 0.08;
 
-    entry.cloudMat.map = cloudTex;
-    entry.cloudMat.alphaMap = cloudTex;
+    entry.cloudMat.map = nextBundle.cloud;
+    entry.cloudMat.alphaMap = nextBundle.cloud;
     entry.cloudMat.needsUpdate = true;
     entry.texturesReady = true;
+    if (textureSignature === entry.finalTextureSignature) settleEntryTexturesReady(entry, true);
+    if (prevBundle && prevBundle !== nextBundle) {
+      releaseRendererTextureBundle({
+        renderer: nativeThree.renderer,
+        textureSignature: prevBundle.signature,
+      });
+    }
   }
 
   async function generateBodyTextures(entry) {
     const nativeThree = getRuntime();
-    if (!nativeThree || isDisposed()) return;
+    if (!nativeThree || isDisposed()) {
+      settleEntryTexturesReady(entry, false);
+      return;
+    }
     const THREE = nativeThree.THREE;
     const descriptor = entry.descriptor;
     const textureSize = descriptor.textureSize || 128;
-    const signature = buildDescriptorSignature(descriptor, textureSize);
+    const signature = buildCelestialTextureSignature(descriptor, textureSize);
+    const entryIsActive = () => !!getRuntime() && !isDisposed() && !entry?.disposed;
 
     let maps = getCachedTextures(signature);
     if (maps) {
-      applyMapsToEntry(THREE, entry, maps, descriptor);
+      recordCelestialTextureFulfillment("memory", { scope: "body-mesh" });
+      entry.pendingTextureSignature = signature;
+      applyMapsToEntry(THREE, entry, signature, maps, descriptor);
       return;
     }
 
@@ -427,68 +502,119 @@ export function createBodyMeshService(options = {}) {
       if (!getRuntime() || isDisposed()) return;
       maps = getCachedTextures(signature);
       if (maps) {
-        applyMapsToEntry(THREE, entry, maps, descriptor);
+        recordCelestialTextureFulfillment("indexedDB", { scope: "body-mesh" });
+        entry.pendingTextureSignature = signature;
+        applyMapsToEntry(THREE, entry, signature, maps, descriptor);
         return;
       }
     }
 
     const tinyDesc = composeCelestialDescriptor(entry.model, { lod: "tiny" });
-    const tinySig = buildDescriptorSignature(tinyDesc, tinyDesc.textureSize || 64);
+    const tinySig = buildCelestialTextureSignature(tinyDesc, tinyDesc.textureSize || 64);
     let tinyMaps = getCachedTextures(tinySig);
     if (!tinyMaps) {
-      tinyMaps = generateCelestialTextureCanvasesLocal(tinyDesc, tinyDesc.textureSize || 64);
+      try {
+        tinyMaps = await requestQueuedCelestialTextureMaps({
+          signature: tinySig,
+          descriptor: tinyDesc,
+          textureSize: tinyDesc.textureSize || 64,
+          perfScope: "body-mesh-placeholder",
+          priority: "high",
+          shouldContinue: entryIsActive,
+          localFactory: generateCelestialTextureCanvasesLocal,
+          allowWorker: false,
+        });
+      } catch (error) {
+        if (!isCelestialTextureJobCanceledError(error)) {
+          /* placeholder generation is best-effort */
+        }
+        settleEntryTexturesReady(entry, false);
+        return;
+      }
+      if (!tinyMaps) {
+        settleEntryTexturesReady(entry, false);
+        return;
+      }
       cacheTextures(tinySig, tinyMaps);
     }
-    if (!getRuntime() || isDisposed()) return;
-    applyMapsToEntry(THREE, entry, tinyMaps, descriptor);
+    if (!entryIsActive()) return;
+    entry.pendingTextureSignature = tinySig;
+    applyMapsToEntry(THREE, entry, tinySig, tinyMaps, descriptor);
 
-    if (supportsCelestialTextureWorker()) {
-      try {
-        const result = await requestCelestialTextureBundle({
-          signature,
-          descriptor,
-          textureSize,
-        });
-        if (!getRuntime() || isDisposed()) return;
-        const workerMaps = {
-          surface: canvasFromMapPayload(result?.maps?.surface),
-          cloud: canvasFromMapPayload(result?.maps?.cloud),
-          normal: canvasFromMapPayload(result?.maps?.normal),
-          roughness: canvasFromMapPayload(result?.maps?.roughness),
-          emissive: canvasFromMapPayload(result?.maps?.emissive),
-        };
-        if (workerMaps.surface && workerMaps.cloud && workerMaps.normal) {
-          cacheTextures(signature, workerMaps);
-          applyMapsToEntry(THREE, entry, workerMaps, descriptor);
-          return;
-        }
-      } catch {
-        // Fall through to local generation.
+    try {
+      maps = await requestQueuedCelestialTextureMaps({
+        signature,
+        descriptor,
+        textureSize,
+        perfScope: "body-mesh",
+        priority: "medium",
+        shouldContinue: entryIsActive,
+        localFactory: generateCelestialTextureCanvasesLocal,
+      });
+    } catch (error) {
+      if (!isCelestialTextureJobCanceledError(error)) {
+        /* texture generation is best-effort */
       }
+      settleEntryTexturesReady(entry, false);
+      return;
     }
-
-    if (!getRuntime() || isDisposed()) return;
-    maps = generateCelestialTextureCanvasesLocal(descriptor, textureSize);
+    if (!entryIsActive()) {
+      settleEntryTexturesReady(entry, false);
+      return;
+    }
     cacheTextures(signature, maps);
-    applyMapsToEntry(THREE, entry, maps, descriptor);
+    entry.pendingTextureSignature = signature;
+    applyMapsToEntry(THREE, entry, signature, maps, descriptor);
+  }
+
+  function releaseEntryTextureBundle(entry, renderer = null) {
+    const targetRenderer = renderer || entry?.textureBundleRenderer || null;
+    if (!entry?.textureBundle?.signature || !targetRenderer) {
+      if (entry) {
+        entry.textureBundle = null;
+        entry.textureBundleSignature = "";
+        entry.pendingTextureSignature = "";
+        entry.textureBundleRenderer = null;
+      }
+      return;
+    }
+    releaseRendererTextureBundle({
+      renderer: targetRenderer,
+      textureSignature: entry.textureBundle.signature,
+    });
+    entry.textureBundle = null;
+    entry.textureBundleSignature = "";
+    entry.pendingTextureSignature = "";
+    entry.textureBundleRenderer = null;
+  }
+
+  function releaseEntryRingTextureBundle(entry, renderer = null) {
+    const targetRenderer = renderer || entry?.ringTextureBundleRenderer || null;
+    if (!entry?.ringTextureBundle?.signature || !targetRenderer) {
+      if (entry) {
+        entry.ringTextureBundle = null;
+        entry.ringTextureSignature = "";
+        entry.ringTextureBundleRenderer = null;
+        entry._ringTextures = null;
+      }
+      return;
+    }
+    releaseRingTextureBundle({
+      renderer: targetRenderer,
+      bundle: entry.ringTextureBundle,
+    });
+    entry.ringTextureBundle = null;
+    entry.ringTextureSignature = "";
+    entry.ringTextureBundleRenderer = null;
+    entry._ringTextures = null;
   }
 
   function disposeBodyMeshEntry(key, entry) {
     if (!entry) return;
-    if (entry._textures) {
-      for (const texture of entry._textures) {
-        try {
-          texture?.dispose?.();
-        } catch {}
-      }
-    }
-    if (entry._ringTextures) {
-      for (const texture of entry._ringTextures) {
-        try {
-          texture?.dispose?.();
-        } catch {}
-      }
-    }
+    entry.disposed = true;
+    settleEntryTexturesReady(entry, false);
+    releaseEntryTextureBundle(entry, getRuntime()?.renderer || null);
+    releaseEntryRingTextureBundle(entry, getRuntime()?.renderer || null);
     for (const mat of [entry.bodyMat, entry.cloudMat, entry.hazeMat, entry.ringMat]) {
       try {
         mat?.dispose?.();
@@ -510,7 +636,7 @@ export function createBodyMeshService(options = {}) {
     if (!nativeThree || !sharedGeo) return null;
     const THREE = nativeThree.THREE;
     const descriptor = composeCelestialDescriptor(model, { lod: "low" });
-    const modelSignature = buildBodyModelSignature(model);
+    const modelSignature = buildBodyStructuralSignature(model);
     const group = new THREE.Group();
     group.visible = false;
 
@@ -565,18 +691,18 @@ export function createBodyMeshService(options = {}) {
 
     let ring = null;
     let ringMat = null;
-    let ringTextures = null;
+    let ringTextureBundle = null;
     if (descriptor.ring?.enabled) {
       const inner = clamp(Number(descriptor.ring.inner) || 1.22, 1.1, 2.5);
       const outer = clamp(Number(descriptor.ring.outer) || 1.95, inner + 0.05, 3.2);
       const ringGeom = createRingGeometry(THREE, inner, outer, 192);
-      ringTextures = createRingTextures(THREE, descriptor.ring);
+      ringTextureBundle = createRingTextureBundle(nativeThree, descriptor.ring);
 
       ringMat = createRingLightingMaterial(THREE);
       updateRingLightingMaterial({
         material: ringMat,
-        colourTexture: ringTextures.colorTex,
-        alphaTexture: ringTextures.alphaTex,
+        colourTexture: ringTextureBundle?.colorTex || null,
+        alphaTexture: ringTextureBundle?.alphaTex || null,
         ringDescriptor: descriptor.ring,
       });
       ring = new THREE.Mesh(ringGeom, ringMat);
@@ -600,38 +726,104 @@ export function createBodyMeshService(options = {}) {
       descriptor,
       model,
       modelSignature,
+      cacheKey: key,
+      disposed: false,
+      textureBundle: null,
+      textureBundleSignature: "",
+      textureBundleRenderer: null,
+      ringTextureBundle,
+      ringTextureSignature: ringTextureBundle?.signature || "",
+      ringTextureBundleRenderer: ringTextureBundle ? nativeThree.renderer : null,
+      pendingTextureSignature: "",
       texturesReady: false,
+      finalTextureSignature: buildCelestialTextureSignature(
+        descriptor,
+        descriptor.textureSize || 128,
+      ),
+      texturesReadyPromise: null,
+      _resolveTexturesReady: null,
+      _texturesReadySettled: false,
       lod: "low",
-      _ringTextures: ringTextures ? [ringTextures.colorTex, ringTextures.alphaTex] : null,
+      _ringTextures: ringTextureBundle
+        ? [ringTextureBundle.colorTex, ringTextureBundle.alphaTex]
+        : null,
     };
+    const readySignal = createEntryReadyPromise();
+    entry.texturesReadyPromise = readySignal.promise;
+    entry._resolveTexturesReady = readySignal.resolveReady;
     bodyMeshCache.set(key, entry);
     void generateBodyTextures(entry);
     return entry;
   }
 
-  async function warmBodyMeshes(snapshot) {
+  async function warmBodyMeshes(snapshot, options = {}) {
     if (!getRuntime() || isDisposed()) return;
     ensureSharedGeo();
-    const gen = ++bodyMeshWarmGen;
-    const needed = collectBodyMeshWarmItems(snapshot, {
-      hasKey(key, model) {
-        const entry = bodyMeshCache.get(key);
-        return !!entry && entry.modelSignature === buildBodyModelSignature(model);
-      },
-    });
-    for (const item of needed) {
-      if (gen !== bodyMeshWarmGen || isDisposed()) return;
-      const existing = bodyMeshCache.get(item.key);
-      if (existing) disposeBodyMeshEntry(item.key, existing);
-      createBodyMeshEntry(item.model, item.key);
+    const hasKey = (key, model) => {
+      const entry = bodyMeshCache.get(key);
+      return !!entry && entry.modelSignature === buildBodyStructuralSignature(model);
+    };
+    const needed = Array.isArray(options.items)
+      ? normalizeExplicitWarmItems(options.items, hasKey)
+      : collectBodyMeshWarmItems(snapshot, {
+          includeMoons: options.includeMoons !== false,
+          hasKey,
+        });
+    if (!needed.length) return;
+    const warmSignature = buildWarmItemsSignature(needed);
+    if (activeWarmPromise && warmSignature && activeWarmSignature === warmSignature) {
+      return activeWarmPromise;
     }
+    const gen = ++bodyMeshWarmGen;
+    const maxBatchItemsRaw = Number(options.maxBatchItems);
+    const maxBatchItems =
+      Number.isFinite(maxBatchItemsRaw) && maxBatchItemsRaw > 0
+        ? Math.round(maxBatchItemsRaw)
+        : needed.length;
+    const shouldYieldBetweenBatches =
+      options.yieldBetweenBatches !== false && maxBatchItems < needed.length;
+    const warmPromise = (async () => {
+      for (let start = 0; start < needed.length; start += maxBatchItems) {
+        if (gen !== bodyMeshWarmGen || isDisposed()) return;
+        const batch = needed.slice(start, start + maxBatchItems);
+        const batchEntries = [];
+        for (const item of batch) {
+          if (gen !== bodyMeshWarmGen || isDisposed()) return;
+          const existing = bodyMeshCache.get(item.key);
+          if (existing) disposeBodyMeshEntry(item.key, existing);
+          const entry = createBodyMeshEntry(item.model, item.key);
+          if (entry?.texturesReadyPromise) batchEntries.push(entry);
+        }
+        if (batchEntries.length) {
+          await Promise.all(batchEntries.map((entry) => entry.texturesReadyPromise));
+        }
+        if (gen !== bodyMeshWarmGen || isDisposed()) return;
+        if (shouldYieldBetweenBatches && start + maxBatchItems < needed.length) {
+          await waitForWarmBatchYield(options);
+        }
+      }
+    })().finally(() => {
+      if (activeWarmPromise === warmPromise) {
+        activeWarmPromise = null;
+        activeWarmSignature = "";
+      }
+    });
+    activeWarmSignature = warmSignature;
+    activeWarmPromise = warmPromise;
+    return warmPromise;
   }
 
   function disposeBodyMeshCache() {
+    bodyMeshWarmGen += 1;
+    activeWarmPromise = null;
+    activeWarmSignature = "";
     for (const [, entry] of bodyMeshCache) {
       disposeBodyMeshEntry("", entry);
     }
     bodyMeshCache.clear();
+    const renderer = getRuntime()?.renderer || null;
+    if (renderer) disposeRendererTextureBundleCache(renderer);
+    if (renderer) disposeRendererRingTextureBundleCache(renderer);
   }
 
   function positionBodyMesh(options) {
@@ -652,7 +844,7 @@ export function createBodyMeshService(options = {}) {
     if (!nativeThree) return null;
 
     let entry = bodyMeshCache.get(key);
-    const modelSignature = buildBodyModelSignature(model);
+    const modelSignature = buildBodyStructuralSignature(model);
     if (entry && entry.modelSignature !== modelSignature) {
       disposeBodyMeshEntry(key, entry);
       entry = null;

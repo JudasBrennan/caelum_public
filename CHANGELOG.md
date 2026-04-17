@@ -4,6 +4,128 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.2.0 - 2026-04-17
+
+### Celestial Render Performance Plan
+
+**Completed the celestial render performance plan with split cache signatures, shared texture job scheduling, immutable texture payloads, renderer-local GPU bundle reuse, shared ring caching, direct data-texture upload support, and budgeted visible-first warm-up across previews, the visualizer, poster prewarm, and guided flows**
+(CELESTIAL_RENDER_PERFORMANCE_PLAN.md, ui/celestialVisualPreview.js,
+ui/celestialTextureWorker.js, ui/celestialTextureWorkerClient.js,
+ui/textureCache.js, ui/systemPosterNativeThree.js,
+ui/visualizer/bodyMeshService.js, ui/visualizerPage.js,
+ui/celestialPerfDebug.js, ui/celestialTextureJobQueue.js,
+ui/celestialTexturePayloads.js, ui/rendererTextureBundleCache.js,
+ui/ringTextureCache.js, ui/visualizer/renderBudget.js,
+ui/visualizer/visibleWarmup.js, tests/celestialPerfDebug.test.js,
+tests/celestialTextureJobQueue.test.js,
+tests/celestialTexturePayloads.test.js,
+tests/rendererTextureBundleCache.test.js, tests/ringTextureCache.test.js,
+tests/visualizerRenderBudget.test.js)
+
+The celestial render pipeline now separates texture, runtime,
+ring-appearance, and ring-geometry identity so axial tilt, spin, ring
+orientation, and other runtime-only edits no longer invalidate cached
+body maps or force visualizer mesh recreation. Preview, visualizer, and
+prewarm flows now route texture work through a shared priority queue
+with bounded worker and fallback concurrency, stale-result suppression,
+and visible/focused-body preference instead of unbounded parallel
+fan-out.
+
+Texture storage also moved away from clone-on-read canvas caching.
+Worker, memory-cache, and IndexedDB paths now share immutable RGBA
+payloads that can be reused directly, and preview/visualizer renderers
+now acquire renderer-local texture bundles so same-signature renders
+avoid rebuilding and re-uploading identical GPU assets. Ring strip
+generation now follows the same shared cache model across preview and
+visualizer, and the upload path can create `THREE.DataTexture`s
+directly from payload buffers while keeping canvas fallback behavior
+for compatibility.
+
+The visualizer warm-up pass is now budgeted and view-aware rather than
+snapshot-wide. Focused and large on-screen bodies warm first,
+background work yields between batches, poster and recipe prewarm flows
+respect the same queue behavior, and dev-only celestial performance
+helpers now expose cache-hit, queue, reuse, and timing metrics for
+verification.
+
+**Tests** (tests/celestialVisual.test.js, tests/importExport.test.js,
+tests/visualizerBodyMeshService.test.js,
+tests/visualizerNativeLabelLayer.test.js,
+tests/celestialPerfDebug.test.js,
+tests/celestialTextureJobQueue.test.js,
+tests/celestialTexturePayloads.test.js,
+tests/rendererTextureBundleCache.test.js, tests/ringTextureCache.test.js,
+tests/visualizerRenderBudget.test.js)
+
+- Added dedicated regressions for signature stability, queue
+  dedupe/concurrency, payload normalization and cache round-trips,
+  renderer-local bundle refcounting/reuse, ring payload reuse, and
+  warm-up prioritization and budget behavior.
+- Kept existing preview, visualizer, import/export, and poster/browser
+  coverage green while landing the pipeline changes.
+
+### Route-Shell And Storage Hardening Follow-Up
+
+**Hardened printable calendar export, extracted the next planet and calendar route-shell seams, and moved destructive world-storage clear/reset flows into a dedicated storage helper so the maintainability guardrails are green again**
+(ui/calendar/transferFlows.js, tests/calendarTransferFlows.test.js,
+ui/planet/hostFrame.js, ui/planet/bodyAppearance.js, ui/planetPage.js,
+ui/calendar/renderContext.js, ui/calendar/profileState.js,
+ui/calendar/renderSnapshot.js, ui/calendar/renderHelpers.js,
+ui/calendar/ruleEditorFlows.js, ui/calendarPage.js,
+ui/worldStorage/clearOperations.js, ui/worldStorage.js,
+tests/calendarPage.ui.test.js, tests/calendarPage.data.ui.test.js,
+tests/inputDraftStability.ui.test.js,
+tests/rockyGuidedCreation.ui.test.js,
+tests/gasGiantGuidedCreation.ui.test.js,
+tests/deleteConfirmation.ui.test.js, tests/planetStore.test.js,
+tests/guidedRoutes.ui.test.js,
+tests/guidedSessionPersistence.ui.test.js,
+tests/worldStorage.test.js, tests/importExportPage.ui.test.js,
+tests/appStorageUi.ui.test.js)
+
+Calendar printable export now opens its popup with
+`noopener,noreferrer`, prefers a blob/object-URL printable document
+instead of writing directly into the child window, and still falls back
+to downloading a printable HTML file when the browser blocks popup
+creation. The user-facing print-to-PDF flow and status messaging remain
+the same, but the unsafe popup/document-write path is no longer the
+primary route.
+
+The planet and calendar route shells also shed another large tranche of
+high-churn logic. Planet host-frame resolution, host-frame summaries,
+luminosity formatting, brown-dwarf companion presentation, gas-giant and
+rocky appearance derivation, and ring-display helpers now live under
+`ui/planet/`, while the Calendar page now delegates render-context
+assembly, profile activation/snapshot handling, month-model helper
+summaries, and repeated `buildContext(loadWorld(), state)` access to
+seam modules under `ui/calendar/` instead of keeping those concerns in a
+single route shell.
+
+This pass also cleared the remaining maintainability red signal in the
+storage facade. World-save clear, unreadable-save recovery, durable
+clear rollback, and test reset/rebootstrap flows now live in
+`ui/worldStorage/clearOperations.js`, leaving `ui/worldStorage.js`
+focused on bootstrap, cached reads, and scheduled persistence. That
+reduced the facade from 664 lines to 526 lines and brought the
+maintainability check back to green without changing the public storage
+API.
+
+**Tests** (`node scripts/check-maintainability.mjs`,
+tests/calendarTransferFlows.test.js, tests/calendarPage.ui.test.js,
+tests/calendarPage.data.ui.test.js, tests/inputDraftStability.ui.test.js,
+tests/rockyGuidedCreation.ui.test.js,
+tests/gasGiantGuidedCreation.ui.test.js,
+tests/deleteConfirmation.ui.test.js, tests/planetStore.test.js,
+tests/guidedRoutes.ui.test.js,
+tests/guidedSessionPersistence.ui.test.js, tests/worldStorage.test.js,
+tests/importExportPage.ui.test.js, tests/appStorageUi.ui.test.js)
+
+- Added focused printable-export regressions for safe popup features,
+  blob navigation, and blocked-popup HTML fallback behavior.
+- Kept the planet editor, guided-flow/session, calendar UI/data, import/
+  export, and world-storage durability suites green while landing the
+  route-shell and storage-seam extractions.
+
 ## 2.1.0 - 2026-03-24
 
 ### Consequence-Aware Destructive Confirmations

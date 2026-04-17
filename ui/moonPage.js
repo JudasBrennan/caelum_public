@@ -19,13 +19,13 @@ import { createElement } from "./domHelpers.js";
 import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import { createGuidedFlowController } from "./guidedCreation/flowController.js";
 import { createGuidedPanel } from "./guidedCreation/components/guidedPanel.js";
-import { createGoalTextAssist } from "./guidedCreation/components/goalTextAssist.js";
-import { consumeGuidedCreationLaunch } from "./guidedCreation/launchState.js";
-import { getGoalTextAliasHelp } from "./guidedCreation/goalAliases.js";
 import {
-  applyGuidedGoalTextInterpretation,
-  clearGuidedGoalTextInterpretation,
-} from "./guidedCreation/goalTextInterpretation.js";
+  buildGuidedGoalQuestionValues,
+  buildGuidedGoalStatus,
+  buildGuidedGoalTextAssist,
+  setGuidedGoalDraftValue,
+} from "./guidedCreation/goalState.js";
+import { consumeGuidedCreationLaunch } from "./guidedCreation/launchState.js";
 import {
   buildGuidedSessionSnapshot,
   clearGuidedSession,
@@ -2322,138 +2322,27 @@ export function initMoonPage(mountEl, options = {}) {
   }
 
   function buildMoonGoalQuestionValues(flowState, questions = []) {
-    const goalDraft =
-      flowState?.goalDraft &&
-      typeof flowState.goalDraft === "object" &&
-      !Array.isArray(flowState.goalDraft)
-        ? flowState.goalDraft
-        : {};
-    const traitRoles =
-      goalDraft.traitRoles &&
-      typeof goalDraft.traitRoles === "object" &&
-      !Array.isArray(goalDraft.traitRoles)
-        ? goalDraft.traitRoles
-        : {};
-    const values = {};
-    for (const question of Array.isArray(questions) ? questions : []) {
-      if (question?.id === "priority")
-        values.priority = goalDraft.priority || question?.defaultValue;
-      else if (question?.id === "allowedEdits") {
-        values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
-      } else if (question?.id === "searchBudget") {
-        values.searchBudget = goalDraft.searchBudget || question?.defaultValue;
-      } else if (String(question?.id || "").startsWith("traitRole:")) {
-        const traitId = String(question.id).slice("traitRole:".length);
-        values[question.id] = traitRoles[traitId] || "off";
-      }
-    }
-    return values;
+    return buildGuidedGoalQuestionValues(flowState, questions);
   }
 
   function setMoonGoalDraftValue(controllerRef, flowState, questionId, value) {
-    const normalizedId = String(questionId || "");
-    if (!normalizedId) return;
-    if (
-      normalizedId === "priority" ||
-      normalizedId === "allowedEdits" ||
-      normalizedId === "searchBudget"
-    ) {
-      controllerRef?.setGoalDraftValue(normalizedId, value);
-      return;
-    }
-    if (normalizedId.startsWith("traitRole:")) {
-      const traitId = normalizedId.slice("traitRole:".length);
-      const currentGoalDraft =
-        flowState?.goalDraft &&
-        typeof flowState.goalDraft === "object" &&
-        !Array.isArray(flowState.goalDraft)
-          ? flowState.goalDraft
-          : {};
-      const nextTraitRoles =
-        currentGoalDraft.traitRoles &&
-        typeof currentGoalDraft.traitRoles === "object" &&
-        !Array.isArray(currentGoalDraft.traitRoles)
-          ? { ...currentGoalDraft.traitRoles }
-          : {};
-      if (!value || value === "off") delete nextTraitRoles[traitId];
-      else nextTraitRoles[traitId] = value;
-      controllerRef?.setGoalDraft({
-        ...currentGoalDraft,
-        traitRoles: nextTraitRoles,
-      });
-    }
+    return setGuidedGoalDraftValue(controllerRef, flowState, questionId, value);
   }
 
   function buildMoonGoalTextAssist(resolveController, flowState) {
-    const goalDraft =
-      flowState?.goalDraft &&
-      typeof flowState.goalDraft === "object" &&
-      !Array.isArray(flowState.goalDraft)
-        ? flowState.goalDraft
-        : {};
-    const help = getGoalTextAliasHelp("moon");
-    return createGoalTextAssist({
+    return buildGuidedGoalTextAssist(resolveController, flowState, {
+      objectType: "moon",
       objectLabel: "moon",
-      value: goalDraft.goalText || "",
-      placeholder: help.placeholder,
-      examples: help.examples,
-      interpretation: goalDraft.goalTextInterpretation || null,
-      onInterpret: (value) =>
-        applyGuidedGoalTextInterpretation(resolveController?.(), flowState, "moon", value),
-      onClear: () => clearGuidedGoalTextInterpretation(resolveController?.(), flowState),
     });
   }
 
   function buildMoonGoalStatus(flowState) {
-    const compileDiagnostics = Array.isArray(flowState?.compileDiagnostics)
-      ? flowState.compileDiagnostics
-      : [];
-    const searchStatus = String(flowState?.searchStatus || "idle");
-    const hasRestoredResult = !!flowState?.lastSearchResult?.recommendation;
-    const title =
-      searchStatus === "searching"
-        ? "Goal search in progress"
-        : searchStatus === "complete"
-          ? hasRestoredResult
-            ? "Goal search result ready"
-            : "Ready to search"
-          : searchStatus === "ready"
-            ? "Goal compiled"
-            : searchStatus === "error"
-              ? "Goal compile or search blocked"
-              : searchStatus === "canceled"
-                ? "Goal search canceled"
-                : searchStatus === "needs-compile"
-                  ? "Goal needs compile"
-                  : "";
-    const detailParts = [];
-    if (searchStatus === "needs-compile") {
-      detailParts.push("Compile the goal or run the search again after changing setup or traits.");
-    } else if (searchStatus === "ready") {
-      detailParts.push("The structured goal is valid. Run Search to try seeded moon candidates.");
-    } else if (searchStatus === "searching") {
-      detailParts.push("Trying seeded moon candidates against the current parent context.");
-    } else if (searchStatus === "complete") {
-      detailParts.push("Review the result, diagnostics, and context adjustments before applying.");
-    } else if (searchStatus === "error" && flowState?.searchError) {
-      detailParts.push(flowState.searchError);
-    }
-    if (searchStatus !== "complete" && hasRestoredResult) {
-      detailParts.push(
-        "A previous search result is still visible below until you re-run the search.",
-      );
-    }
-    return {
-      compileStatus: compileDiagnostics.length
-        ? "error"
-        : searchStatus === "ready" || searchStatus === "complete"
-          ? "ready"
-          : searchStatus,
-      searchStatus,
-      title,
-      detail: detailParts.join(" "),
-      diagnostics: compileDiagnostics,
-    };
+    return buildGuidedGoalStatus(flowState, {
+      readyDetail: "The structured goal is valid. Run Search to try seeded moon candidates.",
+      searchingDetail: "Trying seeded moon candidates against the current parent context.",
+      completeDetail: "Review the result, diagnostics, and context adjustments before applying.",
+      completeTitleWithoutResult: "Ready to search",
+    });
   }
 
   function getMoonGuidedSessionTarget() {
@@ -2956,11 +2845,15 @@ export function initMoonPage(mountEl, options = {}) {
         },
       });
     }
-    renderCelestialRecipeBatch(items, (done, total) => {
-      const pct = total ? (done / total) * 100 : 100;
-      if (progressBar) progressBar.style.width = `${pct}%`;
-      if (pct >= 100 && progressTrack) progressTrack.classList.add("is-done");
-    });
+    renderCelestialRecipeBatch(
+      items,
+      (done, total) => {
+        const pct = total ? (done / total) * 100 : 100;
+        if (progressBar) progressBar.style.width = `${pct}%`;
+        if (pct >= 100 && progressTrack) progressTrack.classList.add("is-done");
+      },
+      { maxRendersPerFrame: 1, frameBudgetMs: 7 },
+    );
 
     function close() {
       overlayClosers.delete(close);

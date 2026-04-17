@@ -26,6 +26,7 @@ function syncSelectedMoonSnapshot(world) {
 export function selectPlanetInWorld(world, planetId) {
   if (!world.planets.byId[planetId]) return world;
   world.planets.selectedId = planetId;
+  world.selectedBodyType = "planet";
   syncSelectedPlanetSnapshot(world);
   return world;
 }
@@ -49,6 +50,7 @@ export function createPlanetInWorld(world, inputs, { name = "New Planet" } = {})
   world.planets.byId[id] = planet;
   world.planets.order.push(id);
   world.planets.selectedId = id;
+  world.selectedBodyType = "planet";
   world.planet = { ...planet.inputs, name: planet.name };
   return world;
 }

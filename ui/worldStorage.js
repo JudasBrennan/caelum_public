@@ -21,6 +21,7 @@ import {
   safeLocalStorageRemove,
   safeLocalStorageSet,
 } from "./worldStorage/legacyStorage.js";
+import { createWorldStorageClearOperations } from "./worldStorage/clearOperations.js";
 import { installWorldStorageLifecycleFlushHandlers } from "./worldStorage/lifecycle.js";
 
 const STORAGE_DRIVER_KEY = "worldsmith.storage.driver";
@@ -42,6 +43,8 @@ let backupsIndexCache = [];
 let backupRawByIdCache = new Map();
 let storageDriver = "memory";
 let lastStorageError = null;
+let clearStoredWorldDataInFlight = false;
+let currentWorldMutationId = 0;
 
 initializeStorage();
 
@@ -69,11 +72,8 @@ function markDriver(driver) {
 
 function markHasWorld(hasWorld) {
   safeLocalStorageSet(STORAGE_HAS_WORLD_KEY, hasWorld ? "1" : "0");
-  if (hasWorld) {
-    safeLocalStorageSet(STORAGE_LAST_SAVED_KEY, new Date().toISOString());
-  } else {
-    safeLocalStorageRemove(STORAGE_LAST_SAVED_KEY);
-  }
+  if (hasWorld) safeLocalStorageSet(STORAGE_LAST_SAVED_KEY, new Date().toISOString());
+  else safeLocalStorageRemove(STORAGE_LAST_SAVED_KEY);
 }
 
 function bootstrapLegacyCaches() {
@@ -228,6 +228,7 @@ async function persistCurrentRaw(raw) {
 }
 
 function scheduleCurrentRawPersist(raw, { immediate = false } = {}) {
+  currentWorldMutationId += 1;
   currentRawCache = typeof raw === "string" && raw ? raw : null;
   currentSourceKey = currentRawCache ? "memory-write" : null;
   markHasWorld(!!currentRawCache);
@@ -309,7 +310,103 @@ function scheduleBackupPersist(change = null) {
   });
 }
 
+const worldStorageClearStateAccess = {
+  read() {
+    return {
+      backupRawByIdCache,
+      backupsIndexCache,
+      clearStoredWorldDataInFlight,
+      currentRawCache,
+      currentSourceKey,
+      currentWorldMutationId,
+      lastLifecycleFlushPromise,
+      lastStorageError,
+      pendingWorldRaw,
+      pendingWorldTimer,
+      persistenceQueue,
+      storageDriver,
+      storageReadyPromise,
+    };
+  },
+  setBackupRawByIdCache(value) {
+    backupRawByIdCache = value;
+  },
+  setBackupsIndexCache(value) {
+    backupsIndexCache = value;
+  },
+  setClearStoredWorldDataInFlight(value) {
+    clearStoredWorldDataInFlight = value;
+  },
+  setCurrentRawCache(value) {
+    currentRawCache = value;
+  },
+  setCurrentSourceKey(value) {
+    currentSourceKey = value;
+  },
+  setCurrentWorldMutationId(value) {
+    currentWorldMutationId = value;
+  },
+  setLastLifecycleFlushPromise(value) {
+    lastLifecycleFlushPromise = value;
+  },
+  setLastStorageErrorValue(value) {
+    lastStorageError = value;
+  },
+  setPendingWorldRaw(value) {
+    pendingWorldRaw = value;
+  },
+  setPendingWorldTimer(value) {
+    pendingWorldTimer = value;
+  },
+  setPersistenceQueue(value) {
+    persistenceQueue = value;
+  },
+  setStorageDriverValue(value) {
+    storageDriver = value;
+  },
+  setStorageReadyPromise(value) {
+    storageReadyPromise = value;
+  },
+};
+
+const {
+  clearStoredCurrentWorldData: clearStoredCurrentWorldDataImpl,
+  clearStoredWorldData: clearStoredWorldDataImpl,
+  resetWorldStorageForTests,
+} = createWorldStorageClearOperations({
+  keys: {
+    LEGACY_BACKUP_PREFIX,
+    LEGACY_BACKUPS_INDEX_KEY,
+    LEGACY_FALLBACK_KEY,
+    LEGACY_PRIMARY_KEY,
+    STORAGE_DRIVER_KEY,
+    STORAGE_HAS_WORLD_KEY,
+    STORAGE_LAST_SAVED_KEY,
+    STORAGE_MIGRATED_KEY,
+  },
+  stateAccess: worldStorageClearStateAccess,
+  buildBackupRecordsFromCache,
+  initializeStorage,
+  queuePersistence,
+  scheduleCurrentRawPersist,
+  markDriver,
+  markHasWorld,
+  emitStorageError,
+  readLegacyCurrentWorld,
+  openWorldStorageDb,
+  writeWorldStorageIndexedDbCurrentRaw,
+  writeWorldStorageIndexedDbState,
+  resetWorldStorageIndexedDbForTests,
+  clearLegacyBackupEntries,
+  safeLocalStorageGet,
+  safeLocalStorageRemove,
+  safeLocalStorageSet,
+});
+
 export function readStoredWorldRawSync() {
+  if (clearStoredWorldDataInFlight) {
+    return { raw: null, sourceKey: null };
+  }
   if (pendingWorldRaw) {
     return { raw: pendingWorldRaw, sourceKey: "pending-write" };
   }
@@ -324,6 +421,7 @@ export function readStoredWorldRawSync() {
 }
 
 export function hasStoredWorldDataSync() {
+  if (clearStoredWorldDataInFlight) return false;
   if (pendingWorldRaw || currentRawCache) return true;
   if (safeLocalStorageGet(STORAGE_HAS_WORLD_KEY) === "1") return true;
   const legacy = readLegacyCurrentWorld();
@@ -331,6 +429,7 @@ export function hasStoredWorldDataSync() {
 }
 
 export function hasAnyStoredDataSync() {
+  if (clearStoredWorldDataInFlight) return false;
   if (pendingWorldRaw || currentRawCache || backupsIndexCache.length) return true;
   if (safeLocalStorageGet(STORAGE_HAS_WORLD_KEY) === "1") return true;
   const legacy = readLegacyCurrentWorld();
@@ -377,80 +476,8 @@ export async function flushWorldStorage() {
   await persistenceQueue;
 }
 
-function restoreCurrentWorldState(previousRaw, previousSourceKey) {
-  if (!(typeof previousRaw === "string" && previousRaw)) {
-    pendingWorldRaw = null;
-    currentRawCache = null;
-    currentSourceKey = null;
-    markHasWorld(false);
-    return;
-  }
-
-  currentRawCache = previousRaw;
-  pendingWorldRaw = previousSourceKey === "pending-write" ? previousRaw : null;
-  currentSourceKey =
-    previousSourceKey === "pending-write" ? "memory-write" : previousSourceKey || "cache";
-  markHasWorld(true);
-
-  if (previousSourceKey === LEGACY_PRIMARY_KEY || previousSourceKey === LEGACY_FALLBACK_KEY) {
-    safeLocalStorageSet(previousSourceKey, previousRaw);
-  }
-}
-
 export async function clearStoredCurrentWorldData() {
-  try {
-    await storageReadyPromise;
-  } catch {
-    // Ignore bootstrap failures and still attempt a direct clear.
-  }
-
-  if (pendingWorldTimer != null) {
-    clearTimeout(pendingWorldTimer);
-    pendingWorldTimer = null;
-  }
-
-  try {
-    await persistenceQueue;
-  } catch {
-    // Ignore earlier persistence failures so recovery can still proceed.
-  }
-
-  const legacy = readLegacyCurrentWorld();
-  const previousRaw = pendingWorldRaw || currentRawCache || legacy.raw;
-  const previousSourceKey =
-    currentSourceKey || (pendingWorldRaw ? "pending-write" : legacy.sourceKey) || null;
-  const hadWorld = !!previousRaw;
-
-  pendingWorldRaw = null;
-  currentRawCache = null;
-  currentSourceKey = null;
-  markHasWorld(false);
-  safeLocalStorageRemove(LEGACY_PRIMARY_KEY);
-  safeLocalStorageRemove(LEGACY_FALLBACK_KEY);
-
-  const db = await openWorldStorageDb();
-  if (db) {
-    try {
-      await writeWorldStorageIndexedDbCurrentRaw(db, null);
-      markDriver("indexeddb");
-      return { ok: true, hadWorld, driver: "indexeddb" };
-    } catch (error) {
-      restoreCurrentWorldState(previousRaw, previousSourceKey);
-      emitStorageError(
-        "Could not remove the unreadable saved world from browser storage.",
-        error?.message,
-      );
-      return {
-        ok: false,
-        hadWorld,
-        driver: storageDriver,
-        error: error?.message || String(error),
-      };
-    }
-  }
-
-  markDriver(backupsIndexCache.length ? "localStorage" : "memory");
-  return { ok: true, hadWorld, driver: storageDriver };
+  return clearStoredCurrentWorldDataImpl();
 }
 
 export async function __waitForLastStorageLifecycleFlushForTests() {
@@ -489,72 +516,10 @@ export function restoreStoredBackup(id) {
   return true;
 }
 
-async function clearIndexedDbState() {
-  const db = await openWorldStorageDb();
-  if (!db) return;
-  await writeWorldStorageIndexedDbState(db, null, []);
-}
-
 export function clearStoredWorldData() {
-  const previousBackupCount = backupsIndexCache.length;
-  const hadWorld = !!(pendingWorldRaw || currentRawCache || readLegacyCurrentWorld().raw);
-
-  if (pendingWorldTimer != null) {
-    clearTimeout(pendingWorldTimer);
-    pendingWorldTimer = null;
-  }
-  pendingWorldRaw = null;
-  currentRawCache = null;
-  currentSourceKey = null;
-  backupsIndexCache = [];
-  backupRawByIdCache = new Map();
-  markHasWorld(false);
-
-  safeLocalStorageRemove(LEGACY_PRIMARY_KEY);
-  safeLocalStorageRemove(LEGACY_FALLBACK_KEY);
-  safeLocalStorageRemove(LEGACY_BACKUPS_INDEX_KEY);
-  safeLocalStorageRemove(STORAGE_MIGRATED_KEY);
-  clearLegacyBackupEntries();
-
-  queuePersistence(clearIndexedDbState);
-  return previousBackupCount + (hadWorld ? 1 : 0);
+  return clearStoredWorldDataImpl();
 }
 
 export async function __resetWorldStorageForTests(options = {}) {
-  const { deleteDatabase = false, rebootstrap = true } = options;
-
-  if (pendingWorldTimer != null) {
-    clearTimeout(pendingWorldTimer);
-    pendingWorldTimer = null;
-  }
-  pendingWorldRaw = null;
-
-  try {
-    await storageReadyPromise;
-  } catch {
-    // Ignore bootstrap failures during test resets.
-  }
-
-  try {
-    await persistenceQueue;
-  } catch {
-    // Ignore queued write failures during test resets.
-  }
-  await resetWorldStorageIndexedDbForTests({ deleteDatabase });
-  storageReadyPromise = null;
-  persistenceQueue = Promise.resolve();
-  lastLifecycleFlushPromise = Promise.resolve();
-  currentRawCache = null;
-  currentSourceKey = null;
-  backupsIndexCache = [];
-  backupRawByIdCache = new Map();
-  storageDriver = "memory";
-  lastStorageError = null;
-  markDriver("memory");
-  markHasWorld(false);
-
-  if (rebootstrap) {
-    initializeStorage();
-    await storageReadyPromise;
-  }
+  await resetWorldStorageForTests(options);
 }

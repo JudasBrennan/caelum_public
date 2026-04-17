@@ -1,12 +1,9 @@
-﻿import { calcCalendarModel } from "../engine/calendar.js";
-import { fmt } from "../engine/utils.js";
+﻿import { fmt } from "../engine/utils.js";
 import {
   describeMoonPhase,
-  getCalendarBasisMetrics,
   getMonthLengthsForYear,
   getYearStartDayIndex,
   normalizeLeapRules,
-  normalizeMonthLengthOverrides,
   normalizeNameList,
 } from "../engine/usableCalendar.js";
 import { bindNumberAndSlider } from "./bind.js";
@@ -38,12 +35,21 @@ import {
   readCalendarCandidate,
   utcStampCompact,
 } from "./calendar/calendarIo.js";
+import { createCalendarContextBuilder } from "./calendar/renderContext.js";
 import {
   createCalendarDetailOverlayActions,
   renderCalendarMoonLegend,
   renderCalendarSelectedDay,
 } from "./calendar/detailOverlay.js";
+import { createCalendarProfileState } from "./calendar/profileState.js";
+import {
+  applyHolidayFiltersToMonthModel,
+  festivalSummary,
+  holidaySummary,
+  recommendLeapRuleFromOrbit,
+} from "./calendar/renderHelpers.js";
 import { createCalendarRuleEditorFlows } from "./calendar/ruleEditorFlows.js";
+import { createCalendarRenderSnapshotReader } from "./calendar/renderSnapshot.js";
 import { createCalendarTransferFlows } from "./calendar/transferFlows.js";
 import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import {
@@ -65,8 +71,6 @@ import {
   holidayColorClass,
   holidayColorOptionsHtml,
   holidayFilterControlsHtml,
-  holidayRelativeKeyLabel,
-  moonsForPlanet,
   monthLengthOverridesText,
   namesText,
   normEraRules,
@@ -88,7 +92,6 @@ import {
   splitNames,
   toLinearMonthOrdinal,
   uniqueSortedNumbers,
-  uniqIds,
   weekdayOccurrence,
 } from "./calendar/stateModel.js";
 import { createElement, replaceChildren, replaceSelectOptions } from "./domHelpers.js";
@@ -329,20 +332,14 @@ const TIPS = {
   "Jump date": "Jump Month View to the specified year, month, and day.",
 };
 
-const {
-  defaultState,
-  deriveMoonSynodicDays,
-  derivePlanetPeriodDays,
-  normalizeSingleProfile,
-  persistState,
-  readState,
-} = createCalendarStateStoreBindings({
-  getSelectedMoon,
-  getSelectedPlanet,
-  listMoons,
-  listPlanets,
-  updateWorld,
-});
+const { defaultState, normalizeSingleProfile, persistState, readState } =
+  createCalendarStateStoreBindings({
+    getSelectedMoon,
+    getSelectedPlanet,
+    listMoons,
+    listPlanets,
+    updateWorld,
+  });
 
 const N = (v, f = 0) => {
   const n = Number(v);
@@ -1600,6 +1597,8 @@ function buildMonthModel(params) {
   };
 }
 
+const { buildContext } = createCalendarContextBuilder({ buildMonthModel });
+
 /* ── Rule Debugger: on-demand trace for a selected day ──────────── */
 
 function traceRulesForDay({
@@ -1837,431 +1836,6 @@ function traceToPlainText(trace) {
     }
   }
   return lines.join("\n");
-}
-
-function buildContext(world, state) {
-  const planets = listPlanets(world);
-  const allMoons = listMoons(world);
-  const planet =
-    findById(planets, state.inputs.sourcePlanetId) ||
-    getSelectedPlanet(world) ||
-    planets[0] ||
-    null;
-  const sourcePlanetId = planet?.id || "";
-  const planetMoons = moonsForPlanet(allMoons, sourcePlanetId);
-
-  let primaryMoon = findById(planetMoons, state.inputs.primaryMoonId);
-  if (!primaryMoon) primaryMoon = planetMoons[0] || null;
-
-  const extras = uniqIds(state.inputs.extraMoonIds)
-    .filter((id) => id && id !== primaryMoon?.id)
-    .filter((id) => !!findById(planetMoons, id));
-  const fallbackExtras = planetMoons
-    .filter((m) => m.id !== primaryMoon?.id)
-    .map((m) => m.id)
-    .filter((id) => !extras.includes(id));
-  const extraMoonIds = [...extras, ...fallbackExtras].slice(0, 3);
-  while (extraMoonIds.length < 3) extraMoonIds.push("");
-
-  state.inputs.sourcePlanetId = sourcePlanetId;
-  state.inputs.primaryMoonId = primaryMoon?.id || "";
-  state.inputs.extraMoonIds = extraMoonIds;
-
-  const planetOrbitalPeriodDays = derivePlanetPeriodDays(world, planet);
-  const planetRotationPeriodHours = Math.max(0.1, N(planet?.inputs?.rotationPeriodHours, 24));
-
-  const moonDefs = [];
-  if (primaryMoon) {
-    moonDefs.push({
-      id: primaryMoon.id,
-      name: primaryMoon.name || primaryMoon.inputs?.name || "Primary moon",
-      synodicDays: deriveMoonSynodicDays(world, planet, primaryMoon),
-    });
-  } else {
-    moonDefs.push({ id: "__primary__", name: "Primary moon", synodicDays: 29.5306 });
-  }
-
-  for (const moonId of extraMoonIds) {
-    if (!moonId) continue;
-    const moon = findById(planetMoons, moonId);
-    if (!moon) continue;
-    moonDefs.push({
-      id: moon.id,
-      name: moon.name || moon.inputs?.name || moon.id,
-      synodicDays: deriveMoonSynodicDays(world, planet, moon),
-    });
-    if (moonDefs.length >= 4) break;
-  }
-
-  const primaryMoonSynodicDaysRaw = Math.max(0.1, N(moonDefs[0]?.synodicDays, 29.5306));
-
-  // Optionally round derived values before feeding into the calendar model
-  let planetOrbitalPeriodDaysClamped = planetOrbitalPeriodDays;
-  let primaryMoonSynodicDays = primaryMoonSynodicDaysRaw;
-  let planetRotationPeriodHoursClamped = planetRotationPeriodHours;
-  if (state.ui.derivedRoundEnabled) {
-    const dp = clampI(state.ui.derivedDecimalPlaces ?? 6, 0, 6);
-    const dpFactor = 10 ** dp;
-    planetOrbitalPeriodDaysClamped = Math.round(planetOrbitalPeriodDays * dpFactor) / dpFactor;
-    primaryMoonSynodicDays = Math.round(primaryMoonSynodicDaysRaw * dpFactor) / dpFactor;
-    planetRotationPeriodHoursClamped = Math.round(planetRotationPeriodHours * dpFactor) / dpFactor;
-  }
-
-  const derivedMonthsPerYear = Math.max(
-    1,
-    Math.round(planetOrbitalPeriodDaysClamped / primaryMoonSynodicDays),
-  );
-  if (state.inputs.monthsPerYear == null || !Number.isFinite(Number(state.inputs.monthsPerYear))) {
-    state.inputs.monthsPerYear = derivedMonthsPerYear;
-  }
-
-  // Convert sidereal rotation → solar day for calendar purposes.
-  // A calendar day is noon-to-noon (solar day), not star-to-star (sidereal day).
-  // For prograde rotation: solarDay = 1 / (1/sidereal - 1/orbital)
-  const orbitalHours = planetOrbitalPeriodDaysClamped * 24;
-  const siderealHours = planetRotationPeriodHoursClamped;
-  const recipDiff = 1 / siderealHours - 1 / orbitalHours;
-  const solarDayHours = recipDiff > 1e-9 ? 1 / recipDiff : siderealHours;
-
-  const calendarModel = calcCalendarModel({
-    planetOrbitalPeriodDays: planetOrbitalPeriodDaysClamped,
-    moonOrbitalPeriodDays: primaryMoonSynodicDays,
-    planetRotationPeriodHours: solarDayHours,
-    weeksPerMonth: 4,
-  });
-  const base = getCalendarBasisMetrics(calendarModel, state.ui.basis);
-  const overrideMonths = clampI(state.inputs.monthsPerYear, 1, 240);
-
-  // Year length for the active basis
-  const yearLen =
-    base.basis === "solar"
-      ? calendarModel.solar.commonYearLength
-      : base.basis === "lunar"
-        ? calendarModel.lunar.yearLength
-        : calendarModel.lunisolar.commonYearLength;
-
-  // Cascading overrides: months → days/month → days/week
-  const autoDpm = Math.max(1, Math.floor(yearLen / overrideMonths));
-  const effectiveDpm =
-    state.inputs.daysPerMonth != null ? clampI(state.inputs.daysPerMonth, 1, 500) : autoDpm;
-
-  const maxDpw = Math.min(30, effectiveDpm);
-  const autoDpw = Math.max(1, Math.floor(effectiveDpm / 4));
-  const effectiveDpw =
-    state.inputs.daysPerWeek != null ? clampI(state.inputs.daysPerWeek, 1, maxDpw) : autoDpw;
-
-  const weeksPerMonth = Math.max(1, Math.floor(effectiveDpm / effectiveDpw));
-  const yearlyIntercalary = yearLen - overrideMonths * effectiveDpm;
-
-  const metrics = {
-    ...base,
-    monthsPerYear: overrideMonths,
-    daysPerMonth: effectiveDpm,
-    daysPerWeek: effectiveDpw,
-    weeksPerMonth,
-    intercalaryDays: yearlyIntercalary,
-  };
-  state.ui.startDayOfYear = mod(I(state.ui.startDayOfYear, 0), metrics.daysPerWeek);
-  state.ui.weekStartsOn = mod(I(state.ui.weekStartsOn, 0), metrics.daysPerWeek);
-  state.ui.monthIndex = clampI(state.ui.monthIndex, 0, metrics.monthsPerYear - 1);
-
-  const dayNames = normalizeNameList(state.ui.dayNames, metrics.daysPerWeek, "Day");
-  const monthNames = normalizeNameList(state.ui.monthNames, metrics.monthsPerYear, "Month");
-  const holidays = normHolidayRules(state.ui.holidays, metrics.monthsPerYear);
-  const festivals = normFestivalRules(state.ui.festivalRules, metrics.monthsPerYear);
-  const workCycles = normWorkCycleRules(state.ui.workCycles);
-  const workWeekendRule = normalizeWeekendRule(state.ui.workWeekendRule);
-  const weekendDayIndexes = normalizeWeekendDayIndexes(
-    state.ui.weekendDayIndexes,
-    metrics.daysPerWeek,
-  );
-  const astronomySettings = normalizeAstronomySettings(state.ui.astronomy);
-  state.ui.astronomy = astronomySettings;
-  state.ui.workCycles = workCycles;
-  state.ui.workWeekendRule = workWeekendRule;
-  state.ui.weekendDayIndexes = weekendDayIndexes;
-  state.ui.exportAnchorDate = normalizeIsoDate(state.ui.exportAnchorDate);
-  state.ui.icsIncludes = normalizeIcsIncludes(state.ui.icsIncludes);
-  const leapRules = normalizeLeapRules(state.ui.leapRules, metrics.monthsPerYear);
-  const monthLengthOverrides = state.ui.monthLengthOverridesEnabled
-    ? normalizeMonthLengthOverrides(state.ui.monthLengthOverrides, metrics.monthsPerYear)
-    : [];
-  const monthModel = buildMonthModel({
-    metrics,
-    year: state.ui.year,
-    monthIndex: state.ui.monthIndex,
-    firstYearStartDayIndex: state.ui.startDayOfYear,
-    weekStartDayIndex: state.ui.weekStartsOn,
-    leapRules,
-    monthLengthOverrides,
-    dayNames,
-    weekNames: state.ui.weekNames,
-    monthNames,
-    moonDefs,
-    moonEpochOffsetDays: state.ui.moonEpochOffsetDays,
-    holidays,
-    festivals,
-    astronomySettings,
-    workCycles,
-    weekendDayIndexes,
-  });
-  state.ui.selectedDay = clampI(state.ui.selectedDay, 1, monthModel.monthLength);
-
-  return {
-    planets,
-    planetMoons,
-    sourcePlanetId,
-    moonDefs,
-    planetOrbitalPeriodDays: planetOrbitalPeriodDaysClamped,
-    planetRotationPeriodHours: planetRotationPeriodHoursClamped,
-    solarDayHours,
-    primaryMoonSynodicDays,
-    derivedMonthsPerYear,
-    metrics,
-    yearLen,
-    yearlyIntercalary,
-    dayNames,
-    monthNames,
-    holidays,
-    festivals,
-    workCycles,
-    workWeekendRule,
-    weekendDayIndexes,
-    astronomySettings,
-    leapRules,
-    monthLengthOverrides,
-    monthModel,
-    holidayIssueById: monthModel.holidayIssueById || {},
-  };
-}
-
-function holidaySummary(holiday, ctx) {
-  const monthName =
-    ctx.monthNames?.[clampI(holiday.startMonth, 0, ctx.monthNames.length - 1)] ||
-    `Month ${clampI(holiday.startMonth, 0, 100) + 1}`;
-  const recurrence = RECURRENCES.find(([v]) => v === holiday.recurrence)?.[1] || "Yearly";
-  const anchorType = String(holiday?.anchor?.type || "");
-  const anchorTypeLabel = HOLIDAY_ANCHOR_TYPES.find(([value]) => value === anchorType)?.[1] || "";
-  const bits =
-    holiday.recurrence === "one-off"
-      ? [`One-off in Year ${Math.max(1, I(holiday.year, 1))}, ${monthName}`]
-      : [`${recurrence} from ${monthName}`];
-  if (anchorTypeLabel) bits.push(`anchor ${anchorTypeLabel}`);
-  if (anchorType === "algorithmic") {
-    const algoLabel =
-      HOLIDAY_ALGORITHMS.find(
-        ([value]) => value === String(holiday?.anchor?.algorithmKey || ""),
-      )?.[1] || "algorithm";
-    bits.push(`algorithm ${algoLabel}`);
-  }
-  bits.push(`category ${holidayCategoryLabel(holiday.category)}`);
-  const rel = holiday?.relative && typeof holiday.relative === "object" ? holiday.relative : null;
-  if (rel?.enabled && rel.type !== "none") {
-    const offset = I(rel.offsetDays, 0);
-    const offsetLabel =
-      offset === 0
-        ? "same day"
-        : offset < 0
-          ? `${Math.abs(offset)} day(s) before`
-          : `${offset} day(s) after`;
-    if (rel.type === "moon-phase") {
-      const phase = PHASES.find(([value]) => value === rel.moonPhase)?.[1] || "Moon phase";
-      const moonName =
-        ctx.moonDefs.find((moonDef) => moonDef.id === rel.moonId)?.name ||
-        ctx.moonDefs[clampI(rel.moonSlot, 0, ctx.moonDefs.length - 1)]?.name ||
-        "moon";
-      bits.push(`relative: ${offsetLabel} ${phase} on ${moonName}`);
-    } else if (rel.type === "astronomy-marker") {
-      const markerName =
-        HOLIDAY_RELATIVE_MARKERS.find(([value]) => value === rel.markerKey)?.[1] ||
-        "astronomy marker";
-      bits.push(`relative: ${offsetLabel} ${markerName}`);
-    } else if (rel.type === "holiday") {
-      const targetHoliday =
-        (ctx.holidays || []).find(
-          (existingHoliday) => String(existingHoliday.id) === String(rel.holidayId),
-        ) || null;
-      bits.push(`relative: ${offsetLabel} ${targetHoliday?.name || "linked holiday"}`);
-    } else {
-      bits.push(`relative: ${offsetLabel} ${holidayRelativeKeyLabel(rel)}`);
-    }
-  } else {
-    if (holiday.attrs?.useDate) {
-      bits.push(`day ${clampI(holiday.dayOfMonth, 1, 400)}`);
-    }
-    if (holiday.attrs?.useWeekday) {
-      const dayName =
-        ctx.dayNames?.[clampI(holiday.weekday, 0, ctx.dayNames.length - 1)] ||
-        `Day ${clampI(holiday.weekday, 0, 100) + 1}`;
-      const occ = OCCURRENCES.find(([v]) => v === String(holiday.occurrence))?.[1] || "Any week";
-      bits.push(String(holiday.occurrence) === "any" ? `weekday ${dayName}` : `${occ} ${dayName}`);
-    }
-    if (holiday.attrs?.useMoonPhase) {
-      const phase = PHASES.find(([v]) => v === holiday.moonPhase)?.[1] || "Moon phase";
-      const moonName =
-        ctx.moonDefs.find((m) => m.id === holiday.moonId)?.name ||
-        ctx.moonDefs[clampI(holiday.moonSlot, 0, ctx.moonDefs.length - 1)]?.name ||
-        "moon";
-      bits.push(`${phase} on ${moonName}`);
-    }
-  }
-  if (I(holiday?.offsetDays, 0) !== 0) {
-    const offset = I(holiday.offsetDays, 0);
-    bits.push(`offset ${offset > 0 ? `+${offset}` : offset} days`);
-  }
-  const weekendRule = normalizeWeekendRule(
-    normalizeWeekendRule(ctx?.workWeekendRule) !== "none"
-      ? ctx.workWeekendRule
-      : holiday?.observance?.weekendRule,
-  );
-  if (weekendRule !== "none") {
-    const label =
-      HOLIDAY_WEEKEND_RULES.find(([value]) => value === weekendRule)?.[1] || "weekend shift";
-    const weekendDays = normalizeWeekendDayIndexes(
-      ctx?.weekendDayIndexes,
-      Array.isArray(ctx?.dayNames) && ctx.dayNames.length ? ctx.dayNames.length : 7,
-    )
-      .map((idx) => String(ctx?.dayNames?.[idx] || `Day ${idx + 1}`))
-      .join(", ");
-    bits.push(`weekend ${label}${weekendDays ? ` (${weekendDays})` : ""}`);
-  }
-  if (String(holiday?.observance?.holidayConflictRule || "merge") !== "merge") {
-    const label =
-      HOLIDAY_CONFLICT_RULES.find(
-        ([value]) => value === String(holiday?.observance?.holidayConflictRule || ""),
-      )?.[1] || "conflict handling";
-    bits.push(`conflict ${label}`);
-  }
-  if (Math.max(1, I(holiday.durationDays, 1)) > 1) {
-    bits.push(`${Math.max(1, I(holiday.durationDays, 1))} days`);
-  }
-  bits.push(
-    `priority ${I(holiday.priority, 0)} (${holiday.mergeMode === "override" ? "override" : "merge"})`,
-  );
-  if ((holiday.exceptYears || []).length)
-    bits.push(`skip years: ${(holiday.exceptYears || []).join(", ")}`);
-  if ((holiday.exceptMonths || []).length)
-    bits.push(`skip months: ${(holiday.exceptMonths || []).join(", ")}`);
-  if ((holiday.exceptDays || []).length)
-    bits.push(`skip days: ${(holiday.exceptDays || []).join(", ")}`);
-  const issue = ctx.holidayIssueById?.[holiday.id];
-  if (issue) bits.push(`disabled: ${issue}`);
-  return bits.join(" | ");
-}
-
-function holidayVisibleInFilter(holiday, filters) {
-  const category = normalizeHolidayCategory(holiday?.category);
-  return !!(filters && typeof filters === "object" ? filters[category] : true);
-}
-
-function applyHolidayFiltersToMonthModel(model, filters) {
-  const rows = (model?.rows || []).map((row) => {
-    const cells = (row?.cells || []).map((cell) => {
-      if (!cell || cell.kind === "festival") return cell;
-      const holidays = (cell.holidays || []).filter((holiday) =>
-        holidayVisibleInFilter(holiday, filters),
-      );
-      const allowed = new Set(holidays.map((holiday) => String(holiday?.id || "")));
-      const holidayDetails = (cell.holidayDetails || []).filter((detail) =>
-        allowed.has(String(detail?.holiday?.id || "")),
-      );
-      return { ...cell, holidays, holidayDetails };
-    });
-    return { ...row, cells };
-  });
-
-  const holidayHits = new Map();
-  for (const row of rows) {
-    for (const cell of row.cells || []) {
-      if (!cell || cell.kind === "festival") continue;
-      for (const holiday of cell.holidays || []) {
-        holidayHits.set(holiday.id, (holidayHits.get(holiday.id) || 0) + 1);
-      }
-    }
-  }
-
-  return {
-    ...model,
-    rows,
-    holidaysInMonth: Array.from(holidayHits.entries()),
-  };
-}
-
-function festivalSummary(festival, ctx) {
-  const monthName =
-    ctx.monthNames?.[clampI(festival.startMonth, 0, ctx.monthNames.length - 1)] ||
-    `Month ${clampI(festival.startMonth, 0, 100) + 1}`;
-  const recurrence = RECURRENCES.find(([v]) => v === festival.recurrence)?.[1] || "Yearly";
-  const bits =
-    festival.recurrence === "one-off"
-      ? [`One-off in Year ${Math.max(1, I(festival.year, 1))}, ${monthName}`]
-      : [`${recurrence} from ${monthName}`];
-  bits.push(`after day ${clampI(festival.afterDay, 0, 500)}`);
-  if (Math.max(1, I(festival.durationDays, 1)) > 1) {
-    bits.push(`${Math.max(1, I(festival.durationDays, 1))} days`);
-  }
-  bits.push(`category ${holidayCategoryLabel(festival.category)}`);
-  bits.push(festival.outsideWeekFlow ? "outside weekday flow" : "in weekday flow");
-  return bits.join(" | ");
-}
-
-function recommendLeapRuleFromOrbit(ctx) {
-  const orbitalDays = Math.max(0.000001, N(ctx?.planetOrbitalPeriodDays, 365.2422));
-  const solarHours = Math.max(0.000001, N(ctx?.solarDayHours, 24));
-  const localYearActual = orbitalDays / (solarHours / 24);
-  const monthsPerYear = Math.max(1, I(ctx?.metrics?.monthsPerYear, 12));
-  const baseYearLength = getMonthLengthsForYear({
-    metrics: ctx?.metrics,
-    year: 1,
-    leapRules: [],
-    monthLengthOverrides: ctx?.monthLengthOverrides,
-  }).reduce((sum, days) => sum + days, 0);
-  const delta = localYearActual - baseYearLength;
-  const absDelta = Math.abs(delta);
-
-  if (!(absDelta > 0.000001)) {
-    return {
-      ok: false,
-      message: "No leap rule needed: baseline year already matches orbital year closely.",
-    };
-  }
-
-  const maxCycleYears = 5000;
-  let bestCycleYears = 1;
-  let bestError = Number.POSITIVE_INFINITY;
-  for (let cycleYears = 1; cycleYears <= maxCycleYears; cycleYears++) {
-    const correction = cycleYears * absDelta;
-    const error = Math.abs(correction - 1);
-    if (
-      error < bestError - 1e-12 ||
-      (Math.abs(error - bestError) <= 1e-12 && cycleYears < bestCycleYears)
-    ) {
-      bestError = error;
-      bestCycleYears = cycleYears;
-    }
-  }
-
-  const dayDelta = delta >= 0 ? 1 : -1;
-  const monthIndex = Math.max(0, monthsPerYear - 1);
-  const driftPerCycle = bestError;
-  const driftPerYear = driftPerCycle / bestCycleYears;
-  const quality = driftPerCycle <= 0.02 ? "high" : driftPerCycle <= 0.08 ? "medium" : "low";
-  const verb = dayDelta > 0 ? "Add" : "Subtract";
-  return {
-    ok: true,
-    cycleYears: bestCycleYears,
-    dayDelta,
-    monthIndex,
-    driftPerCycle,
-    driftPerYear,
-    quality,
-    localYearActual,
-    baseYearLength,
-    ruleName: `${verb} 1 day every ${bestCycleYears} years`,
-    message:
-      `${verb} 1 day every ${bestCycleYears} years ` +
-      `(drift ${fmt(driftPerCycle, 4)} d/cycle, ${fmt(driftPerYear, 6)} d/year; quality ${quality}).`,
-  };
 }
 
 function detailedGrid(model, selectedDay) {
@@ -2605,7 +2179,8 @@ function bindPair(root, id, min, max, step) {
 }
 
 export function initCalendarPage(mountEl) {
-  const state = readState(loadWorld());
+  const initialWorld = loadWorld();
+  const state = readState(initialWorld);
   const runtime = { editingHolidayId: null, editingFestivalId: null, editingCycleId: null };
 
   const wrap = document.createElement("div");
@@ -3113,57 +2688,19 @@ export function initCalendarPage(mountEl) {
     shiftMonth,
   });
 
-  function ensureProfileStore() {
-    if (!Array.isArray(state._allProfiles) || !state._allProfiles.length) {
-      const id = String(state.profileId || "cal-1");
-      const name =
-        String(state.profileName || state.ui?.calendarName || "Calendar").trim() || "Calendar";
-      const normalized = normalizeSingleProfile(loadWorld(), {
-        inputs: state.inputs,
-        ui: state.ui,
-      });
-      state._allProfiles = [{ id, name, ...normalized }];
-      state.profileId = id;
-      state.profileName = name;
-    }
-    state.profiles = state._allProfiles.map((p) => ({
-      id: String(p.id),
-      name: String(p.name || "Calendar"),
-    }));
-  }
-
-  function saveActiveProfileSnapshot() {
-    ensureProfileStore();
-    const activeId = String(state.profileId || state._allProfiles[0]?.id || "cal-1");
-    const activeName =
-      String(state.ui?.calendarName || state.profileName || "Calendar").trim() || "Calendar";
-    const normalized = normalizeSingleProfile(loadWorld(), { inputs: state.inputs, ui: state.ui });
-    const snapshot = { id: activeId, name: activeName, ...normalized };
-    const idx = state._allProfiles.findIndex((p) => String(p?.id) === activeId);
-    if (idx >= 0) state._allProfiles[idx] = snapshot;
-    else state._allProfiles.push(snapshot);
-    state.profileName = activeName;
-    state.profiles = state._allProfiles.map((p) => ({
-      id: String(p.id),
-      name: String(p.name || "Calendar"),
-    }));
-  }
-
-  function activateProfile(profileId, { saveCurrent = true } = {}) {
-    ensureProfileStore();
-    if (saveCurrent) saveActiveProfileSnapshot();
-    const target = state._allProfiles.find((p) => String(p?.id) === String(profileId));
-    if (!target) return;
-    const normalized = normalizeSingleProfile(loadWorld(), target);
-    state.profileId = String(target.id);
-    state.profileName = String(target.name || normalized.ui.calendarName || "Calendar");
-    normalized.ui.calendarName = state.profileName;
-    state.inputs = clonePlain(normalized.inputs);
-    state.ui = clonePlain(normalized.ui);
-    runtime.editingHolidayId = null;
-    runtime.editingFestivalId = null;
-    runtime.editingCycleId = null;
-  }
+  const { activateProfile, ensureProfileStore, saveActiveProfileSnapshot } =
+    createCalendarProfileState({
+      state,
+      runtime,
+      loadWorld,
+      normalizeSingleProfile,
+      clonePlain,
+    });
+  const readRenderSnapshot = createCalendarRenderSnapshotReader({
+    state,
+    loadWorld,
+    buildContext,
+  });
 
   function applyCollapsedPanels() {
     if (!state.ui.collapsedSections || typeof state.ui.collapsedSections !== "object") {
@@ -3252,6 +2789,7 @@ export function initCalendarPage(mountEl) {
     state,
     els,
     runtime,
+    readRenderSnapshot,
     buildContext,
     buildMonthModel,
     applyHolidayFiltersToMonthModel,
@@ -3293,6 +2831,7 @@ export function initCalendarPage(mountEl) {
     els,
     runtime,
     render,
+    readRenderSnapshot,
     buildContext,
     loadWorld,
     recommendLeapRuleFromOrbit,
@@ -3303,8 +2842,9 @@ export function initCalendarPage(mountEl) {
 
   function render() {
     ensureProfileStore();
-    saveActiveProfileSnapshot();
-    const ctx = buildContext(loadWorld(), state);
+    const world = loadWorld();
+    saveActiveProfileSnapshot(world);
+    const { ctx } = readRenderSnapshot(world);
     runtime.lastCtx = ctx;
     state.ui.holidayCategoryFilters = normalizeHolidayCategoryFilters(
       state.ui.holidayCategoryFilters,
@@ -3938,7 +3478,7 @@ export function initCalendarPage(mountEl) {
   }
 
   function shiftMonth(delta) {
-    const ctx = buildContext(loadWorld(), state);
+    const { ctx } = readRenderSnapshot();
     const mpy = ctx.metrics.monthsPerYear;
     let month = state.ui.monthIndex + delta;
     let year = state.ui.year;
@@ -3956,7 +3496,7 @@ export function initCalendarPage(mountEl) {
   }
 
   function jumpToAbsoluteDay(absDay) {
-    const ctx = buildContext(loadWorld(), state);
+    const { ctx } = readRenderSnapshot();
     const converted = fromAbsoluteDay(ctx.metrics, ctx.leapRules, absDay, ctx.monthLengthOverrides);
     state.ui.jumpAbsoluteDay = converted.absoluteDay;
     state.ui.jumpYear = converted.year;
@@ -3968,7 +3508,7 @@ export function initCalendarPage(mountEl) {
   }
 
   function jumpToDate(year, monthIndex, dayOfMonth) {
-    const ctx = buildContext(loadWorld(), state);
+    const { ctx } = readRenderSnapshot();
     const safeYear = Math.max(1, I(year, 1));
     const safeMonth = clampI(monthIndex, 0, ctx.metrics.monthsPerYear - 1);
     const lengths = getMonthLengthsForYear({
@@ -4059,7 +3599,8 @@ export function initCalendarPage(mountEl) {
     const name = String(window.prompt("Name for new calendar profile:", suggested) || "").trim();
     if (!name) return;
     const id = makeProfileId();
-    const seed = normalizeSingleProfile(loadWorld(), defaultState(loadWorld()));
+    const world = loadWorld();
+    const seed = normalizeSingleProfile(world, defaultState(world));
     seed.ui.calendarName = name;
     const profile = { id, name, ...seed };
     state._allProfiles.push(profile);
@@ -4073,7 +3614,8 @@ export function initCalendarPage(mountEl) {
     const name = String(window.prompt("Name for duplicated profile:", suggested) || "").trim();
     if (!name) return;
     const id = makeProfileId();
-    const clone = normalizeSingleProfile(loadWorld(), {
+    const world = loadWorld();
+    const clone = normalizeSingleProfile(world, {
       inputs: clonePlain(state.inputs),
       ui: clonePlain(state.ui),
     });

@@ -1,3 +1,8 @@
+import {
+  normalizeCelestialTexturePayload,
+  texturePayloadToCanvas,
+} from "./celestialTexturePayloads.js";
+
 const CELESTIAL_TEX_WORKER_URL = new URL("./celestialTextureWorker.js", import.meta.url);
 
 let workerInstance = null;
@@ -5,21 +10,6 @@ let workerBroken = false;
 let nextRequestId = 1;
 const pendingRequests = new Map();
 const inflightByKey = new Map();
-
-function createCanvas(width, height) {
-  const w = Math.max(1, Number(width) || 1);
-  const h = Math.max(1, Number(height) || 1);
-  if (typeof document !== "undefined" && typeof document.createElement === "function") {
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    return canvas;
-  }
-  if (typeof OffscreenCanvas !== "undefined") {
-    return new OffscreenCanvas(w, h);
-  }
-  return null;
-}
 
 function rejectAllPending(reason) {
   for (const pending of pendingRequests.values()) {
@@ -97,23 +87,20 @@ export function requestCelestialTextureBundle({ signature, descriptor, textureSi
   return promise;
 }
 
+export function normalizeWorkerTextureBundle(result) {
+  return normalizeCelestialTexturePayload(result?.maps || null);
+}
+
 export function canvasFromMapPayload(mapPayload) {
   if (!mapPayload?.buffer || !(mapPayload.width > 0) || !(mapPayload.height > 0)) return null;
-  const canvas = createCanvas(mapPayload.width, mapPayload.height);
-  if (!canvas) return null;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-  const buffer = mapPayload.buffer;
-  const data = new Uint8ClampedArray(buffer);
-  if (typeof ImageData !== "undefined") {
-    const imageData = new ImageData(data, mapPayload.width, mapPayload.height);
-    ctx.putImageData(imageData, 0, 0);
-  } else {
-    const imageData = ctx.createImageData(mapPayload.width, mapPayload.height);
-    imageData.data.set(data);
-    ctx.putImageData(imageData, 0, 0);
-  }
-  return canvas;
+  return texturePayloadToCanvas(
+    {
+      width: mapPayload.width,
+      height: mapPayload.height,
+      surface: mapPayload.buffer,
+    },
+    "surface",
+  );
 }
 
 export function disposeCelestialTextureWorker() {

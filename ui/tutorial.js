@@ -158,7 +158,9 @@ export function createTutorial({ steps, storageKey, container, triggerBtn }) {
       triggerBtn?.removeEventListener("click", toggle);
       triggerBtn?.removeAttribute("aria-controls");
       triggerBtn?.removeAttribute("aria-expanded");
-      document.removeEventListener("keydown", onEsc);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("keydown", onEsc);
+      }
       panel.remove();
     },
   };

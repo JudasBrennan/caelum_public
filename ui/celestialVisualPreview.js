@@ -8,7 +8,6 @@ import {
 import { clamp } from "../engine/utils.js";
 import { loadThreeCore } from "./threeBridge2d.js";
 import { composeCelestialDescriptor, paintCelestialTexture } from "./celestialComposer.js";
-import { renderRingStripTextures } from "./ringTextureGenerator.js";
 import {
   createRingLightingMaterial,
   updateRingLightingMaterial,
@@ -20,10 +19,28 @@ import {
   updateRingShadowBodyUniforms,
 } from "./ringShadowBodyPatch.js";
 import {
-  canvasFromMapPayload,
-  requestCelestialTextureBundle,
-  supportsCelestialTextureWorker,
-} from "./celestialTextureWorkerClient.js";
+  isCelestialTextureJobCanceledError,
+  requestQueuedCelestialTextureMaps,
+} from "./celestialTextureJobQueue.js";
+import { normalizeCelestialTexturePayload } from "./celestialTexturePayloads.js";
+import {
+  acquireRendererTextureBundle,
+  disposeRendererTextureBundleCache,
+  releaseRendererTextureBundle,
+} from "./rendererTextureBundleCache.js";
+import {
+  acquireRingTextureBundle,
+  buildRingAppearanceSignature,
+  buildRingGeometrySignature,
+  disposeRendererRingTextureBundleCache,
+  getOrCreateRingTexturePayload,
+  releaseRingTextureBundle,
+} from "./ringTextureCache.js";
+import {
+  beginCelestialPerfDuration,
+  recordCelestialPerfCacheLookup,
+  recordCelestialTextureFulfillment,
+} from "./celestialPerfDebug.js";
 import { loadTexturesFromIDB, storeTexturesToIDB, clearStaleTextures } from "./textureCache.js";
 import { getStarVisualStyle } from "./visualizer/starSurface.js";
 
@@ -44,12 +61,16 @@ const CELESTIAL_DPR_MIN = 1;
 const CELESTIAL_DPR_MAX = 2;
 const CELESTIAL_TEXTURE_CACHE = new Map();
 const CELESTIAL_TEXTURE_CACHE_MAX = 64;
-const RING_TEXTURE_CACHE = new Map();
-const RING_TEXTURE_CACHE_MAX = 32;
 const CELESTIAL_TEXTURE_PIPELINE_VERSION = 9;
 
 /* Purge IDB entries from older pipeline versions (fire-and-forget) */
 clearStaleTextures(CELESTIAL_TEXTURE_PIPELINE_VERSION);
+
+function perfNowMs() {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+}
 
 function hashUnit(str) {
   let h = 2166136261;
@@ -2517,13 +2538,22 @@ async function initBodyRuntime(canvas, { preserveDrawingBuffer = false } = {}) {
     normalTexture: null,
     roughnessTexture: null,
     emissiveTexture: null,
-    descriptorSignature: "",
+    textureBundle: null,
+    runtimeSignature: "",
+    textureSignature: "",
     bodyGeometrySignature: "",
+    ringTextureBundle: null,
+    ringTextureSignature: "",
+    ringGeometrySignature: "",
     descriptor: null,
     rotationOffset: 0,
     disposed: false,
     pendingTextureSignature: "",
     pendingTextureRequestId: 0,
+    pendingPreviewReadyTimer: null,
+    pendingPreviewReadyRuntimeSignature: "",
+    pendingPreviewReadyTextureSignature: "",
+    pendingPreviewReadyBodyType: "",
   };
 }
 
@@ -2660,22 +2690,19 @@ function syncPreviewBodyGeometry(runtime, descriptor) {
 }
 
 function disposeRingMesh(runtime) {
+  if (!runtime) return;
+  releaseRuntimeRingTextureBundle(runtime);
   if (!runtime?.ring) {
     runtime.ring = null;
     runtime.ringMat = null;
     runtime.ringColorTexture = null;
     runtime.ringAlphaTexture = null;
     runtime.ringTextureSignature = "";
+    runtime.ringGeometrySignature = "";
     return;
   }
   try {
     runtime.root?.remove?.(runtime.ring);
-  } catch {}
-  try {
-    runtime.ringColorTexture?.dispose?.();
-  } catch {}
-  try {
-    runtime.ringAlphaTexture?.dispose?.();
   } catch {}
   try {
     runtime.ring.geometry?.dispose?.();
@@ -2692,6 +2719,7 @@ function disposeRingMesh(runtime) {
   runtime.ringColorTexture = null;
   runtime.ringAlphaTexture = null;
   runtime.ringTextureSignature = "";
+  runtime.ringGeometrySignature = "";
 }
 
 function remapRingGeometryUv(geometry, inner, outer) {
@@ -2716,60 +2744,14 @@ function createRingGeometry(THREE, inner, outer, segments = 192) {
   return remapRingGeometryUv(geometry, inner, outer);
 }
 
-function buildRingTextureSignature(ring) {
-  if (!ring) return "";
-  return JSON.stringify({
-    styleId: ring.styleId || "",
-    family: ring.family || "",
-    colourStops: ring.colourStops || [],
-    opacityStops: ring.opacityStops || [],
-    gaps: ring.gaps || [],
-    inner: ring.inner,
-    outer: ring.outer,
-    opacity: ring.opacity,
-    macroBandCount: ring.macroBandCount,
-    macroBandContrast: ring.macroBandContrast,
-    microBandStrength: ring.microBandStrength,
-    dustStrength: ring.dustStrength,
-    edgeFeatherInner: ring.edgeFeatherInner,
-    edgeFeatherOuter: ring.edgeFeatherOuter,
-    asymmetry: ring.asymmetry,
-    seed: ring.seed || "",
-  });
-}
-
-function cacheRingTextures(signature, entry) {
-  if (!signature || !entry?.colourCanvas || !entry?.alphaCanvas) return;
-  if (RING_TEXTURE_CACHE.has(signature)) {
-    const prev = RING_TEXTURE_CACHE.get(signature);
-    RING_TEXTURE_CACHE.delete(signature);
-    RING_TEXTURE_CACHE.set(signature, prev);
-    return;
-  }
-  RING_TEXTURE_CACHE.set(signature, {
-    colourCanvas: cloneCanvas(entry.colourCanvas),
-    alphaCanvas: cloneCanvas(entry.alphaCanvas),
-  });
-  if (RING_TEXTURE_CACHE.size <= RING_TEXTURE_CACHE_MAX) return;
-  const oldestKey = RING_TEXTURE_CACHE.keys().next().value;
-  if (oldestKey) RING_TEXTURE_CACHE.delete(oldestKey);
-}
-
-function getCachedRingTextures(signature) {
-  if (!signature || !RING_TEXTURE_CACHE.has(signature)) return null;
-  const entry = RING_TEXTURE_CACHE.get(signature);
-  RING_TEXTURE_CACHE.delete(signature);
-  RING_TEXTURE_CACHE.set(signature, entry);
-  return {
-    colourCanvas: cloneCanvas(entry.colourCanvas),
-    alphaCanvas: cloneCanvas(entry.alphaCanvas),
-  };
-}
-
 function applyRingTextures(runtime, ringDescriptor) {
   if (!runtime?.ringMat || !runtime?.THREE || !ringDescriptor) return;
-  const signature = buildRingTextureSignature(ringDescriptor);
-  if (signature && signature === runtime.ringTextureSignature) {
+  const expectedSignature = buildRingAppearanceSignature(ringDescriptor);
+  if (
+    expectedSignature &&
+    expectedSignature === runtime.ringTextureSignature &&
+    runtime.ringTextureBundle
+  ) {
     updateRingLightingMaterial({
       material: runtime.ringMat,
       colourTexture: runtime.ringColorTexture,
@@ -2778,33 +2760,34 @@ function applyRingTextures(runtime, ringDescriptor) {
     });
     return;
   }
-  const cached = getCachedRingTextures(signature);
-  const maps =
-    cached || renderRingStripTextures({ appearance: ringDescriptor, width: 1024, height: 32 });
-  if (!cached) cacheRingTextures(signature, maps);
+  const ringTextures = getOrCreateRingTexturePayload(ringDescriptor, { width: 1024, height: 32 });
+  if (!ringTextures?.signature || !ringTextures.payload) return;
 
-  try {
-    runtime.ringColorTexture?.dispose?.();
-  } catch {}
-  try {
-    runtime.ringAlphaTexture?.dispose?.();
-  } catch {}
+  const nextBundle = acquireRingTextureBundle({
+    renderer: runtime.renderer,
+    THREE: runtime.THREE,
+    ringTextureSignature: ringTextures.signature,
+    payload: ringTextures.payload,
+  });
+  if (!nextBundle) return;
 
-  const colorTex = createCanvasTexture(runtime.THREE, maps.colourCanvas, { srgb: true });
-  const alphaTex = createCanvasTexture(runtime.THREE, maps.alphaCanvas);
-  colorTex.wrapS = runtime.THREE.ClampToEdgeWrapping;
-  colorTex.wrapT = runtime.THREE.RepeatWrapping;
-  alphaTex.wrapS = runtime.THREE.ClampToEdgeWrapping;
-  alphaTex.wrapT = runtime.THREE.RepeatWrapping;
-  runtime.ringColorTexture = colorTex;
-  runtime.ringAlphaTexture = alphaTex;
-  runtime.ringTextureSignature = signature;
+  const prevBundle = runtime.ringTextureBundle;
+  runtime.ringTextureBundle = nextBundle;
+  runtime.ringColorTexture = nextBundle.colorTex;
+  runtime.ringAlphaTexture = nextBundle.alphaTex;
+  runtime.ringTextureSignature = nextBundle.signature;
   updateRingLightingMaterial({
     material: runtime.ringMat,
-    colourTexture: colorTex,
-    alphaTexture: alphaTex,
+    colourTexture: nextBundle.colorTex,
+    alphaTexture: nextBundle.alphaTex,
     ringDescriptor,
   });
+  if (prevBundle && prevBundle !== nextBundle) {
+    releaseRingTextureBundle({
+      renderer: runtime.renderer,
+      bundle: prevBundle,
+    });
+  }
 }
 
 function ensureRingMesh(runtime) {
@@ -2824,6 +2807,7 @@ function ensureRingMesh(runtime) {
   runtime.ringColorTexture = null;
   runtime.ringAlphaTexture = null;
   runtime.ringTextureSignature = "";
+  runtime.ringGeometrySignature = "";
   return ring;
 }
 
@@ -2883,21 +2867,12 @@ function disposeBodyRuntime(runtime) {
   runtime.disposed = true;
   runtime.pendingTextureRequestId += 1;
   runtime.pendingTextureSignature = "";
-  try {
-    runtime.surfaceTexture?.dispose?.();
-  } catch {}
-  try {
-    runtime.cloudTexture?.dispose?.();
-  } catch {}
-  try {
-    runtime.normalTexture?.dispose?.();
-  } catch {}
-  try {
-    runtime.roughnessTexture?.dispose?.();
-  } catch {}
-  try {
-    runtime.emissiveTexture?.dispose?.();
-  } catch {}
+  runtime.pendingPreviewReadyTimer?.cancel?.();
+  runtime.pendingPreviewReadyTimer = null;
+  runtime.pendingPreviewReadyRuntimeSignature = "";
+  runtime.pendingPreviewReadyTextureSignature = "";
+  runtime.pendingPreviewReadyBodyType = "";
+  releaseRuntimeTextureBundle(runtime);
   for (const mesh of [runtime.body, runtime.clouds, runtime.haze]) {
     if (!mesh) continue;
     try {
@@ -2912,6 +2887,8 @@ function disposeBodyRuntime(runtime) {
     } catch {}
   }
   disposeRingMesh(runtime);
+  disposeRendererTextureBundleCache(runtime.renderer);
+  disposeRendererRingTextureBundleCache(runtime.renderer);
   try {
     runtime.renderer?.forceContextLoss?.();
   } catch {}
@@ -2948,7 +2925,7 @@ function pickPreviewTextureSize(runtime, requestedSize) {
   return Math.min(requested, snapped, 384);
 }
 
-function buildDescriptorSignature(descriptor, textureSize = descriptor?.textureSize) {
+function buildCelestialTextureSignature(descriptor, textureSize = descriptor?.textureSize) {
   if (!descriptor) return "";
   return JSON.stringify({
     texPipeline: CELESTIAL_TEXTURE_PIPELINE_VERSION,
@@ -2957,72 +2934,85 @@ function buildDescriptorSignature(descriptor, textureSize = descriptor?.textureS
     profileId: descriptor.profileId || "",
     lod: descriptor.lod,
     texSize: Math.max(1, Number(textureSize) || 0),
-    rot: descriptor.rotationPeriodDays,
-    tilt: descriptor.axialTiltDeg,
     layers: descriptor.layers,
     atmosphere: descriptor.atmosphere,
     clouds: descriptor.clouds,
-    ring: descriptor.ring,
     aurora: descriptor.aurora,
     gasVisual: descriptor.gasVisual,
-    bodyScale: descriptor.bodyScale,
-    bodyShape: descriptor.bodyShape,
     flattenStyleMaps: shouldFlattenStyleMaps(descriptor),
   });
 }
 
-function cloneCanvas(source) {
-  const canvas = document.createElement("canvas");
-  canvas.width = source.width;
-  canvas.height = source.height;
-  const ctx = canvas.getContext("2d");
-  if (ctx) ctx.drawImage(source, 0, 0);
-  return canvas;
+function buildCelestialRuntimeSignature(descriptor, textureSize = descriptor?.textureSize) {
+  if (!descriptor) return "";
+  return JSON.stringify({
+    texture: buildCelestialTextureSignature(descriptor, textureSize),
+    rot: descriptor.rotationPeriodDays,
+    tilt: descriptor.axialTiltDeg,
+    bodyScale: descriptor.bodyScale || null,
+    bodyShape: descriptor.bodyShape || null,
+    ringAppearance: buildRingAppearanceSignature(descriptor.ring),
+    ringGeometry: buildRingGeometrySignature(descriptor.ring),
+    ringTilt: descriptor?.ring?.enabled ? Number(descriptor.ring.tiltDeg) || 100 : null,
+    ringYaw: descriptor?.ring?.enabled ? Number(descriptor.ring.yawDeg) || 20 : null,
+  });
 }
 
-function cacheTextures(signature, entry) {
-  if (
-    !signature ||
-    !entry?.surface ||
-    !entry?.cloud ||
-    !entry?.normal ||
-    !entry?.roughness ||
-    !entry?.emissive
-  ) {
-    return;
-  }
+function cacheTextures(signature, entry, options = {}) {
+  const persist = options.persist !== false;
+  const payload = normalizeCelestialTexturePayload(entry, { cloneBuffers: false });
+  if (!signature || !payload?.surface || !payload?.cloud || !payload?.normal) return;
   if (CELESTIAL_TEXTURE_CACHE.has(signature)) {
     const prev = CELESTIAL_TEXTURE_CACHE.get(signature);
     CELESTIAL_TEXTURE_CACHE.delete(signature);
     CELESTIAL_TEXTURE_CACHE.set(signature, prev);
     return;
   }
-  CELESTIAL_TEXTURE_CACHE.set(signature, {
-    surface: cloneCanvas(entry.surface),
-    cloud: cloneCanvas(entry.cloud),
-    normal: cloneCanvas(entry.normal),
-    roughness: cloneCanvas(entry.roughness),
-    emissive: cloneCanvas(entry.emissive),
-  });
-  /* Persist to IndexedDB for cross-session cache (fire-and-forget) */
-  storeTexturesToIDB(signature, entry, CELESTIAL_TEXTURE_PIPELINE_VERSION);
+  CELESTIAL_TEXTURE_CACHE.set(signature, payload);
+  if (persist) {
+    /* Persist to IndexedDB for cross-session cache (fire-and-forget) */
+    storeTexturesToIDB(signature, payload, CELESTIAL_TEXTURE_PIPELINE_VERSION);
+  }
   if (CELESTIAL_TEXTURE_CACHE.size <= CELESTIAL_TEXTURE_CACHE_MAX) return;
   const oldestKey = CELESTIAL_TEXTURE_CACHE.keys().next().value;
   if (oldestKey) CELESTIAL_TEXTURE_CACHE.delete(oldestKey);
 }
 
 function getCachedTextures(signature) {
-  if (!signature || !CELESTIAL_TEXTURE_CACHE.has(signature)) return null;
+  const hit = !!signature && CELESTIAL_TEXTURE_CACHE.has(signature);
+  recordCelestialPerfCacheLookup("textureSignature", hit);
+  if (!hit) return null;
   const entry = CELESTIAL_TEXTURE_CACHE.get(signature);
   CELESTIAL_TEXTURE_CACHE.delete(signature);
   CELESTIAL_TEXTURE_CACHE.set(signature, entry);
-  return {
-    surface: cloneCanvas(entry.surface),
-    cloud: cloneCanvas(entry.cloud),
-    normal: cloneCanvas(entry.normal),
-    roughness: cloneCanvas(entry.roughness),
-    emissive: cloneCanvas(entry.emissive),
-  };
+  return entry;
+}
+
+function beginPreviewReadyTimer(runtime, descriptor, runtimeSignature, textureSignature) {
+  if (!runtime || runtime.disposed) return;
+  runtime.pendingPreviewReadyTimer?.cancel?.();
+  runtime.pendingPreviewReadyTimer = beginCelestialPerfDuration("previewDescriptorToReadyMs", {
+    bodyType: descriptor?.bodyType || "",
+    scope: "preview",
+  });
+  runtime.pendingPreviewReadyRuntimeSignature = runtimeSignature || "";
+  runtime.pendingPreviewReadyTextureSignature = textureSignature || "";
+  runtime.pendingPreviewReadyBodyType = descriptor?.bodyType || "";
+}
+
+function finishPreviewReadyTimer(runtime, textureSignature = "") {
+  if (!runtime?.pendingPreviewReadyTimer) return;
+  const expectedTextureSignature = runtime.pendingPreviewReadyTextureSignature || "";
+  if (expectedTextureSignature && textureSignature && textureSignature !== expectedTextureSignature)
+    return;
+  runtime.pendingPreviewReadyTimer.end({
+    bodyType: runtime.pendingPreviewReadyBodyType || runtime.descriptor?.bodyType || "",
+    scope: "preview",
+  });
+  runtime.pendingPreviewReadyTimer = null;
+  runtime.pendingPreviewReadyRuntimeSignature = "";
+  runtime.pendingPreviewReadyTextureSignature = "";
+  runtime.pendingPreviewReadyBodyType = "";
 }
 
 function generateCelestialTextureCanvasesLocal(descriptor, textureSize) {
@@ -3081,42 +3071,58 @@ function generateCelestialTextureCanvasesLocal(descriptor, textureSize) {
   };
 }
 
-function applyDescriptorMapsToRuntime(runtime, descriptor, signature, entry) {
-  if (!runtime || runtime.disposed || !descriptor || !entry?.surface || !entry?.cloud) return;
-  const textureCanvas = entry.surface;
-  const cloudCanvas = entry.cloud;
-  const textureSize = Number(textureCanvas.width || descriptor.textureSize || 512);
-  const normalCanvas =
-    entry.normal || makeFlatMapCanvas(textureSize, textureSize, [128, 128, 255, 255]);
-  const roughnessCanvas =
-    entry.roughness || makeFlatMapCanvas(textureSize, textureSize, [180, 180, 180, 255]);
-  const emissiveCanvas =
-    entry.emissive || makeFlatMapCanvas(textureSize, textureSize, [0, 0, 0, 255]);
+function releaseRuntimeTextureBundle(runtime) {
+  if (!runtime?.renderer || !runtime?.textureBundle?.signature) {
+    if (runtime) runtime.textureBundle = null;
+    return;
+  }
+  releaseRendererTextureBundle({
+    renderer: runtime.renderer,
+    textureSignature: runtime.textureBundle.signature,
+  });
+  runtime.textureBundle = null;
+}
 
-  const nextSurfaceTex = createCanvasTexture(runtime.THREE, textureCanvas, { srgb: true });
-  const nextCloudTex = createCanvasTexture(runtime.THREE, cloudCanvas, { srgb: true });
-  const nextNormalTex = createCanvasTexture(runtime.THREE, normalCanvas);
-  const nextRoughnessTex = createCanvasTexture(runtime.THREE, roughnessCanvas);
-  const nextEmissiveTex = createCanvasTexture(runtime.THREE, emissiveCanvas, { srgb: true });
-  nextCloudTex.premultiplyAlpha = false;
+function releaseRuntimeRingTextureBundle(runtime) {
+  if (!runtime?.renderer || !runtime?.ringTextureBundle?.signature) {
+    if (runtime) {
+      runtime.ringTextureBundle = null;
+      runtime.ringTextureSignature = "";
+      runtime.ringColorTexture = null;
+      runtime.ringAlphaTexture = null;
+    }
+    return;
+  }
+  releaseRingTextureBundle({
+    renderer: runtime.renderer,
+    bundle: runtime.ringTextureBundle,
+  });
+  runtime.ringTextureBundle = null;
+  runtime.ringTextureSignature = "";
+  runtime.ringColorTexture = null;
+  runtime.ringAlphaTexture = null;
+}
+
+function applyDescriptorMapsToRuntime(runtime, descriptor, textureSignature, entry) {
+  if (!runtime || runtime.disposed || !descriptor || !entry?.surface || !entry?.cloud) return;
   const maxAnisotropy = runtime.renderer?.capabilities?.getMaxAnisotropy?.() || 1;
   const anisotropy = clamp(Math.round(maxAnisotropy), 1, 8);
-  nextSurfaceTex.anisotropy = anisotropy;
-  nextCloudTex.anisotropy = anisotropy;
-  nextNormalTex.anisotropy = anisotropy;
-  nextRoughnessTex.anisotropy = anisotropy;
-  nextEmissiveTex.anisotropy = anisotropy;
+  const nextBundle = acquireRendererTextureBundle({
+    renderer: runtime.renderer,
+    THREE: runtime.THREE,
+    textureSignature,
+    maps: entry,
+    anisotropy,
+  });
+  if (!nextBundle) return;
 
-  runtime.surfaceTexture?.dispose?.();
-  runtime.cloudTexture?.dispose?.();
-  runtime.normalTexture?.dispose?.();
-  runtime.roughnessTexture?.dispose?.();
-  runtime.emissiveTexture?.dispose?.();
-  runtime.surfaceTexture = nextSurfaceTex;
-  runtime.cloudTexture = nextCloudTex;
-  runtime.normalTexture = nextNormalTex;
-  runtime.roughnessTexture = nextRoughnessTex;
-  runtime.emissiveTexture = nextEmissiveTex;
+  const prevBundle = runtime.textureBundle;
+  runtime.textureBundle = nextBundle;
+  runtime.surfaceTexture = nextBundle.surface;
+  runtime.cloudTexture = nextBundle.cloud;
+  runtime.normalTexture = nextBundle.normal;
+  runtime.roughnessTexture = nextBundle.roughness;
+  runtime.emissiveTexture = nextBundle.emissive;
 
   runtime.body.material.map = runtime.surfaceTexture;
   runtime.body.material.normalMap = runtime.normalTexture;
@@ -3124,7 +3130,18 @@ function applyDescriptorMapsToRuntime(runtime, descriptor, signature, entry) {
   runtime.body.material.emissiveMap = runtime.emissiveTexture;
   runtime.body.material.emissive?.set?.("#ffffff");
   runtime.body.material.needsUpdate = true;
+  if (prevBundle && prevBundle !== nextBundle) {
+    releaseRendererTextureBundle({
+      renderer: runtime.renderer,
+      textureSignature: prevBundle.signature,
+    });
+  }
+  runtime.textureSignature = textureSignature;
+  finishPreviewReadyTimer(runtime, textureSignature);
+}
 
+function applyDescriptorRuntimeState(runtime, descriptor, runtimeSignature) {
+  if (!runtime || runtime.disposed || !descriptor) return;
   syncPreviewBodyGeometry(runtime, descriptor);
   const bodyScale = descriptor?.bodyScale || null;
   const hasCustomBodyShape = descriptor?.bodyType === "moon" && descriptor?.bodyShape?.kind;
@@ -3248,8 +3265,17 @@ function applyDescriptorMapsToRuntime(runtime, descriptor, signature, entry) {
     runtime.ring.visible = true;
     const inner = clamp(Number(descriptor.ring.inner) || 1.22, 1.1, 2.5);
     const outer = clamp(Number(descriptor.ring.outer) || 1.95, inner + 0.05, 3.2);
-    runtime.ring.geometry.dispose();
-    runtime.ring.geometry = createRingGeometry(runtime.THREE, inner, outer, 192);
+    const ringGeometrySignature = buildRingGeometrySignature(descriptor.ring);
+    if (ringGeometrySignature !== runtime.ringGeometrySignature) {
+      const prevRingGeometry = runtime.ring.geometry;
+      runtime.ring.geometry = createRingGeometry(runtime.THREE, inner, outer, 192);
+      runtime.ringGeometrySignature = ringGeometrySignature;
+      if (prevRingGeometry && prevRingGeometry !== runtime.ring.geometry) {
+        try {
+          prevRingGeometry.dispose?.();
+        } catch {}
+      }
+    }
     runtime.ring.rotation.x = runtime.THREE.MathUtils.degToRad(
       Number(descriptor.ring.tiltDeg) || 100,
     );
@@ -3279,29 +3305,47 @@ function applyDescriptorMapsToRuntime(runtime, descriptor, signature, entry) {
   }
 
   runtime.descriptor = descriptor;
-  runtime.descriptorSignature = signature;
+  runtime.runtimeSignature = runtimeSignature;
   runtime.rotationOffset = hashUnit(`${descriptor.seed}:body-rot`) * Math.PI * 2;
 }
 
 function applyDescriptorToRuntime(runtime, descriptor, model) {
   if (!runtime || runtime.disposed || !descriptor) return;
   const textureSize = pickPreviewTextureSize(runtime, descriptor.textureSize);
-  const signature = buildDescriptorSignature(descriptor, textureSize);
-  if (signature === runtime.descriptorSignature) return;
-  if (runtime.pendingTextureSignature === signature) return;
+  const textureSignature = buildCelestialTextureSignature(descriptor, textureSize);
+  const runtimeSignature = buildCelestialRuntimeSignature(descriptor, textureSize);
+  if (runtimeSignature === runtime.runtimeSignature) return;
+  beginPreviewReadyTimer(runtime, descriptor, runtimeSignature, textureSignature);
+  if (textureSignature && textureSignature === runtime.textureSignature) {
+    runtime.pendingTextureSignature = "";
+    applyDescriptorRuntimeState(runtime, descriptor, runtimeSignature);
+    finishPreviewReadyTimer(runtime, textureSignature);
+    return;
+  }
+  if (runtime.pendingTextureSignature === textureSignature) {
+    applyDescriptorRuntimeState(runtime, descriptor, runtimeSignature);
+    return;
+  }
 
-  const cached = getCachedTextures(signature);
+  const cached = getCachedTextures(textureSignature);
   if (cached) {
     runtime.pendingTextureSignature = "";
-    applyDescriptorMapsToRuntime(runtime, descriptor, signature, cached);
+    recordCelestialTextureFulfillment("memory", { scope: "preview-body" });
+    applyDescriptorMapsToRuntime(runtime, descriptor, textureSignature, cached);
+    applyDescriptorRuntimeState(runtime, descriptor, runtimeSignature);
     return;
   }
 
   const requestId = runtime.pendingTextureRequestId + 1;
   runtime.pendingTextureRequestId = requestId;
-  runtime.pendingTextureSignature = signature;
+  runtime.pendingTextureSignature = textureSignature;
+  const isCurrentRequest = () =>
+    !!runtime &&
+    !runtime.disposed &&
+    runtime.pendingTextureRequestId === requestId &&
+    runtime.pendingTextureSignature === textureSignature;
 
-  if (descriptor.lod !== "tiny" && model) {
+  if (descriptor.lod !== "tiny" && model && textureSize > 128) {
     const tiers =
       descriptor.lod === "high"
         ? ["medium", "low", "tiny"]
@@ -3312,78 +3356,72 @@ function applyDescriptorToRuntime(runtime, descriptor, model) {
     for (const tier of tiers) {
       const ld = composeCelestialDescriptor(model, { lod: tier });
       const ls = pickPreviewTextureSize(runtime, ld.textureSize);
-      const lsig = buildDescriptorSignature(ld, ls);
+      const lsig = buildCelestialTextureSignature(ld, ls);
       const lcached = getCachedTextures(lsig);
       if (lcached) {
         applyDescriptorMapsToRuntime(runtime, descriptor, lsig, lcached);
+        applyDescriptorRuntimeState(runtime, descriptor, runtimeSignature);
         placeholderApplied = true;
         break;
       }
     }
-    if (!placeholderApplied && supportsCelestialTextureWorker()) {
+    if (!placeholderApplied) {
       const tinyDescriptor = composeCelestialDescriptor(model, { lod: "tiny" });
       const tinySize = pickPreviewTextureSize(runtime, tinyDescriptor.textureSize);
-      const tinySig = buildDescriptorSignature(tinyDescriptor, tinySize);
-      requestCelestialTextureBundle({
+      const tinySig = buildCelestialTextureSignature(tinyDescriptor, tinySize);
+      requestQueuedCelestialTextureMaps({
         signature: tinySig,
         descriptor: tinyDescriptor,
         textureSize: tinySize,
+        perfScope: "preview-placeholder",
+        priority: "medium",
+        shouldContinue: isCurrentRequest,
+        localFactory: generateCelestialTextureCanvasesLocal,
+        allowWorker: false,
       })
-        .then((result) => {
-          if (!runtime || runtime.disposed) return;
-          if (runtime.pendingTextureRequestId !== requestId) return;
-          if (runtime.descriptorSignature === signature) return;
-          const maps = result?.maps || null;
-          const wm = {
-            surface: canvasFromMapPayload(maps?.surface),
-            cloud: canvasFromMapPayload(maps?.cloud),
-            normal: canvasFromMapPayload(maps?.normal),
-            roughness: canvasFromMapPayload(maps?.roughness),
-            emissive: canvasFromMapPayload(maps?.emissive),
-          };
-          if (!wm.surface || !wm.cloud || !wm.normal) return;
-          cacheTextures(tinySig, wm);
-          applyDescriptorMapsToRuntime(runtime, descriptor, tinySig, wm);
+        .then((maps) => {
+          if (!isCurrentRequest()) return;
+          if (runtime.textureSignature === textureSignature) return;
+          cacheTextures(tinySig, maps);
+          applyDescriptorMapsToRuntime(runtime, descriptor, tinySig, maps);
+          applyDescriptorRuntimeState(runtime, descriptor, runtimeSignature);
         })
-        .catch(() => {});
+        .catch((error) => {
+          if (!isCelestialTextureJobCanceledError(error)) {
+            /* placeholder generation is best-effort */
+          }
+        });
     }
   }
 
-  const applyLocalFallback = () => {
-    if (!runtime || runtime.disposed) return;
-    if (runtime.pendingTextureRequestId !== requestId) return;
-    const localMaps = generateCelestialTextureCanvasesLocal(descriptor, textureSize);
-    cacheTextures(signature, localMaps);
-    applyDescriptorMapsToRuntime(runtime, descriptor, signature, localMaps);
-    if (runtime.pendingTextureRequestId === requestId) runtime.pendingTextureSignature = "";
-  };
-
-  if (!supportsCelestialTextureWorker()) {
-    applyLocalFallback();
-    return;
-  }
-
-  requestCelestialTextureBundle({ signature, descriptor, textureSize })
-    .then((result) => {
-      if (!runtime || runtime.disposed) return;
-      if (runtime.pendingTextureRequestId !== requestId) return;
-      const maps = result?.maps || null;
-      const workerMaps = {
-        surface: canvasFromMapPayload(maps?.surface),
-        cloud: canvasFromMapPayload(maps?.cloud),
-        normal: canvasFromMapPayload(maps?.normal),
-        roughness: canvasFromMapPayload(maps?.roughness),
-        emissive: canvasFromMapPayload(maps?.emissive),
-      };
-      if (!workerMaps.surface || !workerMaps.cloud || !workerMaps.normal) {
-        throw new Error("Worker payload missing required texture maps");
-      }
-      cacheTextures(signature, workerMaps);
-      applyDescriptorMapsToRuntime(runtime, descriptor, signature, workerMaps);
+  requestQueuedCelestialTextureMaps({
+    signature: textureSignature,
+    descriptor,
+    textureSize,
+    perfScope: "preview-body",
+    priority: "high",
+    shouldContinue: isCurrentRequest,
+    localFactory: generateCelestialTextureCanvasesLocal,
+  })
+    .then((maps) => {
+      if (!isCurrentRequest()) return;
+      cacheTextures(textureSignature, maps);
+      applyDescriptorMapsToRuntime(runtime, descriptor, textureSignature, maps);
+      applyDescriptorRuntimeState(runtime, descriptor, runtimeSignature);
       if (runtime.pendingTextureRequestId === requestId) runtime.pendingTextureSignature = "";
     })
-    .catch(() => {
-      applyLocalFallback();
+    .catch((error) => {
+      if (isCurrentRequest()) runtime.pendingTextureSignature = "";
+      if (isCurrentRequest()) {
+        runtime.pendingPreviewReadyTimer?.cancel?.();
+        runtime.pendingPreviewReadyTimer = null;
+        runtime.pendingPreviewReadyRuntimeSignature = "";
+        runtime.pendingPreviewReadyTextureSignature = "";
+        runtime.pendingPreviewReadyBodyType = "";
+      }
+      if (!isCelestialTextureJobCanceledError(error)) {
+        /* texture generation is best-effort */
+      }
     });
 }
 
@@ -3631,18 +3669,41 @@ async function doRecipeSnapshot(targetCanvas, model, { shouldContinue = null } =
 
   const descriptor = composeCelestialDescriptor(model, { lod: "low" });
   const textureSize = descriptor.textureSize || 128;
-  const signature = buildDescriptorSignature(descriptor, textureSize);
+  const textureSignature = buildCelestialTextureSignature(descriptor, textureSize);
+  const runtimeSignature = buildCelestialRuntimeSignature(descriptor, textureSize);
 
-  let maps = getCachedTextures(signature);
+  let maps = getCachedTextures(textureSignature);
   if (!maps) {
-    maps = generateCelestialTextureCanvasesLocal(descriptor, textureSize);
-    cacheTextures(signature, maps);
+    const loadedFromIdb = await loadFromIDBToCache(textureSignature);
+    if (loadedFromIdb) {
+      maps = getCachedTextures(textureSignature);
+      if (maps) recordCelestialTextureFulfillment("indexedDB", { scope: "recipe-snapshot" });
+    }
+  } else {
+    recordCelestialTextureFulfillment("memory", { scope: "recipe-snapshot" });
+  }
+  if (!maps) {
+    try {
+      maps = await requestQueuedCelestialTextureMaps({
+        signature: textureSignature,
+        descriptor,
+        textureSize,
+        priority: "low",
+        perfScope: "recipe-snapshot",
+        shouldContinue,
+        localFactory: generateCelestialTextureCanvasesLocal,
+      });
+    } catch (error) {
+      if (isCelestialTextureJobCanceledError(error)) return false;
+      return false;
+    }
+    if (!shouldContinueWork(shouldContinue)) return false;
+    cacheTextures(textureSignature, maps);
   }
 
   if (!shouldContinueWork(shouldContinue)) return false;
-  applyDescriptorMapsToRuntime(runtime, descriptor, signature, maps);
-  runtime.descriptor = descriptor;
-  runtime.descriptorSignature = signature;
+  applyDescriptorMapsToRuntime(runtime, descriptor, textureSignature, maps);
+  applyDescriptorRuntimeState(runtime, descriptor, runtimeSignature);
 
   const size = 180;
   const offscreen = runtime.renderer.domElement;
@@ -3747,11 +3808,25 @@ function snapshotCacheKey(model) {
  *
  * @param {{ canvas: HTMLCanvasElement, model: object }[]} items
  * @param {(done: number, total: number) => void} [onProgress]
+ * @param {{ maxRendersPerFrame?: number, frameBudgetMs?: number }} [options]
  * @returns {Promise<void>}
  */
-export async function renderCelestialRecipeBatch(items, onProgress) {
+export async function renderCelestialRecipeBatch(items, onProgress, options = {}) {
   const total = items.length;
+  if (!total) return;
   let done = 0;
+  const maxRendersPerFrameRaw = Number(options.maxRendersPerFrame);
+  const maxRendersPerFrame =
+    Number.isFinite(maxRendersPerFrameRaw) && maxRendersPerFrameRaw > 0
+      ? Math.round(maxRendersPerFrameRaw)
+      : 1;
+  const frameBudgetMsRaw = Number(options.frameBudgetMs);
+  const frameBudgetMs =
+    Number.isFinite(frameBudgetMsRaw) && frameBudgetMsRaw > 0 ? frameBudgetMsRaw : 7;
+  const batchTimer = beginCelestialPerfDuration("recipeBatchRenderCompletionMs", {
+    count: total,
+    scope: "recipe-batch",
+  });
   const shouldContinue = () =>
     typeof document !== "undefined" &&
     typeof requestAnimationFrame === "function" &&
@@ -3767,6 +3842,7 @@ export async function renderCelestialRecipeBatch(items, onProgress) {
     }
     const key = snapshotCacheKey(model);
     const cached = _snapshotCache.get(key);
+    recordCelestialPerfCacheLookup("recipeSnapshot", !!cached);
     if (cached) {
       const w = Number(canvas.width) || 90;
       const h = Number(canvas.height) || 90;
@@ -3782,26 +3858,50 @@ export async function renderCelestialRecipeBatch(items, onProgress) {
     }
   }
   if (onProgress) onProgress(done, total);
-  if (!uncached.length || !shouldContinueWork(shouldContinue)) return;
+  if (!uncached.length) {
+    batchTimer.end({ count: total, scope: "recipe-batch" });
+    return;
+  }
+  if (!shouldContinueWork(shouldContinue)) {
+    batchTimer.cancel();
+    return;
+  }
 
   /* Warm up the shared WebGL runtime before timing the loop */
-  if (!shouldContinueWork(shouldContinue)) return;
+  if (!shouldContinueWork(shouldContinue)) {
+    batchTimer.cancel();
+    return;
+  }
   await ensureRecipeRuntime();
-  if (!shouldContinueWork(shouldContinue)) return;
+  if (!shouldContinueWork(shouldContinue)) {
+    batchTimer.cancel();
+    return;
+  }
 
-  /* Second pass — render uncached, yielding between frames */
+  /* Second pass - render uncached, yielding between frames */
+  let rendersSinceYield = 0;
+  let frameStartedAtMs = perfNowMs();
   for (const { canvas, model, key } of uncached) {
-    if (!shouldContinueWork(shouldContinue)) return;
+    if (!shouldContinueWork(shouldContinue)) {
+      batchTimer.cancel();
+      return;
+    }
     if (!canvas || !canvas.isConnected) {
       done++;
       if (onProgress) onProgress(done, total);
       continue;
     }
     const ok = await doRecipeSnapshot(canvas, model, { shouldContinue });
-    if (!shouldContinueWork(shouldContinue)) return;
+    if (!shouldContinueWork(shouldContinue)) {
+      batchTimer.cancel();
+      return;
+    }
     if (ok) {
       try {
-        if (!shouldContinueWork(shouldContinue)) return;
+        if (!shouldContinueWork(shouldContinue)) {
+          batchTimer.cancel();
+          return;
+        }
         const w = Number(canvas.width) || 90;
         const h = Number(canvas.height) || 90;
         const c = document.createElement("canvas");
@@ -3816,39 +3916,29 @@ export async function renderCelestialRecipeBatch(items, onProgress) {
     canvas.dataset.loaded = "1";
     done++;
     if (onProgress) onProgress(done, total);
-    /* Yield to browser so it paints the latest thumbnail */
-    if (!shouldContinueWork(shouldContinue)) return;
-    await new Promise((r) => requestAnimationFrame(r));
+    rendersSinceYield += 1;
+    const elapsedThisFrameMs = perfNowMs() - frameStartedAtMs;
+    if (rendersSinceYield < maxRendersPerFrame && elapsedThisFrameMs < frameBudgetMs) continue;
+    if (!shouldContinueWork(shouldContinue)) {
+      batchTimer.cancel();
+      return;
+    }
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    rendersSinceYield = 0;
+    frameStartedAtMs = perfNowMs();
   }
+  batchTimer.end({ count: total, scope: "recipe-batch" });
 }
 
 /* ── IndexedDB → in-memory cache bridge ────────────────────── */
-
-function canvasFromIDBPayload(buffer, width, height) {
-  if (!buffer || !(width > 0) || !(height > 0)) return null;
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-  ctx.putImageData(new ImageData(new Uint8ClampedArray(buffer), width, height), 0, 0);
-  return canvas;
-}
 
 async function loadFromIDBToCache(signature) {
   if (!signature) return false;
   if (CELESTIAL_TEXTURE_CACHE.has(signature)) return true;
   const rec = await loadTexturesFromIDB(signature);
   if (!rec) return false;
-  const maps = {
-    surface: canvasFromIDBPayload(rec.surface, rec.width, rec.height),
-    cloud: canvasFromIDBPayload(rec.cloud, rec.width, rec.height),
-    normal: canvasFromIDBPayload(rec.normal, rec.width, rec.height),
-    roughness: canvasFromIDBPayload(rec.roughness, rec.width, rec.height),
-    emissive: canvasFromIDBPayload(rec.emissive, rec.width, rec.height),
-  };
-  if (!maps.surface || !maps.cloud || !maps.normal) return false;
-  cacheTextures(signature, maps);
+  if (!rec.surface || !rec.cloud || !rec.normal) return false;
+  cacheTextures(signature, rec, { persist: false });
   return true;
 }
 
@@ -3860,36 +3950,28 @@ function shouldContinueWork(guard) {
 
 async function warmSingle(descriptor, textureSize, signature, shouldContinue = null) {
   if (!shouldContinueWork(shouldContinue)) return;
-  if (await loadFromIDBToCache(signature)) return;
-  if (!shouldContinueWork(shouldContinue)) return;
-  if (supportsCelestialTextureWorker()) {
-    try {
-      const result = await requestCelestialTextureBundle({
-        signature,
-        descriptor,
-        textureSize,
-      });
-      if (!shouldContinueWork(shouldContinue)) return;
-      const maps = result?.maps;
-      const wm = {
-        surface: canvasFromMapPayload(maps?.surface),
-        cloud: canvasFromMapPayload(maps?.cloud),
-        normal: canvasFromMapPayload(maps?.normal),
-        roughness: canvasFromMapPayload(maps?.roughness),
-        emissive: canvasFromMapPayload(maps?.emissive),
-      };
-      if (wm.surface && wm.cloud && wm.normal) {
-        cacheTextures(signature, wm);
-        return;
-      }
-    } catch {
-      /* fall through to local */
-    }
+  if (await loadFromIDBToCache(signature)) {
+    recordCelestialTextureFulfillment("indexedDB", { scope: "prewarm" });
+    return;
   }
   if (!shouldContinueWork(shouldContinue)) return;
-  const localMaps = generateCelestialTextureCanvasesLocal(descriptor, textureSize);
-  if (!shouldContinueWork(shouldContinue)) return;
-  cacheTextures(signature, localMaps);
+  try {
+    const maps = await requestQueuedCelestialTextureMaps({
+      signature,
+      descriptor,
+      textureSize,
+      perfScope: "prewarm",
+      priority: "low",
+      shouldContinue,
+      localFactory: generateCelestialTextureCanvasesLocal,
+    });
+    if (!shouldContinueWork(shouldContinue)) return;
+    cacheTextures(signature, maps);
+  } catch (error) {
+    if (!isCelestialTextureJobCanceledError(error)) {
+      /* prewarm is best-effort */
+    }
+  }
 }
 
 /**
@@ -3905,13 +3987,19 @@ export async function preWarmTextures(models, opts = {}) {
   if (!models?.length) return;
   const lod = opts.lod || "low";
   const shouldContinue = typeof opts.shouldContinue === "function" ? opts.shouldContinue : null;
+  const maxItemsRaw = Number(opts.maxItems);
+  const maxItems = Number.isFinite(maxItemsRaw) && maxItemsRaw > 0 ? Math.round(maxItemsRaw) : null;
   const tasks = [];
-  for (const model of models) {
+  const warmList = maxItems ? models.slice(0, maxItems) : models;
+  for (const model of warmList) {
     if (!shouldContinueWork(shouldContinue)) return;
     const descriptor = composeCelestialDescriptor(model, { lod });
     const textureSize = descriptor.textureSize || 128;
-    const signature = buildDescriptorSignature(descriptor, textureSize);
-    if (CELESTIAL_TEXTURE_CACHE.has(signature)) continue;
+    const signature = buildCelestialTextureSignature(descriptor, textureSize);
+    if (getCachedTextures(signature)) {
+      recordCelestialTextureFulfillment("memory", { scope: "prewarm" });
+      continue;
+    }
     tasks.push(warmSingle(descriptor, textureSize, signature, shouldContinue));
   }
   await Promise.all(tasks);
@@ -3923,7 +4011,10 @@ export {
   createAtmosphereMaterial,
   createCanvasTexture,
   generateCelestialTextureCanvasesLocal,
-  buildDescriptorSignature,
+  buildCelestialTextureSignature,
+  buildCelestialRuntimeSignature,
+  buildRingAppearanceSignature,
+  buildRingGeometrySignature,
   getCachedTextures,
   cacheTextures,
   makeFlatMapCanvas,

@@ -718,7 +718,12 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
     if (!m.parentId || !m.moonCalc || POSTER_CACHE.has(moonKey(m))) continue;
     warmModels.push({ bodyType: "moon", name: m.name || "", moonCalc: m.moonCalc });
   }
-  const warmPromise = preWarmTextures(warmModels, { lod: "low", shouldContinue: isCurrentRun });
+  const posterWarmLimit = warmModels.length > 18 ? 18 : warmModels.length;
+  const warmPromise = preWarmTextures(warmModels, {
+    lod: "low",
+    maxItems: posterWarmLimit,
+    shouldContinue: isCurrentRun,
+  });
 
   const allAu = [];
   for (const b of allBodies) allAu.push(b.au);

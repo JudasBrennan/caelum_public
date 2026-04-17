@@ -32,8 +32,17 @@ import {
   getStorageError,
   readWorldRaw,
   resetStorePersistenceForTests,
+  restoreBackup as restoreBackupFromPersistence,
   saveWorldRaw,
 } from "./store/persistenceBridge.js";
+import {
+  __resetWorldSnapshotCacheForTests,
+  cacheWorldLoadFailure,
+  cacheWorldSnapshot,
+  invalidateWorldSnapshotCache,
+  readCachedWorldLoadFailure,
+  readCachedWorldSnapshot,
+} from "./store/worldSnapshotCache.js";
 import {
   getDebrisDisks as getDebrisDisksModel,
   getGasGiants,
@@ -85,10 +94,10 @@ export {
   hasAnySavedData,
   hasSavedWorldInLocalStorage,
   listBackups,
-  restoreBackup,
   waitForStorageReady,
 } from "./store/persistenceBridge.js";
 export { normalizeWorld } from "./store/worldMigration.js";
+export { __getWorldSnapshotCacheStatsForTests } from "./store/worldSnapshotCache.js";
 
 // Shared World Model store (local-only).
 // This keeps Star/System/Planet pages consistent.
@@ -157,6 +166,20 @@ function toWorldLoadFailure({ stage, sourceKey, raw, error }) {
   };
 }
 
+function toCachedWorldLoadFailure({ stage, sourceKey, raw, cause }) {
+  return {
+    stage: stage === "migrate" ? "migrate" : "parse",
+    sourceKey: sourceKey || null,
+    raw: typeof raw === "string" ? raw : null,
+    message:
+      stage === "parse"
+        ? "WorldSmith could not parse the saved world data."
+        : "WorldSmith could not migrate the saved world data to the current format.",
+    cause: String(cause || ""),
+    detectedAt: new Date().toISOString(),
+  };
+}
+
 export function getSchemaVersion() {
   return SCHEMA_VERSION;
 }
@@ -169,10 +192,33 @@ export function loadWorld() {
     return defaultWorld();
   }
 
+  const cachedWorld = readCachedWorldSnapshot(raw);
+  if (cachedWorld) {
+    clearWorldLoadFailure();
+    return cachedWorld;
+  }
+
+  const cachedFailure = readCachedWorldLoadFailure(raw);
+  if (cachedFailure) {
+    setWorldLoadFailure(
+      toCachedWorldLoadFailure({
+        stage: cachedFailure.stage,
+        sourceKey: stored?.sourceKey,
+        raw,
+        cause: cachedFailure.cause,
+      }),
+    );
+    return defaultWorld();
+  }
+
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
+    cacheWorldLoadFailure(raw, {
+      stage: "parse",
+      cause: error?.message || String(error || ""),
+    });
     setWorldLoadFailure(
       toWorldLoadFailure({
         stage: "parse",
@@ -186,9 +232,14 @@ export function loadWorld() {
 
   try {
     const world = migrateWorld(mergeWorldForMigration(parsed));
+    cacheWorldSnapshot(raw, world);
     clearWorldLoadFailure();
     return world;
   } catch (error) {
+    cacheWorldLoadFailure(raw, {
+      stage: "migrate",
+      cause: error?.message || String(error || ""),
+    });
     setWorldLoadFailure(
       toWorldLoadFailure({
         stage: "migrate",
@@ -217,7 +268,8 @@ export function clearLastStorageError() {
   return clearStorageError();
 }
 
-export function clearAllSavedData() {
+export async function clearAllSavedData() {
+  invalidateWorldSnapshotCache();
   clearWorldLoadFailure();
   clearStorageError();
   return clearAllSavedDataFromPersistence();
@@ -225,7 +277,10 @@ export function clearAllSavedData() {
 
 export async function clearUnreadableSavedWorld() {
   const result = await clearCurrentSavedWorld();
-  if (result?.ok) clearWorldLoadFailure();
+  if (result?.ok) {
+    invalidateWorldSnapshotCache();
+    clearWorldLoadFailure();
+  }
   return result;
 }
 
@@ -471,7 +526,12 @@ export function setOrbitMode(mode, orbitsAu) {
 
 export function saveWorld(world, options = {}) {
   const normalized = migrateWorld(mergeWorldForMigration(world));
-  return saveWorldRaw(JSON.stringify(normalized), options);
+  const raw = JSON.stringify(normalized);
+  const saved = saveWorldRaw(raw, options);
+  if (saved) {
+    cacheWorldSnapshot(raw, normalized, { reason: "seed" });
+  }
+  return saved;
 }
 
 export function applyGeneratedSystemDraft(draftEnvelope, options = {}) {
@@ -913,7 +973,14 @@ export function importWorld(worldLike) {
   return normalized;
 }
 
+export function restoreBackup(id) {
+  const restored = restoreBackupFromPersistence(id);
+  if (restored) invalidateWorldSnapshotCache();
+  return restored;
+}
+
 export async function __resetStoreForTests(options = {}) {
+  __resetWorldSnapshotCacheForTests();
   clearWorldLoadFailure();
   clearStorageError();
   await resetStorePersistenceForTests(options);

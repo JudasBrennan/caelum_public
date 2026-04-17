@@ -333,7 +333,7 @@ export function bindVisualizerInputBindings({
     if (isSystemOverviewMode()) {
       if (hit?.kind === "overview-host-frame" && hit.hostFrameId) {
         state.activeHostFrameId = String(hit.hostFrameId || "").trim() || null;
-        invalidateSnapshot();
+        invalidateSnapshot({ disposeBodyMeshes: false });
         draw();
       }
       return;

@@ -1,33 +1,22 @@
 import { calcPlanetExact, ISOTOPE_HEAT_FRACTIONS } from "../engine/planet.js";
 import { calcStar } from "../engine/star.js";
 import { calcSystem } from "../engine/system.js";
-import { calcGasGiant } from "../engine/gasGiant.js";
-import { resolveHostFrameContext } from "../engine/homeSystem/context.js";
-import { computeStellarActivityModel } from "../engine/stellarActivity.js";
-import {
-  gasGiantRingScienceFromCalc,
-  normalizeRingMode,
-  rockyRingScienceFromDerived,
-  resolveRingMode,
-  RING_MODE_AUTO,
-  RING_MODE_FORCE_OFF,
-  RING_MODE_FORCE_ON,
-} from "../engine/planetaryRings.js";
+import { normalizeRingMode, RING_MODE_AUTO, RING_MODE_FORCE_ON } from "../engine/planetaryRings.js";
 import { fmt, relativeLuminance } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { confirmDestructiveAction } from "./destructiveActionDialog.js";
-import { createGoalTextAssist } from "./guidedCreation/components/goalTextAssist.js";
-import { getGoalTextAliasHelp } from "./guidedCreation/goalAliases.js";
 import {
-  applyGuidedGoalTextInterpretation,
-  clearGuidedGoalTextInterpretation,
-} from "./guidedCreation/goalTextInterpretation.js";
+  buildGuidedGoalQuestionValues,
+  buildGuidedGoalStatus,
+  buildGuidedGoalTextAssist,
+  setGuidedGoalDraftValue,
+} from "./guidedCreation/goalState.js";
 import { loadGuidedSession } from "./guidedCreation/sessionState.js";
 import { buildGasGiantRecipeApplyInputs } from "./guidedCreation/adapters/gasGiant.js";
 import { getGuidedEntryModeTooltip } from "./guidedCreation/tooltips.js";
 import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
-import { styleLabel, suggestStyles, GAS_GIANT_RECIPES } from "./gasGiantStyles.js";
-import { computeRockyVisualProfile, ROCKY_RECIPES } from "./rockyPlanetStyles.js";
+import { styleLabel, GAS_GIANT_RECIPES } from "./gasGiantStyles.js";
+import { ROCKY_RECIPES } from "./rockyPlanetStyles.js";
 import {
   getInsolationZoneLabelForRegime,
   normalizeGiantCompanionClass,
@@ -47,11 +36,51 @@ import {
   getRockyGuidedSessionTarget,
 } from "./planet/presetActions.js";
 import { createPlanetGuidedFlows } from "./planet/guidedFlows.js";
+import { normalizeRingStyleId, RING_STYLE_AUTO } from "./ringAppearanceProfiles.js";
 import {
-  normalizeRingStyleId,
-  resolveRingAppearance,
-  RING_STYLE_AUTO,
-} from "./ringAppearanceProfiles.js";
+  clampGasGiantRadiusRj,
+  getGiantCompanionClass,
+  isBrownDwarfCompanion,
+  getGiantCompanionDisplayLabel,
+  getHostZoneLabel,
+  getHostClassValue,
+  formatHostZoneValue,
+  getHostLifetimeValue,
+  getHostLifetimeMeta,
+  buildLuminosityKpiMeta,
+  buildLuminosityKpiTooltip,
+  formatLuminosityLsol,
+  formatScaledLuminosityLsol,
+  formatRecurrence,
+  shortPopulationLabel,
+  deriveGasGiantAppearanceState,
+  buildBrownDwarfCompanionPresentation,
+  buildGiantCompanionClassOptions,
+  buildGiantCompanionFormDescriptors,
+  buildGiantCompanionContextClassText,
+  getGasGiantRingModeLabel,
+  formatGasGiantRingHint,
+  buildGasGiantRingDisplay,
+  getRingStyleSourceLabel,
+  buildRingStyleDisplay,
+  formatRingStyleHint,
+  syncRingStyleControl,
+  buildRockyPlanetModel,
+  deriveRockyPlanetAppearanceState,
+  formatRockyRingHint,
+  buildRockyRingDisplay,
+} from "./planet/bodyAppearance.js";
+import {
+  findNearestSlot,
+  normalizeHostFrameId,
+  buildPlanetHomeSystemContext,
+  resolvePlanetPageHostFrameContext,
+  filterBodiesForHostFrame,
+  buildHostFrameOptions,
+  formatHostFrameHint,
+  formatHostFrameStabilityHint,
+  buildSelectedBodyContextReadout,
+} from "./planet/hostFrame.js";
 import {
   createVegetationInfoOverlay,
   renderBodyActionButtons,
@@ -98,7 +127,6 @@ import {
   randomGasGiantRadiusRj,
   saveSystemGasGiants,
   getStarOverrides,
-  buildWorldHomeSystemContext,
   getProjectedPrimaryStar,
   planDeleteGasGiant,
   planDeletePlanet,
@@ -391,749 +419,6 @@ const TIP_LABEL = {
 };
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
-
-function clampGasGiantRadiusRj(value) {
-  const raw = Number(value);
-  if (!Number.isFinite(raw)) return GAS_GIANT_RADIUS_MIN_RJ;
-  const clamped = Math.max(GAS_GIANT_RADIUS_MIN_RJ, Math.min(GAS_GIANT_RADIUS_MAX_RJ, raw));
-  const inv = 1 / GAS_GIANT_RADIUS_STEP_RJ;
-  return Math.round(clamped * inv) / inv;
-}
-
-function findNearestSlot(targetAu, orbitsAu, occupiedSlots) {
-  let bestSlot = null;
-  let bestDist = Infinity;
-  for (let i = 0; i < orbitsAu.length; i++) {
-    const slot = i + 1;
-    if (occupiedSlots.has(slot)) continue;
-    const dist = Math.abs(orbitsAu[i] - targetAu);
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestSlot = slot;
-    }
-  }
-  return bestSlot;
-}
-
-function normalizeHostFrameId(value, fallbackId = null) {
-  const id = String(value ?? "").trim();
-  return id || fallbackId || null;
-}
-
-function buildPlanetHomeSystemContext(world) {
-  return buildWorldHomeSystemContext(world);
-}
-
-function buildFallbackHostFrameSolveContext(world, homeSystemContext, sysModel = null) {
-  const primaryStar = getProjectedPrimaryStar(world);
-  const starOverrides = getStarOverrides(primaryStar || {});
-  const fallbackStarConfig = {
-    massMsol: Number(primaryStar?.massMsol) || 1,
-    ageGyr: Number(primaryStar?.ageGyr) || 4.6,
-    metallicityFeH: Number(primaryStar?.metallicityFeH) || 0,
-    radiusRsolOverride: starOverrides.r,
-    luminosityLsolOverride: starOverrides.l,
-    tempKOverride: starOverrides.t,
-    evolutionMode: starOverrides.ev,
-  };
-  const fallbackStarModel = calcStar({
-    massMsol: fallbackStarConfig.massMsol,
-    ageGyr: fallbackStarConfig.ageGyr,
-    metallicityFeH: fallbackStarConfig.metallicityFeH,
-    radiusRsolOverride: fallbackStarConfig.radiusRsolOverride,
-    luminosityLsolOverride: fallbackStarConfig.luminosityLsolOverride,
-    tempKOverride: fallbackStarConfig.tempKOverride,
-    evolutionMode: fallbackStarConfig.evolutionMode,
-  });
-  const fallbackSystem =
-    sysModel ||
-    calcSystem({
-      starMassMsol: fallbackStarConfig.massMsol,
-      spacingFactor: Number(world?.system?.spacingFactor),
-      orbit1Au: Number(world?.system?.orbit1Au),
-      luminosityLsolOverride: fallbackStarModel.luminosityLsol,
-      radiusRsolOverride: fallbackStarModel.radiusRsol,
-    });
-  const defaultHostFrameId =
-    homeSystemContext?.defaultHostFrameId || homeSystemContext?.primaryStarId || "star_a";
-  return {
-    hostFrameId: defaultHostFrameId,
-    hostFrame: {
-      id: defaultHostFrameId,
-      label: primaryStar?.name || "Star",
-      frameKind: "star",
-      orbitFamilyKind: "single",
-      system: fallbackSystem,
-      zones: {
-        habitableZoneAu: fallbackStarModel.habitableZoneAu,
-        frostLineAu: fallbackSystem.frostLineAu,
-        systemInnerLimitAu: fallbackSystem.systemInnerLimitAu,
-        orbitsAu: [...fallbackSystem.orbitsAu],
-      },
-      fluxModel: {
-        meanCompanionFluxEarth: 0,
-        fluxVariabilityFraction: 0,
-        meanCompanionXuvFluxEarth: 0,
-      },
-      stability: {
-        criticalOuterAu: null,
-        diskTruncationAu: null,
-        warnings: [],
-      },
-    },
-    starId: homeSystemContext?.primaryStarId || defaultHostFrameId,
-    starConfig: fallbackStarConfig,
-    starModel: fallbackStarModel,
-    hostXuvFluxEarthAt1Au: null,
-    companionFluxEarth: 0,
-    companionXuvFluxEarth: 0,
-    fluxVariabilityFraction: 0,
-    dominantContributorId: homeSystemContext?.primaryStarId || defaultHostFrameId,
-  };
-}
-
-function resolvePlanetPageHostFrameContext(
-  world,
-  bodyLike,
-  sysModel = null,
-  homeSystemContext = null,
-) {
-  const resolvedHomeSystemContext = homeSystemContext || buildPlanetHomeSystemContext(world);
-  const requestedHostFrameId = normalizeHostFrameId(
-    bodyLike?.hostFrameId,
-    resolvedHomeSystemContext?.defaultHostFrameId || resolvedHomeSystemContext?.primaryStarId,
-  );
-  return (
-    resolveHostFrameContext(resolvedHomeSystemContext, requestedHostFrameId) ||
-    buildFallbackHostFrameSolveContext(world, resolvedHomeSystemContext, sysModel)
-  );
-}
-
-function filterBodiesForHostFrame(entries, hostFrameId, fallbackHostFrameId) {
-  const targetHostFrameId = normalizeHostFrameId(hostFrameId, fallbackHostFrameId);
-  return (entries || []).filter(
-    (entry) => normalizeHostFrameId(entry?.hostFrameId, fallbackHostFrameId) === targetHostFrameId,
-  );
-}
-
-function buildHostFrameOptions(homeSystemContext, selectedHostFrameId = null) {
-  const hostFrames = Object.values(homeSystemContext?.hostFramesById || {});
-  const fallbackHostFrameId =
-    homeSystemContext?.defaultHostFrameId || homeSystemContext?.primaryStarId || null;
-  const normalizedSelectedId = normalizeHostFrameId(selectedHostFrameId, fallbackHostFrameId);
-  return hostFrames.map((hostFrame) => {
-    const scopeLabel =
-      hostFrame.frameKind === "pair"
-        ? "circumbinary"
-        : hostFrame.orbitFamilyKind === "single"
-          ? "primary star"
-          : "circumstellar";
-    return {
-      value: hostFrame.id,
-      label: `${hostFrame.label} - ${scopeLabel}`,
-      selected: hostFrame.id === normalizedSelectedId,
-    };
-  });
-}
-
-function formatHostFrameScopeLabel(hostFrame) {
-  if (!hostFrame) return "single-star host";
-  if (hostFrame.frameKind === "pair") return "circumbinary";
-  if (hostFrame.orbitFamilyKind === "single") return "single-star host";
-  return "circumstellar";
-}
-
-function formatHostFrameStabilityHint(hostFrame) {
-  if (!hostFrame) return "";
-  if (hostFrame.frameKind === "pair") {
-    const criticalInnerAu = Number(hostFrame.stability?.criticalInnerAu);
-    const criticalOuterAu = Number(hostFrame.stability?.criticalOuterAu);
-    if (
-      Number.isFinite(criticalInnerAu) &&
-      criticalInnerAu > 0 &&
-      Number.isFinite(criticalOuterAu) &&
-      criticalOuterAu > 0
-    ) {
-      return `Pair-host stability runs roughly from ${fmt(criticalInnerAu, 3)} to ${fmt(criticalOuterAu, 3)} AU.`;
-    }
-    if (Number.isFinite(criticalInnerAu) && criticalInnerAu > 0) {
-      return `Circumbinary stability begins around ${fmt(criticalInnerAu, 3)} AU.`;
-    }
-    if (Number.isFinite(criticalOuterAu) && criticalOuterAu > 0) {
-      return `Outer hierarchical stability tapers off around ${fmt(criticalOuterAu, 3)} AU.`;
-    }
-    const innerEdgeAu = Number(hostFrame.stability?.circumbinaryInnerEdgeAu);
-    if (Number.isFinite(innerEdgeAu) && innerEdgeAu > 0) {
-      return `Likely cleared inner circumbinary disk inside ${fmt(innerEdgeAu, 3)} AU.`;
-    }
-    return "";
-  }
-  const criticalOuterAu = Number(hostFrame.stability?.criticalOuterAu);
-  if (Number.isFinite(criticalOuterAu) && criticalOuterAu > 0) {
-    return `Circumstellar stability out to roughly ${fmt(criticalOuterAu, 3)} AU.`;
-  }
-  return "";
-}
-
-function getHostFrameZoneLabel(hostFrame) {
-  return String(hostFrame?.zones?.zoneLabel || "Habitable Zone");
-}
-
-function getGiantCompanionClass(value) {
-  return normalizeGiantCompanionClass(
-    value?.companionClass || value?.inputs?.companionClass || value?.regime,
-  );
-}
-
-function isBrownDwarfCompanion(value) {
-  return getGiantCompanionClass(value) === GIANT_COMPANION_CLASS_BROWN_DWARF;
-}
-
-function getGiantCompanionDisplayLabel(value) {
-  return regimeDisplayLabel(getGiantCompanionClass(value));
-}
-
-function formatHabitableZoneText(habitableZoneAu, zoneLabel = "Habitable Zone") {
-  if (
-    !habitableZoneAu ||
-    !Number.isFinite(Number(habitableZoneAu.inner)) ||
-    !Number.isFinite(Number(habitableZoneAu.outer))
-  ) {
-    return `${zoneLabel} unavailable`;
-  }
-  return `${zoneLabel} ${fmt(habitableZoneAu.inner, 3)}-${fmt(habitableZoneAu.outer, 3)} AU`;
-}
-
-const BROWN_DWARF_SOLAR_RADIUS_KM = 696340;
-
-function readFirstFiniteNumber(...values) {
-  for (const value of values) {
-    const n = Number(value);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
-}
-
-function isBrownDwarfHostModel(model) {
-  return model?.regime === "brownDwarf";
-}
-
-function getHostZoneLabel(model) {
-  return String(model?.zoneLabel || "Habitable Zone");
-}
-
-function getHostClassValue(model) {
-  return model?.spectralClass || regimeDisplayLabel(model?.regime);
-}
-
-function formatHostZoneValue(model) {
-  return model?.display?.hzAu || "n/a";
-}
-
-function getHostLifetimeValue(model) {
-  if (!isBrownDwarfHostModel(model)) return fmt(model?.maxAgeGyr, 3);
-  if (model?.deuteriumBurningActive) return "Deuterium-burning";
-  return `${model?.spectralFamily || "Cooling"}-type cooling`;
-}
-
-function getHostLifetimeMeta(model) {
-  if (!isBrownDwarfHostModel(model)) return "Gyr";
-  return model?.deuteriumBurningPossible ? "Substellar cooling track" : "Cooling object";
-}
-
-function formatLuminosityLsol(value, dp = 3) {
-  const x = Number(value);
-  if (!Number.isFinite(x)) return "NA";
-  const abs = Math.abs(x);
-  if (abs === 0) return "0";
-  if (abs < 1e-4) return x.toExponential(2);
-  if (abs < 0.01) return fmt(x, Math.max(dp, 6));
-  return fmt(x, dp);
-}
-
-function formatScaledLuminosityLsol(value, dp = 3) {
-  const x = Number(value);
-  if (!Number.isFinite(x)) return "NA";
-  const abs = Math.abs(x);
-  if (abs === 0) return "0 Lsol";
-  if (abs >= 0.01) return `${fmt(x, dp)} Lsol`;
-
-  const scaledUnits = [
-    { scale: 1e3, label: "mLsol" },
-    { scale: 1e6, label: "\u03bcLsol" },
-    { scale: 1e9, label: "nLsol" },
-  ];
-  for (const unit of scaledUnits) {
-    const scaled = x * unit.scale;
-    const scaledAbs = Math.abs(scaled);
-    if (scaledAbs >= 0.1) {
-      const scaledDp = scaledAbs >= 100 ? 0 : scaledAbs >= 10 ? 1 : 2;
-      return `${fmt(scaled, scaledDp)} ${unit.label}`;
-    }
-  }
-  return `${formatLuminosityLsol(x, Math.max(dp, 6))} Lsol`;
-}
-
-function buildLuminosityKpiMeta(model) {
-  if (!model) return "";
-  const exactLsol = formatLuminosityLsol(model.luminosityLsol, 6);
-  const watts = fmt(model.metric?.luminosityW, 0);
-  return `${exactLsol} Lsol | ${watts} W${model.luminosityOverridden ? " (Override)" : ""}`;
-}
-
-function buildLuminosityKpiTooltip(model) {
-  if (!model) return TIP_LABEL["Luminosity"] || "";
-  return (
-    `${TIP_LABEL["Luminosity"] || ""}\n\n` +
-    `Current solve:\n` +
-    `${formatScaledLuminosityLsol(model.luminosityLsol, 3)}\n` +
-    `${formatLuminosityLsol(model.luminosityLsol, 6)} Lsol\n` +
-    `${fmt(model.metric?.luminosityW, 0)} W${model.luminosityOverridden ? " (Override)" : ""}`
-  ).trim();
-}
-
-function formatRecurrence(ratePerDay) {
-  const rate = Number(ratePerDay);
-  if (!(rate > 0)) return "Rare";
-  const days = 1 / rate;
-  if (days >= 365) return `~${fmt(days / 365, 2)} years`;
-  if (days >= 1) return `~${fmt(days, 2)} days`;
-  const hours = days * 24;
-  if (hours >= 1) return `~${fmt(hours, 2)} hours`;
-  return `~${fmt(hours * 60, 2)} minutes`;
-}
-
-function shortPopulationLabel(label) {
-  const txt = String(label || "").trim();
-  if (txt === "Population I (solar neighbourhood)") return "Pop I";
-  if (txt === "Intermediate (old thin disk)") return "Intermediate";
-  if (txt === "Population II (metal-poor)") return "Pop II";
-  if (txt === "Metal-rich (inner disk)") return "Metal-rich";
-  return txt;
-}
-
-function formatHostFrameHint(solveContext) {
-  const hostFrame = solveContext?.hostFrame;
-  if (!hostFrame) return "Choose which host frame this body orbits.";
-  const parts = [
-    `${hostFrame.label} (${formatHostFrameScopeLabel(hostFrame)}).`,
-    formatHabitableZoneText(hostFrame.zones?.habitableZoneAu, getHostFrameZoneLabel(hostFrame)),
-  ];
-  const companionFluxEarth = Number(solveContext?.companionFluxEarth || 0);
-  if (hostFrame.frameKind === "pair") {
-    parts.push("Combined light from the pair sets the climate in this frame.");
-  } else if (companionFluxEarth > 0.0005) {
-    parts.push(`Companion adds about ${fmt(companionFluxEarth, 3)}x Earth flux on average.`);
-  } else {
-    parts.push("Companion heating is negligible here.");
-  }
-  const variability = Number(solveContext?.fluxVariabilityFraction || 0);
-  if (variability > 0.001) {
-    parts.push(`Flux swing about ${fmt(variability * 100, 1)}% across the binary orbit.`);
-  }
-  const stabilityText = formatHostFrameStabilityHint(hostFrame);
-  if (stabilityText) parts.push(stabilityText);
-  return parts.join(" ");
-}
-
-function buildSelectedBodyContextReadout(solveContext) {
-  if (!solveContext?.hostFrame) return "Host-frame context unavailable.";
-  const hostFrame = solveContext.hostFrame;
-  const lines = [
-    `Host frame: ${hostFrame.label} (${formatHostFrameScopeLabel(hostFrame)})`,
-    `${hostFrame.frameKind === "pair" ? "System mass" : "Primary star mass"}: ${fmt(Number(solveContext.starConfig?.massMsol) || 0, 4)} Msol`,
-    `${hostFrame.frameKind === "pair" ? "System age" : "Primary star age"}: ${fmt(Number(solveContext.starConfig?.ageGyr) || 0, 3)} Gyr`,
-    formatHabitableZoneText(hostFrame.zones?.habitableZoneAu, getHostFrameZoneLabel(hostFrame)),
-  ];
-  const companionFluxEarth = Number(solveContext.companionFluxEarth || 0);
-  lines.push(
-    hostFrame.frameKind === "pair"
-      ? "Host flux: combined pair light"
-      : companionFluxEarth > 0.0005
-        ? `Companion flux: ${fmt(companionFluxEarth, 3)}x Earth`
-        : "Companion flux: negligible",
-  );
-  const variability = Number(solveContext.fluxVariabilityFraction || 0);
-  lines.push(
-    variability > 0.001
-      ? `Flux variability: ${fmt(variability * 100, 1)}%`
-      : "Flux variability: low",
-  );
-  const stabilityText = formatHostFrameStabilityHint(hostFrame);
-  if (stabilityText) lines.push(stabilityText);
-  return lines.join("\n");
-}
-
-function buildGasGiantCalc(
-  world,
-  giant,
-  sysModel,
-  gasGiants = listSystemGasGiants(world),
-  homeSystemContext = null,
-) {
-  const resolvedHomeSystemContext = homeSystemContext || buildPlanetHomeSystemContext(world);
-  const primaryStar = getProjectedPrimaryStar(world);
-  const solveContext = resolvePlanetPageHostFrameContext(
-    world,
-    giant,
-    sysModel,
-    resolvedHomeSystemContext,
-  );
-  const hostFrameId = normalizeHostFrameId(
-    solveContext?.hostFrameId,
-    resolvedHomeSystemContext?.defaultHostFrameId,
-  );
-  const hostSystem = solveContext?.hostFrame?.system || sysModel;
-  return calcGasGiant({
-    companionClass: giant.companionClass,
-    massMjup: giant.massMjup,
-    radiusRj: giant.radiusRj,
-    orbitAu: Number(giant.au) || hostSystem?.frostLineAu || sysModel.frostLineAu,
-    eccentricity: giant.eccentricity,
-    inclinationDeg: giant.inclinationDeg,
-    axialTiltDeg: giant.axialTiltDeg,
-    rotationPeriodHours: giant.rotationPeriodHours,
-    metallicity: giant.metallicity,
-    otherGiants: gasGiants
-      .filter(
-        (candidate) =>
-          candidate.id !== giant.id &&
-          normalizeHostFrameId(
-            candidate?.hostFrameId,
-            resolvedHomeSystemContext?.defaultHostFrameId,
-          ) === hostFrameId,
-      )
-      .map((candidate) => ({ name: candidate.name, au: candidate.au })),
-    moons: listMoons(world)
-      .filter((moon) => moon.planetId === giant.id)
-      .map((moon) => moon.inputs),
-    starMassMsol: Number(solveContext?.starConfig?.massMsol) || Number(primaryStar.massMsol) || 1,
-    starLuminosityLsol:
-      Number(solveContext?.starModel?.luminosityLsol) || sysModel.star.luminosityLsol,
-    starAgeGyr: Number(solveContext?.starConfig?.ageGyr) || Number(primaryStar.ageGyr) || 4.6,
-    starRadiusRsol: Number(solveContext?.starModel?.radiusRsol) || sysModel.star.radiusRsol,
-    hostFrameId: solveContext?.hostFrameId || hostFrameId,
-    hostFrame: solveContext?.hostFrame || null,
-    hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
-    companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
-    companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
-    fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
-    stellarMetallicityFeH:
-      Number(solveContext?.starConfig?.metallicityFeH) || Number(primaryStar.metallicityFeH) || 0,
-  });
-}
-
-function deriveGasGiantAppearanceState(
-  world,
-  giant,
-  sysModel,
-  gasGiants = listSystemGasGiants(world),
-) {
-  const gasCalc = buildGasGiantCalc(world, giant, sysModel, gasGiants);
-  const derivedStyle = suggestStyles(gasCalc).primary;
-  const science = gasGiantRingScienceFromCalc(gasCalc);
-  const ringState = resolveRingMode({
-    ringMode: giant?.ringMode,
-    scienceEnabled: science.scienceEnabled,
-    scienceReason: science.scienceReason,
-  });
-  const ringAppearance = resolveRingAppearance({
-    bodyType: "gasGiant",
-    ringState,
-    ringStyleId: giant?.ringStyleId,
-    gasCalc,
-    bodyStyleId: derivedStyle,
-    seed: giant?.id || giant?.name || derivedStyle,
-  });
-  return { gasCalc, derivedStyle, ringState, ringAppearance };
-}
-
-function buildBrownDwarfCompanionPresentation(world, giant, sysModel, gasCalc) {
-  const homeSystemContext = buildPlanetHomeSystemContext(world);
-  const solveContext = resolvePlanetPageHostFrameContext(world, giant, sysModel, homeSystemContext);
-  const primaryStar = getProjectedPrimaryStar(world);
-  const ageGyr = readFirstFiniteNumber(solveContext?.starConfig?.ageGyr, primaryStar?.ageGyr, 4.6);
-  const metallicityFeH = readFirstFiniteNumber(
-    solveContext?.starConfig?.metallicityFeH,
-    primaryStar?.metallicityFeH,
-    0,
-  );
-  const radiusKm = readFirstFiniteNumber(gasCalc?.physical?.radiusKm);
-  const radiusRsolOverride =
-    radiusKm && radiusKm > 0 ? radiusKm / BROWN_DWARF_SOLAR_RADIUS_KM : null;
-  const model = calcStar({
-    massMsol: readFirstFiniteNumber(gasCalc?.inputs?.massMsol, primaryStar?.massMsol, 0.02),
-    ageGyr,
-    metallicityFeH,
-    radiusRsolOverride,
-    evolutionMode: "zams",
-  });
-  const activityModel = computeStellarActivityModel(
-    {
-      massMsun: readFirstFiniteNumber(model?.inputs?.massMsol, gasCalc?.inputs?.massMsol, 0.02),
-      ageGyr,
-      teffK: model?.tempK,
-      luminosityLsun: model?.luminosityLsol,
-    },
-    { activityCycle: 0.5 },
-  );
-  return {
-    model,
-    solveContext,
-    ageGyr,
-    metallicityFeH,
-    activity: activityModel.activity,
-  };
-}
-
-function buildGiantCompanionClassOptions(selectedClass) {
-  const normalizedClass = normalizeGiantCompanionClass(selectedClass);
-  return [
-    {
-      value: GIANT_COMPANION_CLASS_GAS_GIANT,
-      label: "Gas giant",
-      selected: normalizedClass === GIANT_COMPANION_CLASS_GAS_GIANT,
-    },
-    {
-      value: GIANT_COMPANION_CLASS_BROWN_DWARF,
-      label: "Brown dwarf",
-      selected: normalizedClass === GIANT_COMPANION_CLASS_BROWN_DWARF,
-    },
-  ];
-}
-
-function buildGiantCompanionFormDescriptors(giant) {
-  const companionClass = getGiantCompanionClass(giant);
-  const bodyLabel = getGiantCompanionDisplayLabel(giant);
-  if (companionClass === GIANT_COMPANION_CLASS_BROWN_DWARF) {
-    return {
-      bodyLabel,
-      defaultName: "Brown dwarf",
-      companionClassHint:
-        "Brown dwarfs stay in the same workflow, but switch to a cooling-track solver and brown-dwarf class outputs.",
-      radiusHint: "Brown dwarfs usually stay near 0.8-1.1 Rj. Blank = cooling-track radius.",
-      massHint: `Brown dwarfs span ${BROWN_DWARF_MASS_MIN_MJUP}-${BROWN_DWARF_MASS_MAX_MJUP} Mj. Switching into this class requires an explicit mass.`,
-      metallicityHint:
-        "Optional placeholder only. Brown dwarfs do not currently use the gas-giant metallicity solver.",
-    };
-  }
-  return {
-    bodyLabel,
-    defaultName: "Gas giant",
-    companionClassHint:
-      "Gas giants and brown dwarfs share this editor. Change the class only when the object crosses into the brown-dwarf mass regime.",
-    radiusHint: "1.00 Rj = Jupiter-size.",
-    massHint: "Blank = derived from radius.",
-    metallicityHint: "Blank = derived from mass.",
-  };
-}
-
-function buildGiantCompanionContextClassText(model) {
-  if (isBrownDwarfCompanion(model)) {
-    return `${model?.classification?.substellarClass || "Brown dwarf"} ${model?.classification?.label || "brown dwarf"}`.trim();
-  }
-  return model?.classification?.sudarsky
-    ? `Class ${model.classification.sudarsky} ${model.classification.label || ""}`.trim()
-    : model?.display?.classification || "unknown class";
-}
-
-function getGasGiantRingModeLabel(ringMode) {
-  switch (normalizeRingMode(ringMode)) {
-    case RING_MODE_FORCE_ON:
-      return "Force on";
-    case RING_MODE_FORCE_OFF:
-      return "Force off";
-    case RING_MODE_AUTO:
-    default:
-      return "Auto";
-  }
-}
-
-function formatGasGiantRingHint(ringState) {
-  const visibility = ringState.effectiveEnabled ? "Visible" : "Hidden";
-  if (!ringState.overrideActive) {
-    return `Auto: ${visibility}. ${ringState.scienceReason}`;
-  }
-  const overrideNote = ringState.againstScience
-    ? "Manual override goes against the science."
-    : "Manual override matches the science.";
-  return `${getGasGiantRingModeLabel(ringState.ringMode)}: ${visibility}. ${overrideNote} ${ringState.scienceReason}`;
-}
-
-function buildGasGiantRingDisplay(ringState, gasCalc) {
-  const value = ringState.overrideActive
-    ? `${ringState.effectiveEnabled ? "Visible" : "Hidden"} by override`
-    : ringState.effectiveEnabled
-      ? "Visible"
-      : "Hidden";
-  const metaParts = [];
-  const ringType = String(gasCalc?.display?.ringType || "").trim();
-  const ringDetails = String(gasCalc?.display?.ringDetails || "").trim();
-  if (ringType && ringType.toLowerCase() !== "none") metaParts.push(ringType);
-  if (ringDetails && ringDetails.toLowerCase() !== "none") metaParts.push(ringDetails);
-  metaParts.push(ringState.scienceReason);
-  if (ringState.overrideActive) {
-    metaParts.push(
-      ringState.againstScience
-        ? "Manual override goes against the science."
-        : "Manual override matches the science.",
-    );
-  }
-  return {
-    value,
-    meta: metaParts.filter(Boolean).join(" - "),
-  };
-}
-
-function getRingStyleSourceLabel(styleSource) {
-  return styleSource === "manual" ? "Manual" : "Auto";
-}
-
-function buildRingStyleDisplay(ringAppearance) {
-  return {
-    value: ringAppearance?.label || "Auto (recommended)",
-    meta: getRingStyleSourceLabel(ringAppearance?.styleSource),
-  };
-}
-
-function formatRingStyleHint(ringAppearance, ringState) {
-  const label = ringAppearance?.label || "Auto (recommended)";
-  const sourceLabel = getRingStyleSourceLabel(ringAppearance?.styleSource).toLowerCase();
-  if (normalizeRingMode(ringState?.ringMode) === RING_MODE_FORCE_ON) {
-    return ringAppearance?.styleSource === "manual"
-      ? `Explicit ring styles are visual overrides. Current style: ${label}.`
-      : `Auto uses the recommended ring family for this body. Current recommendation: ${label}.`;
-  }
-  if (normalizeRingMode(ringState?.ringMode) === RING_MODE_FORCE_OFF) {
-    return `Rings are hidden. Stored ${sourceLabel} style: ${label}. Explicit ring styles are visual overrides.`;
-  }
-  return `Auto uses the recommended ring family for this body. Current recommendation: ${label}. Explicit ring styles are visual overrides.`;
-}
-
-function syncRingStyleControl(selectEl, ringState, ringAppearance) {
-  if (!selectEl) return;
-  const normalizedMode = normalizeRingMode(ringState?.ringMode);
-  selectEl.disabled = normalizedMode !== RING_MODE_FORCE_ON;
-  if (normalizedMode === RING_MODE_AUTO) {
-    selectEl.value = RING_STYLE_AUTO;
-    return;
-  }
-  selectEl.value = normalizeRingStyleId(ringAppearance?.ringStyleId);
-}
-
-function buildRockyPlanetModel(world, planet, options = {}) {
-  const resolvedHomeSystemContext =
-    options.homeSystemContext || buildPlanetHomeSystemContext(world);
-  const primaryStar = getProjectedPrimaryStar(world);
-  const primaryStarOverrides = getStarOverrides(primaryStar);
-  const solveContext = resolvePlanetPageHostFrameContext(
-    world,
-    planet,
-    options.sysModel || null,
-    resolvedHomeSystemContext,
-  );
-  const hostFrameId = normalizeHostFrameId(
-    solveContext?.hostFrameId,
-    resolvedHomeSystemContext?.defaultHostFrameId,
-  );
-  const assignedMoons = listMoons(world)
-    .filter((moon) => moon.planetId === planet.id)
-    .map((moon) => ({
-      id: moon.id,
-      ...(moon.inputs || {}),
-    }));
-  const sysGiants = filterBodiesForHostFrame(
-    listSystemGasGiants(world),
-    hostFrameId,
-    resolvedHomeSystemContext?.defaultHostFrameId,
-  ).map((gasGiant) => ({
-    name: gasGiant.name,
-    au: gasGiant.au,
-  }));
-  return calcPlanetExact({
-    starMassMsol: Number(solveContext?.starConfig?.massMsol) || Number(primaryStar.massMsol),
-    starAgeGyr: Number(solveContext?.starConfig?.ageGyr) || Number(primaryStar.ageGyr),
-    starMetallicityFeH:
-      Number(solveContext?.starConfig?.metallicityFeH) || Number(primaryStar.metallicityFeH) || 0,
-    starRadiusRsolOverride:
-      solveContext?.starConfig?.radiusRsolOverride !== undefined
-        ? solveContext?.starConfig?.radiusRsolOverride
-        : primaryStarOverrides.r,
-    starLuminosityLsolOverride:
-      solveContext?.starConfig?.luminosityLsolOverride !== undefined
-        ? solveContext?.starConfig?.luminosityLsolOverride
-        : primaryStarOverrides.l,
-    starTempKOverride:
-      solveContext?.starConfig?.tempKOverride !== undefined
-        ? solveContext?.starConfig?.tempKOverride
-        : primaryStarOverrides.t,
-    starEvolutionMode: solveContext?.starConfig?.evolutionMode || primaryStarOverrides.ev,
-    hostFrameId: solveContext?.hostFrameId || hostFrameId,
-    hostFrame: solveContext?.hostFrame || null,
-    hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
-    companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
-    companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
-    fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
-    planet: planet.inputs || {},
-    moons: assignedMoons,
-    gasGiants: sysGiants,
-  });
-}
-
-function deriveRockyPlanetAppearanceState(world, planet) {
-  const model = buildRockyPlanetModel(world, planet);
-  const ringScience = rockyRingScienceFromDerived(model?.derived);
-  const ringState = resolveRingMode({
-    ringMode: planet?.inputs?.ringMode,
-    scienceEnabled: ringScience.scienceEnabled,
-    scienceReason: ringScience.scienceReason,
-  });
-  const visualProfile = computeRockyVisualProfile(model?.derived || {}, planet?.inputs || {});
-  const ringAppearance = resolveRingAppearance({
-    bodyType: "rocky",
-    ringState,
-    ringStyleId: planet?.inputs?.ringStyleId,
-    derived: model?.derived,
-    seed: planet?.id || planet?.name || model?.inputs?.name || "rocky-ring",
-  });
-  return { model, visualProfile, ringState, ringAppearance };
-}
-
-function formatRockyRingHint(ringState) {
-  const visibility = ringState.effectiveEnabled ? "Visible" : "Hidden";
-  if (!ringState.overrideActive) {
-    return `Auto: ${visibility}. ${ringState.scienceReason}`;
-  }
-  const overrideNote = ringState.againstScience
-    ? "Manual override goes against the science."
-    : "Manual override matches the science.";
-  return `${getGasGiantRingModeLabel(ringState.ringMode)}: ${visibility}. ${overrideNote} ${ringState.scienceReason}`;
-}
-
-function buildRockyRingDisplay(ringState, derived) {
-  const value = ringState.overrideActive
-    ? `${ringState.effectiveEnabled ? "Visible" : "Hidden"} by override`
-    : ringState.effectiveEnabled
-      ? "Visible"
-      : "Hidden";
-  const metaParts = [];
-  if (Number.isFinite(Number(derived?.rocheLimitKm)) && Number(derived.rocheLimitKm) > 0) {
-    metaParts.push(`Roche limit ${fmt(derived.rocheLimitKm, 0)} km`);
-  }
-  if (derived?.ringSourceMoonId) metaParts.push(`Source moon ${derived.ringSourceMoonId}`);
-  metaParts.push(ringState.scienceReason);
-  if (ringState.overrideActive) {
-    metaParts.push(
-      ringState.againstScience
-        ? "Manual override goes against the science."
-        : "Manual override matches the science.",
-    );
-  }
-  return {
-    value,
-    meta: metaParts.filter(Boolean).join(" - "),
-  };
-}
 
 /* ── Page ────────────────────────────────────────────────────────── */
 
@@ -1551,66 +836,11 @@ export function initPlanetPage(mountEl, options = {}) {
   }
 
   function buildRockyGoalQuestionValues(flowState, questions = []) {
-    const goalDraft =
-      flowState?.goalDraft &&
-      typeof flowState.goalDraft === "object" &&
-      !Array.isArray(flowState.goalDraft)
-        ? flowState.goalDraft
-        : {};
-    const traitRoles =
-      goalDraft.traitRoles &&
-      typeof goalDraft.traitRoles === "object" &&
-      !Array.isArray(goalDraft.traitRoles)
-        ? goalDraft.traitRoles
-        : {};
-    const values = {};
-    for (const question of Array.isArray(questions) ? questions : []) {
-      if (question?.id === "priority")
-        values.priority = goalDraft.priority || question?.defaultValue;
-      else if (question?.id === "allowedEdits") {
-        values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
-      } else if (question?.id === "searchBudget") {
-        values.searchBudget = goalDraft.searchBudget || question?.defaultValue;
-      } else if (String(question?.id || "").startsWith("traitRole:")) {
-        const traitId = String(question.id).slice("traitRole:".length);
-        values[question.id] = traitRoles[traitId] || "off";
-      }
-    }
-    return values;
+    return buildGuidedGoalQuestionValues(flowState, questions);
   }
 
   function setRockyGoalDraftValue(controllerRef, flowState, questionId, value) {
-    const normalizedId = String(questionId || "");
-    if (!normalizedId) return;
-    if (
-      normalizedId === "priority" ||
-      normalizedId === "allowedEdits" ||
-      normalizedId === "searchBudget"
-    ) {
-      controllerRef?.setGoalDraftValue(normalizedId, value);
-      return;
-    }
-    if (normalizedId.startsWith("traitRole:")) {
-      const traitId = normalizedId.slice("traitRole:".length);
-      const currentGoalDraft =
-        flowState?.goalDraft &&
-        typeof flowState.goalDraft === "object" &&
-        !Array.isArray(flowState.goalDraft)
-          ? flowState.goalDraft
-          : {};
-      const nextTraitRoles =
-        currentGoalDraft.traitRoles &&
-        typeof currentGoalDraft.traitRoles === "object" &&
-        !Array.isArray(currentGoalDraft.traitRoles)
-          ? { ...currentGoalDraft.traitRoles }
-          : {};
-      if (!value || value === "off") delete nextTraitRoles[traitId];
-      else nextTraitRoles[traitId] = value;
-      controllerRef?.setGoalDraft({
-        ...currentGoalDraft,
-        traitRoles: nextTraitRoles,
-      });
-    }
+    return setGuidedGoalDraftValue(controllerRef, flowState, questionId, value);
   }
 
   function buildPlanetGoalTextAssist(
@@ -1618,194 +848,33 @@ export function initPlanetPage(mountEl, options = {}) {
     flowState,
     { objectType = "", objectLabel = "world" } = {},
   ) {
-    const goalDraft =
-      flowState?.goalDraft &&
-      typeof flowState.goalDraft === "object" &&
-      !Array.isArray(flowState.goalDraft)
-        ? flowState.goalDraft
-        : {};
-    const help = getGoalTextAliasHelp(objectType);
-    return createGoalTextAssist({
+    return buildGuidedGoalTextAssist(resolveController, flowState, {
+      objectType,
       objectLabel,
-      value: goalDraft.goalText || "",
-      placeholder: help.placeholder,
-      examples: help.examples,
-      interpretation: goalDraft.goalTextInterpretation || null,
-      onInterpret: (value) =>
-        applyGuidedGoalTextInterpretation(resolveController?.(), flowState, objectType, value),
-      onClear: () => clearGuidedGoalTextInterpretation(resolveController?.(), flowState),
     });
   }
 
   function buildRockyGoalStatus(flowState) {
-    const compileDiagnostics = Array.isArray(flowState?.compileDiagnostics)
-      ? flowState.compileDiagnostics
-      : [];
-    const searchStatus = String(flowState?.searchStatus || "idle");
-    const hasRestoredResult = !!flowState?.lastSearchResult?.recommendation;
-    const title =
-      searchStatus === "searching"
-        ? "Goal search in progress"
-        : searchStatus === "complete"
-          ? "Goal search result ready"
-          : searchStatus === "ready"
-            ? "Goal compiled"
-            : searchStatus === "error"
-              ? "Goal compile or search blocked"
-              : searchStatus === "canceled"
-                ? "Goal search canceled"
-                : searchStatus === "needs-compile"
-                  ? "Goal needs compile"
-                  : "";
-    const detailParts = [];
-    if (searchStatus === "needs-compile") {
-      detailParts.push("Compile the goal or run the search again after changing setup or traits.");
-    } else if (searchStatus === "ready") {
-      detailParts.push(
-        "The structured goal is valid. Run Search to try seeded rocky-world candidates.",
-      );
-    } else if (searchStatus === "searching") {
-      detailParts.push(
+    return buildGuidedGoalStatus(flowState, {
+      readyDetail: "The structured goal is valid. Run Search to try seeded rocky-world candidates.",
+      searchingDetail:
         "Trying seeded rocky-world candidates against the current host-frame context.",
-      );
-    } else if (searchStatus === "complete") {
-      detailParts.push("Review the result and diagnostics before applying.");
-    } else if (searchStatus === "error" && flowState?.searchError) {
-      detailParts.push(flowState.searchError);
-    }
-    if (searchStatus !== "complete" && hasRestoredResult) {
-      detailParts.push(
-        "A previous search result is still visible below until you re-run the search.",
-      );
-    }
-    return {
-      compileStatus: compileDiagnostics.length
-        ? "error"
-        : searchStatus === "ready" || searchStatus === "complete"
-          ? "ready"
-          : searchStatus,
-      searchStatus,
-      title,
-      detail: detailParts.join(" "),
-      diagnostics: compileDiagnostics,
-    };
+    });
   }
 
   function buildGasGiantGoalQuestionValues(flowState, questions = []) {
-    const goalDraft =
-      flowState?.goalDraft &&
-      typeof flowState.goalDraft === "object" &&
-      !Array.isArray(flowState.goalDraft)
-        ? flowState.goalDraft
-        : {};
-    const traitRoles =
-      goalDraft.traitRoles &&
-      typeof goalDraft.traitRoles === "object" &&
-      !Array.isArray(goalDraft.traitRoles)
-        ? goalDraft.traitRoles
-        : {};
-    const values = {};
-    for (const question of Array.isArray(questions) ? questions : []) {
-      if (question?.id === "priority")
-        values.priority = goalDraft.priority || question?.defaultValue;
-      else if (question?.id === "allowedEdits") {
-        values.allowedEdits = goalDraft.allowedEdits || question?.defaultValue;
-      } else if (question?.id === "searchBudget") {
-        values.searchBudget = goalDraft.searchBudget || question?.defaultValue;
-      } else if (String(question?.id || "").startsWith("traitRole:")) {
-        const traitId = String(question.id).slice("traitRole:".length);
-        values[question.id] = traitRoles[traitId] || "off";
-      }
-    }
-    return values;
+    return buildGuidedGoalQuestionValues(flowState, questions);
   }
 
   function setGasGiantGoalDraftValue(controllerRef, flowState, questionId, value) {
-    const normalizedId = String(questionId || "");
-    if (!normalizedId) return;
-    if (
-      normalizedId === "priority" ||
-      normalizedId === "allowedEdits" ||
-      normalizedId === "searchBudget"
-    ) {
-      controllerRef?.setGoalDraftValue(normalizedId, value);
-      return;
-    }
-    if (normalizedId.startsWith("traitRole:")) {
-      const traitId = normalizedId.slice("traitRole:".length);
-      const currentGoalDraft =
-        flowState?.goalDraft &&
-        typeof flowState.goalDraft === "object" &&
-        !Array.isArray(flowState.goalDraft)
-          ? flowState.goalDraft
-          : {};
-      const nextTraitRoles =
-        currentGoalDraft.traitRoles &&
-        typeof currentGoalDraft.traitRoles === "object" &&
-        !Array.isArray(currentGoalDraft.traitRoles)
-          ? { ...currentGoalDraft.traitRoles }
-          : {};
-      if (!value || value === "off") delete nextTraitRoles[traitId];
-      else nextTraitRoles[traitId] = value;
-      controllerRef?.setGoalDraft({
-        ...currentGoalDraft,
-        traitRoles: nextTraitRoles,
-      });
-    }
+    return setGuidedGoalDraftValue(controllerRef, flowState, questionId, value);
   }
 
   function buildGasGiantGoalStatus(flowState) {
-    const compileDiagnostics = Array.isArray(flowState?.compileDiagnostics)
-      ? flowState.compileDiagnostics
-      : [];
-    const searchStatus = String(flowState?.searchStatus || "idle");
-    const hasRestoredResult = !!flowState?.lastSearchResult?.recommendation;
-    const title =
-      searchStatus === "searching"
-        ? "Goal search in progress"
-        : searchStatus === "complete"
-          ? "Goal search result ready"
-          : searchStatus === "ready"
-            ? "Goal compiled"
-            : searchStatus === "error"
-              ? "Goal compile or search blocked"
-              : searchStatus === "canceled"
-                ? "Goal search canceled"
-                : searchStatus === "needs-compile"
-                  ? "Goal needs compile"
-                  : "";
-    const detailParts = [];
-    if (searchStatus === "needs-compile") {
-      detailParts.push("Compile the goal or run the search again after changing setup or traits.");
-    } else if (searchStatus === "ready") {
-      detailParts.push(
-        "The structured goal is valid. Run Search to try seeded gas-giant candidates.",
-      );
-    } else if (searchStatus === "searching") {
-      detailParts.push(
-        "Trying seeded gas-giant candidates against the current host-frame context.",
-      );
-    } else if (searchStatus === "complete") {
-      detailParts.push("Review the result and diagnostics before applying.");
-    } else if (searchStatus === "error" && flowState?.searchError) {
-      detailParts.push(flowState.searchError);
-    }
-    if (searchStatus !== "complete" && hasRestoredResult) {
-      detailParts.push(
-        "A previous search result is still visible below until you re-run the search.",
-      );
-    }
-    return {
-      compileStatus: compileDiagnostics.length
-        ? "error"
-        : searchStatus === "ready" || searchStatus === "complete"
-          ? "ready"
-          : searchStatus,
-      searchStatus,
-      title,
-      detail: detailParts.join(" "),
-      diagnostics: compileDiagnostics,
-    };
+    return buildGuidedGoalStatus(flowState, {
+      readyDetail: "The structured goal is valid. Run Search to try seeded gas-giant candidates.",
+      searchingDetail: "Trying seeded gas-giant candidates against the current host-frame context.",
+    });
   }
 
   function solveGasGiantModelForWorld(world, { giantId, gasGiantInputs }) {
@@ -2211,8 +1280,7 @@ export function initPlanetPage(mountEl, options = {}) {
       const ringMode = normalizeRingMode(checked?.value);
       const w = loadWorld();
       updatePlanet(w.planets.selectedId, { inputs: { ringMode } });
-      updateWorld({ planet: { ringMode } });
-      const refreshedWorld = loadWorld();
+      const refreshedWorld = updateWorld({ planet: { ringMode } });
       const refreshed = getSelectedPlanet(refreshedWorld);
       if (refreshed) {
         syncRockyRingUi(deriveRockyPlanetAppearanceState(refreshedWorld, refreshed));
@@ -2226,8 +1294,7 @@ export function initPlanetPage(mountEl, options = {}) {
       const ringStyleId = normalizeRingStyleId(ringStyleSelectEl.value);
       const w = loadWorld();
       updatePlanet(w.planets.selectedId, { inputs: { ringStyleId } });
-      updateWorld({ planet: { ringStyleId } });
-      const refreshedWorld = loadWorld();
+      const refreshedWorld = updateWorld({ planet: { ringStyleId } });
       const refreshed = getSelectedPlanet(refreshedWorld);
       if (refreshed) {
         syncRockyRingUi(deriveRockyPlanetAppearanceState(refreshedWorld, refreshed));
@@ -3907,7 +2974,7 @@ export function initPlanetPage(mountEl, options = {}) {
         "Luminosity",
         formatScaledLuminosityLsol(model?.luminosityLsol, 3),
         buildLuminosityKpiMeta(model),
-        { tip: buildLuminosityKpiTooltip(model) },
+        { tip: buildLuminosityKpiTooltip(model, TIP_LABEL["Luminosity"]) },
       ),
       brownDwarfKpi("Temperature", fmt(model?.tempK, 0), "K", { tipLabel: "BD Temperature" }),
       brownDwarfKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" }),
@@ -3946,7 +3013,7 @@ export function initPlanetPage(mountEl, options = {}) {
         "Luminosity",
         formatScaledLuminosityLsol(model?.luminosityLsol, 3),
         buildLuminosityKpiMeta(model),
-        { tip: buildLuminosityKpiTooltip(model) },
+        { tip: buildLuminosityKpiTooltip(model, TIP_LABEL["Luminosity"]) },
       ),
       brownDwarfKpi("Density", `${fmt(model?.densityGcm3, 3)} g/cm\u00b3`),
       brownDwarfKpi("Temperature", fmt(model?.tempK, 0), "K", { tipLabel: "BD Temperature" }),
@@ -5034,7 +4101,7 @@ export function initPlanetPage(mountEl, options = {}) {
           bodyType === "gasGiant" ? getSelectedGasGiant(world) : getSelectedPlanet(world);
         const selectedSolveContext = selectedBody
           ? resolvePlanetPageHostFrameContext(world, selectedBody, sysModel, homeSystemContext)
-          : buildFallbackHostFrameSolveContext(world, homeSystemContext, sysModel);
+          : resolvePlanetPageHostFrameContext(world, null, sysModel, homeSystemContext);
         starInfoEl.textContent = buildSelectedBodyContextReadout(selectedSolveContext);
 
         // Body selector
@@ -5153,7 +4220,7 @@ export function initPlanetPage(mountEl, options = {}) {
         : getSelectedPlanet(w);
     const activeSolveContext = activeBody
       ? resolvePlanetPageHostFrameContext(w, activeBody, null, homeSystemContext)
-      : buildFallbackHostFrameSolveContext(w, homeSystemContext, null);
+      : resolvePlanetPageHostFrameContext(w, null, null, homeSystemContext);
     const hostFrameId = normalizeHostFrameId(
       activeSolveContext?.hostFrameId,
       homeSystemContext?.defaultHostFrameId,

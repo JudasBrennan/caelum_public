@@ -813,11 +813,15 @@ export function createPlanetGuidedFlows({
         },
       });
     }
-    renderCelestialRecipeBatch(items, (done, total) => {
-      const pct = total ? (done / total) * 100 : 100;
-      if (progressBar) progressBar.style.width = `${pct}%`;
-      if (pct >= 100 && progressTrack) progressTrack.classList.add("is-done");
-    });
+    renderCelestialRecipeBatch(
+      items,
+      (done, total) => {
+        const pct = total ? (done / total) * 100 : 100;
+        if (progressBar) progressBar.style.width = `${pct}%`;
+        if (pct >= 100 && progressTrack) progressTrack.classList.add("is-done");
+      },
+      { maxRendersPerFrame: 1, frameBudgetMs: 7 },
+    );
 
     function close() {
       overlayClosers.delete(close);
@@ -871,11 +875,15 @@ export function createPlanetGuidedFlows({
         },
       });
     }
-    renderCelestialRecipeBatch(items, (done, total) => {
-      const pct = total ? (done / total) * 100 : 100;
-      if (progressBar) progressBar.style.width = `${pct}%`;
-      if (pct >= 100 && progressTrack) progressTrack.classList.add("is-done");
-    });
+    renderCelestialRecipeBatch(
+      items,
+      (done, total) => {
+        const pct = total ? (done / total) * 100 : 100;
+        if (progressBar) progressBar.style.width = `${pct}%`;
+        if (pct >= 100 && progressTrack) progressTrack.classList.add("is-done");
+      },
+      { maxRendersPerFrame: 1, frameBudgetMs: 7 },
+    );
 
     function close() {
       overlayClosers.delete(close);

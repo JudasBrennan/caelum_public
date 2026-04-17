@@ -48,6 +48,7 @@ import {
   buildCometParticleLayout,
   buildCometTailGeometry,
   hexToColorNumber,
+  resolveCometAppearance,
   resolveCometTailDirections,
 } from "./cometAppearance.js";
 import { computeBinaryPairOrbitalState } from "./visualizer/multistarOrbit.js";
@@ -65,9 +66,11 @@ import {
 } from "./visualizer/snapshotModel.js";
 import { getFocusedBodySummary, getOverviewSelectionSummary } from "./visualizer/focusSummary.js";
 import { renderVisualizerFocusSummary } from "./visualizer/focusSummaryPanel.js";
+import { createMoonRenderHelpers } from "./visualizer/moonRenderHelpers.js";
 import { createVisualizerRouteChrome } from "./visualizer/routeChrome.js";
 import { createStarActivityRuntime, flareEnergyNorm } from "./visualizer/starActivityRuntime.js";
 import { createBodyMeshService, vizBodyCacheKey } from "./visualizer/bodyMeshService.js";
+import { appendWarmCandidate, createVisibleWarmupController } from "./visualizer/visibleWarmup.js";
 import { bindVisualizerInputBindings } from "./visualizer/inputBindings.js";
 import { loadThreeCore } from "./threeBridge2d.js";
 import {
@@ -92,6 +95,8 @@ import {
 import { clamp } from "../engine/utils.js";
 import { createElement, replaceChildren } from "./domHelpers.js";
 import { createTutorial } from "./tutorial.js";
+import { beginCelestialPerfDuration } from "./celestialPerfDebug.js";
+import { buildSystemRenderProfile, selectBodyMeshWarmSubset } from "./visualizer/renderBudget.js";
 
 export function initVisualiserPage(root, options = {}) {
   root.innerHTML = `
@@ -604,7 +609,7 @@ export function initVisualiserPage(root, options = {}) {
     syncZoneToggleLabel,
     onHostFrameChange(nextHostFrameId) {
       state.activeHostFrameId = nextHostFrameId;
-      invalidateSnapshot();
+      invalidateSnapshot({ disposeBodyMeshes: false });
       clearFocusTarget();
       draw();
     },
@@ -642,18 +647,12 @@ export function initVisualiserPage(root, options = {}) {
     hashUnit,
     isDisposed: () => disposed,
   });
-
-  function warmBodyMeshes(snapshot) {
-    return bodyMeshService.warmBodyMeshes(snapshot);
-  }
-
-  function disposeBodyMeshCache() {
-    return bodyMeshService.disposeBodyMeshCache();
-  }
-
-  function disposeSharedGeo() {
-    return bodyMeshService.disposeSharedGeo();
-  }
+  const visibleWarmup = createVisibleWarmupController({
+    beginPerfDuration: beginCelestialPerfDuration,
+    getYieldDelayMs: () => (state.isPlaying ? 24 : 8),
+    warmBodyMeshes: (snapshot, warmOptions) =>
+      bodyMeshService.warmBodyMeshes(snapshot, warmOptions),
+  });
 
   function positionBodyMesh(
     key,
@@ -699,6 +698,7 @@ export function initVisualiserPage(root, options = {}) {
     if (disposed) return;
     disposed = true;
     state.isPlaying = false;
+    visibleWarmup.cancel();
     disposeNativeThree();
     if (rafId != null) {
       try {
@@ -848,9 +848,9 @@ export function initVisualiserPage(root, options = {}) {
     if (!nativeThree) return;
     /* Dispose body mesh cache first — owns textures, materials, and ring
        geometry.  Skip bodyGroup in the generic traverse to avoid double-
-       disposing shared geometries that disposeSharedGeo() handles. */
-    disposeBodyMeshCache();
-    disposeSharedGeo();
+       disposing shared geometries that bodyMeshService.disposeSharedGeo() handles. */
+    bodyMeshService.disposeBodyMeshCache();
+    bodyMeshService.disposeSharedGeo();
     try {
       for (const grp of [nativeThree.systemGroup, nativeThree.clusterGroup]) {
         grp?.traverse?.((obj) => {
@@ -1569,6 +1569,20 @@ export function initVisualiserPage(root, options = {}) {
       ? clamp((state.zoom - MOON_LABEL_MIN_ZOOM) / MOON_LABEL_FADE, 0, 1)
       : 0;
     const showMoonLabels = moonLabelOpacity > 0.01;
+    const totalMoons =
+      [...(planetNodes || []), ...(gasGiants || [])].reduce(
+        (sum, body) => sum + (Array.isArray(body?.moons) ? body.moons.length : 0),
+        0,
+      ) || 0;
+    const renderProfile = buildSystemRenderProfile({
+      focusedBodyId: state.focusTargetId,
+      focusedBodyKind: state.focusTargetKind,
+      isPlaying: state.isPlaying,
+      totalComets: Array.isArray(comets) ? comets.length : 0,
+      totalDebrisDisks: Array.isArray(debrisDisks) ? debrisDisks.length : 0,
+      totalMoons,
+      zoom: state.zoom,
+    });
     updateOffscaleZoneNotice(offscaleZones);
 
     const dpr = state.canvasDpr || window.devicePixelRatio || 1;
@@ -1588,6 +1602,7 @@ export function initVisualiserPage(root, options = {}) {
     state.bodyHitRegions = [];
     state.labelHitRegions = [];
     const bodyMeshTouched = new Set();
+    const warmCandidates = [];
 
     const cx = baseCx + state.panX;
     const cy = baseCy + state.panY;
@@ -1662,6 +1677,8 @@ export function initVisualiserPage(root, options = {}) {
       labelOverrides: state.labelOverrides,
       labelsEnabled: !!chkLabels?.checked,
       leadersEnabled: !!chkLabelLeaders?.checked,
+      maxLabels: renderProfile.labelMaxCount,
+      minPriority: renderProfile.labelMinPriority,
       screenToGroup: (sx, sy) => toThreeXY(metrics, sx, sy),
       threeText,
     });
@@ -1705,6 +1722,11 @@ export function initVisualiserPage(root, options = {}) {
       return { x: x / mag, y: y / mag };
     };
 
+    const { addMoonSummaryLabel, allowMoonHelpers, buildMoonRenderSet } = createMoonRenderHelpers({
+      addDraggableLabel: addDraggableLabelNative,
+      getLabelsEnabled: () => chkLabels?.checked === true,
+      renderProfile,
+    });
     const projectedDashedCometOrbitDashArc = (
       comet,
       color = 0xa8d7ff,
@@ -2072,7 +2094,14 @@ export function initVisualiserPage(root, options = {}) {
         );
 
         // Dense, clumped asteroids with Keplerian orbital motion.
-        const particleCount = computeDebrisParticleTarget(inner, outer, d.inner, d.outer);
+        const particleCount = Math.max(
+          0,
+          Math.round(
+            computeDebrisParticleTarget(inner, outer, d.inner, d.outer) *
+              renderProfile.debrisParticleScale,
+          ),
+        );
+        if (particleCount < 12) continue;
         const bucketPositions = [[], [], []];
         const bucketColors = [[], [], []];
         const diskSeed = `native:debris:${di}`;
@@ -3250,6 +3279,19 @@ export function initVisualiserPage(root, options = {}) {
           bodyMeshTouched,
           ringLightVectorForOrbit(placement.ox, placement.oy, placement.oyVert || 0),
         );
+        appendWarmCandidate(warmCandidates, {
+          key: vizKey,
+          model: meshModel,
+          kind: "planet",
+          bodyId: p.id,
+          projectedRadiusPx: pr,
+          screenX: pPos.x,
+          screenY: pPos.y,
+          focusedBodyId: state.focusTargetId,
+          focusedBodyKind: state.focusTargetKind,
+          width: W,
+          height: H,
+        });
         if (chkRotation?.checked) {
           addRotationOverlayNative(
             pPos.x,
@@ -3285,8 +3327,10 @@ export function initVisualiserPage(root, options = {}) {
       registerHit("planet", p.id, pPos.x, pPos.y, Math.max(10, pr + 3), p);
 
       if (chkMoons?.checked && Array.isArray(p.moons)) {
-        const n = p.moons.length;
-        const moonAxes = p.moons
+        const moonRenderSet = buildMoonRenderSet(p.moons, p.id, "planet");
+        const visibleMoons = moonRenderSet.visibleMoons;
+        const n = visibleMoons.length;
+        const moonAxes = visibleMoons
           .map((m) => Number(m.semiMajorAxisKm))
           .filter((v) => Number.isFinite(v) && v > 0);
         const minMoonAxis = moonAxes.length ? Math.min(...moonAxes) : null;
@@ -3294,6 +3338,7 @@ export function initVisualiserPage(root, options = {}) {
         const moonBand = Math.max(pr * 0.6, 8 * (n - 1), 12);
         const orbitInner = pr + Math.max(10, pr * 0.2);
         const useEccentricMoons = chkEccentric?.checked === true;
+        const canShowMoonHelpers = allowMoonHelpers(p.id, "planet");
         const planetKm =
           Number.isFinite(p.radiusKm) && p.radiusKm > 0
             ? Number(p.radiusKm)
@@ -3302,7 +3347,7 @@ export function initVisualiserPage(root, options = {}) {
               : EARTH_RADIUS_KM;
 
         for (let i = 0; i < n; i += 1) {
-          const moon = p.moons[i];
+          const moon = visibleMoons[i];
           const moonAxis = Number(moon.semiMajorAxisKm);
           // Compute moon pixel radius early so orbit can clear the body.
           const moonR = usePhysicalSize
@@ -3331,7 +3376,7 @@ export function initVisualiserPage(root, options = {}) {
           const mArgW = Number(moon.longitudeOfPeriapsisDeg) || 0;
           // Ensure the periapsis clears the parent body.
           orbitR = Math.max(orbitR, (pr + moonR + 6) / (1 - mEcc));
-          if (chkOrbits?.checked) {
+          if (chkOrbits?.checked && moonRenderSet.orbitIds.has(moon.id)) {
             const moonRing =
               useEccentricMoons && mEcc > 0
                 ? projectedEllipseOrbitLine(
@@ -3429,7 +3474,20 @@ export function initVisualiserPage(root, options = {}) {
                 Number(placement.oyVert || 0) + Number(moyVert || 0),
               ),
             );
-            if (chkRotation?.checked) {
+            appendWarmCandidate(warmCandidates, {
+              key: mVizKey,
+              model: mModel,
+              kind: "moon",
+              bodyId: moon.id,
+              projectedRadiusPx: Math.max(moonR, 0.5),
+              screenX: mProj.x,
+              screenY: mProj.y,
+              focusedBodyId: state.focusTargetId,
+              focusedBodyKind: state.focusTargetKind,
+              width: W,
+              height: H,
+            });
+            if (canShowMoonHelpers && chkRotation?.checked) {
               addRotationOverlayNative(
                 mProj.x,
                 mProj.y,
@@ -3440,7 +3498,7 @@ export function initVisualiserPage(root, options = {}) {
                 moonZ + 0.45,
               );
             }
-            if (chkAxialTilt?.checked) {
+            if (canShowMoonHelpers && chkAxialTilt?.checked) {
               addAxialTiltOverlayNative(
                 mProj.x,
                 mProj.y,
@@ -3451,7 +3509,7 @@ export function initVisualiserPage(root, options = {}) {
               );
             }
           }
-          if (showMoonLabels && moon?.name) {
+          if (showMoonLabels && moon?.name && moonRenderSet.labelIds.has(moon.id)) {
             addDraggableLabelNative({
               key: `moon:${moon.id}`,
               line1: moon.name,
@@ -3469,6 +3527,7 @@ export function initVisualiserPage(root, options = {}) {
           }
           registerHit("moon", moon.id, mProj.x, mProj.y, Math.max(10, moonR + 3), moon);
         }
+        addMoonSummaryLabel("planet", p.id, pPos, pr, moonRenderSet);
       }
 
       nativePlanetRenderNodes.push({ p, placement, pPos, pr });
@@ -3630,6 +3689,19 @@ export function initVisualiserPage(root, options = {}) {
           bodyMeshTouched,
           ringLightVectorForOrbit(placement.ox, placement.oy, placement.oyVert || 0),
         );
+        appendWarmCandidate(warmCandidates, {
+          key: gVizKey,
+          model: gModel,
+          kind: "gasGiant",
+          bodyId: g.id,
+          projectedRadiusPx: gr,
+          screenX: gPos.x,
+          screenY: gPos.y,
+          focusedBodyId: state.focusTargetId,
+          focusedBodyKind: state.focusTargetKind,
+          width: W,
+          height: H,
+        });
         if (chkRotation?.checked) {
           addRotationOverlayNative(
             gPos.x,
@@ -3663,8 +3735,10 @@ export function initVisualiserPage(root, options = {}) {
         70,
       );
       if (chkMoons?.checked && Array.isArray(g.moons)) {
-        const n = g.moons.length;
-        const moonAxes = g.moons
+        const moonRenderSet = buildMoonRenderSet(g.moons, g.id, "gasGiant");
+        const visibleMoons = moonRenderSet.visibleMoons;
+        const n = visibleMoons.length;
+        const moonAxes = visibleMoons
           .map((m) => Number(m.semiMajorAxisKm))
           .filter((v) => Number.isFinite(v) && v > 0);
         const minMoonAxis = moonAxes.length ? Math.min(...moonAxes) : null;
@@ -3672,6 +3746,7 @@ export function initVisualiserPage(root, options = {}) {
         const moonBand = Math.max(gr * 0.6, 8 * (n - 1), 12);
         const orbitInner = gr + Math.max(10, gr * 0.2);
         const useEccentricMoons = chkEccentric?.checked === true;
+        const canShowMoonHelpers = allowMoonHelpers(g.id, "gasGiant");
         const gasRadiusKm =
           Number.isFinite(g.radiusKm) && g.radiusKm > 0
             ? Number(g.radiusKm)
@@ -3679,7 +3754,7 @@ export function initVisualiserPage(root, options = {}) {
               ? g.radiusRj * JUPITER_RADIUS_KM
               : JUPITER_RADIUS_KM;
         for (let i = 0; i < n; i += 1) {
-          const moon = g.moons[i];
+          const moon = visibleMoons[i];
           const baseAxis = Number(moon?.semiMajorAxisKm);
           // Compute moon pixel radius early so orbit can clear the body.
           const moonR = usePhysicalSize
@@ -3708,7 +3783,7 @@ export function initVisualiserPage(root, options = {}) {
           const mArgW = Number(moon.longitudeOfPeriapsisDeg) || 0;
           // Ensure the periapsis clears the parent body.
           orbitR = Math.max(orbitR, (gr + moonR + 6) / (1 - mEcc));
-          if (chkOrbits?.checked) {
+          if (chkOrbits?.checked && moonRenderSet.orbitIds.has(moon.id)) {
             const moonRing =
               useEccentricMoons && mEcc > 0
                 ? projectedEllipseOrbitLine(
@@ -3806,7 +3881,20 @@ export function initVisualiserPage(root, options = {}) {
                 Number(placement.oyVert || 0) + Number(moyVert || 0),
               ),
             );
-            if (chkRotation?.checked) {
+            appendWarmCandidate(warmCandidates, {
+              key: mVizKey,
+              model: mModel,
+              kind: "moon",
+              bodyId: moon.id,
+              projectedRadiusPx: Math.max(moonR, 0.5),
+              screenX: mProj.x,
+              screenY: mProj.y,
+              focusedBodyId: state.focusTargetId,
+              focusedBodyKind: state.focusTargetKind,
+              width: W,
+              height: H,
+            });
+            if (canShowMoonHelpers && chkRotation?.checked) {
               addRotationOverlayNative(
                 mProj.x,
                 mProj.y,
@@ -3817,7 +3905,7 @@ export function initVisualiserPage(root, options = {}) {
                 moonZ + 0.45,
               );
             }
-            if (chkAxialTilt?.checked) {
+            if (canShowMoonHelpers && chkAxialTilt?.checked) {
               addAxialTiltOverlayNative(
                 mProj.x,
                 mProj.y,
@@ -3828,7 +3916,7 @@ export function initVisualiserPage(root, options = {}) {
               );
             }
           }
-          if (showMoonLabels && moon?.name) {
+          if (showMoonLabels && moon?.name && moonRenderSet.labelIds.has(moon.id)) {
             addDraggableLabelNative({
               key: `moon:${moon.id}`,
               line1: moon.name,
@@ -3846,19 +3934,38 @@ export function initVisualiserPage(root, options = {}) {
           }
           registerHit("moon", moon.id, mProj.x, mProj.y, Math.max(10, moonR + 3), moon);
         }
+        addMoonSummaryLabel("gasGiant", g.id, gPos, gr, moonRenderSet);
       }
       registerHit("gasGiant", g.id, gPos.x, gPos.y, Math.max(12, gr + 4), g);
       nativeGasRenderNodes.push({ g, placement, gPos, gr });
     }
 
     if (chkComets?.checked && Array.isArray(comets)) {
-      for (const comet of comets) {
-        if (!(Number(comet?.semiMajorAxisAu) > 0)) continue;
-        const cometParticles = buildCometParticleLayout({
-          comet,
-          seed: `${comet.id || comet.name || "comet"}:viz`,
+      const orderedComets = [...comets]
+        .filter((comet) => Number(comet?.semiMajorAxisAu) > 0)
+        .sort((left, right) => {
+          const activityDelta =
+            Number(right?.activeNow === true) - Number(left?.activeNow === true);
+          if (activityDelta !== 0) return activityDelta;
+          return (
+            (Number(left?.currentRadiusAu) || Infinity) -
+            (Number(right?.currentRadiusAu) || Infinity)
+          );
         });
-        const cometAppearance = cometParticles.appearance;
+      let cometLabelsShown = 0;
+      for (const comet of orderedComets) {
+        const cometDetailLevel =
+          renderProfile.cometDetailLevel === "full" && !comet.activeNow
+            ? "reduced"
+            : renderProfile.cometDetailLevel;
+        const cometLayout =
+          cometDetailLevel === "minimal"
+            ? null
+            : buildCometParticleLayout({
+                comet,
+                seed: `${comet.id || comet.name || "comet"}:viz`,
+              });
+        const cometAppearance = cometLayout?.appearance || resolveCometAppearance({ comet });
         const orbitColor = hexToColorNumber(cometAppearance.orbitHex, 0xa8d7ff);
         const comaColor = hexToColorNumber(cometAppearance.comaHex, 0xe9fbff);
         const ionTailColor = hexToColorNumber(cometAppearance.ionTailHex, 0x74d7ff);
@@ -3870,6 +3977,8 @@ export function initVisualiserPage(root, options = {}) {
             comet,
             orbitColor,
             0.34 + cometAppearance.activityLevel * 0.14,
+            -5.9,
+            cometDetailLevel === "full" ? 1920 : 720,
           );
           if (cometOrbitArc) nativeThree.systemGroup.add(cometOrbitArc);
         }
@@ -3884,35 +3993,7 @@ export function initVisualiserPage(root, options = {}) {
         );
         if (!Number.isFinite(cometPos.x) || !Number.isFinite(cometPos.y)) continue;
 
-        const futureStepDays = clamp(Number(placement.periodDays || 120) * 0.0025, 0.35, 16);
-        const futurePlacement = computeSystemCometPlacement(comet, metrics, snapshot.starMassMsol, {
-          mapAuToPx,
-          simTime: state.simTime + futureStepDays,
-          solveKeplerEquation,
-        });
-        const futurePos = orbitOffsetToScreen(
-          futurePlacement.ox,
-          futurePlacement.oy,
-          cx,
-          cy,
-          futurePlacement.oyVert || 0,
-        );
-
         const nucleusR = clamp((Number(comet.nucleusRadiusKm) || 1) * 0.5, 3.2, 11);
-        const { antiSolarDir, dustDir } = resolveCometTailDirections({
-          cometPos,
-          futurePos,
-          starPos: { x: cx, y: cy },
-          dustBias: cometAppearance.dustBias,
-        });
-        const ionTailPx = mapAuSpanToPx(
-          Math.max(Number(comet.currentRadiusAu) || 0.001, 0.001),
-          Number(comet.ionTailLengthAu) || 0,
-        );
-        const dustTailPx = mapAuSpanToPx(
-          Math.max(Number(comet.currentRadiusAu) || 0.001, 0.001),
-          Number(comet.dustTailLengthAu) || 0,
-        );
         const nucleusPos = screenToThree(cometPos.x, cometPos.y, 2.72);
         const cometZoomFade = isPhysicalScale()
           ? clamp((state.zoom - 0.28) / 0.72, 0, 1)
@@ -3920,14 +4001,51 @@ export function initVisualiserPage(root, options = {}) {
         const cometFocusFade =
           state.focusTargetKind === "comet" && state.focusTargetId === comet.id ? 0.45 : 0;
         const cometDetailFade = Math.max(cometZoomFade, cometFocusFade);
-        const tailGeometry = buildCometTailGeometry({
-          tailBase: cometPos,
-          tailDir: dustDir,
-          preferredNormal: antiSolarDir,
-          dustLength: dustTailPx,
-          ionLength: ionTailPx * 0.82,
-          baseFlare: Math.max(nucleusR * 0.9, 3.4 + cometAppearance.dustBias * 2.6),
-        });
+        let ionTailPx = 0;
+        let dustTailPx = 0;
+        let tailGeometry = null;
+        if (cometDetailLevel !== "minimal") {
+          const futureStepDays = clamp(Number(placement.periodDays || 120) * 0.0025, 0.35, 16);
+          const futurePlacement = computeSystemCometPlacement(
+            comet,
+            metrics,
+            snapshot.starMassMsol,
+            {
+              mapAuToPx,
+              simTime: state.simTime + futureStepDays,
+              solveKeplerEquation,
+            },
+          );
+          const futurePos = orbitOffsetToScreen(
+            futurePlacement.ox,
+            futurePlacement.oy,
+            cx,
+            cy,
+            futurePlacement.oyVert || 0,
+          );
+          const { antiSolarDir, dustDir } = resolveCometTailDirections({
+            cometPos,
+            futurePos,
+            starPos: { x: cx, y: cy },
+            dustBias: cometAppearance.dustBias,
+          });
+          ionTailPx = mapAuSpanToPx(
+            Math.max(Number(comet.currentRadiusAu) || 0.001, 0.001),
+            Number(comet.ionTailLengthAu) || 0,
+          );
+          dustTailPx = mapAuSpanToPx(
+            Math.max(Number(comet.currentRadiusAu) || 0.001, 0.001),
+            Number(comet.dustTailLengthAu) || 0,
+          );
+          tailGeometry = buildCometTailGeometry({
+            tailBase: cometPos,
+            tailDir: dustDir,
+            preferredNormal: antiSolarDir,
+            dustLength: dustTailPx,
+            ionLength: ionTailPx * 0.82,
+            baseFlare: Math.max(nucleusR * 0.9, 3.4 + cometAppearance.dustBias * 2.6),
+          });
+        }
 
         if (comet.activeNow) {
           const comaR = clamp(
@@ -3946,23 +4064,25 @@ export function initVisualiserPage(root, options = {}) {
               color: comaColor,
               blending: THREE.NormalBlending,
             });
-            const comaParticles = addParticleFieldNative({
-              particles: cometParticles.comaParticles,
-              resolveScreenPoint: (particle) => ({
-                x: cometPos.x + Math.cos(particle.angle) * comaR * particle.radiusNorm,
-                y: cometPos.y + Math.sin(particle.angle) * comaR * particle.radiusNorm,
-                alpha: particle.alpha,
-                size: particle.size,
-              }),
-              color: comaColor,
-              opacity: (0.52 + cometAppearance.activityLevel * 0.1) * cometDetailFade,
-              baseSize: Math.max(1.5, nucleusR * 0.42),
-              z: 2.69,
-            });
-            if (comaParticles) nativeThree.systemGroup.add(comaParticles);
+            if (cometDetailLevel === "full" && cometLayout) {
+              const comaParticles = addParticleFieldNative({
+                particles: cometLayout.comaParticles,
+                resolveScreenPoint: (particle) => ({
+                  x: cometPos.x + Math.cos(particle.angle) * comaR * particle.radiusNorm,
+                  y: cometPos.y + Math.sin(particle.angle) * comaR * particle.radiusNorm,
+                  alpha: particle.alpha,
+                  size: particle.size,
+                }),
+                color: comaColor,
+                opacity: (0.52 + cometAppearance.activityLevel * 0.1) * cometDetailFade,
+                baseSize: Math.max(1.5, nucleusR * 0.42),
+                z: 2.69,
+              });
+              if (comaParticles) nativeThree.systemGroup.add(comaParticles);
+            }
           }
 
-          if (ionTailPx > 0.5) {
+          if (tailGeometry && ionTailPx > 0.5) {
             addScreenLine(
               tailGeometry.tailBase.x,
               tailGeometry.tailBase.y,
@@ -3972,31 +4092,33 @@ export function initVisualiserPage(root, options = {}) {
               0.16 + cometAppearance.ionBias * 0.06,
               2.58,
             );
-            const ionParticleCloud = addParticleFieldNative({
-              particles: cometParticles.ionParticles,
-              resolveScreenPoint: (particle) => {
-                return {
-                  x:
-                    tailGeometry.tailBase.x +
-                    (tailGeometry.ionEnd.x - tailGeometry.tailBase.x) * particle.t +
-                    tailGeometry.tailNormal.x * ionTailPx * particle.lateral,
-                  y:
-                    tailGeometry.tailBase.y +
-                    (tailGeometry.ionEnd.y - tailGeometry.tailBase.y) * particle.t +
-                    tailGeometry.tailNormal.y * ionTailPx * particle.lateral,
-                  alpha: particle.alpha,
-                  size: particle.size,
-                };
-              },
-              color: ionTailColor,
-              opacity: 0.5 + cometAppearance.ionBias * 0.08,
-              baseSize: Math.max(1.7, nucleusR * 0.34),
-              z: 2.6,
-            });
-            if (ionParticleCloud) nativeThree.systemGroup.add(ionParticleCloud);
+            if (cometDetailLevel === "full" && cometLayout) {
+              const ionParticleCloud = addParticleFieldNative({
+                particles: cometLayout.ionParticles,
+                resolveScreenPoint: (particle) => {
+                  return {
+                    x:
+                      tailGeometry.tailBase.x +
+                      (tailGeometry.ionEnd.x - tailGeometry.tailBase.x) * particle.t +
+                      tailGeometry.tailNormal.x * ionTailPx * particle.lateral,
+                    y:
+                      tailGeometry.tailBase.y +
+                      (tailGeometry.ionEnd.y - tailGeometry.tailBase.y) * particle.t +
+                      tailGeometry.tailNormal.y * ionTailPx * particle.lateral,
+                    alpha: particle.alpha,
+                    size: particle.size,
+                  };
+                },
+                color: ionTailColor,
+                opacity: 0.5 + cometAppearance.ionBias * 0.08,
+                baseSize: Math.max(1.7, nucleusR * 0.34),
+                z: 2.6,
+              });
+              if (ionParticleCloud) nativeThree.systemGroup.add(ionParticleCloud);
+            }
           }
 
-          if (dustTailPx > 0.5) {
+          if (tailGeometry && dustTailPx > 0.5) {
             addTailRibbonNative({
               tailBase: tailGeometry.tailBase,
               dustUpperControl: tailGeometry.dustUpperControl,
@@ -4004,43 +4126,46 @@ export function initVisualiserPage(root, options = {}) {
               dustLowerControl: tailGeometry.dustLowerControl,
               dustBaseReturn: tailGeometry.dustBaseReturn,
               color: dustTailColor,
-              opacity: 0.28 + cometAppearance.dustBias * 0.16,
+              opacity:
+                (cometDetailLevel === "full" ? 0.28 : 0.18) + cometAppearance.dustBias * 0.16,
               z: 2.56,
             });
-            const dustParticleCloud = addParticleFieldNative({
-              particles: cometParticles.dustParticles,
-              resolveScreenPoint: (particle) => {
-                const base = quadraticScreenPoint(
-                  tailGeometry.tailBase.x,
-                  tailGeometry.tailBase.y,
-                  tailGeometry.dustUpperControl.x,
-                  tailGeometry.dustUpperControl.y,
-                  tailGeometry.dustTip.x,
-                  tailGeometry.dustTip.y,
-                  particle.t,
-                );
-                const normal = quadraticScreenNormal(
-                  tailGeometry.tailBase.x,
-                  tailGeometry.tailBase.y,
-                  tailGeometry.dustUpperControl.x,
-                  tailGeometry.dustUpperControl.y,
-                  tailGeometry.dustTip.x,
-                  tailGeometry.dustTip.y,
-                  particle.t,
-                );
-                return {
-                  x: base.x + normal.x * dustTailPx * particle.lateral,
-                  y: base.y + normal.y * dustTailPx * particle.lateral,
-                  alpha: particle.alpha,
-                  size: particle.size,
-                };
-              },
-              color: dustTailColor,
-              opacity: 0.6 + cometAppearance.dustBias * 0.16,
-              baseSize: Math.max(1.8, nucleusR * 0.42),
-              z: 2.59,
-            });
-            if (dustParticleCloud) nativeThree.systemGroup.add(dustParticleCloud);
+            if (cometDetailLevel === "full" && cometLayout) {
+              const dustParticleCloud = addParticleFieldNative({
+                particles: cometLayout.dustParticles,
+                resolveScreenPoint: (particle) => {
+                  const base = quadraticScreenPoint(
+                    tailGeometry.tailBase.x,
+                    tailGeometry.tailBase.y,
+                    tailGeometry.dustUpperControl.x,
+                    tailGeometry.dustUpperControl.y,
+                    tailGeometry.dustTip.x,
+                    tailGeometry.dustTip.y,
+                    particle.t,
+                  );
+                  const normal = quadraticScreenNormal(
+                    tailGeometry.tailBase.x,
+                    tailGeometry.tailBase.y,
+                    tailGeometry.dustUpperControl.x,
+                    tailGeometry.dustUpperControl.y,
+                    tailGeometry.dustTip.x,
+                    tailGeometry.dustTip.y,
+                    particle.t,
+                  );
+                  return {
+                    x: base.x + normal.x * dustTailPx * particle.lateral,
+                    y: base.y + normal.y * dustTailPx * particle.lateral,
+                    alpha: particle.alpha,
+                    size: particle.size,
+                  };
+                },
+                color: dustTailColor,
+                opacity: 0.6 + cometAppearance.dustBias * 0.16,
+                baseSize: Math.max(1.8, nucleusR * 0.42),
+                z: 2.59,
+              });
+              if (dustParticleCloud) nativeThree.systemGroup.add(dustParticleCloud);
+            }
           }
         }
 
@@ -4071,7 +4196,7 @@ export function initVisualiserPage(root, options = {}) {
         nucleusCore.position.set(nucleusPos.x, nucleusPos.y, 2.72);
         nativeThree.systemGroup.add(nucleusCore);
 
-        if (chkLabels?.checked) {
+        if (chkLabels?.checked && cometLabelsShown < renderProfile.cometLabelLimit) {
           addBodyLabelNative(
             comet.name || "Comet",
             `${Number(comet.currentRadiusAu || 0).toFixed(2)} AU`,
@@ -4082,6 +4207,7 @@ export function initVisualiserPage(root, options = {}) {
             `comet:${comet.id}`,
             60,
           );
+          cometLabelsShown += 1;
         }
 
         registerHit("comet", comet.id, cometPos.x, cometPos.y, Math.max(10, nucleusR + 4), comet);
@@ -4239,6 +4365,9 @@ export function initVisualiserPage(root, options = {}) {
     } else {
       hideNativeTransitionOverlay();
     }
+
+    const warmItems = selectBodyMeshWarmSubset(warmCandidates, renderProfile.warmBodyBudgets);
+    visibleWarmup.schedule(snapshot, warmItems, renderProfile.warmBodyBudgets);
 
     /* Hide body meshes that were not touched this frame */
     bodyMeshService.hideUntouched(bodyMeshTouched);
@@ -4658,9 +4787,10 @@ export function initVisualiserPage(root, options = {}) {
     return `${prefix}-${makeTimestampToken()}.${extension}`;
   }
 
-  function invalidateSnapshot() {
+  function invalidateSnapshot({ disposeBodyMeshes = true } = {}) {
     state.snapshotCache = null;
-    disposeBodyMeshCache();
+    visibleWarmup.cancel();
+    if (disposeBodyMeshes) bodyMeshService.disposeBodyMeshCache();
   }
 
   function getSnapshot({ force = false } = {}) {
@@ -4678,7 +4808,6 @@ export function initVisualiserPage(root, options = {}) {
     syncSystemViewModeControls(snapshot);
     syncHostFrameControls(snapshot);
     state.snapshotCache = snapshot;
-    warmBodyMeshes(snapshot);
     return snapshot;
   }
 
@@ -5299,6 +5428,7 @@ export function initVisualiserPage(root, options = {}) {
         canvas,
         antialias: true,
         alpha: false,
+        powerPreference: "high-performance",
         preserveDrawingBuffer: true,
       });
       renderer.setPixelRatio(1);

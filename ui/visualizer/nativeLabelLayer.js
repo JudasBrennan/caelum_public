@@ -9,6 +9,8 @@ export function createNativeLabelLayer({
   labelOverrides,
   labelsEnabled,
   leadersEnabled,
+  maxLabels = Infinity,
+  minPriority = -Infinity,
   screenToGroup,
   threeText,
 }) {
@@ -84,7 +86,10 @@ export function createNativeLabelLayer({
   function flushPendingLabels() {
     pendingLabels.sort((a, b) => b.priority - a.priority);
     const placed = [];
+    let drawnLabels = 0;
     for (const entry of pendingLabels) {
+      if (entry.priority < minPriority) continue;
+      if (drawnLabels >= maxLabels) break;
       const {
         anchorX,
         anchorY,
@@ -201,6 +206,7 @@ export function createNativeLabelLayer({
           h: resetH,
         });
       }
+      drawnLabels += 1;
     }
   }
 

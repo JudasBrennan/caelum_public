@@ -95,6 +95,23 @@ function createCanvas(width, height) {
   throw new Error("Ring texture generation requires a canvas-capable environment.");
 }
 
+function createImageData(ctx, data, width, height) {
+  if (typeof ImageData !== "undefined") {
+    return new ImageData(data, width, height);
+  }
+  const imageData = ctx.createImageData(width, height);
+  imageData.data.set(data);
+  return imageData;
+}
+
+function payloadToCanvas(buffer, width, height) {
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+  ctx.putImageData(createImageData(ctx, new Uint8ClampedArray(buffer), width, height), 0, 0);
+  return canvas;
+}
+
 export function buildRingTextureProfile(appearance = {}) {
   const sampleCount = Math.max(64, Math.round(Number(appearance?.sampleCount) || 1024));
   const radii = new Float32Array(sampleCount);
@@ -166,20 +183,12 @@ export function buildRingTextureProfile(appearance = {}) {
   return { radii, colourR, colourG, colourB, alpha };
 }
 
-export function renderRingStripTextures({ appearance, width = 1024, height = 32 } = {}) {
+export function buildRingStripTexturePayload({ appearance, width = 1024, height = 32 } = {}) {
   const safeWidth = Math.max(64, Math.round(Number(width) || 1024));
   const safeHeight = Math.max(4, Math.round(Number(height) || 32));
-  const colourCanvas = createCanvas(safeWidth, safeHeight);
-  const alphaCanvas = createCanvas(safeWidth, safeHeight);
-  const colourCtx = colourCanvas.getContext("2d");
-  const alphaCtx = alphaCanvas.getContext("2d");
-  if (!colourCtx || !alphaCtx) {
-    return { colourCanvas, alphaCanvas };
-  }
-
   const profile = buildRingTextureProfile({ ...(appearance || {}), sampleCount: safeWidth });
-  const colourImage = colourCtx.createImageData(safeWidth, safeHeight);
-  const alphaImage = alphaCtx.createImageData(safeWidth, safeHeight);
+  const colour = new Uint8ClampedArray(safeWidth * safeHeight * 4);
+  const alpha = new Uint8ClampedArray(safeWidth * safeHeight * 4);
   const asymmetry = clamp(Number(appearance?.asymmetry) || 0, 0, 1);
   const phase = hashUnit(`${appearance?.seed || appearance?.styleId || "ring"}:angle`) * TAU;
 
@@ -196,19 +205,30 @@ export function renderRingStripTextures({ appearance, width = 1024, height = 32 
       const srcB = clamp(Math.round(profile.colourB[x] * arcColour), 0, 255);
       const idx = (y * safeWidth + x) * 4;
 
-      colourImage.data[idx] = srcR;
-      colourImage.data[idx + 1] = srcG;
-      colourImage.data[idx + 2] = srcB;
-      colourImage.data[idx + 3] = 255;
+      colour[idx] = srcR;
+      colour[idx + 1] = srcG;
+      colour[idx + 2] = srcB;
+      colour[idx + 3] = 255;
 
-      alphaImage.data[idx] = srcAlpha;
-      alphaImage.data[idx + 1] = srcAlpha;
-      alphaImage.data[idx + 2] = srcAlpha;
-      alphaImage.data[idx + 3] = 255;
+      alpha[idx] = srcAlpha;
+      alpha[idx + 1] = srcAlpha;
+      alpha[idx + 2] = srcAlpha;
+      alpha[idx + 3] = 255;
     }
   }
 
-  colourCtx.putImageData(colourImage, 0, 0);
-  alphaCtx.putImageData(alphaImage, 0, 0);
-  return { colourCanvas, alphaCanvas };
+  return {
+    width: safeWidth,
+    height: safeHeight,
+    colour: colour.buffer,
+    alpha: alpha.buffer,
+  };
+}
+
+export function renderRingStripTextures({ appearance, width = 1024, height = 32 } = {}) {
+  const payload = buildRingStripTexturePayload({ appearance, width, height });
+  return {
+    colourCanvas: payloadToCanvas(payload.colour, payload.width, payload.height),
+    alphaCanvas: payloadToCanvas(payload.alpha, payload.width, payload.height),
+  };
 }

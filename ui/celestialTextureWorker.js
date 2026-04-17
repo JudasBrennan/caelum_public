@@ -1201,11 +1201,13 @@ function buildTextureMapPayloads(descriptor, textureSize) {
   }
 
   return {
-    surface: { width: surface.width, height: surface.height, buffer: surface.data.buffer },
-    cloud: { width: cloud.width, height: cloud.height, buffer: cloud.data.buffer },
-    normal: { width: normal.width, height: normal.height, buffer: normal.data.buffer },
-    roughness: { width: roughness.width, height: roughness.height, buffer: roughness.data.buffer },
-    emissive: { width: emissive.width, height: emissive.height, buffer: emissive.data.buffer },
+    width: surface.width,
+    height: surface.height,
+    surface: surface.data.buffer,
+    cloud: cloud.data.buffer,
+    normal: normal.data.buffer,
+    roughness: roughness.data.buffer,
+    emissive: emissive.data.buffer,
   };
 }
 
@@ -1226,13 +1228,7 @@ self.onmessage = (event) => {
 
   try {
     const maps = buildTextureMapPayloads(descriptor, textureSize);
-    const transfers = [
-      maps.surface.buffer,
-      maps.cloud.buffer,
-      maps.normal.buffer,
-      maps.roughness.buffer,
-      maps.emissive.buffer,
-    ];
+    const transfers = [maps.surface, maps.cloud, maps.normal, maps.roughness, maps.emissive];
     self.postMessage(
       {
         id,

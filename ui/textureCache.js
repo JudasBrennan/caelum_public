@@ -2,6 +2,8 @@
 // Survives browser refresh. Graceful degradation: returns null
 // if IndexedDB is unavailable (private browsing, quota exceeded).
 
+import { normalizeCelestialTexturePayload } from "./celestialTexturePayloads.js";
+
 const DB_NAME = "worldsmith-textures";
 const DB_VERSION = 1;
 const STORE_NAME = "textures";
@@ -36,17 +38,6 @@ function openDB() {
     };
   });
   return dbPromise;
-}
-
-function extractRGBA(source) {
-  if (!source) return null;
-  if (source.buffer instanceof ArrayBuffer) return source.buffer;
-  if (typeof source.getContext === "function") {
-    const ctx = source.getContext("2d");
-    if (!ctx) return null;
-    return ctx.getImageData(0, 0, source.width, source.height).data.buffer.slice(0);
-  }
-  return null;
 }
 
 function touchEntry(db, signature) {
@@ -101,15 +92,20 @@ export async function loadTexturesFromIDB(signature) {
           return;
         }
         touchEntry(db, signature);
-        resolve({
-          width: record.width,
-          height: record.height,
-          surface: record.surface,
-          cloud: record.cloud,
-          normal: record.normal,
-          roughness: record.roughness,
-          emissive: record.emissive,
-        });
+        resolve(
+          normalizeCelestialTexturePayload(
+            {
+              width: record.width,
+              height: record.height,
+              surface: record.surface,
+              cloud: record.cloud,
+              normal: record.normal,
+              roughness: record.roughness,
+              emissive: record.emissive,
+            },
+            { cloneBuffers: false },
+          ),
+        );
       };
       req.onerror = () => resolve(null);
     });
@@ -123,25 +119,29 @@ export async function storeTexturesToIDB(signature, maps, pipelineVersion) {
   try {
     const db = await openDB();
     if (!db) return;
-    const width = maps.surface.width || maps.width || 0;
-    const height = maps.surface.height || maps.height || 0;
-    if (!width || !height) return;
+    const payload = normalizeCelestialTexturePayload(maps, { cloneBuffers: false });
+    if (!payload) return;
     const record = {
       signature,
       pipelineVersion: pipelineVersion || 0,
       accessedAt: Date.now(),
-      width,
-      height,
-      surface: extractRGBA(maps.surface),
-      cloud: extractRGBA(maps.cloud),
-      normal: extractRGBA(maps.normal),
-      roughness: extractRGBA(maps.roughness),
-      emissive: extractRGBA(maps.emissive),
+      width: payload.width,
+      height: payload.height,
+      surface: payload.surface,
+      cloud: payload.cloud,
+      normal: payload.normal,
+      roughness: payload.roughness,
+      emissive: payload.emissive,
     };
     if (!record.surface) return;
     const tx = db.transaction(STORE_NAME, "readwrite");
     tx.objectStore(STORE_NAME).put(record);
     evictOldEntries(db);
+    await new Promise((resolve) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+      tx.onabort = () => resolve();
+    });
   } catch {
     /* IDB quota exceeded or other error — fail silently */
   }
@@ -165,4 +165,8 @@ export async function clearStaleTextures(currentPipelineVersion) {
   } catch {
     /* fail silently */
   }
+}
+
+export function resetTextureCacheForTests() {
+  dbPromise = null;
 }

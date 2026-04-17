@@ -74,7 +74,7 @@ export function createCelestialVisualPreviewController(options = {}) {
   };
 }
 
-export async function renderCelestialRecipeBatch(items, onProgress) {
+export async function renderCelestialRecipeBatch(items, onProgress, options) {
   const mod = await loadCelestialVisualPreviewModule();
-  return mod.renderCelestialRecipeBatch(items, onProgress);
+  return mod.renderCelestialRecipeBatch(items, onProgress, options);
 }

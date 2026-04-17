@@ -20,11 +20,17 @@ import {
   buildClearSavedDataPlan,
   buildReplaceCurrentWorldPlan,
 } from "./store/destructiveActions.js";
+import {
+  clearAllSavedData as clearAllSavedDataFromPersistence,
+  clearOwnedSessionStorageKeys as clearOwnedSessionStorageKeysFromPersistence,
+} from "./store/persistenceBridge.js";
 import { buildImportPreviewSummary } from "../engine/worldAdapters.js";
 
 const { exportEnvelope, validateEnvelope, importWorld, createBackup, listBackups, restoreBackup } =
   store;
 const { normalizeWorld } = store;
+
+let importExportCompatibilityOverrides = null;
 
 const TIP_LABEL = {
   Export:
@@ -130,27 +136,141 @@ async function maybeWarnLargeImport(statusEl, bytes, label) {
   await nextImportTurn();
 }
 
-function clearAllSavedDataSafe() {
-  if (typeof store.clearAllSavedData === "function") {
-    return store.clearAllSavedData();
+function resolveImportExportCompatibilityValue(key, fallbackValue) {
+  if (
+    importExportCompatibilityOverrides &&
+    Object.prototype.hasOwnProperty.call(importExportCompatibilityOverrides, key)
+  ) {
+    return importExportCompatibilityOverrides[key];
   }
-  // Fallback for mixed-cache deployments where app files are newer than store.js.
+  return fallbackValue;
+}
+
+export function __setImportExportCompatibilityOverridesForTests(overrides = null) {
+  importExportCompatibilityOverrides =
+    overrides && typeof overrides === "object" ? { ...overrides } : null;
+}
+
+function clearLegacyWorldsmithLocalStorageKeysForCompatibility() {
   try {
-    const backupIdxRaw = localStorage.getItem("worldsmith.world.backups");
-    const backupIdx = backupIdxRaw ? JSON.parse(backupIdxRaw) : [];
-    for (const item of Array.isArray(backupIdx) ? backupIdx : []) {
-      if (item?.key) localStorage.removeItem(item.key);
+    if (
+      typeof localStorage?.length !== "number" ||
+      typeof localStorage?.key !== "function" ||
+      typeof localStorage?.removeItem !== "function"
+    ) {
+      return 0;
     }
-    localStorage.removeItem("worldsmith.world.backups");
-    localStorage.removeItem("worldsmith.world.v1");
-    localStorage.removeItem("worldsmith.world");
+
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && String(key).startsWith("worldsmith.")) toRemove.push(key);
+    }
+
+    let removedCount = 0;
+    for (const key of toRemove) {
+      try {
+        localStorage.removeItem(key);
+        removedCount += 1;
+      } catch {}
+    }
+    return removedCount;
+  } catch {
+    return 0;
+  }
+}
+
+function clearOwnedSessionStorageKeysForCompatibility() {
+  const clearOwnedSessionStorageKeys = resolveImportExportCompatibilityValue(
+    "clearOwnedSessionStorageKeys",
+    clearOwnedSessionStorageKeysFromPersistence,
+  );
+  if (typeof clearOwnedSessionStorageKeys === "function") {
+    return clearOwnedSessionStorageKeys();
+  }
+
+  try {
+    if (
+      typeof sessionStorage?.length !== "number" ||
+      typeof sessionStorage?.key !== "function" ||
+      typeof sessionStorage?.removeItem !== "function"
+    ) {
+      return 0;
+    }
+
+    const toRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (!key) continue;
+      if (
+        key === "worldsmith.guidedCreation.launch" ||
+        String(key).startsWith("worldsmith.guidedCreation.session.")
+      ) {
+        toRemove.push(key);
+      }
+    }
+
+    let removedCount = 0;
+    for (const key of toRemove) {
+      try {
+        sessionStorage.removeItem(key);
+        removedCount += 1;
+      } catch {}
+    }
+    return removedCount;
+  } catch {
+    return 0;
+  }
+}
+
+async function clearLegacySavedDataCompatibilityFallback() {
+  try {
+    const removedLocalStorageCount = clearLegacyWorldsmithLocalStorageKeysForCompatibility();
+    const removedSessionStorageCount = clearOwnedSessionStorageKeysForCompatibility();
     try {
       window.dispatchEvent(new CustomEvent("worldsmith:worldChanged"));
     } catch {}
-    return true;
+    return {
+      ok: true,
+      removedCount: null,
+      scope: "legacy-only",
+      confirmedDurableClear: false,
+      driver: "legacy-compatibility",
+      removedLocalStorageCount,
+      removedSessionStorageCount,
+      warning:
+        "Cleared legacy browser keys and guided session state, but could not confirm IndexedDB or other durable browser storage was removed.",
+    };
   } catch {
-    return false;
+    return {
+      ok: false,
+      removedCount: null,
+      scope: "legacy-only",
+      confirmedDurableClear: false,
+      driver: "legacy-compatibility",
+      error: "Legacy compatibility clear failed.",
+    };
   }
+}
+
+async function clearAllSavedDataCompatibly() {
+  const clearAllSavedDataFromStore = resolveImportExportCompatibilityValue(
+    "clearAllSavedData",
+    store.clearAllSavedData,
+  );
+  if (typeof clearAllSavedDataFromStore === "function") {
+    return clearAllSavedDataFromStore();
+  }
+
+  const clearAllSavedDataDurably = resolveImportExportCompatibilityValue(
+    "clearAllSavedDataFromPersistence",
+    clearAllSavedDataFromPersistence,
+  );
+  if (typeof clearAllSavedDataDurably === "function") {
+    return clearAllSavedDataDurably();
+  }
+
+  return clearLegacySavedDataCompatibilityFallback();
 }
 
 async function confirmClearSavedData() {
@@ -559,12 +679,39 @@ export function initImportExportPage(root) {
       return;
     }
 
-    clearAllSavedDataSafe();
+    const clearResult = await clearAllSavedDataCompatibly();
+    if (!clearResult?.ok) {
+      refreshExportView();
+      renderBackups();
+      setStatus(
+        statusExport,
+        `Could not fully clear saved data: ${clearResult?.error || "browser storage error"}.`,
+        "bad",
+      );
+      setStatus(statusImport, "Saved data was not fully cleared.", "bad");
+      return;
+    }
+
     hideImportPreview();
     txtImport.value = "";
     if (fileInput) fileInput.value = "";
     refreshExportView();
     renderBackups();
+    if (clearResult.confirmedDurableClear === false) {
+      setStatus(
+        statusExport,
+        clearResult.warning ||
+          "Legacy browser keys were cleared, but durable browser storage could not be confirmed.",
+        "info",
+      );
+      setStatus(
+        statusImport,
+        "Legacy browser keys were cleared, but durable storage could not be confirmed.",
+        "info",
+      );
+      return;
+    }
+
     setStatus(statusExport, "All saved WorldSmith data has been cleared.", "ok");
     setStatus(statusImport, "Saved data cleared.", "info");
   });

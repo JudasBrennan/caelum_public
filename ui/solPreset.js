@@ -1,3 +1,15 @@
+import { makeCollection } from "./store/systemCollections.js";
+import { createSingleStarStellarSystem } from "./store/stellarSystemModel.js";
+import { SCHEMA_VERSION, defaultWorld } from "./store/worldSchema.js";
+import {
+  SOL_COMETS,
+  SOL_DEBRIS_DISKS,
+  SOL_GAS_GIANTS,
+  SOL_MOONS,
+  SOL_OORT_CLOUD,
+  SOL_PLANETS,
+} from "./solPresetData.js";
+
 const GREGORIAN_DAY_NAMES = [
   "Monday",
   "Tuesday",
@@ -1206,10 +1218,103 @@ const SOL_PRESET_WORLD = {
   },
 };
 
+const SOL_SELECTED_PLANET_ID = "p_earth";
+const SOL_SELECTED_MOON_ID = "m_luna";
+const SOL_SELECTED_COMET_ID = "c_halley";
+const SOL_MAJOR_GAS_GIANT_MOON_IDS = new Set([
+  "m_io",
+  "m_europa",
+  "m_ganymede",
+  "m_callisto",
+  "m_mimas",
+  "m_enceladus",
+  "m_tethys",
+  "m_dione",
+  "m_rhea",
+  "m_titan",
+  "m_s_hyperion",
+  "m_iapetus",
+  "m_miranda",
+  "m_ariel",
+  "m_umbriel",
+  "m_titania",
+  "m_oberon",
+  "m_triton",
+  "m_nereid",
+]);
+const SOL_INNER_REGULAR_MOON_LIMITS_KM = Object.freeze({
+  gg_jupiter: 300000,
+  gg_saturn: 500000,
+  gg_uranus: 1000000,
+  gg_neptune: 500000,
+});
+
+function isProvisionalMoonDesignation(moon) {
+  const name = String(moon?.name || moon?.inputs?.name || "").trim();
+  return /^S\//.test(name);
+}
+
+function isCoreGasGiantMoon(moon) {
+  if (!moon?.planetId?.startsWith?.("gg_")) return false;
+  if (SOL_MAJOR_GAS_GIANT_MOON_IDS.has(moon.id)) return true;
+  const limitKm = SOL_INNER_REGULAR_MOON_LIMITS_KM[moon.planetId] ?? null;
+  const semiMajorAxisKm = Number(moon?.inputs?.semiMajorAxisKm);
+  return Number.isFinite(limitKm) && Number.isFinite(semiMajorAxisKm) && semiMajorAxisKm < limitKm;
+}
+
+function shouldKeepSolPresetMoon(moon) {
+  if (isProvisionalMoonDesignation(moon)) return false;
+  if (moon?.planetId?.startsWith?.("gg_")) return isCoreGasGiantMoon(moon);
+  return true;
+}
+
+function cloneSelectedBodySnapshot(entry) {
+  if (!entry?.inputs) return {};
+  return {
+    ...entry.inputs,
+    name: entry.name || entry.inputs.name,
+  };
+}
+
+function buildCompleteSolPresetWorld() {
+  const world = defaultWorld();
+
+  world.version = SCHEMA_VERSION;
+  world.selectedBodyType = "planet";
+  world.star = deepClone(SOL_PRESET_WORLD.star);
+  world.stellarSystem = createSingleStarStellarSystem(world.star);
+
+  world.system.orbitMode = SOL_PRESET_WORLD.system.orbitMode;
+  world.system.spacingFactor = SOL_PRESET_WORLD.system.spacingFactor;
+  world.system.orbit1Au = SOL_PRESET_WORLD.system.orbit1Au;
+  world.system.gasGiants = makeCollection(deepClone(SOL_GAS_GIANTS), "gg_");
+  world.system.gasGiants.selectedId = SOL_PRESET_WORLD.system.gasGiants.selectedId;
+  world.system.debrisDisks = makeCollection(deepClone(SOL_DEBRIS_DISKS), "dd_");
+  world.system.comets = makeCollection(deepClone(SOL_COMETS), "c_");
+  world.system.comets.selectedId = SOL_SELECTED_COMET_ID;
+  world.system.oortCloud = deepClone(SOL_OORT_CLOUD);
+
+  world.planets = makeCollection(deepClone(SOL_PLANETS), "p_");
+  world.planets.selectedId = SOL_SELECTED_PLANET_ID;
+  world.moons = makeCollection(deepClone(SOL_MOONS).filter(shouldKeepSolPresetMoon), "m_");
+  world.moons.selectedId = SOL_SELECTED_MOON_ID;
+  world.planet = cloneSelectedBodySnapshot(world.planets.byId[SOL_SELECTED_PLANET_ID]);
+  world.moon = cloneSelectedBodySnapshot(world.moons.byId[SOL_SELECTED_MOON_ID]);
+
+  world.calendar = deepClone(SOL_PRESET_WORLD.calendar);
+  world.cluster = deepClone(SOL_PRESET_WORLD.cluster);
+  world.clusterSystemNames = deepClone(SOL_PRESET_WORLD.clusterSystemNames);
+  world.clusterAdjustments = deepClone(SOL_PRESET_WORLD.clusterAdjustments);
+
+  return world;
+}
+
+const COMPLETE_SOL_PRESET_WORLD = buildCompleteSolPresetWorld();
+
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
 export function createSolPresetEnvelope() {
-  return { world: deepClone(SOL_PRESET_WORLD) };
+  return { world: deepClone(COMPLETE_SOL_PRESET_WORLD) };
 }

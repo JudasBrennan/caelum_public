@@ -21,7 +21,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.1.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.2.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, and calendars. Explore your creations in an interactive 3D
@@ -324,6 +324,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Calculated launch windows, trajectories, and return paths for early spaceflight, showing how precise navigation can turn complex motion into something safe and usable.",
   },
+  "2.2.0": {
+    name: "Chien-Shiung Wu",
+    born: 1912,
+    died: 1997,
+    country: "China",
+    summary:
+      "Experimentally proved that parity is not conserved in weak nuclear interactions, showing how careful instrumentation and rigorous verification can reveal structure hidden by prior assumptions.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -363,6 +371,17 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.2.0",
+      "(from 2.1.0)",
+      [
+        "<b>Faster Celestial Rendering</b> &mdash; Planet, moon, gas giant, and ring textures now reuse more work across previews, the Visualiser, posters, and guided flows, so familiar bodies appear faster and large-system browsing stalls less often.",
+        "<b>Printable Calendar Export</b> &mdash; Printable month and year exports now open more safely and handle blocked popup windows more gracefully, while still giving you a print-ready HTML fallback for saving to PDF.",
+        "<b>Planet And Calendar Stability</b> &mdash; The Planet and Calendar pages received a large stability pass around host-frame logic, brown-dwarf companion outputs, profile handling, and export flows, helping dense editing sessions stay more predictable.",
+        "<b>Storage Recovery Hardening</b> &mdash; Clearing unreadable or stale saved data is now more isolated and resilient, reducing the chance that browser storage problems leave the app in a half-cleared state.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.1.0",
       "(from 2.0.1)",
       [
@@ -371,7 +390,7 @@ function changelogHTML() {
         "<b>Clearer Editors</b> &mdash; The Star and Calendar pages now show current-state summaries and more inline guidance, so you can understand topology, host ownership, profile scope, and rule counts without scanning every dense section.",
         "<b>Touch And Navigation Polish</b> &mdash; Sidebar controls, tooltip triggers, and tutorial interactions are easier to hit on touch devices, the desktop nav now starts expanded for first-time orientation, and the sidebar footer stays cleaner on smaller screens.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.0.1",
