@@ -6,12 +6,15 @@ import {
   normalizeNameList,
 } from "../../engine/usableCalendar.js";
 import {
+  buildHolidayAlgorithmSupport,
   createCalendarStateStoreBindings,
   findById,
   moonsForPlanet,
   normFestivalRules,
   normHolidayRules,
+  normIntercalaryPeriods,
   normalizeAstronomySettings,
+  normalizeHolidayAlgorithmPresetScope,
   normalizeIcsIncludes,
   normalizeIsoDate,
   normalizeWeekendDayIndexes,
@@ -165,8 +168,17 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
 
     const dayNames = normalizeNameList(state.ui.dayNames, metrics.daysPerWeek, "Day");
     const monthNames = normalizeNameList(state.ui.monthNames, metrics.monthsPerYear, "Month");
+    const holidayAlgorithmPresetScope = normalizeHolidayAlgorithmPresetScope(
+      state.ui.holidayAlgorithmPresetScope,
+    );
+    const holidayAlgorithmSupport = buildHolidayAlgorithmSupport(holidayAlgorithmPresetScope);
+    state.ui.holidayAlgorithmPresetScope = holidayAlgorithmPresetScope;
     const holidays = normHolidayRules(state.ui.holidays, metrics.monthsPerYear);
     const festivals = normFestivalRules(state.ui.festivalRules, metrics.monthsPerYear);
+    const intercalaryPeriods = normIntercalaryPeriods(
+      state.ui.intercalaryPeriods,
+      metrics.monthsPerYear,
+    );
     const workCycles = normWorkCycleRules(state.ui.workCycles);
     const workWeekendRule = normalizeWeekendRule(state.ui.workWeekendRule);
     const weekendDayIndexes = normalizeWeekendDayIndexes(
@@ -195,6 +207,7 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
       dayNames,
       weekNames: state.ui.weekNames,
       monthNames,
+      intercalaryPeriods,
       moonDefs,
       moonEpochOffsetDays: state.ui.moonEpochOffsetDays,
       holidays,
@@ -202,6 +215,7 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
       astronomySettings,
       workCycles,
       weekendDayIndexes,
+      holidayAlgorithmSupport,
     });
     state.ui.selectedDay = clampI(state.ui.selectedDay, 1, monthModel.monthLength);
 
@@ -222,6 +236,7 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
       monthNames,
       holidays,
       festivals,
+      intercalaryPeriods,
       workCycles,
       workWeekendRule,
       weekendDayIndexes,
@@ -230,6 +245,8 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
       monthLengthOverrides,
       monthModel,
       holidayIssueById: monthModel.holidayIssueById || {},
+      holidayAlgorithmPresetScope,
+      holidayAlgorithmSupport,
     };
   }
 

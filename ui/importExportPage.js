@@ -46,7 +46,7 @@ const TIP_LABEL = {
   "Validate import": "Check import JSON structure and show a pre-import summary.",
   "Replace current world": "Apply the validated import and replace the current saved world.",
   "Import Sol preset":
-    "Load and import a built-in Sol preset (Mercury-Mars, Jupiter-Neptune, belts, and key moons).",
+    "Load and import a built-in Sol preset (Mercury-Pluto, Jupiter-Neptune, asteroid and Kuiper belts, flagship moons, and Halley).",
   "Import Realmspace preset":
     "Load a Forgotten Realms / Spelljammer preset (Anadia-Chandos, Coliar, Glyth, Selune, and Calendar of Harptos).",
   "Import Arrakis preset":

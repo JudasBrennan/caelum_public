@@ -1,12 +1,14 @@
 ﻿import { fmt } from "../engine/utils.js";
 import {
+  createYearLayoutRuntime,
+  buildYearLayoutForYear,
   describeMoonPhase,
+  getAbsoluteDayForDate,
+  getDatePartsForAbsoluteDay,
   getMonthLengthsForYear,
-  getYearStartDayIndex,
   normalizeLeapRules,
   normalizeNameList,
 } from "../engine/usableCalendar.js";
-import { bindNumberAndSlider } from "./bind.js";
 import {
   CALENDAR_COLLAPSIBLE_PANELS,
   CALENDAR_PHASES as PHASES,
@@ -35,28 +37,38 @@ import {
   readCalendarCandidate,
   utcStampCompact,
 } from "./calendar/calendarIo.js";
+import { createCalendarAuditPanelHelpers } from "./calendar/auditPanel.js";
+import {
+  bindPair,
+  collectCalendarPageElements,
+  createContextSummaryCard,
+  sliderField,
+} from "./calendar/pageBasics.js";
 import { createCalendarContextBuilder } from "./calendar/renderContext.js";
 import {
   createCalendarDetailOverlayActions,
   renderCalendarMoonLegend,
   renderCalendarSelectedDay,
 } from "./calendar/detailOverlay.js";
+import { createCalendarMonthViewHelpers } from "./calendar/monthView.js";
 import { createCalendarProfileState } from "./calendar/profileState.js";
 import {
   applyHolidayFiltersToMonthModel,
+  buildMonthAuditEntries,
+  eventRecurrenceMismatchReason,
   festivalSummary,
   holidaySummary,
   recommendLeapRuleFromOrbit,
 } from "./calendar/renderHelpers.js";
 import { createCalendarRuleEditorFlows } from "./calendar/ruleEditorFlows.js";
 import { createCalendarRenderSnapshotReader } from "./calendar/renderSnapshot.js";
-import { createCalendarTransferFlows } from "./calendar/transferFlows.js";
 import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import {
   analyzeHolidayRelativeIssues,
   astronomyMarkerAggregateKey,
   astronomyMarkerLabel,
   astroIconClass,
+  buildHolidayAlgorithmSupport,
   clonePlain,
   createCalendarStateStoreBindings,
   cycleKindClass,
@@ -67,6 +79,7 @@ import {
   formatDisplayedYear,
   fromLinearMonthOrdinal,
   holidayCategoryLabel,
+  holidayAlgorithmAllowed,
   holidayCategoryOptionsHtml,
   holidayColorClass,
   holidayColorOptionsHtml,
@@ -98,7 +111,7 @@ import { createElement, replaceChildren, replaceSelectOptions } from "./domHelpe
 import { buildPageIntroHtml } from "./pageIntro.js";
 import { buildDeleteCalendarProfilePlan } from "./store/destructiveActions.js";
 import { createTutorial } from "./tutorial.js";
-import { attachTooltips, tipIcon } from "./tooltip.js";
+import { attachTooltips, tipIcon, tipIconNode } from "./tooltip.js";
 import {
   getSelectedMoon,
   getSelectedPlanet,
@@ -145,6 +158,8 @@ const TIPS = {
   "Month lengths":
     "Enable this to set a custom day count for each month, one per line. " +
     "Blank or missing lines fall back to the base Days per month value. " +
+    "Use Intercalary Periods in Rules for structural extra days before months, " +
+    "after months, at year end, or appended into a month. " +
     "Leap rules still add or remove days on top of these overrides. " +
     "Uncheck to revert to uniform month lengths without losing your entries.",
   "Year display mode":
@@ -169,7 +184,7 @@ const TIPS = {
   "Era list": "Configured era labels, applied by highest start year <= current year.",
   "Add era": "Add this era rule to the era list.",
   "Holiday name": "Display name shown on calendar days and event lists.",
-  Recurrence: "How often this holiday repeats over time.",
+  Recurrence: "How often this holiday repeats over time. Use Cyclic for every-N-years holidays.",
   Attributes:
     "Choose matching rules for this holiday. Multiple checks mean all selected rules must match the same date.",
   "Start month": "First month where this holiday can occur.",
@@ -218,7 +233,9 @@ const TIPS = {
   "Compact stats": "Quick month statistics.",
   "Month events": "Holiday occurrences detected in this month.",
   "Detailed calendar": "Full calendar grid with week rows, moon markers, and holiday markers.",
-  "Holiday year": "Used by One-off holidays. Ignored for repeating recurrences.",
+  "Holiday year": "Used by One-off holidays. Cyclic holidays use Cycle years and Offset year.",
+  "Holiday cycle years": "Repeat interval in years for cyclic holiday rules.",
+  "Holiday offset year": "First year where a cyclic holiday becomes active.",
   "Holiday duration":
     "Number of consecutive days this holiday lasts from its start day (within the month).",
   "Holiday priority":
@@ -226,10 +243,11 @@ const TIPS = {
   "Holiday merge mode":
     "Merge keeps this holiday alongside others. Override suppresses lower-priority matches on the same day.",
   "Holiday advanced toggle":
-    "Show advanced holiday rule options including anchor type, algorithmic anchors, observance shifts, and conflict scope.",
+    "Switch between basic holiday authoring and advanced anchor/conflict controls. Basic mode still supports relative triggers.",
   "Holiday anchor type":
-    "Primary date anchor for this holiday rule (fixed date, weekday pattern, moon phase, marker, linked holiday, or algorithmic).",
-  "Holiday algorithm": "Algorithmic anchor. Use this for movable feasts such as Gregorian Easter.",
+    "Primary date anchor for this holiday rule. Advanced mode supports fixed dates, weekday patterns, moon phases, astronomy markers, linked holidays, and compatible preset algorithms.",
+  "Holiday algorithm":
+    "Optional preset algorithm for compatible profiles. Gregorian Easter (Western) is currently scoped to Sol/Earth Gregorian-compatible calendars, while the wider rule system still models arbitrary holidays.",
   "Holiday anchor offset":
     "Shift from the selected anchor in days. Negative values are before, positive values are after.",
   "Holiday weekend rule":
@@ -261,7 +279,7 @@ const TIPS = {
   "Calendar Data section":
     "Import/export calendar settings only. Use this to move calendar rules between worlds without changing star/system/planet/moon data.",
   "Output & Utility section":
-    "Generate printable outputs, export ICS files for external apps, and control optional astronomy markers shown on the calendar.",
+    "Open printable browser views, export ICS files for external apps, and control optional astronomy markers shown on the calendar.",
   "Astronomy markers": "Enable optional astronomy markers in month views and exports.",
   "Season markers":
     "Mark quarter-year seasonal anchors: vernal equinox, summer solstice, autumn equinox, winter solstice.",
@@ -270,8 +288,9 @@ const TIPS = {
   "Eclipse markers":
     "Approximate eclipse windows based on eclipse-season cadence and the phases of selected moons.",
   "PDF month export":
-    "Open a clean printable current-month layout. Use browser print to save as PDF.",
-  "PDF year export": "Open a clean printable full-year layout. Use browser print to save as PDF.",
+    "Open a clean printable current-month browser view. Use Print or Save as PDF in your browser.",
+  "PDF year export":
+    "Open a clean printable full-year browser view. Use Print or Save as PDF in your browser.",
   "ICS anchor date": "Gregorian anchor date for Year 1, Month 1, Day 1 when exporting ICS events.",
   "ICS include holidays": "Include holiday events in ICS export.",
   "ICS include festivals": "Include festival/intercalary events in ICS export.",
@@ -281,7 +300,9 @@ const TIPS = {
   "ICS year export":
     "Export an ICS file for the currently shown year using the configured Gregorian anchor date.",
   "Festival Days section":
-    "Festival/intercalary rules add extra named days. They can either participate in weekday flow or sit outside weekday flow.",
+    "Festival rules add named event days within a month. Use Intercalary Periods for structural extra days that belong before months, after months, at year end, or appended into a month.",
+  "Intercalary Periods section":
+    "Intercalary periods are structural extra days. Use them to place named days before months, after months, at year end, or appended into a month without overloading festival rules or month-length overrides.",
   "Leap Years section":
     "Leap rules add or remove days in specific months on repeating year cycles to keep your calendar aligned.",
   "Work/Rest Cycles section":
@@ -306,19 +327,51 @@ const TIPS = {
   "Cancel cycle edit": "Exit cycle edit mode without keeping form changes.",
   "Cycle list": "Configured work/rest cycle rules.",
   "Festival days":
-    "Intercalary/festival days can be added as in-week-flow days or outside weekday flow.",
-  "Festival name": "Display name for this festival/intercalary day rule.",
-  "Festival recurrence": "How often this festival repeats over time.",
+    "Festival rules add named event days inside a month. Use Intercalary Periods for extra structural days that reshape the calendar layout.",
+  "Festival name": "Display name for this festival rule.",
+  "Festival recurrence":
+    "How often this festival repeats over time. Use Cyclic for every-N-years festivals.",
   "Festival start month": "First month where this festival can occur.",
-  "Festival year": "Used by One-off festival rules. Ignored for repeating recurrences.",
+  "Festival year":
+    "Used by One-off festival rules. Cyclic festivals use Cycle years and Offset year.",
+  "Festival cycle years": "Repeat interval in years for cyclic festival rules.",
+  "Festival offset year": "First year where a cyclic festival becomes active.",
   "Festival after day":
     "Insert this festival after the selected day number (0 means before Day 1).",
   "Festival duration": "Number of consecutive festival days to add.",
   "Festival outside week":
     "When enabled, festival days are listed separately and do not consume weekday slots in the grid.",
+  "Festival category": "Classify this festival so it can be read and managed consistently.",
+  "Festival colour": "Visual colour tag used for this festival rule in editor lists and summaries.",
+  "Festival exception years":
+    "Comma-separated years where this festival is skipped (for example: 2, 5, 19).",
+  "Festival exception months":
+    "Comma-separated month numbers where this festival is skipped (1-based month numbers).",
+  "Festival exception days": "Comma-separated day-of-month values where this festival is skipped.",
   "Add festival": "Create a new festival rule, or save changes while editing.",
   "Cancel festival edit": "Exit festival edit mode without keeping form changes.",
-  "Festival list": "Configured festival/intercalary day rules.",
+  "Festival list": "Configured festival day rules.",
+  "Intercalary periods":
+    "Structural extra days that sit before months, after months, at year end, or appended into a month.",
+  "Intercalary list": "Configured structural intercalary periods.",
+  "Intercalary name": "Display name for this intercalary period.",
+  "Intercalary placement": "Where this intercalary period should appear in the year structure.",
+  "Intercalary anchor month":
+    "Month used by before/after/appended placements. Year-end placement ignores this field.",
+  "Intercalary recurrence":
+    "Choose whether the period repeats yearly, happens once, or repeats on a year cycle.",
+  "Intercalary year":
+    "Used as the first active year for yearly periods, or the exact year for one-off periods.",
+  "Intercalary cycle years": "Repeat interval in years for cyclic intercalary periods.",
+  "Intercalary offset year": "First year where a cyclic intercalary period becomes active.",
+  "Intercalary duration mode":
+    "Fixed uses the entered day count. Derived remainder automatically fills the remaining structural days in the year.",
+  "Intercalary duration": "Number of days in this intercalary period when using Fixed duration.",
+  "Intercalary weekday flow":
+    "Choose whether these days consume weekday slots or sit outside the weekday flow.",
+  "Intercalary exception years": "Comma-separated years where this intercalary period is skipped.",
+  "Add intercalary": "Create a new structural intercalary period, or save changes while editing.",
+  "Cancel intercalary edit": "Exit intercalary edit mode without keeping form changes.",
   "Calendar JSON":
     "Calendar-only export/import. This affects calendar settings only and does not change star/system/planet/moon data.",
   "Download calendar JSON": "Download only calendar settings as a JSON file.",
@@ -330,7 +383,54 @@ const TIPS = {
   "Absolute day": "Zero-based day index from the start of Year 1. Day 0 is Year 1, Month 1, Day 1.",
   "Jump absolute day": "Jump Month View to the date represented by this absolute day.",
   "Jump date": "Jump Month View to the specified year, month, and day.",
+  "Rule audit":
+    "Agenda view for resolved holidays, festivals, intercalary periods, astronomy markers, and cycles in the current month or year.",
+  "Audit scope": "Switch the audit list between the current month and the full current year.",
+  "Audit filter": "Filter the audit list by rule type so dense calendars stay readable.",
+  "Rule preview":
+    "Preview the next resolved occurrences for the holiday or festival currently being edited.",
 };
+
+const INTERCALARY_PLACEMENT_OPTIONS = [
+  ["year-end", "Year end"],
+  ["before-month", "Before month"],
+  ["after-month", "After month"],
+  ["append-to-month", "Append to month"],
+];
+
+const INTERCALARY_RECURRENCE_OPTIONS = [
+  ["yearly", "Yearly"],
+  ["one-off", "One-off"],
+  ["cyclic", "Cyclic"],
+];
+
+const INTERCALARY_DURATION_MODE_OPTIONS = [
+  ["fixed", "Fixed duration"],
+  ["derived-remainder", "Derived remainder"],
+];
+
+const INTERCALARY_WEEKDAY_FLOW_OPTIONS = [
+  ["in-flow", "In weekday flow"],
+  ["outside-flow", "Outside weekday flow"],
+];
+
+const CALENDAR_AUDIT_SCOPE_OPTIONS = [
+  ["month", "Current month"],
+  ["year", "Current year"],
+];
+
+const CALENDAR_AUDIT_KIND_OPTIONS = [
+  ["all", "All rules"],
+  ["holiday", "Holidays"],
+  ["festival", "Festivals"],
+  ["intercalary", "Intercalary"],
+  ["marker", "Astronomy"],
+  ["cycle", "Cycles"],
+];
+
+const CALENDAR_AUDIT_RENDER_LIMIT = 180;
+const CALENDAR_RULE_PREVIEW_LIMIT = 8;
+const CALENDAR_RULE_PREVIEW_SCAN_YEARS = 4;
 
 const { defaultState, normalizeSingleProfile, persistState, readState } =
   createCalendarStateStoreBindings({
@@ -360,6 +460,27 @@ const esc = (s) =>
 
 function tupleOptions(entries) {
   return (Array.isArray(entries) ? entries : []).map(([value, label]) => ({ value, label }));
+}
+
+function holidayAnchorTypeOptions(algorithmSupport, currentValue = "fixed-date") {
+  const selectedValue = String(currentValue || "fixed-date");
+  return HOLIDAY_ANCHOR_TYPES.map(([value, label]) => ({
+    value,
+    label,
+    disabled:
+      value === "algorithmic" &&
+      !algorithmSupport?.allowsAlgorithmicAnchors &&
+      value !== selectedValue,
+  }));
+}
+
+function holidayAlgorithmOptions(algorithmSupport, currentValue = "none") {
+  const selectedValue = String(currentValue || "none");
+  return HOLIDAY_ALGORITHMS.map(([value, label]) => ({
+    value,
+    label,
+    disabled: !holidayAlgorithmAllowed(algorithmSupport?.scope, value) && value !== selectedValue,
+  }));
 }
 
 function indexedLabelOptions(labels) {
@@ -408,16 +529,6 @@ function replaceWeekendDayOptions(node, dayNames, selectedIndexes) {
   );
 }
 
-function tipIconNode(text) {
-  if (!text) return null;
-  return createElement("span", {
-    className: "tip-icon",
-    attrs: { tabindex: "0", role: "note", "aria-label": "Info" },
-    dataset: { tip: text },
-    text: "i",
-  });
-}
-
 function hintNode(text) {
   return createElement("div", { className: "hint", text });
 }
@@ -446,54 +557,62 @@ function calendarItemRow({ nameChildren, hint, actions = [], isEditing = false }
   ]);
 }
 
-function moonIconNode(moonState, idx) {
-  return createElement("span", {
-    className: `calendar-moon-icon ${phaseClass(moonState?.phase?.phaseShort)} ${moonColorClass(idx)}`,
-    attrs: { "aria-hidden": "true" },
-  });
-}
+const {
+  buildCalendarAuditEntries,
+  buildRulePreviewEntries,
+  pickActiveRulePreview,
+  buildAuditRenderKey,
+  buildRulePreviewContent,
+  buildAuditAgendaContent,
+} = createCalendarAuditPanelHelpers({
+  TIPS,
+  I,
+  buildMonthModel,
+  createElement,
+  actionButton,
+  hintNode,
+  tipIconNode,
+  buildMonthAuditEntries,
+  applyHolidayFiltersToMonthModel,
+  festivalSummary,
+  holidaySummary,
+  normalizeHolidayCategoryFilters,
+  toLinearMonthOrdinal,
+  fromLinearMonthOrdinal,
+  CALENDAR_AUDIT_RENDER_LIMIT,
+  CALENDAR_RULE_PREVIEW_LIMIT,
+  CALENDAR_RULE_PREVIEW_SCAN_YEARS,
+});
 
-function astroIconNode(marker) {
-  const moonSourceIndex = Number.isFinite(Number(marker?.sourceMoonIndex))
-    ? clampI(Number(marker.sourceMoonIndex), 0, MOON_COLORS.length - 1)
-    : null;
-  return createElement(
-    "span",
-    { className: "calendar-astro-marker", attrs: { "aria-hidden": "true" } },
-    [
-      createElement("span", {
-        className: `calendar-astro-icon ${astroIconClass(marker?.key)}`,
-        attrs: { "aria-hidden": "true" },
-      }),
-      moonSourceIndex == null
-        ? null
-        : createElement("span", {
-            className: `calendar-astro-source ${moonColorClass(moonSourceIndex)}`,
-            attrs: { "aria-hidden": "true" },
-          }),
-    ],
-  );
-}
-
-function cycleIconNode(cycle) {
-  const short = String(cycle?.short || "C")
-    .toUpperCase()
-    .slice(0, 3);
-  return createElement("span", {
-    className: `calendar-cycle-marker ${cycleKindClass(cycle)}`,
-    attrs: { "aria-hidden": "true" },
-    dataset: { tip: cycleMarkerTip(cycle) },
-    text: short,
-  });
-}
-
-function selectedDayLine(label, children, className = "calendar-selected-day__line") {
-  return createElement("div", { className }, [
-    createElement("b", { text: `${label}:` }),
-    " ",
-    ...(Array.isArray(children) ? children : [children]),
-  ]);
-}
+const {
+  astroIconNode,
+  buildSeasonBandContent,
+  cycleIconNode,
+  detailedGrid,
+  miniGrid,
+  moonIconNode,
+  renderIntercalaryGroups,
+  selectedDayLine,
+} = createCalendarMonthViewHelpers({
+  TIPS,
+  N,
+  I,
+  clampI,
+  createElement,
+  phaseClass,
+  moonColorClass,
+  MOON_COLORS,
+  astroIconClass,
+  cycleKindClass,
+  cycleMarkerTip,
+  holidayColorClass,
+  astronomyMarkerLabel,
+  holidayCategoryLabel,
+  intercalaryPlacementLabel,
+  intercalaryFlowLabel,
+  normalizeAstronomySettings,
+  SEASON_MARKER_DEFS,
+});
 
 function renderListContent(node, items, emptyText) {
   return replaceChildren(node, items.length ? items : [hintNode(emptyText)]);
@@ -539,11 +658,20 @@ function buildTraceNode(trace) {
   if (!hs.length && !fs.length && !cs.length) return null;
 
   const rawChildren = [
+    createElement("b", { text: "Selected:" }),
+    ` ${r.dayLabel} | `,
     createElement("b", { text: "Absolute day:" }),
     ` ${r.absoluteDay} | `,
     createElement("b", { text: "Weekday:" }),
     ` ${r.weekdayName} (${r.weekdayIndex})${r.isWeekend ? " [weekend]" : ""}`,
   ];
+  if (r.kind === "intercalary") {
+    rawChildren.push(
+      createElement("br"),
+      createElement("b", { text: "Intercalary:" }),
+      ` ${intercalaryPlacementLabel(r.placement, r.anchorMonthName)} | ${intercalaryFlowLabel(r.advancesWeekdayFlow)}`,
+    );
+  }
   if (r.moonPhases.length) {
     rawChildren.push(
       createElement("br"),
@@ -837,98 +965,107 @@ function buildAstronomyMarkers(ctx) {
   return out;
 }
 
-function yearDaysForYear(metrics, leapRules, y, monthLengthOverrides) {
-  return getMonthLengthsForYear({ metrics, year: y, leapRules, monthLengthOverrides }).reduce(
-    (a, b) => a + b,
-    0,
+function toAbsoluteDay(
+  metrics,
+  leapRules,
+  year,
+  monthIndex,
+  dayOfMonth,
+  monthLengthOverrides,
+  intercalaryPeriods,
+  firstYearStartDayIndex = 0,
+  yearLayoutRuntime = createYearLayoutRuntime(),
+) {
+  const safeYear = Math.max(1, I(year, 1));
+  const monthLengths = getMonthLengthsForYear(
+    {
+      metrics,
+      year: safeYear,
+      leapRules,
+      monthLengthOverrides,
+      intercalaryPeriods,
+    },
+    yearLayoutRuntime,
+  );
+  const monthsPerYear = Math.max(1, I(metrics?.monthsPerYear, 12));
+  const safeMonth = clampI(monthIndex, 0, monthsPerYear - 1);
+  const safeDay = clampI(dayOfMonth, 1, monthLengths[safeMonth] || 1);
+  return getAbsoluteDayForDate(
+    {
+      metrics,
+      year: safeYear,
+      monthIndex: safeMonth,
+      dayOfMonth: safeDay,
+      leapRules,
+      monthLengthOverrides,
+      intercalaryPeriods,
+      firstYearStartDayIndex,
+    },
+    yearLayoutRuntime,
   );
 }
 
-function daysBeforeYear(metrics, leapRules, year, monthLengthOverrides) {
-  let total = 0;
-  const y = Math.max(1, I(year, 1));
-  if (y <= 1) return 0;
-  // Cap iteration to prevent UI freezes
-  const cap = Math.min(y, 50001);
-  for (let yy = 1; yy < cap; yy++) {
-    total += yearDaysForYear(metrics, leapRules, yy, monthLengthOverrides);
-  }
-  if (cap < y) {
-    // Estimate remaining years using last computed year length
-    const avg = total / (cap - 1);
-    total += Math.round(avg * (y - cap));
-  }
-  return total;
-}
-
-function toAbsoluteDay(metrics, leapRules, year, monthIndex, dayOfMonth, monthLengthOverrides) {
-  const safeYear = Math.max(1, I(year, 1));
+function fromAbsoluteDay(
+  metrics,
+  leapRules,
+  absoluteDayInput,
+  monthLengthOverrides,
+  intercalaryPeriods,
+  firstYearStartDayIndex = 0,
+  yearLayoutRuntime = createYearLayoutRuntime(),
+) {
+  const resolved = getDatePartsForAbsoluteDay(
+    {
+      metrics,
+      absoluteDay: absoluteDayInput,
+      leapRules,
+      monthLengthOverrides,
+      intercalaryPeriods,
+      firstYearStartDayIndex,
+    },
+    yearLayoutRuntime,
+  );
   const monthsPerYear = Math.max(1, I(metrics?.monthsPerYear, 12));
-  const safeMonth = clampI(monthIndex, 0, monthsPerYear - 1);
-  const monthLengths = getMonthLengthsForYear({
-    metrics,
-    year: safeYear,
-    leapRules,
-    monthLengthOverrides,
-  });
-  const safeDay = clampI(dayOfMonth, 1, monthLengths[safeMonth] || 1);
-  const beforeYear = daysBeforeYear(metrics, leapRules, safeYear, monthLengthOverrides);
-  const beforeMonth = monthLengths.slice(0, safeMonth).reduce((a, b) => a + b, 0);
-  return beforeYear + beforeMonth + safeDay - 1;
-}
+  const intercalaryFallbackMonth =
+    String(resolved.placement || "") === "year-end" ? Math.max(0, monthsPerYear - 1) : 0;
+  const mappedMonthIndex =
+    resolved.kind === "month"
+      ? clampI(resolved.monthIndex, 0, monthsPerYear - 1)
+      : clampI(
+          resolved.anchorMonthIndex ?? resolved.monthIndex ?? intercalaryFallbackMonth,
+          0,
+          monthsPerYear - 1,
+        );
+  const monthLengths = getMonthLengthsForYear(
+    {
+      metrics,
+      year: resolved.year,
+      leapRules,
+      monthLengthOverrides,
+      intercalaryPeriods,
+    },
+    yearLayoutRuntime,
+  );
+  const mappedDayOfMonth =
+    resolved.kind === "month"
+      ? clampI(resolved.dayOfMonth, 1, monthLengths[mappedMonthIndex] || 1)
+      : String(resolved.placement || "") === "before-month"
+        ? 1
+        : monthLengths[mappedMonthIndex] || 1;
 
-function fromAbsoluteDay(metrics, leapRules, absoluteDayInput, monthLengthOverrides) {
-  let absoluteDay = Math.max(0, I(absoluteDayInput, 0));
-
-  // Estimate year using average year length to avoid O(n) iteration for large values
-  const sampleYear1Days = yearDaysForYear(metrics, leapRules, 1, monthLengthOverrides);
-  const avgYearDays = Math.max(1, sampleYear1Days);
-  let year = Math.max(1, Math.floor(absoluteDay / avgYearDays));
-  // Rewind slightly to ensure we don't overshoot
-  year = Math.max(1, year - 2);
-
-  // Subtract all days before estimated year
-  if (year > 1) {
-    const daysBefore = daysBeforeYear(metrics, leapRules, year, monthLengthOverrides);
-    absoluteDay -= daysBefore;
-    // If we overshot, go back
-    while (absoluteDay < 0 && year > 1) {
-      year -= 1;
-      absoluteDay += yearDaysForYear(metrics, leapRules, year, monthLengthOverrides);
-    }
-  }
-
-  while (true) {
-    const lengths = getMonthLengthsForYear({ metrics, year, leapRules, monthLengthOverrides });
-    const yearDays = lengths.reduce((a, b) => a + b, 0);
-    if (absoluteDay < yearDays) {
-      let monthIndex = 0;
-      let dayCursor = absoluteDay;
-      for (let i = 0; i < lengths.length; i++) {
-        if (dayCursor < lengths[i]) {
-          monthIndex = i;
-          break;
-        }
-        dayCursor -= lengths[i];
-      }
-      return {
-        year,
-        monthIndex,
-        dayOfMonth: dayCursor + 1,
-        absoluteDay: Math.max(0, I(absoluteDayInput, 0)),
-      };
-    }
-    absoluteDay -= yearDays;
-    year += 1;
-    if (year > 100000) {
-      return {
-        year: 100000,
-        monthIndex: 0,
-        dayOfMonth: 1,
-        absoluteDay: Math.max(0, I(absoluteDayInput, 0)),
-      };
-    }
-  }
+  return {
+    year: resolved.year,
+    monthIndex: mappedMonthIndex,
+    dayOfMonth: mappedDayOfMonth,
+    absoluteDay: Math.max(0, I(absoluteDayInput, 0)),
+    kind: resolved.kind,
+    intercalaryDay: resolved.intercalaryDay,
+    intercalaryPeriodId: resolved.intercalaryPeriodId,
+    advancesWeekdayFlow: resolved.advancesWeekdayFlow,
+    weekdayIndex: resolved.weekdayIndex,
+    anchorMonthIndex: resolved.anchorMonthIndex,
+    placement: resolved.placement,
+  };
 }
 
 function gregorianEasterWesternMonthDay(yearInput) {
@@ -950,6 +1087,105 @@ function gregorianEasterWesternMonthDay(yearInput) {
   return { monthIndex: month - 1, day };
 }
 
+function intercalaryPlacementLabel(placement, anchorMonthName) {
+  const safeAnchor = String(anchorMonthName || "").trim();
+  if (placement === "before-month") return safeAnchor ? `Before ${safeAnchor}` : "Before month";
+  if (placement === "after-month") return safeAnchor ? `After ${safeAnchor}` : "After month";
+  if (placement === "year-end") return "Year end";
+  if (placement === "append-to-month")
+    return safeAnchor ? `Appended to ${safeAnchor}` : "Appended to month";
+  return "Intercalary";
+}
+
+function intercalaryFlowLabel(advancesWeekdayFlow) {
+  return advancesWeekdayFlow ? "In weekday flow" : "Outside weekday flow";
+}
+
+function intercalaryPlacementSentence(placement, anchorMonthName) {
+  const safeAnchor = String(anchorMonthName || "").trim();
+  if (placement === "before-month")
+    return safeAnchor ? `before ${safeAnchor}` : "before the selected month";
+  if (placement === "after-month")
+    return safeAnchor ? `after ${safeAnchor}` : "after the selected month";
+  if (placement === "year-end") return "at year end";
+  if (placement === "append-to-month")
+    return safeAnchor ? `appended to ${safeAnchor}` : "appended to the selected month";
+  return "as structural intercalary time";
+}
+
+function intercalaryFlowSentence(advancesWeekdayFlow) {
+  return advancesWeekdayFlow ? "in weekday flow" : "outside weekday flow";
+}
+
+function intercalaryRuleSummary(period, ctx) {
+  const monthCount = Math.max(
+    1,
+    I(ctx?.metrics?.monthsPerYear, Array.isArray(ctx?.monthNames) ? ctx.monthNames.length : 1),
+  );
+  const fallbackAnchorIndex = Math.max(0, monthCount - 1);
+  const anchorMonthIndex =
+    period?.anchorMonthIndex == null
+      ? fallbackAnchorIndex
+      : clampI(period.anchorMonthIndex, 0, fallbackAnchorIndex);
+  const anchorMonthName = ctx?.monthNames?.[anchorMonthIndex] || `Month ${anchorMonthIndex + 1}`;
+  const recurrence =
+    period?.recurrence === "one-off"
+      ? `one-off in Year ${Math.max(1, I(period?.year, 1))}`
+      : period?.recurrence === "cyclic"
+        ? `every ${Math.max(1, I(period?.cycleYears, 1))} years from Year ${Math.max(
+            1,
+            I(period?.offsetYear, 1),
+          )}`
+        : Math.max(1, I(period?.year, 1)) > 1
+          ? `yearly from Year ${Math.max(1, I(period?.year, 1))}`
+          : "yearly";
+  const durationDays = Math.max(1, I(period?.durationDays, 1));
+  const duration =
+    String(period?.durationMode || "fixed") === "derived-remainder"
+      ? "derived remainder"
+      : `${durationDays} day${durationDays === 1 ? "" : "s"}`;
+  const flow = intercalaryFlowSentence(
+    String(period?.weekdayFlowMode || "in-flow") !== "outside-flow",
+  );
+  const bits = [
+    recurrence,
+    intercalaryPlacementSentence(period?.placement, anchorMonthName),
+    duration,
+    flow,
+  ];
+  if ((period?.exceptYears || []).length) {
+    bits.push(`skip years: ${(period.exceptYears || []).join(", ")}`);
+  }
+  if (period?.legacyCompatibility) {
+    bits.push("legacy compatibility");
+  }
+  return bits.join(" | ");
+}
+
+function flattenIntercalaryGroupDays(groups) {
+  return (Array.isArray(groups) ? groups : []).flatMap((group) => group?.days || []);
+}
+
+function getSelectableCalendarDays(model) {
+  return [
+    ...flattenIntercalaryGroupDays(model?.intercalaryBeforeMonth),
+    ...(model?.rows || [])
+      .flatMap((row) => row?.cells || [])
+      .filter(
+        (cell) => cell && cell.kind !== "festival" && Number.isFinite(Number(cell.absoluteDay)),
+      ),
+    ...flattenIntercalaryGroupDays(model?.intercalaryAfterMonth),
+  ];
+}
+
+function buildIntercalarySummaryItem(group) {
+  const lengthDays = Math.max(0, I(group?.lengthDays, 0));
+  const name = String(group?.name || "Intercalary period").trim() || "Intercalary period";
+  const placement = intercalaryPlacementSentence(group?.placement, group?.anchorMonthName);
+  const flow = intercalaryFlowSentence(group?.advancesWeekdayFlow);
+  return `${name}: ${lengthDays} day${lengthDays === 1 ? "" : "s"} ${placement}, ${flow}`;
+}
+
 function buildMonthModel(params) {
   const {
     metrics,
@@ -959,6 +1195,7 @@ function buildMonthModel(params) {
     weekStartDayIndex,
     leapRules,
     monthLengthOverrides,
+    intercalaryPeriods,
     dayNames,
     weekNames,
     monthNames,
@@ -969,6 +1206,7 @@ function buildMonthModel(params) {
     astronomySettings,
     workCycles,
     weekendDayIndexes,
+    holidayAlgorithmSupport = buildHolidayAlgorithmSupport("none"),
   } = params;
   const safeYear = Math.max(1, I(year, 1));
   const safeMonth = clampI(monthIndex, 0, metrics.monthsPerYear - 1);
@@ -976,6 +1214,7 @@ function buildMonthModel(params) {
   const weekStart = mod(I(weekStartDayIndex, 0), daysPerWeek);
   const weekendSet = new Set(normalizeWeekendDayIndexes(weekendDayIndexes, daysPerWeek));
   const monthCoreCache = new Map();
+  const yearLayoutRuntime = createYearLayoutRuntime();
 
   const getMonthCore = (targetYear, targetMonth) => {
     const yearValue = Math.max(1, I(targetYear, 1));
@@ -983,25 +1222,23 @@ function buildMonthModel(params) {
     const cacheKey = `${yearValue}:${monthValue}`;
     if (monthCoreCache.has(cacheKey)) return monthCoreCache.get(cacheKey);
 
-    const monthLengths = getMonthLengthsForYear({
-      metrics,
-      year: yearValue,
-      leapRules,
-      monthLengthOverrides,
-    });
-    const monthLength = monthLengths[monthValue];
-    const yearLength = monthLengths.reduce((sum, days) => sum + days, 0);
-    const yearStart = getYearStartDayIndex({
-      metrics,
-      year: yearValue,
-      firstYearStartDayIndex,
-      leapRules,
-      monthLengthOverrides,
-    });
-    const daysBeforeMonth = monthLengths.slice(0, monthValue).reduce((sum, days) => sum + days, 0);
-    const monthStartWeekday = mod(yearStart + daysBeforeMonth, daysPerWeek);
-    const absoluteMonthStart =
-      daysBeforeYear(metrics, leapRules, yearValue, monthLengthOverrides) + daysBeforeMonth;
+    const yearLayout = buildYearLayoutForYear(
+      {
+        metrics,
+        year: yearValue,
+        leapRules,
+        monthLengthOverrides,
+        intercalaryPeriods,
+        firstYearStartDayIndex,
+      },
+      yearLayoutRuntime,
+    );
+    const monthSegment = yearLayout.monthSegments[monthValue];
+    const monthLength = monthSegment.lengthDays;
+    const yearLength = yearLayout.yearLengthDays;
+    const daysBeforeMonth = monthSegment.dayOfYearStart;
+    const monthStartWeekday = monthSegment.startWeekdayIndex;
+    const absoluteMonthStart = monthSegment.absoluteStartDay;
     const days = [];
     for (let dayNumber = 1; dayNumber <= monthLength; dayNumber++) {
       const absoluteDay = absoluteMonthStart + dayNumber - 1;
@@ -1039,6 +1276,8 @@ function buildMonthModel(params) {
       daysBeforeMonth,
       monthStartWeekday,
       absoluteMonthStart,
+      yearLayout,
+      monthSegment,
       days,
     };
     monthCoreCache.set(cacheKey, core);
@@ -1046,10 +1285,36 @@ function buildMonthModel(params) {
   };
 
   const currentCore = getMonthCore(safeYear, safeMonth);
+  const currentYearLayout = currentCore.yearLayout;
+  const currentMonthSegment = currentCore.monthSegment;
   const monthLength = currentCore.monthLength;
   const monthStartWeekday = currentCore.monthStartWeekday;
   const absoluteMonthStart = currentCore.absoluteMonthStart;
   const absoluteMonthEnd = absoluteMonthStart + monthLength - 1;
+  const structuralIntercalaryBefore = (currentYearLayout.segments || []).filter(
+    (segment) =>
+      segment.kind === "intercalary" &&
+      String(segment.placement || "") === "before-month" &&
+      I(segment.anchorMonthIndex, -1) === safeMonth,
+  );
+  const structuralIntercalaryAfter = (currentYearLayout.segments || []).filter(
+    (segment) =>
+      segment.kind === "intercalary" &&
+      ((String(segment.placement || "") === "after-month" &&
+        I(segment.anchorMonthIndex, -1) === safeMonth) ||
+        (String(segment.placement || "") === "year-end" &&
+          safeMonth === Math.max(0, metrics.monthsPerYear - 1))),
+  );
+  const visibleStartAbsoluteDay = Math.min(
+    absoluteMonthStart,
+    ...structuralIntercalaryBefore.map((segment) => segment.absoluteStartDay),
+  );
+  const visibleEndAbsoluteDay = Math.max(
+    absoluteMonthEnd,
+    ...structuralIntercalaryAfter.map(
+      (segment) => segment.absoluteStartDay + Math.max(1, segment.lengthDays) - 1,
+    ),
+  );
   const leadingEmpty = mod(monthStartWeekday - weekStart, daysPerWeek);
 
   const headers = Array.from(
@@ -1066,6 +1331,19 @@ function buildMonthModel(params) {
   const cycleHits = new Map();
   const holidaysById = new Map((holidays || []).map((holiday) => [String(holiday.id), holiday]));
   const holidayRelativeIssues = analyzeHolidayRelativeIssues(holidays);
+  for (const holiday of holidays || []) {
+    const holidayId = String(holiday?.id || "");
+    if (!holidayId || holidayRelativeIssues.has(holidayId)) continue;
+    if (String(holiday?.anchor?.type || "") !== "algorithmic") continue;
+    const algorithmKey = String(holiday?.anchor?.algorithmKey || "none");
+    if (!holidayAlgorithmAllowed(holidayAlgorithmSupport?.scope, algorithmKey)) {
+      holidayRelativeIssues.set(
+        holidayId,
+        holidayAlgorithmSupport?.unavailableReason ||
+          "Built-in Gregorian algorithm presets are only available in Sol/Earth Gregorian-compatible profiles.",
+      );
+    }
+  }
   const startDayMemo = new Map();
   const startDayActive = new Set();
 
@@ -1073,12 +1351,22 @@ function buildMonthModel(params) {
   const getAbsoluteDayMeta = (absoluteDay) => {
     const safeAbsoluteDay = Math.max(0, I(absoluteDay, 0));
     if (absoluteDayMetaCache.has(safeAbsoluteDay)) return absoluteDayMetaCache.get(safeAbsoluteDay);
-    const loc = fromAbsoluteDay(metrics, leapRules, safeAbsoluteDay, monthLengthOverrides);
+    const loc = fromAbsoluteDay(
+      metrics,
+      leapRules,
+      safeAbsoluteDay,
+      monthLengthOverrides,
+      intercalaryPeriods,
+      firstYearStartDayIndex,
+      yearLayoutRuntime,
+    );
     const core = getMonthCore(loc.year, loc.monthIndex);
     const dayNumber = clampI(loc.dayOfMonth, 1, core.monthLength);
     const dayIndex = dayNumber - 1;
-    const weekdayIndex =
-      core.days?.[dayIndex]?.weekdayIndex ?? mod(core.monthStartWeekday + dayIndex, daysPerWeek);
+    const weekdayIndex = Number.isFinite(Number(loc.weekdayIndex))
+      ? clampI(loc.weekdayIndex, 0, daysPerWeek - 1)
+      : (core.days?.[dayIndex]?.weekdayIndex ??
+        mod(core.monthStartWeekday + dayIndex, daysPerWeek));
     const meta = {
       absoluteDay: safeAbsoluteDay,
       year: loc.year,
@@ -1086,13 +1374,19 @@ function buildMonthModel(params) {
       dayNumber,
       monthLength: core.monthLength,
       weekdayIndex,
+      kind: loc.kind || "month",
+      advancesWeekdayFlow: loc.advancesWeekdayFlow !== false,
+      intercalaryPeriodId: loc.intercalaryPeriodId || "",
     };
     absoluteDayMetaCache.set(safeAbsoluteDay, meta);
     return meta;
   };
 
   const isWeekendAbsoluteDay = (absoluteDay) =>
-    weekendSet.has(getAbsoluteDayMeta(absoluteDay).weekdayIndex);
+    (() => {
+      const meta = getAbsoluteDayMeta(absoluteDay);
+      return meta.advancesWeekdayFlow && weekendSet.has(meta.weekdayIndex);
+    })();
 
   const getRuleStartAbsoluteDays = (holidayRule, anchorYear, anchorMonth) => {
     const holidayId = String(holidayRule?.id || "");
@@ -1467,12 +1761,15 @@ function buildMonthModel(params) {
       durationDays,
     };
     holidayOccurrences.push(resolvedOccurrence);
-    if (shiftedEndAbs < absoluteMonthStart || shiftedStartAbs > absoluteMonthEnd) continue;
-    const fromAbs = Math.max(shiftedStartAbs, absoluteMonthStart);
-    const toAbs = Math.min(shiftedEndAbs, absoluteMonthEnd);
+    if (shiftedEndAbs < visibleStartAbsoluteDay || shiftedStartAbs > visibleEndAbsoluteDay)
+      continue;
+    const fromAbs = Math.max(shiftedStartAbs, visibleStartAbsoluteDay);
+    const toAbs = Math.min(shiftedEndAbs, visibleEndAbsoluteDay);
     for (let absoluteDay = fromAbs; absoluteDay <= toAbs; absoluteDay++) {
-      const dayNumber = absoluteDay - absoluteMonthStart + 1;
-      if ((holidayRule?.exceptDays || []).includes(dayNumber)) continue;
+      const meta = getAbsoluteDayMeta(absoluteDay);
+      if (meta.kind === "month" && (holidayRule?.exceptDays || []).includes(meta.dayNumber)) {
+        continue;
+      }
       if (!holidayMatchesByAbsoluteDay.has(absoluteDay)) {
         holidayMatchesByAbsoluteDay.set(absoluteDay, []);
       }
@@ -1495,17 +1792,9 @@ function buildMonthModel(params) {
     cells.push({ kind: "festival", festival: fest });
   }
 
-  for (const dayState of currentCore.days) {
-    const dayNumber = dayState.dayNumber;
-    const absoluteDay = dayState.absoluteDay;
-    const weekdayIndex = dayState.weekdayIndex;
-    const moonStates = dayState.moonStates;
-    const markers = dayState.markers;
-    const cycles = evaluateWorkCyclesForDay(workCycles, absoluteDay);
+  const currentMonthName = monthNames[safeMonth] || `Month ${safeMonth + 1}`;
 
-    if (moonStates[0]?.phase?.phaseShort === "F") fullMoonDays.push(dayNumber);
-    if (moonStates[0]?.phase?.phaseShort === "N") newMoonDays.push(dayNumber);
-
+  const resolveVisibleHolidayState = (absoluteDay) => {
     const mergedMatches = mergeHolidayDayMatches(
       holidayMatchesByAbsoluteDay.get(absoluteDay) || [],
     );
@@ -1520,11 +1809,14 @@ function buildMonthModel(params) {
         continuesFromPrev: match.startAbs < absoluteDay,
         continuesToNext: match.endAbs > absoluteDay,
       }));
+    return { resolvedHolidays, holidayDetails };
+  };
 
-    for (const holiday of resolvedHolidays) {
+  const accumulateVisibleSummary = (cell) => {
+    for (const holiday of cell.holidays || []) {
       holidayHits.set(holiday.id, (holidayHits.get(holiday.id) || 0) + 1);
     }
-    for (const marker of markers || []) {
+    for (const marker of cell.markers || []) {
       const markerKey = astronomyMarkerAggregateKey(marker);
       markerHits.set(markerKey, {
         key: marker.key,
@@ -1537,7 +1829,7 @@ function buildMonthModel(params) {
         count: (markerHits.get(markerKey)?.count || 0) + 1,
       });
     }
-    for (const cycle of cycles) {
+    for (const cycle of cell.cycles || []) {
       const cycleKey = String(cycle.ruleId || cycle.ruleName || "");
       if (!cycleKey) continue;
       const existing = cycleHits.get(cycleKey);
@@ -1550,8 +1842,131 @@ function buildMonthModel(params) {
         count: (existing?.count || 0) + 1,
       });
     }
+  };
 
-    cells.push({
+  const buildMoonStatesForAbsoluteDay = (absoluteDay) =>
+    moonDefs.map((moonDef, moonIndex) => ({
+      ...moonDef,
+      moonIndex,
+      phase: describeMoonPhase({
+        ageDays: absoluteDay + N(moonEpochOffsetDays, 0),
+        synodicDays: moonDef.synodicDays,
+      }),
+    }));
+
+  const buildMarkersForAbsoluteDay = (absoluteDay, moonStates) =>
+    buildAstronomyMarkers({
+      settings: astronomySettings,
+      yearLength: currentCore.yearLength,
+      yearDay: absoluteDay - currentYearLayout.yearAbsoluteStart + 1,
+      absoluteDay,
+      moonEpochOffsetDays,
+      moonStates,
+    });
+
+  const buildIntercalaryDayCell = (segment, offsetInSegment) => {
+    const absoluteDay = segment.absoluteStartDay + offsetInSegment;
+    const weekdayIndex = segment.advancesWeekdayFlow
+      ? mod(segment.startWeekdayIndex + offsetInSegment, daysPerWeek)
+      : clampI(segment.startWeekdayIndex, 0, daysPerWeek - 1);
+    const moonStates = buildMoonStatesForAbsoluteDay(absoluteDay);
+    const markers = buildMarkersForAbsoluteDay(absoluteDay, moonStates);
+    const cycles = evaluateWorkCyclesForDay(workCycles, absoluteDay);
+    const { resolvedHolidays, holidayDetails } = resolveVisibleHolidayState(absoluteDay);
+    const anchorMonthIndex =
+      segment.anchorMonthIndex == null || String(segment.placement || "") === "year-end"
+        ? Math.max(0, metrics.monthsPerYear - 1)
+        : clampI(segment.anchorMonthIndex, 0, metrics.monthsPerYear - 1);
+    const anchorMonthName = monthNames[anchorMonthIndex] || `Month ${anchorMonthIndex + 1}`;
+    const cell = {
+      kind: "intercalary",
+      dayNumber: null,
+      absoluteDay,
+      weekdayIndex,
+      moonStates,
+      holidays: resolvedHolidays,
+      holidayDetails,
+      markers,
+      cycles,
+      intercalaryDay: offsetInSegment + 1,
+      intercalaryLength: Math.max(1, I(segment.lengthDays, 1)),
+      intercalaryName: String(segment.name || "Intercalary period").trim() || "Intercalary period",
+      intercalaryPeriodId: String(segment.intercalaryPeriodId || ""),
+      placement: String(segment.placement || "year-end"),
+      advancesWeekdayFlow: !!segment.advancesWeekdayFlow,
+      anchorMonthIndex,
+      anchorMonthName,
+      mappedDayOfMonth:
+        String(segment.placement || "") === "before-month" ? 1 : Math.max(1, monthLength),
+    };
+    accumulateVisibleSummary(cell);
+    return cell;
+  };
+
+  const buildIntercalaryGroup = (segment) => {
+    const anchorMonthIndex =
+      segment.anchorMonthIndex == null || String(segment.placement || "") === "year-end"
+        ? Math.max(0, metrics.monthsPerYear - 1)
+        : clampI(segment.anchorMonthIndex, 0, metrics.monthsPerYear - 1);
+    const anchorMonthName = monthNames[anchorMonthIndex] || `Month ${anchorMonthIndex + 1}`;
+    return {
+      id:
+        String(segment.intercalaryPeriodId || "").trim() ||
+        `${String(segment.placement || "intercalary")}-${segment.absoluteStartDay}`,
+      name: String(segment.name || "Intercalary period").trim() || "Intercalary period",
+      placement: String(segment.placement || "year-end"),
+      lengthDays: Math.max(1, I(segment.lengthDays, 1)),
+      advancesWeekdayFlow: !!segment.advancesWeekdayFlow,
+      anchorMonthIndex,
+      anchorMonthName,
+      legacyCompatibility: !!segment.legacyCompatibility,
+      weekdayFlowMode: String(segment.weekdayFlowMode || ""),
+      days: Array.from({ length: Math.max(1, I(segment.lengthDays, 1)) }, (_, index) =>
+        buildIntercalaryDayCell(segment, index),
+      ),
+    };
+  };
+
+  const intercalaryBeforeMonth = structuralIntercalaryBefore.map((segment) =>
+    buildIntercalaryGroup(segment),
+  );
+  const intercalaryAfterMonth = structuralIntercalaryAfter.map((segment) =>
+    buildIntercalaryGroup(segment),
+  );
+  const legacyAppendedIntercalaryPeriods = (currentMonthSegment.appendedIntercalaryPeriods || [])
+    .filter((period) => Math.max(0, I(period?.lengthDays, 0)) > 0)
+    .map((period) => ({
+      id:
+        String(period?.intercalaryPeriodId || "").trim() ||
+        `append-${safeYear}-${safeMonth}-${String(period?.name || "").trim() || "period"}`,
+      name: String(period?.name || "Appended intercalary").trim() || "Appended intercalary",
+      placement: "append-to-month",
+      lengthDays: Math.max(0, I(period?.lengthDays, 0)),
+      advancesWeekdayFlow: period?.advancesWeekdayFlow !== false,
+      anchorMonthIndex: safeMonth,
+      anchorMonthName: currentMonthName,
+      legacyCompatibility: !!period?.legacyCompatibility,
+    }));
+  const intercalarySummary = [
+    ...intercalaryBeforeMonth.map((group) => buildIntercalarySummaryItem(group)),
+    ...intercalaryAfterMonth.map((group) => buildIntercalarySummaryItem(group)),
+    ...legacyAppendedIntercalaryPeriods.map((group) => buildIntercalarySummaryItem(group)),
+  ];
+
+  for (const dayState of currentCore.days) {
+    const dayNumber = dayState.dayNumber;
+    const absoluteDay = dayState.absoluteDay;
+    const weekdayIndex = dayState.weekdayIndex;
+    const moonStates = dayState.moonStates;
+    const markers = dayState.markers;
+    const cycles = evaluateWorkCyclesForDay(workCycles, absoluteDay);
+
+    if (moonStates[0]?.phase?.phaseShort === "F") fullMoonDays.push(dayNumber);
+    if (moonStates[0]?.phase?.phaseShort === "N") newMoonDays.push(dayNumber);
+
+    const { resolvedHolidays, holidayDetails } = resolveVisibleHolidayState(absoluteDay);
+    const cell = {
+      kind: "month",
       dayNumber,
       absoluteDay,
       weekdayIndex,
@@ -1560,7 +1975,12 @@ function buildMonthModel(params) {
       holidayDetails,
       markers,
       cycles,
-    });
+      anchorMonthIndex: safeMonth,
+      anchorMonthName: currentMonthName,
+      mappedDayOfMonth: dayNumber,
+    };
+    accumulateVisibleSummary(cell);
+    cells.push(cell);
     for (const fest of festivalBuckets.inFlowByAfterDay.get(dayNumber) || []) {
       cells.push({ kind: "festival", festival: fest });
     }
@@ -1578,7 +1998,7 @@ function buildMonthModel(params) {
   return {
     year: safeYear,
     monthIndex: safeMonth,
-    monthName: monthNames[safeMonth] || `Month ${safeMonth + 1}`,
+    monthName: currentMonthName,
     monthLength,
     yearLength: currentCore.yearLength,
     daysBeforeMonth: currentCore.daysBeforeMonth,
@@ -1586,6 +2006,13 @@ function buildMonthModel(params) {
     monthStartWeekday,
     headers,
     rows,
+    intercalaryBeforeMonth,
+    intercalaryAfterMonth,
+    legacyAppendedIntercalaryPeriods,
+    intercalarySummary,
+    intercalaryDayCountInView:
+      flattenIntercalaryGroupDays(intercalaryBeforeMonth).length +
+      flattenIntercalaryGroupDays(intercalaryAfterMonth).length,
     fullMoonDays,
     newMoonDays,
     holidaysInMonth: Array.from(holidayHits.entries()),
@@ -1610,15 +2037,20 @@ function traceRulesForDay({
   leapRules,
   metrics,
   dayNames,
+  monthNames,
   weekendDayIndexes,
 }) {
   if (!cell || !Number.isFinite(cell.absoluteDay)) return null;
 
   const daysPerWeek = Math.max(1, I(metrics?.daysPerWeek, 7));
   const weekendSet = new Set(normalizeWeekendDayIndexes(weekendDayIndexes, daysPerWeek));
-  const isWeekend = weekendSet.has(cell.weekdayIndex);
-  const weekdayName =
+  const weekdayBaseName =
     (Array.isArray(dayNames) ? dayNames : [])[cell.weekdayIndex] || `Day ${cell.weekdayIndex + 1}`;
+  const isWeekend = cell.advancesWeekdayFlow !== false && weekendSet.has(cell.weekdayIndex);
+  const weekdayName =
+    cell.kind === "intercalary" && cell.advancesWeekdayFlow === false
+      ? `Outside weekday flow (anchored to ${weekdayBaseName})`
+      : weekdayBaseName;
 
   // Active leap rules this year
   const safeRules = normalizeLeapRules(leapRules, metrics?.monthsPerYear || 12);
@@ -1639,12 +2071,20 @@ function traceRulesForDay({
   }));
 
   const raw = {
+    kind: cell.kind || "month",
     dayNumber: cell.dayNumber,
+    dayLabel:
+      cell.kind === "intercalary"
+        ? `${cell.intercalaryName || "Intercalary period"} day ${cell.intercalaryDay || 1}`
+        : `Day ${cell.dayNumber}`,
     absoluteDay: cell.absoluteDay,
     weekdayIndex: cell.weekdayIndex,
     weekdayName,
     isWeekend,
     moonPhases,
+    advancesWeekdayFlow: cell.advancesWeekdayFlow !== false,
+    intercalaryPeriodId: cell.intercalaryPeriodId || "",
+    placement: cell.placement || "",
     leapRulesActive: activeLeap.map((r) => ({
       name: r.name || "Unnamed",
       month: r.monthIndex + 1,
@@ -1676,15 +2116,6 @@ function traceRulesForDay({
     let reason;
     if (issueById[id]) {
       reason = `Error: ${issueById[id]}`;
-    } else if (!recursInMonth(rule, model.year, model.monthIndex, monthsPerYear)) {
-      const recurrence = String(rule.recurrence || "yearly");
-      reason = `Recurrence "${recurrence}" does not apply in month ${model.monthIndex + 1}`;
-    } else if ((rule.exceptYears || []).includes(model.year)) {
-      reason = `Excluded: year ${model.year} in exceptYears`;
-    } else if ((rule.exceptMonths || []).includes(model.monthIndex + 1)) {
-      reason = `Excluded: month ${model.monthIndex + 1} in exceptMonths`;
-    } else if ((rule.exceptDays || []).includes(cell.dayNumber)) {
-      reason = `Excluded: day ${cell.dayNumber} in exceptDays`;
     } else if (matched) {
       const anchorLabel = HOLIDAY_ANCHOR_TYPES.find(([v]) => v === anchorType)?.[1] || anchorType;
       if (detail) {
@@ -1697,6 +2128,19 @@ function traceRulesForDay({
       } else {
         reason = `Matched via ${anchorLabel}`;
       }
+    } else if (!recursInMonth(rule, model.year, model.monthIndex, monthsPerYear)) {
+      reason = eventRecurrenceMismatchReason(rule, model.year, model.monthIndex, monthsPerYear, {
+        monthNames,
+      });
+    } else if ((rule.exceptYears || []).includes(model.year)) {
+      reason = `Excluded: year ${model.year} in exceptYears`;
+    } else if ((rule.exceptMonths || []).includes(model.monthIndex + 1)) {
+      reason = `Excluded: month ${model.monthIndex + 1} in exceptMonths`;
+    } else if (
+      Number.isFinite(Number(cell.dayNumber)) &&
+      (rule.exceptDays || []).includes(cell.dayNumber)
+    ) {
+      reason = `Excluded: day ${cell.dayNumber} in exceptDays`;
     } else {
       const anchorLabel = HOLIDAY_ANCHOR_TYPES.find(([v]) => v === anchorType)?.[1] || anchorType;
       reason = `Anchor "${anchorLabel}" did not produce a start covering this day`;
@@ -1725,8 +2169,45 @@ function traceRulesForDay({
   const festivalTraces = (Array.isArray(festivals) ? festivals : []).map((rule) => {
     const id = String(rule.id || "");
     const name = String(rule.name || "Unnamed");
-    if (!festivalAppliesInMonth(rule, model.year, model.monthIndex, monthsPerYear)) {
-      return { id, name, matched: false, reason: "Does not apply in this month" };
+    if (cell.kind === "intercalary") {
+      return {
+        id,
+        name,
+        matched: false,
+        reason: "Festival rules target in-month festival slots, not structural intercalary dates",
+      };
+    }
+    if (!recursInMonth(rule, model.year, model.monthIndex, monthsPerYear)) {
+      return {
+        id,
+        name,
+        matched: false,
+        reason: eventRecurrenceMismatchReason(rule, model.year, model.monthIndex, monthsPerYear, {
+          monthNames,
+        }),
+      };
+    }
+    if ((rule.exceptYears || []).includes(model.year)) {
+      return { id, name, matched: false, reason: `Excluded: year ${model.year} in exceptYears` };
+    }
+    if ((rule.exceptMonths || []).includes(model.monthIndex + 1)) {
+      return {
+        id,
+        name,
+        matched: false,
+        reason: `Excluded: month ${model.monthIndex + 1} in exceptMonths`,
+      };
+    }
+    if (
+      Number.isFinite(Number(cell.dayNumber)) &&
+      (rule.exceptDays || []).includes(cell.dayNumber)
+    ) {
+      return {
+        id,
+        name,
+        matched: false,
+        reason: `Excluded: day ${cell.dayNumber} in exceptDays`,
+      };
     }
     const afterDay = clampI(rule.afterDay, 0, model.monthLength);
     const duration = Math.max(1, I(rule.durationDays, 1));
@@ -1800,8 +2281,13 @@ function traceToPlainText(trace) {
   const lines = [];
   const r = trace.raw;
   lines.push(
-    `Day ${r.dayNumber} | Absolute ${r.absoluteDay} | ${r.weekdayName} (index ${r.weekdayIndex})${r.isWeekend ? " [weekend]" : ""}`,
+    `${r.dayLabel} | Absolute ${r.absoluteDay} | ${r.weekdayName} (index ${r.weekdayIndex})${r.isWeekend ? " [weekend]" : ""}`,
   );
+  if (r.kind === "intercalary") {
+    lines.push(
+      `Intercalary structure: ${intercalaryPlacementLabel(r.placement, r.anchorMonthName)} | ${intercalaryFlowLabel(r.advancesWeekdayFlow)}`,
+    );
+  }
   if (r.moonPhases.length) {
     lines.push(
       `Moons: ${r.moonPhases.map((m) => `${m.name} ${m.phaseShort} (${m.phaseName}, ${fmt(m.illumination, 1)}%)`).join("; ")}`,
@@ -1838,350 +2324,16 @@ function traceToPlainText(trace) {
   return lines.join("\n");
 }
 
-function detailedGrid(model, selectedDay) {
-  const head = [
-    createElement("th", { className: "calendar-week-col", text: "Week" }),
-    ...(model.headers || []).map((header) => createElement("th", { text: header })),
-  ];
-  const body = (model.rows || []).map((row) =>
-    createElement("tr", {}, [
-      createElement("th", { className: "calendar-week-col", text: row.weekName }),
-      ...(row.cells || []).map((cell) => {
-        if (!cell) return createElement("td", { className: "calendar-cell--empty" });
-        if (cell.kind === "festival") {
-          const label = cell.festival?.name || "Festival";
-          const seq =
-            I(cell.festival?.segmentCount, 1) > 1
-              ? ` ${I(cell.festival?.segment, 1)}/${I(cell.festival?.segmentCount, 1)}`
-              : "";
-          const marker = cell.festival?.outsideWeekFlow ? "Outside" : "Festival";
-          return createElement("td", {}, [
-            createElement(
-              "div",
-              {
-                className: "calendar-day-btn calendar-day-btn--festival",
-                dataset: { tip: `${label}${seq} (${marker})` },
-              },
-              [
-                createElement("span", { className: "calendar-day-btn__num", text: "F" }),
-                createElement("span", {
-                  className: "calendar-day-btn__phase",
-                  text: `${label}${seq}`,
-                }),
-              ],
-            ),
-          ]);
-        }
-        const classNames = ["calendar-day-btn"];
-        if (cell.dayNumber === selectedDay) classNames.push("is-selected");
-        if (cell.holidays.length) classNames.push("has-holiday");
-        if (cell.holidays.length) classNames.push(holidayColorClass(cell.holidays[0]?.colorTag));
-        if ((cell.markers || []).length) classNames.push("has-astronomy");
-        if ((cell.cycles || []).length) classNames.push("has-cycle");
-        if (cell.moonStates[0]?.phase?.phaseShort === "F") classNames.push("is-full-moon");
-        if (cell.moonStates[0]?.phase?.phaseShort === "N") classNames.push("is-new-moon");
-        const markers = Array.isArray(cell.markers) ? cell.markers : [];
-        const cycles = Array.isArray(cell.cycles) ? cell.cycles : [];
-        const markerNames = markers.map((marker) => astronomyMarkerLabel(marker)).join(", ");
-        const cycleNames = cycles.map((cycle) => cycleMarkerTip(cycle)).join(", ");
-        const holidayDetails = Array.isArray(cell.holidayDetails) ? cell.holidayDetails : [];
-        const hasContinuationFromPrev = holidayDetails.some((detail) => !!detail.continuesFromPrev);
-        const hasContinuationToNext = holidayDetails.some((detail) => !!detail.continuesToNext);
-        const holidayMarkerText = cell.holidays.length
-          ? `${hasContinuationFromPrev ? "\u2190" : ""}H${
-              cell.holidays.length > 1 ? cell.holidays.length : ""
-            }${hasContinuationToNext ? "\u2192" : ""}`
-          : "";
-        const holidayTip = cell.holidays.length
-          ? `Holidays: ${holidayDetails
-              .map((detail) => {
-                const holiday = detail.holiday || {};
-                const continuation = [
-                  detail.continuesFromPrev ? "continues from previous day" : "",
-                  detail.continuesToNext ? "continues to next day" : "",
-                ]
-                  .filter(Boolean)
-                  .join(", ");
-                return `${holiday.name} (${holidayCategoryLabel(holiday.category)})${
-                  continuation ? ` [${continuation}]` : ""
-                }`;
-              })
-              .join("; ")}`
-          : "";
-        return createElement("td", {}, [
-          createElement(
-            "button",
-            {
-              className: classNames.join(" "),
-              attrs: { type: "button" },
-              dataset: { calDay: cell.dayNumber },
-            },
-            [
-              createElement("span", {
-                className: "calendar-day-btn__num",
-                text: String(cell.dayNumber),
-              }),
-              createElement("span", { className: "calendar-day-btn__moons" }, [
-                ...(cell.moonStates || []).map((moonState, index) =>
-                  moonIconNode(moonState, index),
-                ),
-                markers.length
-                  ? createElement(
-                      "span",
-                      {
-                        className: "calendar-day-btn__astro-icons",
-                        dataset: { tip: `Astronomy: ${markerNames}` },
-                      },
-                      markers.map((marker) => astroIconNode(marker)),
-                    )
-                  : null,
-                cycles.length
-                  ? createElement(
-                      "span",
-                      {
-                        className: "calendar-day-btn__cycle-icons",
-                        dataset: { tip: `Cycles: ${cycleNames}` },
-                      },
-                      cycles.map((cycle) => cycleIconNode(cycle)),
-                    )
-                  : null,
-              ]),
-              cell.holidays.length
-                ? createElement("span", {
-                    className: "calendar-day-btn__holiday",
-                    dataset: { tip: holidayTip },
-                    text: holidayMarkerText,
-                  })
-                : createElement("span", {
-                    className: "calendar-day-btn__holiday is-empty",
-                    text: "\u00a0",
-                  }),
-            ],
-          ),
-        ]);
-      }),
-    ]),
-  );
-  return { head, body };
-}
-
-function miniGrid(model, selectedDay) {
-  const head = (model.headers || []).map((header) => createElement("th", { text: header }));
-  const body = (model.rows || []).map((row) =>
-    createElement(
-      "tr",
-      {},
-      (row.cells || []).map((cell) => {
-        if (!cell) return createElement("td", { className: "calendar-mini-cell is-empty" });
-        if (cell.kind === "festival") {
-          const label = cell.festival?.name || "Festival";
-          const seq =
-            I(cell.festival?.segmentCount, 1) > 1
-              ? ` ${I(cell.festival?.segment, 1)}/${I(cell.festival?.segmentCount, 1)}`
-              : "";
-          return createElement("td", { className: "calendar-mini-cell" }, [
-            createElement(
-              "div",
-              {
-                className: "calendar-mini-day is-festival",
-                dataset: { tip: `${label}${seq}` },
-              },
-              [
-                createElement("span", { className: "calendar-mini-day__num", text: "F" }),
-                createElement("span", {
-                  className: "calendar-mini-day__holiday",
-                  text: label,
-                }),
-              ],
-            ),
-          ]);
-        }
-        const classNames = ["calendar-mini-day"];
-        if (cell.dayNumber === selectedDay) classNames.push("is-selected");
-        if (cell.holidays.length) classNames.push("has-holiday");
-        if (cell.holidays.length) classNames.push(holidayColorClass(cell.holidays[0]?.colorTag));
-        if ((cell.markers || []).length) classNames.push("has-astronomy");
-        if ((cell.cycles || []).length) classNames.push("has-cycle");
-        const holidayCount = cell.holidays.length;
-        const markerCount = (cell.markers || []).length;
-        const cycleCount = (cell.cycles || []).length;
-        const holidayNames = holidayCount
-          ? cell.holidays.map((holiday) => holiday.name).join(", ")
-          : "";
-        const markerNames = markerCount
-          ? cell.markers.map((marker) => astronomyMarkerLabel(marker)).join(", ")
-          : "";
-        const cycleNames = cycleCount
-          ? cell.cycles.map((cycle) => cycleMarkerTip(cycle)).join(", ")
-          : "";
-        const holidayDetails = Array.isArray(cell.holidayDetails) ? cell.holidayDetails : [];
-        const hasContinuationFromPrev = holidayDetails.some((detail) => !!detail.continuesFromPrev);
-        const hasContinuationToNext = holidayDetails.some((detail) => !!detail.continuesToNext);
-        const holidayMarkerPrefix = hasContinuationFromPrev ? "\u2190" : "";
-        const holidayMarkerSuffix = hasContinuationToNext ? "\u2192" : "";
-        let holidayMark = createElement("span", {
-          className: "calendar-mini-day__holiday is-empty",
-          attrs: { "aria-hidden": "true" },
-          text: "\u00a0",
-        });
-        if (holidayCount && markerCount) {
-          holidayMark = createElement("span", {
-            className: "calendar-mini-day__holiday",
-            dataset: {
-              tip: `Holidays: ${holidayNames}; Astronomy: ${markerNames}; Cycles: ${
-                cycleNames || "None"
-              }; ${TIPS["Holiday continuation"]}`,
-            },
-            text: `${holidayMarkerPrefix}H${holidayCount > 1 ? holidayCount : ""}${holidayMarkerSuffix}/A${
-              markerCount > 1 ? markerCount : ""
-            }${cycleCount ? `/C${cycleCount > 1 ? cycleCount : ""}` : ""}`,
-          });
-        } else if (holidayCount) {
-          holidayMark = createElement("span", {
-            className: "calendar-mini-day__holiday",
-            dataset: {
-              tip: `Holiday${holidayCount > 1 ? "s" : ""}: ${holidayNames}; Cycles: ${
-                cycleNames || "None"
-              }; ${TIPS["Holiday continuation"]}`,
-            },
-            text: `${holidayMarkerPrefix}H${holidayCount > 1 ? holidayCount : ""}${holidayMarkerSuffix}${
-              cycleCount ? `/C${cycleCount > 1 ? cycleCount : ""}` : ""
-            }`,
-          });
-        } else if (markerCount) {
-          holidayMark = createElement("span", {
-            className: "calendar-mini-day__holiday calendar-mini-day__holiday--astro",
-            dataset: { tip: `Astronomy: ${markerNames}; Cycles: ${cycleNames || "None"}` },
-            text: `A${markerCount > 1 ? markerCount : ""}${
-              cycleCount ? `/C${cycleCount > 1 ? cycleCount : ""}` : ""
-            }`,
-          });
-        } else if (cycleCount) {
-          holidayMark = createElement("span", {
-            className: "calendar-mini-day__holiday calendar-mini-day__holiday--cycle",
-            dataset: { tip: `Cycles: ${cycleNames}` },
-            text: `C${cycleCount > 1 ? cycleCount : ""}`,
-          });
-        }
-        return createElement("td", { className: "calendar-mini-cell" }, [
-          createElement(
-            "button",
-            {
-              className: classNames.join(" "),
-              attrs: { type: "button" },
-              dataset: { calMiniDay: cell.dayNumber },
-            },
-            [
-              createElement("span", {
-                className: "calendar-mini-day__num",
-                text: String(cell.dayNumber),
-              }),
-              holidayMark,
-            ],
-          ),
-        ]);
-      }),
-    ),
-  );
-  return { head, body };
-}
-
-function buildSeasonRangesForYear(yearLengthInput) {
-  const yearLength = Math.max(1, I(yearLengthInput, 1));
-  const starts = SEASON_MARKER_DEFS.map((def, seasonIndex) => ({
-    ...def,
-    seasonIndex,
-    startDay: clampI(Math.round(yearLength * def.fraction) + 1, 1, yearLength),
-  }));
-  return starts.map((entry, index) => {
-    const nextStart = index < starts.length - 1 ? starts[index + 1].startDay : yearLength + 1;
-    return {
-      ...entry,
-      endDay: Math.max(entry.startDay, nextStart - 1),
-    };
-  });
-}
-
-function buildSeasonBandContent(model, astronomySettings) {
-  const settings = normalizeAstronomySettings(astronomySettings);
-  if (!settings.enabled || !settings.seasons || !settings.seasonBands) return [];
-  const monthLength = Math.max(1, I(model?.monthLength, 1));
-  const yearLength = Math.max(1, I(model?.yearLength, monthLength));
-  const monthStartDay = Math.max(1, I(model?.daysBeforeMonth, 0) + 1);
-  const monthEndDay = Math.min(yearLength, monthStartDay + monthLength - 1);
-  const ranges = buildSeasonRangesForYear(yearLength);
-  const toPercent = (value) => `${Math.max(0, Math.min(100, N(value, 0))).toFixed(3)}%`;
-
-  const segments = ranges
-    .map((range) => {
-      const overlapStart = Math.max(monthStartDay, range.startDay);
-      const overlapEnd = Math.min(monthEndDay, range.endDay);
-      if (overlapEnd < overlapStart) return null;
-      const left = ((overlapStart - monthStartDay) / monthLength) * 100;
-      const width = ((overlapEnd - overlapStart + 1) / monthLength) * 100;
-      return createElement("span", {
-        className: `calendar-season-band__segment season-${range.seasonIndex}`,
-        attrs: { style: `left:${toPercent(left)};width:${toPercent(width)}` },
-        dataset: { tip: `${range.name}: days ${overlapStart}-${overlapEnd} in this month` },
-      });
-    })
-    .filter(Boolean);
-
-  const ticks = ranges
-    .filter((range) => range.startDay >= monthStartDay && range.startDay <= monthEndDay)
-    .map((range) => {
-      const left = ((range.startDay - monthStartDay + 0.5) / monthLength) * 100;
-      return createElement(
-        "span",
-        {
-          className: `calendar-season-band__tick season-${range.seasonIndex}`,
-          attrs: { style: `left:${toPercent(left)}` },
-          dataset: { tip: `${range.name} begins on day ${range.startDay} of the year` },
-        },
-        createElement("span", {
-          className: "calendar-season-band__tick-label",
-          text: range.short,
-        }),
-      );
-    });
-
-  return [
-    createElement("div", {
-      className: "calendar-season-band__meta",
-      text: `Season band | Year days ${monthStartDay}-${monthEndDay} of ${yearLength}`,
-    }),
-    createElement("div", { className: "calendar-season-band__track" }, [...segments, ...ticks]),
-  ];
-}
-
-function sliderField(id, label, unit, hint, min, max, step, tip) {
-  const u = unit ? ` <span class="unit">${unit}</span>` : "";
-  return `<div class="form-row"><div><div class="label">${label}${u} ${tipIcon(tip || "")}</div><div class="hint">${hint || ""}</div></div><div class="input-pair"><input id="${id}" type="number" step="${step}" aria-label="${label}" /><input id="${id}_slider" type="range" aria-label="${label} slider" /><div class="range-meta"><span id="${id}_min"></span><span id="${id}_max"></span></div></div></div>`;
-}
-
-function createContextSummaryCard(label, value, meta = "") {
-  return createElement("div", { className: "context-summary__card" }, [
-    createElement("div", { className: "context-summary__label", text: label }),
-    createElement("div", { className: "context-summary__value", text: value }),
-    meta ? createElement("div", { className: "context-summary__meta", text: meta }) : null,
-  ]);
-}
-
-function bindPair(root, id, min, max, step) {
-  const n = root.querySelector(`#${id}`);
-  const s = root.querySelector(`#${id}_slider`);
-  const mn = root.querySelector(`#${id}_min`);
-  const mx = root.querySelector(`#${id}_max`);
-  if (!n || !s || !mn || !mx) return null;
-  mn.textContent = String(min);
-  mx.textContent = String(max);
-  return bindNumberAndSlider({ numberEl: n, sliderEl: s, min, max, step, mode: "linear" });
-}
-
 export function initCalendarPage(mountEl) {
   const initialWorld = loadWorld();
   const state = readState(initialWorld);
-  const runtime = { editingHolidayId: null, editingFestivalId: null, editingCycleId: null };
+  const runtime = {
+    editingHolidayId: null,
+    editingFestivalId: null,
+    editingIntercalaryId: null,
+    editingCycleId: null,
+    auditPanelKey: "",
+  };
 
   const wrap = document.createElement("div");
   wrap.className = "page";
@@ -2264,7 +2416,7 @@ export function initCalendarPage(mountEl) {
           <div class="form-row calendar-name-row"><div><div class="label">Week names ${tipIcon(TIPS["Week names"] || "")}</div><div class="hint">One per line.</div></div><textarea id="calWeekNames" class="calendar-textarea"></textarea></div>
           <div class="form-row calendar-name-row"><div><div class="label">Month names ${tipIcon(TIPS["Month names"] || "")}</div><div class="hint">One per line.</div></div><textarea id="calMonthNames" class="calendar-textarea"></textarea></div>
           <div class="form-row"><div><div class="label">Month lengths ${tipIcon(TIPS["Month lengths"] || "")}</div></div><div class="calendar-holiday-attrs__list"><label class="calendar-holiday-attr"><input id="calMonthLengthOverridesEnabled" type="checkbox" />Enable</label></div></div>
-          <div class="form-row calendar-name-row" id="calMonthLengthOverridesRow"><div><div class="hint">One number per line. Blank = base.</div></div><textarea id="calMonthLengthOverrides" class="calendar-textarea" placeholder="e.g.\n31\n28\n31\n30"></textarea></div>
+          <div class="form-row calendar-name-row" id="calMonthLengthOverridesRow"><div><div class="hint">One number per line. Blank = base month length only.</div><div class="hint">Use Intercalary Periods in Rules for extra structural days before months, after months, at year end, or appended into a month.</div></div><textarea id="calMonthLengthOverrides" class="calendar-textarea" placeholder="e.g.\n31\n28\n31\n30"></textarea></div>
 
           <div class="label">Eras ${tipIcon(TIPS["Era list"] || "")}</div>
           <div class="form-row"><div><div class="label">Era label ${tipIcon(TIPS["Era label"] || "")}</div></div><input id="calEraName" type="text" /></div>
@@ -2302,10 +2454,11 @@ export function initCalendarPage(mountEl) {
           </div>
 
           <div style="height:10px"></div>
-          <div class="label">Printable PDF</div>
+          <div class="label">Printable / Save as PDF</div>
+          <div id="calPrintableHint" class="hint">Opens a printable browser view. Use Print or Save as PDF in your browser.</div>
           <div class="io-actions">
-            <button id="calPdfMonth" type="button" data-tip="${esc(TIPS["PDF month export"] || "")}">Export month PDF</button>
-            <button id="calPdfYear" type="button" data-tip="${esc(TIPS["PDF year export"] || "")}">Export year PDF</button>
+            <button id="calPdfMonth" type="button" data-tip="${esc(TIPS["PDF month export"] || "")}">Open month print view</button>
+            <button id="calPdfYear" type="button" data-tip="${esc(TIPS["PDF year export"] || "")}">Open year print view</button>
           </div>
 
           <div style="height:10px"></div>
@@ -2323,11 +2476,12 @@ export function initCalendarPage(mountEl) {
         <div class="calendar-drawer__subtabs">
           <button class="calendar-drawer__subtab is-active" data-rules-tab="holidays">Holidays</button>
           <button class="calendar-drawer__subtab" data-rules-tab="festivals">Festivals</button>
+          <button class="calendar-drawer__subtab" data-rules-tab="intercalary">Intercalary</button>
           <button class="calendar-drawer__subtab" data-rules-tab="leap">Leap Years</button>
           <button class="calendar-drawer__subtab" data-rules-tab="cycles">Cycles</button>
         </div>
         <div id="calRulesSummary" class="calendar-rules-summary"></div>
-        <div id="calRulesGuidance" class="context-summary__note">Leap rules change month lengths first. Holidays and festivals are then matched on the resolved dates, and work/rest cycles add shared weekend handling across the active profile.</div>
+        <div id="calRulesGuidance" class="context-summary__note">Month-length overrides set authored month lengths first. Leap rules then adjust months. Intercalary periods then place structural extra days before months, after months, at year end, or appended into a month. Holidays and festivals are then matched on the resolved dates, and work/rest cycles finally add shared weekend handling across the active profile.</div>
         <div data-rules-section="holidays">
         <div class="panel"><div class="panel__header"><h2>Special Days</h2><div class="calendar-section-info">${tipIcon(TIPS["Special Days section"] || "")}</div></div><div class="panel__body">
           <div id="calHolidayList" class="calendar-item-list" data-tip="${esc(TIPS.Holidays || "")}"></div>
@@ -2337,7 +2491,11 @@ export function initCalendarPage(mountEl) {
             <div class="form-row"><div><div class="label">Holiday category ${tipIcon(TIPS["Holiday category"] || "")}</div></div><select id="calHolidayCategory">${holidayCategoryOptionsHtml()}</select></div>
             <div class="form-row"><div><div class="label">Holiday colour ${tipIcon(TIPS["Holiday colour"] || "")}</div></div><select id="calHolidayColorTag">${holidayColorOptionsHtml()}</select></div>
             <div class="form-row"><div><div class="label">Recurrence ${tipIcon(TIPS.Recurrence || "")}</div></div><select id="calHolidayRecurrence"></select></div>
-            <div class="form-row calendar-holiday-attrs"><div><div class="label">Advanced options ${tipIcon(TIPS["Holiday advanced toggle"] || "")}</div></div><div class="calendar-holiday-attrs__list"><label class="calendar-holiday-attr"><input id="calHolidayAdvancedToggle" type="checkbox" />Enable advanced options</label></div></div>
+            <div class="form-row"><div><div class="label">Cycle years ${tipIcon(TIPS["Holiday cycle years"] || "")}</div><div class="hint">Used when recurrence is Cyclic.</div></div><input id="calHolidayCycleYears" type="number" min="1" step="1" /></div>
+            <div class="form-row"><div><div class="label">Offset year ${tipIcon(TIPS["Holiday offset year"] || "")}</div><div class="hint">Used when recurrence is Cyclic.</div></div><input id="calHolidayOffsetYear" type="number" min="1" step="1" /></div>
+            <div class="form-row calendar-holiday-attrs"><div><div class="label">Authoring mode ${tipIcon(TIPS["Holiday advanced toggle"] || "")}</div></div><div class="calendar-holiday-attrs__list"><label class="calendar-holiday-attr"><input id="calHolidayAdvancedToggle" type="checkbox" />Advanced mode</label></div></div>
+            <div id="calHolidayAdvancedHint" class="hint">Basic mode handles fixed dates, weekdays, moon phases, and optional relative triggers. Advanced mode adds explicit anchor overrides, linked holidays, astronomy markers, compatible algorithm presets such as Gregorian Easter, and observance/conflict controls. The broader rule system can still model arbitrary holidays.</div>
+            <div id="calHolidayIssueStatus" class="io-status" data-kind="info">Basic authoring supports fixed dates, weekdays, moon phases, and optional relative triggers.</div>
             <div class="form-row"><div><div class="label">Holiday year ${tipIcon(TIPS["Holiday year"] || "")}</div><div class="hint">Used for one-off rules.</div></div><input id="calHolidayYear" type="number" min="1" step="1" /></div>
             <div class="form-row calendar-holiday-attrs"><div><div class="label">Attributes ${tipIcon(TIPS.Attributes || "")}</div></div><div class="calendar-holiday-attrs__list"><label class="calendar-holiday-attr"><input id="calHolidayUseDate" type="checkbox" checked />Date</label><label class="calendar-holiday-attr"><input id="calHolidayUseWeekday" type="checkbox" />Weekday</label><label class="calendar-holiday-attr"><input id="calHolidayUseMoon" type="checkbox" />Moon phase</label></div></div>
             <div class="form-row calendar-holiday-attrs"><div><div class="label">Relative trigger ${tipIcon(TIPS["Use relative trigger"] || "")}</div></div><div class="calendar-holiday-attrs__list"><label class="calendar-holiday-attr"><input id="calHolidayUseRelative" type="checkbox" />Use relative trigger</label></div></div>
@@ -2348,7 +2506,8 @@ export function initCalendarPage(mountEl) {
             <div class="form-row"><div><div class="label">Relative marker ${tipIcon(TIPS["Relative marker"] || "")}</div></div><select id="calHolidayRelativeMarker"></select></div>
             <div class="form-row"><div><div class="label">Relative holiday ${tipIcon(TIPS["Relative holiday"] || "")}</div></div><select id="calHolidayRelativeHoliday"></select></div>
             <div class="form-row calendar-holiday-advanced"><div><div class="label">Anchor type ${tipIcon(TIPS["Holiday anchor type"] || "")}</div></div><select id="calHolidayAnchorType"></select></div>
-            <div class="form-row calendar-holiday-advanced"><div><div class="label">Algorithm ${tipIcon(TIPS["Holiday algorithm"] || "")}</div></div><select id="calHolidayAlgorithm"></select></div>
+            <div class="form-row calendar-holiday-advanced"><div><div class="label">Built-in algorithm ${tipIcon(TIPS["Holiday algorithm"] || "")}</div></div><select id="calHolidayAlgorithm"></select></div>
+            <div id="calHolidayAlgorithmSupportHint" class="hint calendar-holiday-advanced" hidden>Built-in Gregorian algorithm presets are only available in Sol/Earth Gregorian-compatible profiles. Use the wider anchor, relative, marker, and observance rules to author arbitrary holidays elsewhere.</div>
             <div class="form-row calendar-holiday-advanced"><div><div class="label">Anchor moon ${tipIcon(TIPS["Relative moon slot"] || "")}</div></div><select id="calHolidayAnchorMoonSlot"></select></div>
             <div class="form-row calendar-holiday-advanced"><div><div class="label">Anchor moon phase ${tipIcon(TIPS["Relative moon phase"] || "")}</div></div><select id="calHolidayAnchorMoonPhase"></select></div>
             <div class="form-row calendar-holiday-advanced"><div><div class="label">Anchor marker ${tipIcon(TIPS["Relative marker"] || "")}</div></div><select id="calHolidayAnchorMarker"></select></div>
@@ -2380,16 +2539,46 @@ export function initCalendarPage(mountEl) {
         <div data-rules-section="festivals" hidden>
         <div class="panel"><div class="panel__header"><h2>Festival Days</h2><div class="calendar-section-info">${tipIcon(TIPS["Festival Days section"] || "")}</div></div><div class="panel__body">
           <div id="calFestivalList" class="calendar-item-list" data-tip="${esc(TIPS["Festival list"] || "")}"></div>
-          <div class="label">Festival / intercalary days ${tipIcon(TIPS["Festival days"] || "")}</div>
+          <div class="label">Festival days ${tipIcon(TIPS["Festival days"] || "")}</div>
           <div class="calendar-holiday-form">
             <div class="form-row"><div><div class="label">Festival name ${tipIcon(TIPS["Festival name"] || "")}</div></div><input id="calFestivalName" type="text" /></div>
+            <div class="form-row"><div><div class="label">Festival category ${tipIcon(TIPS["Festival category"] || "")}</div></div><select id="calFestivalCategory">${holidayCategoryOptionsHtml()}</select></div>
+            <div class="form-row"><div><div class="label">Festival colour ${tipIcon(TIPS["Festival colour"] || "")}</div></div><select id="calFestivalColorTag">${holidayColorOptionsHtml()}</select></div>
             <div class="form-row"><div><div class="label">Recurrence ${tipIcon(TIPS["Festival recurrence"] || "")}</div></div><select id="calFestivalRecurrence"></select></div>
+            <div class="form-row"><div><div class="label">Cycle years ${tipIcon(TIPS["Festival cycle years"] || "")}</div><div class="hint">Used when recurrence is Cyclic.</div></div><input id="calFestivalCycleYears" type="number" min="1" step="1" /></div>
+            <div class="form-row"><div><div class="label">Offset year ${tipIcon(TIPS["Festival offset year"] || "")}</div><div class="hint">Used when recurrence is Cyclic.</div></div><input id="calFestivalOffsetYear" type="number" min="1" step="1" /></div>
             <div class="form-row"><div><div class="label">Festival year ${tipIcon(TIPS["Festival year"] || "")}</div><div class="hint">Used for one-off rules.</div></div><input id="calFestivalYear" type="number" min="1" step="1" /></div>
             <div class="form-row"><div><div class="label">Start month ${tipIcon(TIPS["Festival start month"] || "")}</div></div><select id="calFestivalStartMonth"></select></div>
             <div class="form-row"><div><div class="label">After day ${tipIcon(TIPS["Festival after day"] || "")}</div><div class="hint">0 inserts before day 1.</div></div><input id="calFestivalAfterDay" type="number" min="0" step="1" /></div>
             <div class="form-row"><div><div class="label">Duration <span class="unit">days</span> ${tipIcon(TIPS["Festival duration"] || "")}</div></div><input id="calFestivalDuration" type="number" min="1" step="1" /></div>
             <div class="form-row calendar-holiday-attrs"><div><div class="label">Behaviour ${tipIcon(TIPS["Festival outside week"] || "")}</div></div><div class="calendar-holiday-attrs__list"><label class="calendar-holiday-attr"><input id="calFestivalOutsideWeek" type="checkbox" />Outside weekday flow</label></div></div>
+            <div class="form-row"><div><div class="label">Skip years ${tipIcon(TIPS["Festival exception years"] || "")}</div><div class="hint">Comma-separated.</div></div><input id="calFestivalExceptYears" type="text" placeholder="2, 5, 19" /></div>
+            <div class="form-row"><div><div class="label">Skip months ${tipIcon(TIPS["Festival exception months"] || "")}</div><div class="hint">1-based month numbers.</div></div><input id="calFestivalExceptMonths" type="text" placeholder="1, 7" /></div>
+            <div class="form-row"><div><div class="label">Skip days ${tipIcon(TIPS["Festival exception days"] || "")}</div><div class="hint">Day numbers in month.</div></div><input id="calFestivalExceptDays" type="text" placeholder="13" /></div>
             <div class="button-row"><button class="primary" id="calFestivalSave" type="button" data-tip="${esc(TIPS["Add festival"] || "")}">Add festival</button><button id="calFestivalCancel" type="button" style="display:none" data-tip="${esc(TIPS["Cancel festival edit"] || "")}">Cancel edit</button></div>
+          </div>
+        </div></div>
+        </div>
+
+        <div data-rules-section="intercalary" hidden>
+        <div class="panel"><div class="panel__header"><h2>Intercalary Periods</h2><div class="calendar-section-info">${tipIcon(TIPS["Intercalary Periods section"] || "")}</div></div><div class="panel__body">
+          <div class="hint">Use intercalary periods for structural extra days before months, after months, at year end, or appended into a month. They are separate from month-length overrides and festival events.</div>
+          <div style="height:10px"></div>
+          <div id="calIntercalaryList" class="calendar-item-list" data-tip="${esc(TIPS["Intercalary list"] || "")}"></div>
+          <div class="label">Intercalary periods ${tipIcon(TIPS["Intercalary periods"] || "")}</div>
+          <div class="calendar-holiday-form">
+            <div class="form-row"><div><div class="label">Period name ${tipIcon(TIPS["Intercalary name"] || "")}</div></div><input id="calIntercalaryName" type="text" /></div>
+            <div class="form-row"><div><div class="label">Placement ${tipIcon(TIPS["Intercalary placement"] || "")}</div></div><select id="calIntercalaryPlacement"></select></div>
+            <div class="form-row"><div><div class="label">Anchor month ${tipIcon(TIPS["Intercalary anchor month"] || "")}</div><div class="hint">Ignored for year-end placement.</div></div><select id="calIntercalaryAnchorMonth"></select></div>
+            <div class="form-row"><div><div class="label">Recurrence ${tipIcon(TIPS["Intercalary recurrence"] || "")}</div></div><select id="calIntercalaryRecurrence"></select></div>
+            <div class="form-row"><div><div class="label">Start / one-off year ${tipIcon(TIPS["Intercalary year"] || "")}</div><div class="hint">Used for yearly start years and one-off rules.</div></div><input id="calIntercalaryYear" type="number" min="1" step="1" /></div>
+            <div class="form-row"><div><div class="label">Cycle years ${tipIcon(TIPS["Intercalary cycle years"] || "")}</div><div class="hint">Used when recurrence is Cyclic.</div></div><input id="calIntercalaryCycleYears" type="number" min="1" step="1" /></div>
+            <div class="form-row"><div><div class="label">Offset year ${tipIcon(TIPS["Intercalary offset year"] || "")}</div><div class="hint">Used when recurrence is Cyclic.</div></div><input id="calIntercalaryOffsetYear" type="number" min="1" step="1" /></div>
+            <div class="form-row"><div><div class="label">Duration mode ${tipIcon(TIPS["Intercalary duration mode"] || "")}</div></div><select id="calIntercalaryDurationMode"></select></div>
+            <div class="form-row"><div><div class="label">Duration <span class="unit">days</span> ${tipIcon(TIPS["Intercalary duration"] || "")}</div><div class="hint">Ignored when using derived remainder.</div></div><input id="calIntercalaryDuration" type="number" min="1" step="1" /></div>
+            <div class="form-row"><div><div class="label">Weekday flow ${tipIcon(TIPS["Intercalary weekday flow"] || "")}</div></div><select id="calIntercalaryWeekdayFlow"></select></div>
+            <div class="form-row"><div><div class="label">Exception years ${tipIcon(TIPS["Intercalary exception years"] || "")}</div><div class="hint">Comma-separated years to skip.</div></div><input id="calIntercalaryExceptYears" type="text" placeholder="2, 5, 19" /></div>
+            <div class="button-row"><button class="primary" id="calIntercalarySave" type="button" data-tip="${esc(TIPS["Add intercalary"] || "")}">Add intercalary period</button><button id="calIntercalaryCancel" type="button" style="display:none" data-tip="${esc(TIPS["Cancel intercalary edit"] || "")}">Cancel edit</button></div>
           </div>
         </div></div>
         </div>
@@ -2439,200 +2628,26 @@ export function initCalendarPage(mountEl) {
       </div>
       <div class="calendar-drawer-backdrop is-hidden" id="calDrawerBackdrop"></div>
 
-      <div class="panel calendar-month-panel"><div class="panel__header"><h2>Month View</h2></div><div class="panel__body"><div class="calendar-month-title" id="calMonthTitle" data-tip="${esc(TIPS["Month summary"] || "")}"></div><div class="calendar-chip-row" id="calChipRow" data-tip="${esc(TIPS["Moon summary chips"] || "")}"></div><div class="calendar-season-band" id="calSeasonBand" data-tip="${esc(TIPS["Season bands"] || "")}" hidden></div><div class="calendar-holiday-filter-bar" id="calHolidayFilters" data-tip="${esc(TIPS["Holiday filters"] || "")}">${holidayFilterControlsHtml()}</div><div class="calendar-mini-grid-wrap" data-tip="${esc(TIPS["Simple calendar"] || "")}"><table class="calendar-mini-grid"><thead><tr id="calMiniHead"></tr></thead><tbody id="calMiniBody"></tbody></table></div><div class="calendar-selected-day" id="calSelectedDay" data-tip="${esc(TIPS["Selected day"] || "")}"></div><div class="calendar-date-tools" data-tip="${esc(TIPS["Date converter"] || "")}"><div class="calendar-date-tools__title">Date Converter ${tipIcon(TIPS["Date converter"] || "")}</div><div class="calendar-date-tools__row"><label>Absolute day ${tipIcon(TIPS["Absolute day"] || "")}</label><input id="calJumpAbs" type="number" min="0" step="1" /><button id="calJumpAbsBtn" type="button" data-tip="${esc(TIPS["Jump absolute day"] || "")}">Jump</button></div><div class="calendar-date-tools__row"><label>Year</label><input id="calJumpYear" type="number" min="1" step="1" /><label>Month</label><select id="calJumpMonth"></select><label>Day</label><input id="calJumpDay" type="number" min="1" step="1" /><button id="calJumpDateBtn" type="button" data-tip="${esc(TIPS["Jump date"] || "")}">Jump</button></div></div><div class="calendar-compact-summary"><div class="calendar-moon-legend" id="calMoonLegend" data-tip="${esc(TIPS["Moon key"] || "")}"></div><div class="calendar-compact-grid" id="calCompactGrid" data-tip="${esc(TIPS["Compact stats"] || "")}"></div><div class="calendar-compact-events" id="calCompactEvents" data-tip="${esc(TIPS["Month events"] || "")}"></div></div></div></div>
+      <div class="panel calendar-month-panel"><div class="panel__header"><h2>Month View</h2></div><div class="panel__body"><div class="calendar-month-title" id="calMonthTitle" data-tip="${esc(TIPS["Month summary"] || "")}"></div><div class="calendar-chip-row" id="calChipRow" data-tip="${esc(TIPS["Moon summary chips"] || "")}"></div><div class="calendar-season-band" id="calSeasonBand" data-tip="${esc(TIPS["Season bands"] || "")}" hidden></div><div class="calendar-holiday-filter-bar" id="calHolidayFilters" data-tip="${esc(TIPS["Holiday filters"] || "")}">${holidayFilterControlsHtml()}</div><div class="calendar-intercalary-stack" id="calIntercalaryBefore" hidden></div><div class="calendar-mini-grid-wrap" data-tip="${esc(TIPS["Simple calendar"] || "")}"><table class="calendar-mini-grid"><thead><tr id="calMiniHead"></tr></thead><tbody id="calMiniBody"></tbody></table></div><div class="calendar-intercalary-stack" id="calIntercalaryAfter" hidden></div><div class="calendar-selected-day" id="calSelectedDay" data-tip="${esc(TIPS["Selected day"] || "")}"></div><div class="calendar-date-tools" data-tip="${esc(TIPS["Date converter"] || "")}"><div class="calendar-date-tools__title">Date Converter ${tipIcon(TIPS["Date converter"] || "")}</div><div class="calendar-date-tools__row"><label>Absolute day ${tipIcon(TIPS["Absolute day"] || "")}</label><input id="calJumpAbs" type="number" min="0" step="1" /><button id="calJumpAbsBtn" type="button" data-tip="${esc(TIPS["Jump absolute day"] || "")}">Jump</button></div><div class="calendar-date-tools__row"><label>Year</label><input id="calJumpYear" type="number" min="1" step="1" /><label>Month</label><select id="calJumpMonth"></select><label>Day</label><input id="calJumpDay" type="number" min="1" step="1" /><button id="calJumpDateBtn" type="button" data-tip="${esc(TIPS["Jump date"] || "")}">Jump</button></div><div class="calendar-date-tools__resolved" id="calJumpResolved" hidden></div></div><div class="calendar-compact-summary"><div class="calendar-moon-legend" id="calMoonLegend" data-tip="${esc(TIPS["Moon key"] || "")}"></div><div class="calendar-compact-grid" id="calCompactGrid" data-tip="${esc(TIPS["Compact stats"] || "")}"></div><div class="calendar-compact-events" id="calCompactEvents" data-tip="${esc(TIPS["Month events"] || "")}"></div></div><div class="calendar-audit-panel" id="calAuditPanel" data-tip="${esc(TIPS["Rule audit"] || "")}"><div class="calendar-audit-toolbar"><div class="calendar-audit-toolbar__title">Rule Audit ${tipIcon(TIPS["Rule audit"] || "")}</div><div class="calendar-audit-controls"><label>Scope ${tipIcon(TIPS["Audit scope"] || "")}<select id="calAuditScope"></select></label><label>Filter ${tipIcon(TIPS["Audit filter"] || "")}<select id="calAuditKind"></select></label></div></div><div class="calendar-audit-preview" id="calAuditPreview"></div><div class="calendar-audit-agenda" id="calAuditAgenda"></div></div></div></div>
     </div>
 
-    <div class="calendar-detail-overlay is-hidden" id="calDetailOverlay"><div class="panel calendar-detail-dialog"><div class="panel__header"><h2>Detailed Calendar</h2><div class="button-row" style="margin:0"><button id="calDetailPrev" type="button" data-tip="${esc(TIPS["Previous month"] || "")}">Previous</button><button id="calDetailNext" type="button" data-tip="${esc(TIPS["Next month"] || "")}">Next</button><button id="calCloseDetail" type="button" data-tip="${esc(TIPS["Close detailed view"] || "")}">Close</button></div></div><div class="panel__body"><div class="calendar-month-title" id="calDetailMonthTitle" data-tip="${esc(TIPS["Month summary"] || "")}"></div><div class="calendar-chip-row" id="calDetailChipRow" data-tip="${esc(TIPS["Moon summary chips"] || "")}"></div><div class="calendar-season-band" id="calDetailSeasonBand" data-tip="${esc(TIPS["Season bands"] || "")}" hidden></div><div class="calendar-moon-legend" id="calDetailMoonLegend" data-tip="${esc(TIPS["Moon key"] || "")}"></div><div class="calendar-selected-day" id="calDetailSelectedDay" data-tip="${esc(TIPS["Selected day"] || "")}"></div><div class="calendar-grid-wrap calendar-grid-wrap--detail" data-tip="${esc(TIPS["Detailed calendar"] || "")}"><table class="calendar-grid-table"><thead><tr id="calDetailHead"></tr></thead><tbody id="calDetailBody"></tbody></table></div></div></div></div>
+    <div class="calendar-detail-overlay is-hidden" id="calDetailOverlay"><div class="panel calendar-detail-dialog"><div class="panel__header"><h2>Detailed Calendar</h2><div class="button-row" style="margin:0"><button id="calDetailPrev" type="button" data-tip="${esc(TIPS["Previous month"] || "")}">Previous</button><button id="calDetailNext" type="button" data-tip="${esc(TIPS["Next month"] || "")}">Next</button><button id="calCloseDetail" type="button" data-tip="${esc(TIPS["Close detailed view"] || "")}">Close</button></div></div><div class="panel__body"><div class="calendar-month-title" id="calDetailMonthTitle" data-tip="${esc(TIPS["Month summary"] || "")}"></div><div class="calendar-chip-row" id="calDetailChipRow" data-tip="${esc(TIPS["Moon summary chips"] || "")}"></div><div class="calendar-season-band" id="calDetailSeasonBand" data-tip="${esc(TIPS["Season bands"] || "")}" hidden></div><div class="calendar-moon-legend" id="calDetailMoonLegend" data-tip="${esc(TIPS["Moon key"] || "")}"></div><div class="calendar-intercalary-stack" id="calDetailIntercalaryBefore" hidden></div><div class="calendar-selected-day" id="calDetailSelectedDay" data-tip="${esc(TIPS["Selected day"] || "")}"></div><div class="calendar-grid-wrap calendar-grid-wrap--detail" data-tip="${esc(TIPS["Detailed calendar"] || "")}"><table class="calendar-grid-table"><thead><tr id="calDetailHead"></tr></thead><tbody id="calDetailBody"></tbody></table></div><div class="calendar-intercalary-stack" id="calDetailIntercalaryAfter" hidden></div></div></div></div>
 
   `;
   mountEl.appendChild(wrap);
   attachTooltips(wrap);
 
-  const $ = (sel) => wrap.querySelector(sel);
-  const els = {
-    profileSummaryCopy: $("#calProfileSummaryCopy"),
-    profileSummaryGrid: $("#calProfileSummaryGrid"),
-    profileSummaryNotes: $("#calProfileSummaryNotes"),
-    rulesSummary: $("#calRulesSummary"),
-    drawerToggle: $("#calDrawerToggle"),
-    profileSelect: $("#calProfileSelect"),
-    profileNew: $("#calProfileNew"),
-    profileDuplicate: $("#calProfileDuplicate"),
-    profileDelete: $("#calProfileDelete"),
-    sourcePlanet: $("#calSourcePlanet"),
-    primaryMoon: $("#calPrimaryMoon"),
-    extraMoon1: $("#calExtraMoon1"),
-    extraMoon2: $("#calExtraMoon2"),
-    extraMoon3: $("#calExtraMoon3"),
-    derivedData: $("#calDerivedData"),
-    derivedRoundEnabled: $("#calDerivedRoundEnabled"),
-    derivedDecimalPlaces: $("#calDerivedDecimalPlaces"),
-    monthsPerYear: $("#calMonthsPerYear"),
-    daysPerMonth: $("#calDaysPerMonth"),
-    daysPerWeek: $("#calDaysPerWeek"),
-    structureInfo: $("#calStructureInfo"),
-    useSelected: $("#calUseSelected"),
-    calendarName: $("#calCalendarName"),
-    basis: $("#calBasis"),
-    year: $("#calYear"),
-    month: $("#calMonth"),
-    startDay: $("#calStartDay"),
-    weekStart: $("#calWeekStart"),
-    moonEpoch: $("#calMoonEpoch"),
-    yearDisplayMode: $("#calYearDisplayMode"),
-    yearOffset: $("#calYearOffset"),
-    yearPrefix: $("#calYearPrefix"),
-    yearSuffix: $("#calYearSuffix"),
-    preCalendarStartYear: $("#calPreCalendarStartYear"),
-    postEraLabel: $("#calPostEraLabel"),
-    preEraLabel: $("#calPreEraLabel"),
-    preCalendarUseYearZero: $("#calPreCalendarUseYearZero"),
-    dayNames: $("#calDayNames"),
-    weekNames: $("#calWeekNames"),
-    monthNames: $("#calMonthNames"),
-    monthLengthOverridesEnabled: $("#calMonthLengthOverridesEnabled"),
-    monthLengthOverridesRow: $("#calMonthLengthOverridesRow"),
-    monthLengthOverrides: $("#calMonthLengthOverrides"),
-    eraName: $("#calEraName"),
-    eraStartYear: $("#calEraStartYear"),
-    eraAdd: $("#calEraAdd"),
-    eraList: $("#calEraList"),
-    jsonText: $("#calJsonText"),
-    jsonStatus: $("#calJsonStatus"),
-    exportDownload: $("#calExportDownload"),
-    exportCopy: $("#calExportCopy"),
-    importFileBtn: $("#calImportFileBtn"),
-    importFile: $("#calImportFile"),
-    importApply: $("#calImportApply"),
-    jsonLoadCurrent: $("#calJsonLoadCurrent"),
-    markerEnabled: $("#calMarkerEnabled"),
-    markerSeasons: $("#calMarkerSeasons"),
-    markerSeasonBands: $("#calMarkerSeasonBands"),
-    markerEclipses: $("#calMarkerEclipses"),
-    pdfMonth: $("#calPdfMonth"),
-    pdfYear: $("#calPdfYear"),
-    icsAnchor: $("#calIcsAnchor"),
-    icsIncHolidays: $("#calIcsIncHolidays"),
-    icsIncFestivals: $("#calIcsIncFestivals"),
-    icsIncMarkers: $("#calIcsIncMarkers"),
-    icsMonth: $("#calIcsMonth"),
-    icsYear: $("#calIcsYear"),
-    outputStatus: $("#calOutputStatus"),
-    resetNames: $("#calResetNames"),
-    holidayName: $("#calHolidayName"),
-    holidayCategory: $("#calHolidayCategory"),
-    holidayColorTag: $("#calHolidayColorTag"),
-    holidayRecurrence: $("#calHolidayRecurrence"),
-    holidayAdvancedToggle: $("#calHolidayAdvancedToggle"),
-    holidayYear: $("#calHolidayYear"),
-    holidayUseDate: $("#calHolidayUseDate"),
-    holidayUseWeekday: $("#calHolidayUseWeekday"),
-    holidayUseMoon: $("#calHolidayUseMoon"),
-    holidayUseRelative: $("#calHolidayUseRelative"),
-    holidayRelativeType: $("#calHolidayRelativeType"),
-    holidayRelativeOffset: $("#calHolidayRelativeOffset"),
-    holidayRelativeMoonSlot: $("#calHolidayRelativeMoonSlot"),
-    holidayRelativeMoonPhase: $("#calHolidayRelativeMoonPhase"),
-    holidayRelativeMarker: $("#calHolidayRelativeMarker"),
-    holidayRelativeHoliday: $("#calHolidayRelativeHoliday"),
-    holidayAnchorType: $("#calHolidayAnchorType"),
-    holidayAlgorithm: $("#calHolidayAlgorithm"),
-    holidayAnchorMoonSlot: $("#calHolidayAnchorMoonSlot"),
-    holidayAnchorMoonPhase: $("#calHolidayAnchorMoonPhase"),
-    holidayAnchorMarker: $("#calHolidayAnchorMarker"),
-    holidayAnchorHoliday: $("#calHolidayAnchorHoliday"),
-    holidayAnchorOffset: $("#calHolidayAnchorOffset"),
-    holidayConflictRule: $("#calHolidayConflictRule"),
-    holidayMaxShiftDays: $("#calHolidayMaxShiftDays"),
-    holidayStayInMonth: $("#calHolidayStayInMonth"),
-    holidayConflictScope: $("#calHolidayConflictScope"),
-    holidayConflictCategories: $("#calHolidayConflictCategories"),
-    holidayConflictHolidayIds: $("#calHolidayConflictHolidayIds"),
-    holidayStartMonth: $("#calHolidayStartMonth"),
-    holidayDayOfMonth: $("#calHolidayDayOfMonth"),
-    holidayDuration: $("#calHolidayDuration"),
-    holidayPriority: $("#calHolidayPriority"),
-    holidayMergeMode: $("#calHolidayMergeMode"),
-    holidayWeekday: $("#calHolidayWeekday"),
-    holidayOccurrence: $("#calHolidayOccurrence"),
-    holidayMoonSlot: $("#calHolidayMoonSlot"),
-    holidayMoonPhase: $("#calHolidayMoonPhase"),
-    holidayExceptYears: $("#calHolidayExceptYears"),
-    holidayExceptMonths: $("#calHolidayExceptMonths"),
-    holidayExceptDays: $("#calHolidayExceptDays"),
-    holidaySave: $("#calHolidaySave"),
-    holidayCancel: $("#calHolidayCancel"),
-    holidayList: $("#calHolidayList"),
-    festivalName: $("#calFestivalName"),
-    festivalRecurrence: $("#calFestivalRecurrence"),
-    festivalYear: $("#calFestivalYear"),
-    festivalStartMonth: $("#calFestivalStartMonth"),
-    festivalAfterDay: $("#calFestivalAfterDay"),
-    festivalDuration: $("#calFestivalDuration"),
-    festivalOutsideWeek: $("#calFestivalOutsideWeek"),
-    festivalSave: $("#calFestivalSave"),
-    festivalCancel: $("#calFestivalCancel"),
-    festivalList: $("#calFestivalList"),
-    leapName: $("#calLeapName"),
-    leapCycle: $("#calLeapCycle"),
-    leapOffset: $("#calLeapOffset"),
-    leapMonth: $("#calLeapMonth"),
-    leapDelta: $("#calLeapDelta"),
-    leapAdd: $("#calLeapAdd"),
-    leapSuggest: $("#calLeapSuggest"),
-    leapStatus: $("#calLeapStatus"),
-    leapList: $("#calLeapList"),
-    cycleName: $("#calCycleName"),
-    cycleMode: $("#calCycleMode"),
-    cycleWeekendRule: $("#calCycleWeekendRule"),
-    weekendDays: $("#calWeekendDays"),
-    cycleStartDay: $("#calCycleStartDay"),
-    cycleOnDays: $("#calCycleOnDays"),
-    cycleOffDays: $("#calCycleOffDays"),
-    cycleIntervalDays: $("#calCycleIntervalDays"),
-    cycleActiveLabel: $("#calCycleActiveLabel"),
-    cycleRestLabel: $("#calCycleRestLabel"),
-    cycleMarkerLabel: $("#calCycleMarkerLabel"),
-    cycleActiveShort: $("#calCycleActiveShort"),
-    cycleRestShort: $("#calCycleRestShort"),
-    cycleMarkerShort: $("#calCycleMarkerShort"),
-    cycleSave: $("#calCycleSave"),
-    cycleCancel: $("#calCycleCancel"),
-    cycleList: $("#calCycleList"),
-    prevMonth: $("#calPrevMonth"),
-    nextMonth: $("#calNextMonth"),
-    openDetail: $("#calOpenDetail"),
-    monthTitle: $("#calMonthTitle"),
-    chipRow: $("#calChipRow"),
-    seasonBand: $("#calSeasonBand"),
-    moonLegend: $("#calMoonLegend"),
-    selectedDay: $("#calSelectedDay"),
-    compactGrid: $("#calCompactGrid"),
-    compactEvents: $("#calCompactEvents"),
-    holidayFilters: $("#calHolidayFilters"),
-    miniHead: $("#calMiniHead"),
-    miniBody: $("#calMiniBody"),
-    jumpAbs: $("#calJumpAbs"),
-    jumpAbsBtn: $("#calJumpAbsBtn"),
-    jumpYear: $("#calJumpYear"),
-    jumpMonth: $("#calJumpMonth"),
-    jumpDay: $("#calJumpDay"),
-    jumpDateBtn: $("#calJumpDateBtn"),
-    detailOverlay: $("#calDetailOverlay"),
-    detailPrev: $("#calDetailPrev"),
-    detailNext: $("#calDetailNext"),
-    closeDetail: $("#calCloseDetail"),
-    detailMonthTitle: $("#calDetailMonthTitle"),
-    detailChipRow: $("#calDetailChipRow"),
-    detailSeasonBand: $("#calDetailSeasonBand"),
-    detailMoonLegend: $("#calDetailMoonLegend"),
-    detailSelectedDay: $("#calDetailSelectedDay"),
-    detailHead: $("#calDetailHead"),
-    detailBody: $("#calDetailBody"),
-  };
+  const els = collectCalendarPageElements(wrap);
 
   replaceSelectOptions(els.holidayRecurrence, tupleOptions(RECURRENCES));
   replaceSelectOptions(els.festivalRecurrence, tupleOptions(RECURRENCES));
+  replaceSelectOptions(els.intercalaryPlacement, tupleOptions(INTERCALARY_PLACEMENT_OPTIONS));
+  replaceSelectOptions(els.intercalaryRecurrence, tupleOptions(INTERCALARY_RECURRENCE_OPTIONS));
+  replaceSelectOptions(
+    els.intercalaryDurationMode,
+    tupleOptions(INTERCALARY_DURATION_MODE_OPTIONS),
+  );
+  replaceSelectOptions(els.intercalaryWeekdayFlow, tupleOptions(INTERCALARY_WEEKDAY_FLOW_OPTIONS));
   replaceSelectOptions(els.holidayOccurrence, tupleOptions(OCCURRENCES));
   replaceSelectOptions(els.holidayMoonPhase, tupleOptions(PHASES));
   replaceSelectOptions(els.holidayRelativeType, tupleOptions(HOLIDAY_RELATIVE_TYPES));
@@ -2647,6 +2662,8 @@ export function initCalendarPage(mountEl) {
   replaceSelectOptions(els.holidayConflictRule, tupleOptions(HOLIDAY_CONFLICT_RULES));
   replaceSelectOptions(els.holidayConflictScope, tupleOptions(HOLIDAY_CONFLICT_SCOPES));
   replaceSelectOptions(els.cycleMode, tupleOptions(WORK_CYCLE_MODES));
+  replaceSelectOptions(els.auditScope, tupleOptions(CALENDAR_AUDIT_SCOPE_OPTIONS));
+  replaceSelectOptions(els.auditKind, tupleOptions(CALENDAR_AUDIT_KIND_OPTIONS));
 
   const binders = [
     bindPair(wrap, "calDerivedDecimalPlaces", 0, 6, 1),
@@ -2731,7 +2748,7 @@ export function initCalendarPage(mountEl) {
     }
   }
 
-  const drawerEl = $("#calDrawer");
+  const drawerEl = wrap.querySelector("#calDrawer");
   const workspaceEl = wrap.querySelector(".calendar-workspace");
 
   function applyDrawerState() {
@@ -2779,52 +2796,91 @@ export function initCalendarPage(mountEl) {
     els.leapStatus.dataset.kind = kind === "bad" ? "error" : kind;
   }
 
-  const {
-    currentCalendarJsonText,
-    downloadIcs,
-    importCalendarJsonText,
-    loadCurrentJsonToTextarea,
-    openPrintableCalendar,
-  } = createCalendarTransferFlows({
-    state,
-    els,
-    runtime,
-    readRenderSnapshot,
-    buildContext,
-    buildMonthModel,
-    applyHolidayFiltersToMonthModel,
-    formatDisplayedYear,
-    normalizeIcsIncludes,
-    normalizeIsoDate,
-    normalizeAstronomySettings,
-    astronomyMarkerLabel,
-    HOLIDAY_CATEGORIES,
-    holidayColorClass,
-    holidayCategoryLabel,
-    createCalendarExportEnvelope,
-    clonePlain,
-    readCalendarCandidate,
-    readState,
-    loadWorld,
-    render,
-    setJsonStatus,
-    setOutputStatus,
-    downloadJsonFile,
-    utcStampCompact,
-    fmt,
-    esc,
-    I,
-    clampI,
-  });
+  function currentCalendarJsonText() {
+    return JSON.stringify(createCalendarExportEnvelope(state, clonePlain), null, 2);
+  }
+
+  function loadCurrentJsonToTextarea() {
+    if (!els.jsonText) return;
+    els.jsonText.value = currentCalendarJsonText();
+    setJsonStatus(`Ready. ${els.jsonText.value.length.toLocaleString("en-GB")} characters.`, "ok");
+  }
+
+  let transferFlows = null;
+  let transferFlowsLoading = null;
+
+  function ensureTransferFlows() {
+    if (transferFlows) return Promise.resolve(transferFlows);
+    if (!transferFlowsLoading) {
+      transferFlowsLoading = import("./calendar/transferFlows.js").then(
+        ({ createCalendarTransferFlows }) => {
+          transferFlows = createCalendarTransferFlows({
+            state,
+            els,
+            runtime,
+            readRenderSnapshot,
+            buildContext,
+            buildMonthModel,
+            applyHolidayFiltersToMonthModel,
+            formatDisplayedYear,
+            normalizeIcsIncludes,
+            normalizeIsoDate,
+            normalizeAstronomySettings,
+            astronomyMarkerLabel,
+            HOLIDAY_CATEGORIES,
+            holidayColorClass,
+            holidayCategoryLabel,
+            createCalendarExportEnvelope,
+            clonePlain,
+            readCalendarCandidate,
+            readState,
+            loadWorld,
+            render,
+            setJsonStatus,
+            setOutputStatus,
+            downloadJsonFile,
+            utcStampCompact,
+            fmt,
+            esc,
+            I,
+            clampI,
+          });
+          return transferFlows;
+        },
+      );
+    }
+    return transferFlowsLoading;
+  }
+
+  async function importCalendarJsonText(rawText, label = "JSON") {
+    const api = await ensureTransferFlows();
+    return api.importCalendarJsonText(rawText, label);
+  }
+
+  async function openPrintableCalendar(scope) {
+    setOutputStatus("Loading printable calendar tools...", "info");
+    const api = await ensureTransferFlows();
+    return api.openPrintableCalendar(scope);
+  }
+
+  async function downloadIcs(scope) {
+    setOutputStatus("Loading ICS export tools...", "info");
+    const api = await ensureTransferFlows();
+    return api.downloadIcs(scope);
+  }
 
   const {
     bindRuleEditorEvents,
+    readFestivalPreviewDraft,
+    readHolidayPreviewDraft,
     resetCycleForm,
     resetFestivalForm,
     resetHolidayForm,
+    resetIntercalaryForm,
     updateCycleEnables,
     updateFestivalEnables,
     updateHolidayEnables,
+    updateIntercalaryEnables,
   } = createCalendarRuleEditorFlows({
     wrap,
     state,
@@ -2839,6 +2895,76 @@ export function initCalendarPage(mountEl) {
     I,
     clampI,
   });
+  runtime.resetRuleEditors = () => {
+    resetHolidayForm();
+    resetFestivalForm();
+    resetIntercalaryForm();
+    resetCycleForm();
+    runtime.auditPanelKey = "";
+  };
+
+  function renderAuditPanels(ctx, model) {
+    if (!els.auditPreview || !els.auditAgenda || !els.auditScope || !els.auditKind || !ctx) return;
+    const safeScope = ["month", "year"].includes(String(state.ui.auditScope || ""))
+      ? String(state.ui.auditScope)
+      : "month";
+    const safeKind = ["all", "holiday", "festival", "intercalary", "marker", "cycle"].includes(
+      String(state.ui.auditKind || ""),
+    )
+      ? String(state.ui.auditKind)
+      : "all";
+    state.ui.auditScope = safeScope;
+    state.ui.auditKind = safeKind;
+    els.auditScope.value = safeScope;
+    els.auditKind.value = safeKind;
+    const auditPanelKey = buildAuditRenderKey({
+      state,
+      runtime,
+      els,
+      ctx,
+      model,
+    });
+    if (runtime.auditPanelKey === auditPanelKey) return;
+    runtime.auditPanelKey = auditPanelKey;
+
+    const auditResult = buildCalendarAuditEntries({
+      ctx,
+      state,
+      model,
+      scope: safeScope,
+      kindFilter: safeKind,
+    });
+    const preview = pickActiveRulePreview(state, {
+      readHolidayPreviewDraft,
+      readFestivalPreviewDraft,
+    });
+    const previewResult =
+      preview && !preview.issue
+        ? buildRulePreviewEntries({ ctx, state, preview })
+        : {
+            entries: [],
+            truncated: false,
+            scannedMonths: Math.max(
+              24,
+              Math.max(1, I(ctx?.metrics?.monthsPerYear, 12)) * CALENDAR_RULE_PREVIEW_SCAN_YEARS,
+            ),
+          };
+    const formatYearLabel = (year) => formatDisplayedYear(state.ui, year);
+
+    replaceChildren(
+      els.auditPreview,
+      buildRulePreviewContent({ preview, previewResult, formatYearLabel, currentModel: model }),
+    );
+    replaceChildren(
+      els.auditAgenda,
+      buildAuditAgendaContent({
+        entries: auditResult.entries,
+        truncated: auditResult.truncated,
+        formatYearLabel,
+        currentModel: model,
+      }),
+    );
+  }
 
   function render() {
     ensureProfileStore();
@@ -2896,13 +3022,16 @@ export function initCalendarPage(mountEl) {
     // Structure readout — use getMonthLengthsForYear to account for leap rules
     const wpm = Math.floor(ctx.metrics.daysPerMonth / ctx.metrics.daysPerWeek);
     const weekRemainder = ctx.metrics.daysPerMonth - wpm * ctx.metrics.daysPerWeek;
-    const actualMonthLengths = getMonthLengthsForYear({
+    const resolvedYearLayout = buildYearLayoutForYear({
       metrics: ctx.metrics,
       year: state.ui.year,
       leapRules: state.ui.leapRules || [],
       monthLengthOverrides: ctx.monthLengthOverrides,
+      intercalaryPeriods: ctx.intercalaryPeriods,
+      firstYearStartDayIndex: state.ui.startDayOfYear,
     });
-    const actualBaseYear = actualMonthLengths.reduce((a, b) => a + b, 0);
+    const actualMonthLengths = resolvedYearLayout.monthLengths;
+    const actualBaseYear = resolvedYearLayout.yearLengthDays;
     const lastMonthLen = actualMonthLengths[actualMonthLengths.length - 1];
     const drift = actualBaseYear - ctx.yearLen;
     let readout =
@@ -3018,6 +3147,15 @@ export function initCalendarPage(mountEl) {
 
     replaceSelectOptions(els.holidayStartMonth, indexedLabelOptions(ctx.monthNames));
     replaceSelectOptions(els.festivalStartMonth, indexedLabelOptions(ctx.monthNames));
+    const intercalaryAnchorValue = String(
+      clampI(
+        els.intercalaryAnchorMonth.value || state.ui.monthIndex,
+        0,
+        ctx.metrics.monthsPerYear - 1,
+      ),
+    );
+    replaceSelectOptions(els.intercalaryAnchorMonth, indexedLabelOptions(ctx.monthNames));
+    els.intercalaryAnchorMonth.value = intercalaryAnchorValue;
     replaceSelectOptions(els.holidayWeekday, indexedLabelOptions(ctx.dayNames));
     const moonSlotSelectOptions = moonSlotOptions(ctx.moonDefs);
     replaceSelectOptions(els.holidayMoonSlot, moonSlotSelectOptions);
@@ -3026,14 +3164,43 @@ export function initCalendarPage(mountEl) {
     const holidaySelectOptions = holidayReferenceOptions(ctx.holidays || []);
     replaceSelectOptions(els.holidayRelativeHoliday, holidaySelectOptions);
     replaceSelectOptions(els.holidayAnchorHoliday, holidaySelectOptions);
+    const holidayAlgorithmSupport =
+      ctx.holidayAlgorithmSupport || buildHolidayAlgorithmSupport("none");
+    const currentAnchorType = String(els.holidayAnchorType.value || "fixed-date");
+    replaceSelectOptions(
+      els.holidayAnchorType,
+      holidayAnchorTypeOptions(holidayAlgorithmSupport, currentAnchorType),
+    );
+    els.holidayAnchorType.value = holidayAnchorTypeOptions(
+      holidayAlgorithmSupport,
+      currentAnchorType,
+    ).some((option) => option.value === currentAnchorType)
+      ? currentAnchorType
+      : "fixed-date";
+    const currentAlgorithmKey = String(els.holidayAlgorithm.value || "none");
+    replaceSelectOptions(
+      els.holidayAlgorithm,
+      holidayAlgorithmOptions(holidayAlgorithmSupport, currentAlgorithmKey),
+    );
+    els.holidayAlgorithm.value = holidayAlgorithmOptions(
+      holidayAlgorithmSupport,
+      currentAlgorithmKey,
+    ).some((option) => option.value === currentAlgorithmKey)
+      ? currentAlgorithmKey
+      : "none";
     els.holidayAdvancedToggle.checked = !!state.ui.holidayAdvanced;
 
     const holidays = normHolidayRules(state.ui.holidays, ctx.metrics.monthsPerYear);
     const festivals = normFestivalRules(state.ui.festivalRules, ctx.metrics.monthsPerYear);
+    const intercalaryPeriods = Array.isArray(ctx.intercalaryPeriods) ? ctx.intercalaryPeriods : [];
     renderListContent(
       els.holidayList,
-      holidays.map((holiday) =>
-        calendarItemRow({
+      holidays.map((holiday) => {
+        const issue = ctx.holidayIssueById?.[holiday.id] || "";
+        const hint = issue
+          ? `Issue: ${issue} | ${holidaySummary(holiday, ctx)}`
+          : holidaySummary(holiday, ctx);
+        return calendarItemRow({
           isEditing: runtime.editingHolidayId === holiday.id,
           nameChildren: [
             holiday.name,
@@ -3042,14 +3209,23 @@ export function initCalendarPage(mountEl) {
               className: `calendar-holiday-chip ${holidayColorClass(holiday.colorTag)}`,
               text: holidayCategoryLabel(holiday.category),
             }),
+            issue
+              ? [
+                  " ",
+                  createElement("span", {
+                    className: "calendar-holiday-chip holiday-tag-rose",
+                    text: "Issue",
+                  }),
+                ]
+              : null,
           ],
-          hint: holidaySummary(holiday, ctx),
+          hint,
           actions: [
             actionButton("Edit", { calHolidayEdit: holiday.id }),
             actionButton("Delete", { calHolidayDel: holiday.id }, "small danger"),
           ],
-        }),
-      ),
+        });
+      }),
       "No holidays configured.",
     );
     renderListContent(
@@ -3057,7 +3233,14 @@ export function initCalendarPage(mountEl) {
       festivals.map((festival) =>
         calendarItemRow({
           isEditing: runtime.editingFestivalId === festival.id,
-          nameChildren: festival.name,
+          nameChildren: [
+            festival.name,
+            " ",
+            createElement("span", {
+              className: `calendar-holiday-chip ${holidayColorClass(festival.colorTag)}`,
+              text: holidayCategoryLabel(festival.category),
+            }),
+          ],
           hint: festivalSummary(festival, ctx),
           actions: [
             actionButton("Edit", { calFestivalEdit: festival.id }),
@@ -3066,6 +3249,21 @@ export function initCalendarPage(mountEl) {
         }),
       ),
       "No festival rules configured.",
+    );
+    renderListContent(
+      els.intercalaryList,
+      intercalaryPeriods.map((period) =>
+        calendarItemRow({
+          isEditing: runtime.editingIntercalaryId === period.id,
+          nameChildren: period.name,
+          hint: intercalaryRuleSummary(period, ctx),
+          actions: [
+            actionButton("Edit", { calIntercalaryEdit: period.id }),
+            actionButton("Delete", { calIntercalaryDel: period.id }, "small danger"),
+          ],
+        }),
+      ),
+      "No intercalary periods configured.",
     );
 
     replaceSelectOptions(els.leapMonth, indexedLabelOptions(ctx.monthNames));
@@ -3112,7 +3310,7 @@ export function initCalendarPage(mountEl) {
     const primaryMoonLabel = ctx.moonDefs[0]?.name || "Primary moon";
     const profileNameLabel =
       String(state.profileName || state.ui.calendarName || "Calendar").trim() || "Calendar";
-    els.profileSummaryCopy.textContent = `${profileNameLabel} is built from ${sourcePlanetLabel} and ${primaryMoonLabel}. These rules reshape calendar views and exports without changing the world model itself.`;
+    els.profileSummaryCopy.textContent = `${profileNameLabel} is built from ${sourcePlanetLabel} and ${primaryMoonLabel}. These rules reshape month structure, structural intercalary periods, events, and exports without changing the world model itself.`;
     els.profileSummaryGrid.replaceChildren(
       createContextSummaryCard(
         "Active Profile",
@@ -3133,14 +3331,21 @@ export function initCalendarPage(mountEl) {
         "Festivals",
         String(festivals.length),
         festivals.length
-          ? "Intercalary or festival days layered into current views."
+          ? "Named event days layered into current views."
           : "No festival days configured.",
+      ),
+      createContextSummaryCard(
+        "Intercalary",
+        String(intercalaryPeriods.length),
+        intercalaryPeriods.length
+          ? "Structural days placed before months, after months, at year end, or inside a month."
+          : "No structural intercalary periods configured.",
       ),
       createContextSummaryCard(
         "Leap Rules",
         String(leaps.length),
         leaps.length
-          ? "Month lengths change before holiday and festival matching runs."
+          ? "Leap-year month adjustments resolve before intercalary placement and event matching."
           : "No leap-year adjustments configured.",
       ),
       createContextSummaryCard(
@@ -3158,26 +3363,40 @@ export function initCalendarPage(mountEl) {
       ]),
       createElement("div", { className: "context-summary__note" }, [
         createElement("strong", { text: "Rule order. " }),
-        "Leap rules resolve month lengths first, holidays and festivals then match against those resolved dates, and work/rest cycles add global weekend handling and cycle markers.",
+        "Leap rules resolve month lengths first, intercalary periods then place structural extra days, holidays and festivals match against those resolved dates, and work/rest cycles add global weekend handling and cycle markers.",
       ]),
     );
     els.rulesSummary.textContent = [
       `${holidays.length} holiday${holidays.length === 1 ? "" : "s"}`,
       `${festivals.length} festival${festivals.length === 1 ? "" : "s"}`,
+      `${intercalaryPeriods.length} intercalary period${intercalaryPeriods.length === 1 ? "" : "s"}`,
       `${leaps.length} leap rule${leaps.length === 1 ? "" : "s"}`,
       `${workCycles.length} cycle${workCycles.length === 1 ? "" : "s"}`,
     ].join(" • ");
 
     const model = applyHolidayFiltersToMonthModel(ctx.monthModel, state.ui.holidayCategoryFilters);
-    const allDays = model.rows
-      .flatMap((r) => r.cells)
-      .filter((cell) => cell && Number.isFinite(Number(cell.dayNumber)));
-    const selected = allDays.find((d) => d.dayNumber === state.ui.selectedDay) || allDays[0];
+    if (model.intercalarySummary.length) {
+      readout += `\nStructural intercalary periods: ${model.intercalarySummary.join("; ")}`;
+    }
+    els.structureInfo.textContent = readout;
+
+    const allDays = getSelectableCalendarDays(model);
+    const requestedAbsoluteDay = Math.max(0, I(state.ui.jumpAbsoluteDay, 0));
+    const selected =
+      allDays.find((day) => day.absoluteDay === requestedAbsoluteDay) ||
+      allDays.find((day) => day.dayNumber === state.ui.selectedDay) ||
+      allDays[0];
     if (selected) {
       state.ui.jumpAbsoluteDay = selected.absoluteDay;
       state.ui.jumpYear = model.year;
       state.ui.jumpMonthIndex = model.monthIndex;
-      state.ui.jumpDayOfMonth = selected.dayNumber;
+      state.ui.jumpDayOfMonth =
+        selected.kind === "intercalary"
+          ? Math.max(1, I(selected.mappedDayOfMonth, 1))
+          : Math.max(1, I(selected.dayNumber, 1));
+      if (selected.kind === "month") {
+        state.ui.selectedDay = Math.max(1, I(selected.dayNumber, 1));
+      }
     }
     if (document.activeElement !== els.jumpAbs)
       els.jumpAbs.value = String(state.ui.jumpAbsoluteDay);
@@ -3194,6 +3413,15 @@ export function initCalendarPage(mountEl) {
     const title = `${model.monthName} - ${yearLabel} (${model.monthLength} days)`;
     els.monthTitle.textContent = title;
     els.detailMonthTitle.textContent = title;
+    if (selected?.kind === "intercalary") {
+      els.jumpResolved.textContent = `Resolved absolute day ${selected.absoluteDay} to ${selected.intercalaryName} day ${
+        selected.intercalaryDay
+      } (${intercalaryPlacementLabel(selected.placement, selected.anchorMonthName)} | ${intercalaryFlowLabel(selected.advancesWeekdayFlow)}).`;
+      els.jumpResolved.hidden = false;
+    } else {
+      els.jumpResolved.textContent = "";
+      els.jumpResolved.hidden = true;
+    }
 
     const calendarNameLabel = String(state.ui.calendarName || "Calendar").trim() || "Calendar";
     const chipNodes = [
@@ -3226,6 +3454,11 @@ export function initCalendarPage(mountEl) {
         label: "Festival days",
         value: String(model.festivalsInMonth.reduce((a, e) => a + e[1], 0)),
         tip: TIPS["Festival days"] || "",
+      },
+      {
+        label: "Intercalary days",
+        value: String(model.intercalaryDayCountInView || 0),
+        tip: TIPS["Intercalary periods"] || "",
       },
       {
         label: "Cycle markers",
@@ -3274,6 +3507,11 @@ export function initCalendarPage(mountEl) {
           tip: TIPS["Festival days"] || "",
         },
         {
+          label: "Intercalary days",
+          value: String(model.intercalaryDayCountInView || 0),
+          tip: TIPS["Intercalary periods"] || "",
+        },
+        {
           label: "Cycle markers",
           value: String(model.cyclesInMonth.reduce((a, e) => a + (e.count || 0), 0)),
           tip: TIPS["Cycle list"] || "",
@@ -3312,6 +3550,26 @@ export function initCalendarPage(mountEl) {
       createElement,
       tipText: TIPS["Moon key"] || "",
     });
+    replaceChildren(
+      els.intercalaryBefore,
+      renderIntercalaryGroups(model.intercalaryBeforeMonth, selected?.absoluteDay),
+    );
+    els.intercalaryBefore.hidden = !model.intercalaryBeforeMonth.length;
+    replaceChildren(
+      els.intercalaryAfter,
+      renderIntercalaryGroups(model.intercalaryAfterMonth, selected?.absoluteDay),
+    );
+    els.intercalaryAfter.hidden = !model.intercalaryAfterMonth.length;
+    replaceChildren(
+      els.detailIntercalaryBefore,
+      renderIntercalaryGroups(model.intercalaryBeforeMonth, selected?.absoluteDay),
+    );
+    els.detailIntercalaryBefore.hidden = !model.intercalaryBeforeMonth.length;
+    replaceChildren(
+      els.detailIntercalaryAfter,
+      renderIntercalaryGroups(model.intercalaryAfterMonth, selected?.absoluteDay),
+    );
+    els.detailIntercalaryAfter.hidden = !model.intercalaryAfterMonth.length;
 
     const trace = selected
       ? traceRulesForDay({
@@ -3323,6 +3581,7 @@ export function initCalendarPage(mountEl) {
           leapRules: ctx.leapRules,
           metrics: ctx.metrics,
           dayNames: ctx.dayNames,
+          monthNames: ctx.monthNames,
           weekendDayIndexes: state.ui.weekendDayIndexes,
         })
       : null;
@@ -3384,14 +3643,19 @@ export function initCalendarPage(mountEl) {
           value: model.rows.length,
         },
         {
-          label: "Holidays this month",
-          tip: "Total holiday matches in this month (multiple holidays can occur on one day).",
+          label: "Holiday hits in view",
+          tip: "Total holiday matches across the month grid and visible structural intercalary days.",
           value: model.holidaysInMonth.reduce((a, e) => a + e[1], 0),
         },
         {
           label: "Festivals this month",
           tip: TIPS["Festival days"] || "",
           value: model.festivalsInMonth.reduce((a, e) => a + e[1], 0),
+        },
+        {
+          label: "Intercalary in view",
+          tip: TIPS["Intercalary periods"] || "",
+          value: model.intercalaryDayCountInView || 0,
         },
         {
           label: "Astronomy markers",
@@ -3438,7 +3702,16 @@ export function initCalendarPage(mountEl) {
     const cycleEvents = model.cyclesInMonth
       .slice(0, 8)
       .map((cycle) => `Cycle: ${cycle.ruleName || "Rule"} (${cycle.count})`);
-    const eventItems = [holidayEvents, festivalEvents, markerEvents, cycleEvents].flat();
+    const intercalaryEvents = (model.intercalarySummary || [])
+      .slice(0, 6)
+      .map((item) => `Intercalary: ${item}`);
+    const eventItems = [
+      holidayEvents,
+      festivalEvents,
+      intercalaryEvents,
+      markerEvents,
+      cycleEvents,
+    ].flat();
     replaceChildren(els.compactEvents, [
       createElement("div", { className: "calendar-compact-events__label" }, [
         "Month events ",
@@ -3450,7 +3723,7 @@ export function initCalendarPage(mountEl) {
             {},
             eventItems.map((item) => createElement("li", { text: item })),
           )
-        : hintNode("No holiday or festival events this month."),
+        : hintNode("No holiday, festival, or intercalary events in view."),
       model.outsideWeekFlowFestivals.length
         ? hintNode(
             `Outside-week-flow festivals: ${model.outsideWeekFlowFestivals
@@ -3461,16 +3734,19 @@ export function initCalendarPage(mountEl) {
         : null,
     ]);
 
-    const mini = miniGrid(model, selected?.dayNumber || state.ui.selectedDay);
+    renderAuditPanels(ctx, model);
+
+    const mini = miniGrid(model, selected?.absoluteDay ?? state.ui.jumpAbsoluteDay);
     replaceChildren(els.miniHead, mini.head);
     replaceChildren(els.miniBody, mini.body);
 
-    const detail = detailedGrid(model, selected?.dayNumber || state.ui.selectedDay);
+    const detail = detailedGrid(model, selected?.absoluteDay ?? state.ui.jumpAbsoluteDay);
     replaceChildren(els.detailHead, detail.head);
     replaceChildren(els.detailBody, detail.body);
 
     updateHolidayEnables();
     updateFestivalEnables();
+    updateIntercalaryEnables();
     updateCycleEnables();
     applyCollapsedPanels();
     applyDrawerState();
@@ -3497,7 +3773,14 @@ export function initCalendarPage(mountEl) {
 
   function jumpToAbsoluteDay(absDay) {
     const { ctx } = readRenderSnapshot();
-    const converted = fromAbsoluteDay(ctx.metrics, ctx.leapRules, absDay, ctx.monthLengthOverrides);
+    const converted = fromAbsoluteDay(
+      ctx.metrics,
+      ctx.leapRules,
+      absDay,
+      ctx.monthLengthOverrides,
+      ctx.intercalaryPeriods,
+      state.ui.startDayOfYear,
+    );
     state.ui.jumpAbsoluteDay = converted.absoluteDay;
     state.ui.jumpYear = converted.year;
     state.ui.jumpMonthIndex = converted.monthIndex;
@@ -3516,6 +3799,7 @@ export function initCalendarPage(mountEl) {
       year: safeYear,
       leapRules: ctx.leapRules,
       monthLengthOverrides: ctx.monthLengthOverrides,
+      intercalaryPeriods: ctx.intercalaryPeriods,
     });
     const safeDay = clampI(dayOfMonth, 1, lengths[safeMonth] || 1);
     const abs = toAbsoluteDay(
@@ -3525,6 +3809,8 @@ export function initCalendarPage(mountEl) {
       safeMonth,
       safeDay,
       ctx.monthLengthOverrides,
+      ctx.intercalaryPeriods,
+      state.ui.startDayOfYear,
     );
     state.ui.jumpAbsoluteDay = abs;
     state.ui.jumpYear = safeYear;
@@ -3535,9 +3821,7 @@ export function initCalendarPage(mountEl) {
     state.ui.selectedDay = safeDay;
   }
 
-  resetHolidayForm();
-  resetFestivalForm();
-  resetCycleForm();
+  runtime.resetRuleEditors();
   loadCurrentJsonToTextarea();
   setOutputStatus("Ready.", "info");
   applyCollapsedPanels();
@@ -3560,6 +3844,7 @@ export function initCalendarPage(mountEl) {
     if (!st) return;
     state.ui.rulesTab = st.dataset.rulesTab;
     applyDrawerState();
+    refreshAuditPanelsFromLatestSnapshot();
     persistState(state);
   });
   wrap.querySelector("#calDrawerBackdrop")?.addEventListener("click", () => {
@@ -3824,19 +4109,19 @@ export function initCalendarPage(mountEl) {
 
   els.pdfMonth.addEventListener("click", () => {
     updateOutputStateFromControls();
-    openPrintableCalendar("month");
+    void openPrintableCalendar("month");
   });
   els.pdfYear.addEventListener("click", () => {
     updateOutputStateFromControls();
-    openPrintableCalendar("year");
+    void openPrintableCalendar("year");
   });
   els.icsMonth.addEventListener("click", () => {
     updateOutputStateFromControls();
-    downloadIcs("month");
+    void downloadIcs("month");
   });
   els.icsYear.addEventListener("click", () => {
     updateOutputStateFromControls();
-    downloadIcs("year");
+    void downloadIcs("year");
   });
 
   els.basis.addEventListener("change", () => {
@@ -3933,6 +4218,47 @@ export function initCalendarPage(mountEl) {
 
   bindRuleEditorEvents();
 
+  function refreshAuditPanelsFromLatestSnapshot() {
+    const ctx = runtime.lastCtx || readRenderSnapshot().ctx;
+    if (!ctx?.monthModel) return;
+    const model = applyHolidayFiltersToMonthModel(ctx.monthModel, state.ui.holidayCategoryFilters);
+    renderAuditPanels(ctx, model);
+  }
+
+  function revealSelectedDayTrace() {
+    els.selectedDay?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+    const traceDetails = els.selectedDay?.querySelector?.("details.calendar-rule-trace");
+    if (traceDetails) traceDetails.open = true;
+  }
+
+  [els.auditScope, els.auditKind].forEach((el) =>
+    el?.addEventListener("change", () => {
+      state.ui.auditScope = els.auditScope.value || "month";
+      state.ui.auditKind = els.auditKind.value || "all";
+      refreshAuditPanelsFromLatestSnapshot();
+      persistState(state);
+    }),
+  );
+
+  const holidayForm = els.holidayName?.closest(".calendar-holiday-form") || null;
+  const festivalForm = els.festivalName?.closest(".calendar-holiday-form") || null;
+  holidayForm?.addEventListener("input", (event) => {
+    if (!String(event.target?.id || "").startsWith("calHoliday")) return;
+    refreshAuditPanelsFromLatestSnapshot();
+  });
+  holidayForm?.addEventListener("change", (event) => {
+    if (!String(event.target?.id || "").startsWith("calHoliday")) return;
+    refreshAuditPanelsFromLatestSnapshot();
+  });
+  festivalForm?.addEventListener("input", (event) => {
+    if (!String(event.target?.id || "").startsWith("calFestival")) return;
+    refreshAuditPanelsFromLatestSnapshot();
+  });
+  festivalForm?.addEventListener("change", (event) => {
+    if (!String(event.target?.id || "").startsWith("calFestival")) return;
+    refreshAuditPanelsFromLatestSnapshot();
+  });
+
   els.prevMonth.addEventListener("click", () => {
     shiftMonth(-1);
     render();
@@ -3950,10 +4276,14 @@ export function initCalendarPage(mountEl) {
         cell: (() => {
           const ctx = runtime.lastCtx;
           if (!ctx?.monthModel) return null;
-          const allDays = ctx.monthModel.rows
-            .flatMap((r) => r.cells)
-            .filter((c) => c && Number.isFinite(Number(c.dayNumber)));
-          return allDays.find((d) => d.dayNumber === state.ui.selectedDay) || allDays[0];
+          const allDays = getSelectableCalendarDays(ctx.monthModel);
+          return (
+            allDays.find(
+              (day) => day.absoluteDay === Math.max(0, I(state.ui.jumpAbsoluteDay, 0)),
+            ) ||
+            allDays.find((day) => day.dayNumber === state.ui.selectedDay) ||
+            allDays[0]
+          );
         })(),
         model: runtime.lastCtx?.monthModel,
         holidays: runtime.lastCtx?.holidays || [],
@@ -3962,6 +4292,7 @@ export function initCalendarPage(mountEl) {
         leapRules: runtime.lastCtx?.leapRules || [],
         metrics: runtime.lastCtx?.metrics,
         dayNames: runtime.lastCtx?.dayNames || [],
+        monthNames: runtime.lastCtx?.monthNames || [],
         weekendDayIndexes: state.ui.weekendDayIndexes,
       });
       const text = traceToPlainText(trace);
@@ -3980,15 +4311,37 @@ export function initCalendarPage(mountEl) {
       }
       return;
     }
-    const miniBtn = event.target.closest("button[data-cal-mini-day]");
-    if (miniBtn) {
-      state.ui.selectedDay = Math.max(1, I(miniBtn.getAttribute("data-cal-mini-day"), 1));
+    const auditMonthBtn = event.target.closest("button[data-cal-audit-trace]");
+    if (auditMonthBtn) {
+      jumpToDate(
+        Math.max(1, I(auditMonthBtn.getAttribute("data-cal-audit-year"), state.ui.year)),
+        Math.max(0, I(auditMonthBtn.getAttribute("data-cal-audit-month"), state.ui.monthIndex)),
+        Math.max(1, I(auditMonthBtn.getAttribute("data-cal-audit-day"), 1)),
+      );
+      const auditAbsoluteDay = auditMonthBtn.getAttribute("data-cal-audit-absolute-day");
+      if (auditAbsoluteDay != null && auditAbsoluteDay !== "") {
+        state.ui.jumpAbsoluteDay = Math.max(0, I(auditAbsoluteDay, state.ui.jumpAbsoluteDay));
+      }
       render();
+      revealSelectedDayTrace();
       return;
     }
-    const dayBtn = event.target.closest("button[data-cal-day]");
-    if (!dayBtn) return;
-    state.ui.selectedDay = Math.max(1, I(dayBtn.getAttribute("data-cal-day"), 1));
+    const calendarBtn = event.target.closest("button[data-cal-absolute-day]");
+    if (!calendarBtn) return;
+    state.ui.jumpAbsoluteDay = Math.max(0, I(calendarBtn.getAttribute("data-cal-absolute-day"), 0));
+    const explicitDay =
+      calendarBtn.getAttribute("data-cal-mini-day") ?? calendarBtn.getAttribute("data-cal-day");
+    if (explicitDay != null && explicitDay !== "") {
+      state.ui.selectedDay = Math.max(1, I(explicitDay, 1));
+    } else {
+      const currentDay = getSelectableCalendarDays(runtime.lastCtx?.monthModel).find(
+        (day) => day.absoluteDay === state.ui.jumpAbsoluteDay,
+      );
+      state.ui.selectedDay = Math.max(
+        1,
+        I(currentDay?.mappedDayOfMonth ?? currentDay?.dayNumber ?? state.ui.selectedDay, 1),
+      );
+    }
     render();
   });
 

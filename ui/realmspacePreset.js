@@ -5,6 +5,8 @@
 // Orbital distances normalised so Toril ≈ 1 AU.
 // Many values are best-fit estimates for a fantasy system.
 
+import { SCHEMA_VERSION } from "./store/worldSchema.js";
+
 const HARPTOS_DAY_NAMES = [
   "First-day",
   "Second-day",
@@ -51,7 +53,7 @@ const HARPTOS_MONTH_NAMES = [
 //
 // Shieldmeet: every 4 years, +1 day after Midsummer (month 6).
 
-const HARPTOS_LEAP_RULES = [
+const _HARPTOS_LEGACY_LEAP_RULES = [
   // --- Month-shape rules: bring 30.42-day months down to 30 ---
   // Months 1,2,4,5,7,9,11 each lose a fraction; net effect ≈ −5 days
   {
@@ -177,7 +179,7 @@ const CONFLICT_ALL = {
   holidayIds: [],
 };
 
-const HARPTOS_HOLIDAYS = [
+const _HARPTOS_LEGACY_HOLIDAYS = [
   {
     id: "holiday-midwinter",
     name: "Midwinter",
@@ -340,8 +342,99 @@ const HARPTOS_HOLIDAYS = [
 // Distances normalised: Toril's canon 200 M miles → 1.0 AU.
 // Star assumed ≈ 1 Msol (Toril's 365-day year at 1 AU).
 
+// Harptos now uses explicit structural intercalary periods instead of
+// month-shape and plus-one-day leap-rule hacks.
+const HARPTOS_EXPLICIT_INTERCALARY_PERIODS = [
+  {
+    id: "intercalary-midwinter",
+    name: "Midwinter",
+    placement: "after-month",
+    anchorMonthIndex: 0,
+    recurrence: "yearly",
+    year: 1,
+    cycleYears: 1,
+    offsetYear: 1,
+    durationMode: "fixed",
+    durationDays: 1,
+    weekdayFlowMode: "outside-flow",
+    exceptYears: [],
+  },
+  {
+    id: "intercalary-greengrass",
+    name: "Greengrass",
+    placement: "after-month",
+    anchorMonthIndex: 3,
+    recurrence: "yearly",
+    year: 1,
+    cycleYears: 1,
+    offsetYear: 1,
+    durationMode: "fixed",
+    durationDays: 1,
+    weekdayFlowMode: "outside-flow",
+    exceptYears: [],
+  },
+  {
+    id: "intercalary-midsummer",
+    name: "Midsummer",
+    placement: "after-month",
+    anchorMonthIndex: 6,
+    recurrence: "yearly",
+    year: 1,
+    cycleYears: 1,
+    offsetYear: 1,
+    durationMode: "fixed",
+    durationDays: 1,
+    weekdayFlowMode: "outside-flow",
+    exceptYears: [],
+  },
+  {
+    id: "intercalary-shieldmeet",
+    name: "Shieldmeet",
+    placement: "after-month",
+    anchorMonthIndex: 6,
+    recurrence: "cyclic",
+    year: 1,
+    cycleYears: 4,
+    offsetYear: 4,
+    durationMode: "fixed",
+    durationDays: 1,
+    weekdayFlowMode: "outside-flow",
+    exceptYears: [],
+  },
+  {
+    id: "intercalary-highharvestide",
+    name: "Highharvestide",
+    placement: "after-month",
+    anchorMonthIndex: 8,
+    recurrence: "yearly",
+    year: 1,
+    cycleYears: 1,
+    offsetYear: 1,
+    durationMode: "fixed",
+    durationDays: 1,
+    weekdayFlowMode: "outside-flow",
+    exceptYears: [],
+  },
+  {
+    id: "intercalary-feastmoon",
+    name: "Feast of the Moon",
+    placement: "after-month",
+    anchorMonthIndex: 10,
+    recurrence: "yearly",
+    year: 1,
+    cycleYears: 1,
+    offsetYear: 1,
+    durationMode: "fixed",
+    durationDays: 1,
+    weekdayFlowMode: "outside-flow",
+    exceptYears: [],
+  },
+];
+
+const HARPTOS_EXPLICIT_HOLIDAYS = [];
+
 const REALMSPACE_PRESET_WORLD = {
-  version: 51,
+  version: SCHEMA_VERSION,
   selectedBodyType: "planet",
   star: {
     name: "The Sun",
@@ -649,9 +742,10 @@ const REALMSPACE_PRESET_WORLD = {
             festivals: true,
             markers: true,
           },
-          leapRules: HARPTOS_LEAP_RULES,
-          holidays: HARPTOS_HOLIDAYS,
+          leapRules: [],
+          holidays: HARPTOS_EXPLICIT_HOLIDAYS,
           festivalRules: [],
+          intercalaryPeriods: HARPTOS_EXPLICIT_INTERCALARY_PERIODS,
           holidayCategoryFilters: {
             civic: true,
             religious: true,

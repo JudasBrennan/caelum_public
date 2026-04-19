@@ -86,6 +86,29 @@ export function renderCalendarSelectedDay({
     return;
   }
 
+  const placementLabel =
+    selected.kind === "intercalary"
+      ? selected.placement === "before-month"
+        ? `Before ${selected.anchorMonthName || model.monthName}`
+        : selected.placement === "after-month"
+          ? `After ${selected.anchorMonthName || model.monthName}`
+          : selected.placement === "year-end"
+            ? "Year end"
+            : "Appended to month"
+      : "";
+  const flowLabel =
+    selected.kind === "intercalary"
+      ? selected.advancesWeekdayFlow
+        ? "In weekday flow"
+        : "Outside weekday flow"
+      : "";
+  const selectedTitle =
+    selected.kind === "intercalary"
+      ? `Intercalary Day ${selected.intercalaryDay || 1} of ${selected.intercalaryLength || 1}, ${
+          selected.intercalaryName || "Intercalary Period"
+        }, ${yearLabel} (Day ${selected.absoluteDay + 1})`
+      : `Day ${selected.dayNumber}, ${model.monthName}, ${yearLabel} (Day ${selected.absoluteDay + 1})`;
+
   const holidayItems = (selected.holidays || []).map((holiday) => {
     const detail = holidayDetailById.get(String(holiday?.id || ""));
     const continuation = detail
@@ -155,8 +178,14 @@ export function renderCalendarSelectedDay({
   replaceChildren(node, [
     createElement("div", {
       className: "calendar-selected-day__title",
-      text: `Day ${selected.dayNumber}, ${model.monthName}, ${yearLabel} (Day ${selected.absoluteDay + 1})`,
+      text: selectedTitle,
     }),
+    selected.kind === "intercalary"
+      ? selectedDayLine(
+          "Structure",
+          [placementLabel, flowLabel].filter(Boolean).join(" | ") || "Intercalary structure",
+        )
+      : null,
     moonLines,
     selectedDayLine("Holidays", interleaveNodes(holidayItems)),
     selectedDayLine("Astronomy", interleaveNodes(markerItems)),

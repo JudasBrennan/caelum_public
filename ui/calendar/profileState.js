@@ -5,6 +5,17 @@ export function createCalendarProfileState({
   normalizeSingleProfile,
   clonePlain,
 }) {
+  function resetRuleEditors() {
+    if (typeof runtime?.resetRuleEditors === "function") {
+      runtime.resetRuleEditors();
+      return;
+    }
+    runtime.editingHolidayId = null;
+    runtime.editingFestivalId = null;
+    runtime.editingIntercalaryId = null;
+    runtime.editingCycleId = null;
+  }
+
   function syncProfileSummaries() {
     state.profiles = state._allProfiles.map((profile) => ({
       id: String(profile.id),
@@ -55,9 +66,7 @@ export function createCalendarProfileState({
     normalized.ui.calendarName = state.profileName;
     state.inputs = clonePlain(normalized.inputs);
     state.ui = clonePlain(normalized.ui);
-    runtime.editingHolidayId = null;
-    runtime.editingFestivalId = null;
-    runtime.editingCycleId = null;
+    resetRuleEditors();
   }
 
   return {

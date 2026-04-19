@@ -1,11 +1,16 @@
 import { normalizeLeapRules } from "../../engine/usableCalendar.js";
 import { HOLIDAY_ANCHOR_TYPES, HOLIDAY_RELATIVE_MARKERS } from "./constants.js";
 import {
+  analyzeHolidayRelativeIssues,
+  buildHolidayAlgorithmSupport,
+  holidayAlgorithmAllowed,
   intListText,
   normFestivalRule,
   normFestivalRules,
   normHolidayRule,
   normHolidayRules,
+  normIntercalaryPeriod,
+  normIntercalaryPeriods,
   normalizeHolidayCategory,
   normalizeHolidayColorTag,
   normalizeWeekendDayIndexes,
@@ -43,10 +48,106 @@ export function createCalendarRuleEditorFlows({
           return { world, ctx: buildContext(world, state) };
         })();
 
+  function setHolidayIssueStatus(msg, kind = "info") {
+    if (!els.holidayIssueStatus) return;
+    els.holidayIssueStatus.textContent = msg;
+    els.holidayIssueStatus.dataset.kind = kind === "bad" ? "error" : kind;
+  }
+
+  function holidayAlgorithmSupportForContext(ctx) {
+    return (
+      ctx?.holidayAlgorithmSupport ||
+      buildHolidayAlgorithmSupport(state.ui.holidayAlgorithmPresetScope)
+    );
+  }
+
+  function currentHolidayContext() {
+    return runtime.lastCtx || getRenderSnapshot().ctx;
+  }
+
+  function holidayDraftValidation(
+    ctx,
+    { draftId = runtime.editingHolidayId || "__holiday-draft__" } = {},
+  ) {
+    const draft = normHolidayRule(
+      buildHolidayDraft(ctx, { draftId }),
+      0,
+      ctx.metrics.monthsPerYear,
+    );
+    const holidayAlgorithmSupport = holidayAlgorithmSupportForContext(ctx);
+    if (
+      String(draft?.anchor?.type || "") === "algorithmic" &&
+      !holidayAlgorithmAllowed(holidayAlgorithmSupport?.scope, draft?.anchor?.algorithmKey)
+    ) {
+      return {
+        draft,
+        issue:
+          holidayAlgorithmSupport?.unavailableReason ||
+          "Built-in Gregorian algorithm presets are only available in Sol/Earth Gregorian-compatible profiles.",
+      };
+    }
+    const list = normHolidayRules(state.ui.holidays, ctx.metrics.monthsPerYear).filter(
+      (entry) => String(entry?.id || "") !== String(draft.id || ""),
+    );
+    list.push(draft);
+    return {
+      draft,
+      issue: analyzeHolidayRelativeIssues(list).get(String(draft.id || "")) || "",
+    };
+  }
+
+  function syncHolidayDraftStatus() {
+    const useAdvanced = !!els.holidayAdvancedToggle.checked;
+    const anchorType = String(els.holidayAnchorType.value || "fixed-date");
+    const ctx = currentHolidayContext();
+    const holidayAlgorithmSupport = holidayAlgorithmSupportForContext(ctx);
+    if (els.holidayAlgorithmSupportHint) {
+      els.holidayAlgorithmSupportHint.hidden = !(
+        useAdvanced &&
+        (!holidayAlgorithmSupport?.allowsAlgorithmicAnchors || anchorType === "algorithmic")
+      );
+      els.holidayAlgorithmSupportHint.textContent =
+        holidayAlgorithmSupport?.allowsAlgorithmicAnchors
+          ? holidayAlgorithmSupport.availableMessage
+          : `${
+              holidayAlgorithmSupport?.unavailableReason ||
+              "Built-in Gregorian algorithm presets are only available in Sol/Earth Gregorian-compatible profiles."
+            } Use the wider rule system to author arbitrary holidays.`;
+    }
+    if (!ctx?.metrics) {
+      setHolidayIssueStatus(
+        "Basic authoring supports fixed dates, weekdays, moon phases, and optional relative triggers.",
+        "info",
+      );
+      return;
+    }
+
+    const { issue } = holidayDraftValidation(ctx);
+    if (issue) {
+      setHolidayIssueStatus(`Current rule issue: ${issue}`, "bad");
+      return;
+    }
+    if (useAdvanced) {
+      setHolidayIssueStatus(
+        "Advanced rule wiring looks valid. Save to add it to the active holiday list.",
+        "ok",
+      );
+      return;
+    }
+    setHolidayIssueStatus(
+      "Basic authoring supports fixed dates, weekdays, moon phases, and optional relative triggers.",
+      "info",
+    );
+  }
+
   function updateHolidayEnables() {
-    const oneOff = els.holidayRecurrence.value === "one-off";
+    const recurrence = String(els.holidayRecurrence.value || "yearly");
+    const oneOff = recurrence === "one-off";
+    const cyclic = recurrence === "cyclic";
     const useRelative = !!els.holidayUseRelative.checked;
     const useAdvanced = !!els.holidayAdvancedToggle.checked;
+    const ctx = currentHolidayContext();
+    const holidayAlgorithmSupport = holidayAlgorithmSupportForContext(ctx);
     state.ui.holidayAdvanced = useAdvanced;
     wrap.querySelectorAll(".calendar-holiday-advanced").forEach((row) => {
       row.hidden = !useAdvanced;
@@ -80,6 +181,8 @@ export function createCalendarRuleEditorFlows({
     els.holidayRelativeMarker.disabled = !usesMarkerRelative;
     els.holidayRelativeHoliday.disabled = !usesHolidayRelative;
     els.holidayYear.disabled = !oneOff;
+    els.holidayCycleYears.disabled = !cyclic;
+    els.holidayOffsetYear.disabled = !cyclic;
 
     const anchorType = String(els.holidayAnchorType.value || "fixed-date");
     const anchorUsesMoon = useAdvanced && anchorType === "moon-phase";
@@ -89,7 +192,8 @@ export function createCalendarRuleEditorFlows({
     const conflictScope = String(els.holidayConflictScope.value || "all");
 
     els.holidayAnchorType.disabled = !useAdvanced;
-    els.holidayAlgorithm.disabled = !anchorUsesAlgorithm;
+    els.holidayAlgorithm.disabled =
+      !anchorUsesAlgorithm || !holidayAlgorithmSupport?.allowsAlgorithmicAnchors;
     els.holidayAnchorMoonSlot.disabled = !anchorUsesMoon;
     els.holidayAnchorMoonPhase.disabled = !anchorUsesMoon;
     els.holidayAnchorMarker.disabled = !anchorUsesMarker;
@@ -101,6 +205,7 @@ export function createCalendarRuleEditorFlows({
     els.holidayConflictScope.disabled = !useAdvanced;
     els.holidayConflictCategories.disabled = !useAdvanced || conflictScope !== "category";
     els.holidayConflictHolidayIds.disabled = !useAdvanced || conflictScope !== "ids";
+    syncHolidayDraftStatus();
   }
 
   function resetHolidayForm() {
@@ -110,6 +215,8 @@ export function createCalendarRuleEditorFlows({
     els.holidayColorTag.value = "gold";
     els.holidayRecurrence.value = "yearly";
     els.holidayYear.value = String(Math.max(1, I(state.ui.year, 1)));
+    els.holidayCycleYears.value = "1";
+    els.holidayOffsetYear.value = "1";
     els.holidayUseDate.checked = true;
     els.holidayUseWeekday.checked = false;
     els.holidayUseMoon.checked = false;
@@ -149,22 +256,62 @@ export function createCalendarRuleEditorFlows({
   }
 
   function updateFestivalEnables() {
-    const oneOff = els.festivalRecurrence.value === "one-off";
+    const recurrence = String(els.festivalRecurrence.value || "yearly");
+    const oneOff = recurrence === "one-off";
+    const cyclic = recurrence === "cyclic";
     els.festivalYear.disabled = !oneOff;
+    els.festivalCycleYears.disabled = !cyclic;
+    els.festivalOffsetYear.disabled = !cyclic;
   }
 
   function resetFestivalForm() {
     runtime.editingFestivalId = null;
     els.festivalName.value = "";
+    els.festivalCategory.value = "civic";
+    els.festivalColorTag.value = "gold";
     els.festivalRecurrence.value = "yearly";
     els.festivalYear.value = String(Math.max(1, I(state.ui.year, 1)));
+    els.festivalCycleYears.value = "1";
+    els.festivalOffsetYear.value = "1";
     els.festivalStartMonth.value = String(Math.max(0, I(state.ui.monthIndex, 0)));
     els.festivalAfterDay.value = "0";
     els.festivalDuration.value = "1";
     els.festivalOutsideWeek.checked = false;
+    els.festivalExceptYears.value = "";
+    els.festivalExceptMonths.value = "";
+    els.festivalExceptDays.value = "";
     els.festivalSave.textContent = "Add festival";
     els.festivalCancel.style.display = "none";
     updateFestivalEnables();
+  }
+
+  function updateIntercalaryEnables() {
+    const placement = String(els.intercalaryPlacement.value || "year-end");
+    const recurrence = String(els.intercalaryRecurrence.value || "yearly");
+    const durationMode = String(els.intercalaryDurationMode.value || "fixed");
+    els.intercalaryAnchorMonth.disabled = placement === "year-end";
+    els.intercalaryYear.disabled = recurrence === "cyclic";
+    els.intercalaryCycleYears.disabled = recurrence !== "cyclic";
+    els.intercalaryOffsetYear.disabled = recurrence !== "cyclic";
+    els.intercalaryDuration.disabled = durationMode === "derived-remainder";
+  }
+
+  function resetIntercalaryForm() {
+    runtime.editingIntercalaryId = null;
+    els.intercalaryName.value = "";
+    els.intercalaryPlacement.value = "year-end";
+    els.intercalaryAnchorMonth.value = String(Math.max(0, I(state.ui.monthIndex, 0)));
+    els.intercalaryRecurrence.value = "yearly";
+    els.intercalaryYear.value = String(Math.max(1, I(state.ui.year, 1)));
+    els.intercalaryCycleYears.value = "1";
+    els.intercalaryOffsetYear.value = "1";
+    els.intercalaryDurationMode.value = "fixed";
+    els.intercalaryDuration.value = "1";
+    els.intercalaryWeekdayFlow.value = "in-flow";
+    els.intercalaryExceptYears.value = "";
+    els.intercalarySave.textContent = "Add intercalary period";
+    els.intercalaryCancel.style.display = "none";
+    updateIntercalaryEnables();
   }
 
   function updateCycleEnables() {
@@ -200,7 +347,7 @@ export function createCalendarRuleEditorFlows({
     updateCycleEnables();
   }
 
-  function buildHolidayDraft(ctx) {
+  function buildHolidayDraft(ctx, options = {}) {
     const recurrence = els.holidayRecurrence.value;
     const oneOff = recurrence === "one-off";
     const useRelative = !!els.holidayUseRelative.checked;
@@ -228,13 +375,15 @@ export function createCalendarRuleEditorFlows({
     const relativeMarker = String(els.holidayRelativeMarker.value || "").trim();
     const relativeHoliday = String(els.holidayRelativeHoliday.value || "").trim();
     const draft = {
-      id: runtime.editingHolidayId || createId("holiday"),
+      id: String(options.draftId || runtime.editingHolidayId || createId("holiday")),
       name: String(els.holidayName.value || "").trim(),
       category: normalizeHolidayCategory(els.holidayCategory.value),
       colorTag: normalizeHolidayColorTag(els.holidayColorTag.value),
       recurrence,
       startMonth: Math.max(0, I(els.holidayStartMonth.value, 0)),
       year: Math.max(1, I(els.holidayYear.value, state.ui.year)),
+      cycleYears: Math.max(1, I(els.holidayCycleYears.value, 1)),
+      offsetYear: Math.max(1, I(els.holidayOffsetYear.value, 1)),
       attrs: {
         useDate: useRelative ? false : oneOff ? true : !!els.holidayUseDate.checked,
         useWeekday: useRelative ? false : !!els.holidayUseWeekday.checked,
@@ -310,6 +459,8 @@ export function createCalendarRuleEditorFlows({
     els.holidayRecurrence.value = holiday.recurrence;
     els.holidayStartMonth.value = String(holiday.startMonth);
     els.holidayYear.value = String(Math.max(1, I(holiday.year, 1)));
+    els.holidayCycleYears.value = String(Math.max(1, I(holiday.cycleYears, 1)));
+    els.holidayOffsetYear.value = String(Math.max(1, I(holiday.offsetYear, 1)));
     els.holidayUseDate.checked = !!holiday.attrs.useDate;
     els.holidayUseWeekday.checked = !!holiday.attrs.useWeekday;
     els.holidayUseMoon.checked = !!holiday.attrs.useMoonPhase;
@@ -370,33 +521,121 @@ export function createCalendarRuleEditorFlows({
     updateHolidayEnables();
   }
 
-  function buildFestivalDraft() {
+  function buildFestivalDraft(ctx) {
     return {
       id: runtime.editingFestivalId || createId("festival"),
       name: String(els.festivalName.value || "").trim(),
+      category: normalizeHolidayCategory(els.festivalCategory.value),
+      colorTag: normalizeHolidayColorTag(els.festivalColorTag.value),
       recurrence: els.festivalRecurrence.value,
       year: Math.max(1, I(els.festivalYear.value, state.ui.year)),
+      cycleYears: Math.max(1, I(els.festivalCycleYears.value, 1)),
+      offsetYear: Math.max(1, I(els.festivalOffsetYear.value, 1)),
       startMonth: Math.max(0, I(els.festivalStartMonth.value, 0)),
       afterDay: Math.max(0, I(els.festivalAfterDay.value, 0)),
       durationDays: Math.max(1, I(els.festivalDuration.value, 1)),
       outsideWeekFlow: !!els.festivalOutsideWeek.checked,
+      exceptYears: parseIntList(els.festivalExceptYears.value, 1, 1000000),
+      exceptMonths: parseIntList(els.festivalExceptMonths.value, 1, ctx.metrics.monthsPerYear),
+      exceptDays: parseIntList(els.festivalExceptDays.value, 1, 500),
     };
   }
 
   function loadFestivalIntoForm(festival, ctx) {
     runtime.editingFestivalId = festival.id;
     els.festivalName.value = festival.name;
+    els.festivalCategory.value = normalizeHolidayCategory(festival.category);
+    els.festivalColorTag.value = normalizeHolidayColorTag(festival.colorTag);
     els.festivalRecurrence.value = festival.recurrence;
     els.festivalYear.value = String(Math.max(1, I(festival.year, 1)));
+    els.festivalCycleYears.value = String(Math.max(1, I(festival.cycleYears, 1)));
+    els.festivalOffsetYear.value = String(Math.max(1, I(festival.offsetYear, 1)));
     els.festivalStartMonth.value = String(
       clampI(festival.startMonth, 0, ctx.metrics.monthsPerYear - 1),
     );
     els.festivalAfterDay.value = String(Math.max(0, I(festival.afterDay, 0)));
     els.festivalDuration.value = String(Math.max(1, I(festival.durationDays, 1)));
     els.festivalOutsideWeek.checked = !!festival.outsideWeekFlow;
+    els.festivalExceptYears.value = intListText(festival.exceptYears);
+    els.festivalExceptMonths.value = intListText(festival.exceptMonths);
+    els.festivalExceptDays.value = intListText(festival.exceptDays);
     els.festivalSave.textContent = "Save festival";
     els.festivalCancel.style.display = "";
     updateFestivalEnables();
+  }
+
+  function readHolidayPreviewDraft() {
+    const ctx = currentHolidayContext();
+    if (!ctx?.metrics) return null;
+    const validation = holidayDraftValidation(ctx);
+    if (!validation?.draft?.name) return null;
+    return {
+      type: "holiday",
+      ctx,
+      draft: validation.draft,
+      issue: validation.issue || "",
+    };
+  }
+
+  function readFestivalPreviewDraft() {
+    const { ctx } = getRenderSnapshot();
+    if (!ctx?.metrics) return null;
+    const draft = normFestivalRule(buildFestivalDraft(ctx), 0, ctx.metrics.monthsPerYear);
+    if (!draft?.name) return null;
+    return {
+      type: "festival",
+      ctx,
+      draft,
+      issue: "",
+    };
+  }
+
+  function buildIntercalaryDraft(ctx) {
+    const existing = normIntercalaryPeriods(
+      state.ui.intercalaryPeriods,
+      ctx.metrics.monthsPerYear,
+    ).find((entry) => entry.id === runtime.editingIntercalaryId);
+    const placement = String(els.intercalaryPlacement.value || "year-end");
+    return {
+      id: runtime.editingIntercalaryId || createId("intercalary"),
+      name: String(els.intercalaryName.value || "").trim(),
+      placement,
+      anchorMonthIndex:
+        placement === "year-end"
+          ? null
+          : clampI(els.intercalaryAnchorMonth.value || 0, 0, ctx.metrics.monthsPerYear - 1),
+      recurrence: String(els.intercalaryRecurrence.value || "yearly"),
+      year: Math.max(1, I(els.intercalaryYear.value, state.ui.year)),
+      cycleYears: Math.max(1, I(els.intercalaryCycleYears.value, 1)),
+      offsetYear: Math.max(1, I(els.intercalaryOffsetYear.value, 1)),
+      durationMode: String(els.intercalaryDurationMode.value || "fixed"),
+      durationDays: Math.max(1, I(els.intercalaryDuration.value, 1)),
+      weekdayFlowMode: String(els.intercalaryWeekdayFlow.value || "in-flow"),
+      exceptYears: parseIntList(els.intercalaryExceptYears.value, 1, 1000000),
+      legacyCompatibility: !!existing?.legacyCompatibility,
+    };
+  }
+
+  function loadIntercalaryIntoForm(period, ctx) {
+    runtime.editingIntercalaryId = period.id;
+    els.intercalaryName.value = String(period.name || "");
+    els.intercalaryPlacement.value = String(period.placement || "year-end");
+    els.intercalaryAnchorMonth.value = String(
+      period.anchorMonthIndex == null
+        ? Math.max(0, ctx.metrics.monthsPerYear - 1)
+        : clampI(period.anchorMonthIndex, 0, ctx.metrics.monthsPerYear - 1),
+    );
+    els.intercalaryRecurrence.value = String(period.recurrence || "yearly");
+    els.intercalaryYear.value = String(Math.max(1, I(period.year, 1)));
+    els.intercalaryCycleYears.value = String(Math.max(1, I(period.cycleYears, 1)));
+    els.intercalaryOffsetYear.value = String(Math.max(1, I(period.offsetYear, 1)));
+    els.intercalaryDurationMode.value = String(period.durationMode || "fixed");
+    els.intercalaryDuration.value = String(Math.max(1, I(period.durationDays, 1)));
+    els.intercalaryWeekdayFlow.value = String(period.weekdayFlowMode || "in-flow");
+    els.intercalaryExceptYears.value = intListText(period.exceptYears);
+    els.intercalarySave.textContent = "Save intercalary period";
+    els.intercalaryCancel.style.display = "";
+    updateIntercalaryEnables();
   }
 
   function buildCycleDraft() {
@@ -448,8 +687,20 @@ export function createCalendarRuleEditorFlows({
       els.holidayConflictScope,
       els.holidayRecurrence,
     ].forEach((el) => el.addEventListener("change", updateHolidayEnables));
+    const holidayForm = els.holidayName?.closest(".calendar-holiday-form") || null;
+    holidayForm?.addEventListener("input", (event) => {
+      if (!String(event.target?.id || "").startsWith("calHoliday")) return;
+      updateHolidayEnables();
+    });
+    holidayForm?.addEventListener("change", (event) => {
+      if (!String(event.target?.id || "").startsWith("calHoliday")) return;
+      updateHolidayEnables();
+    });
 
     els.festivalRecurrence.addEventListener("change", updateFestivalEnables);
+    [els.intercalaryPlacement, els.intercalaryRecurrence, els.intercalaryDurationMode].forEach(
+      (el) => el.addEventListener("change", updateIntercalaryEnables),
+    );
     els.cycleMode.addEventListener("change", updateCycleEnables);
     els.cycleWeekendRule.addEventListener("change", () => {
       state.ui.workWeekendRule = normalizeWeekendRule(els.cycleWeekendRule.value);
@@ -471,13 +722,18 @@ export function createCalendarRuleEditorFlows({
 
     els.holidaySave.addEventListener("click", () => {
       const { ctx } = getRenderSnapshot();
-      const draft = buildHolidayDraft(ctx);
+      const rawDraft = buildHolidayDraft(ctx);
+      const draft = normHolidayRule(rawDraft, 0, ctx.metrics.monthsPerYear);
       if (!draft.name) return;
-      const holiday = normHolidayRule(draft, 0, ctx.metrics.monthsPerYear);
+      const validation = holidayDraftValidation(ctx, { draftId: draft.id });
+      if (validation.issue) {
+        setHolidayIssueStatus(`Current rule issue: ${validation.issue}`, "bad");
+        return;
+      }
       const list = normHolidayRules(state.ui.holidays, ctx.metrics.monthsPerYear);
-      const index = list.findIndex((entry) => entry.id === holiday.id);
-      if (index >= 0) list[index] = holiday;
-      else list.push(holiday);
+      const index = list.findIndex((entry) => entry.id === draft.id);
+      if (index >= 0) list[index] = draft;
+      else list.push(draft);
       state.ui.holidays = list;
       resetHolidayForm();
       render();
@@ -510,7 +766,7 @@ export function createCalendarRuleEditorFlows({
 
     els.festivalSave.addEventListener("click", () => {
       const { ctx } = getRenderSnapshot();
-      const draft = buildFestivalDraft();
+      const draft = buildFestivalDraft(ctx);
       if (!draft.name) return;
       const festival = normFestivalRule(draft, 0, ctx.metrics.monthsPerYear);
       const list = normFestivalRules(state.ui.festivalRules, ctx.metrics.monthsPerYear);
@@ -544,6 +800,45 @@ export function createCalendarRuleEditorFlows({
         Array.isArray(state.ui.festivalRules) ? state.ui.festivalRules : []
       ).filter((entry) => String(entry?.id) !== String(id));
       if (runtime.editingFestivalId === id) resetFestivalForm();
+      render();
+    });
+
+    els.intercalarySave.addEventListener("click", () => {
+      const { ctx } = getRenderSnapshot();
+      const draft = buildIntercalaryDraft(ctx);
+      if (!draft.name) return;
+      const period = normIntercalaryPeriod(draft, 0, ctx.metrics.monthsPerYear);
+      const list = normIntercalaryPeriods(state.ui.intercalaryPeriods, ctx.metrics.monthsPerYear);
+      const index = list.findIndex((entry) => entry.id === period.id);
+      if (index >= 0) list[index] = period;
+      else list.push(period);
+      state.ui.intercalaryPeriods = list;
+      resetIntercalaryForm();
+      render();
+    });
+
+    els.intercalaryCancel.addEventListener("click", () => {
+      resetIntercalaryForm();
+      render();
+    });
+
+    els.intercalaryList.addEventListener("click", (event) => {
+      const editBtn = event.target.closest("button[data-cal-intercalary-edit]");
+      if (editBtn) {
+        const id = editBtn.getAttribute("data-cal-intercalary-edit");
+        const { ctx } = getRenderSnapshot();
+        const period = (ctx.intercalaryPeriods || []).find((entry) => entry.id === id);
+        if (!period) return;
+        loadIntercalaryIntoForm(period, ctx);
+        return;
+      }
+      const delBtn = event.target.closest("button[data-cal-intercalary-del]");
+      if (!delBtn) return;
+      const id = delBtn.getAttribute("data-cal-intercalary-del");
+      state.ui.intercalaryPeriods = (
+        Array.isArray(state.ui.intercalaryPeriods) ? state.ui.intercalaryPeriods : []
+      ).filter((entry) => String(entry?.id) !== String(id));
+      if (runtime.editingIntercalaryId === id) resetIntercalaryForm();
       render();
     });
 
@@ -671,11 +966,15 @@ export function createCalendarRuleEditorFlows({
 
   return {
     bindRuleEditorEvents,
+    readFestivalPreviewDraft,
+    readHolidayPreviewDraft,
     resetCycleForm,
     resetFestivalForm,
     resetHolidayForm,
+    resetIntercalaryForm,
     updateCycleEnables,
     updateFestivalEnables,
     updateHolidayEnables,
+    updateIntercalaryEnables,
   };
 }

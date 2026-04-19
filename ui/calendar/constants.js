@@ -22,6 +22,7 @@ export const RECURRENCES = [
   ["quarterly", "Quarterly"],
   ["6-monthly", "6-monthly"],
   ["yearly", "Yearly"],
+  ["cyclic", "Cyclic"],
 ];
 
 export const RECUR_MONTHS = {
@@ -45,7 +46,7 @@ export const HOLIDAY_ANCHOR_TYPES = [
   ["moon-phase", "Moon phase"],
   ["astronomy-marker", "Astronomy marker"],
   ["holiday", "Another holiday"],
-  ["algorithmic", "Algorithmic"],
+  ["algorithmic", "Built-in algorithm"],
 ];
 
 export const HOLIDAY_ALGORITHMS = [
@@ -176,9 +177,10 @@ export const CALENDAR_TUTORIAL_STEPS = [
     body:
       "In the Structure tab, adjust months per year, days per month, and days per " +
       "week. By default these are derived from orbital data. Override any slider " +
-      "for a custom calendar. Enable Month lengths to set irregular day counts " +
-      "per month (like Earth's 31/28/31/30 pattern). The structure readout shows " +
-      "the resulting year length.",
+      "for a custom calendar. Enable Month lengths to set irregular authored month " +
+      "day counts (like Earth's 31/28/31/30 pattern). Use Intercalary Periods in " +
+      "the Rules tab for structural extra days before months, after months, or at " +
+      "year end. The structure readout shows the resolved year length.",
   },
   {
     title: "Naming Days, Months, and Eras",
@@ -188,24 +190,36 @@ export const CALENDAR_TUTORIAL_STEPS = [
       "eras like BCE/CE. Add era rules to mark ages of your world's history.",
   },
   {
+    title: "Intercalary Periods",
+    body:
+      "In the Rules tab, open Intercalary to add structural extra days before " +
+      "months, after months, at year end, or appended into a month. Keep Month " +
+      "lengths for true month lengths, and use intercalaries when extra days " +
+      "should be placed explicitly instead of silently lengthening a month.",
+  },
+  {
     title: "Leap Rules",
     body:
-      "In the Rules tab, open the Leap Years section. Add rules that insert or " +
-      "remove days on cycle years. Use the Suggest button to auto-generate rules " +
-      "that minimize calendar drift from the true orbital year.",
+      "Still in the Rules tab, open Leap Years to add rules that insert or remove " +
+      "days on cycle years. Use the Suggest button to auto-generate rules that " +
+      "minimize calendar drift from the true orbital year.",
   },
   {
     title: "Holidays and Festivals",
     body:
       "Still in the Rules tab, add holidays by date, weekday, or moon phase. " +
-      "Holidays can recur weekly, monthly, or yearly. Festivals are multi-day " +
-      "events. Use categories and colour tags to organise them on the grid.",
+      "Holidays can recur weekly, monthly, or yearly, and festivals are multi-day " +
+      "events inside resolved months. Use Advanced mode in Holidays when " +
+      "you need explicit anchor overrides, linked holidays, astronomy markers, " +
+      "compatible algorithm presets such as Gregorian Easter, or observance shifts. " +
+      "The broader rule system can still model arbitrary holidays.",
   },
   {
     title: "Exporting Your Calendar",
     body:
-      "Open the Output tab in the drawer. Export a single month as PDF, download " +
-      "an ICS file for real calendar apps, or use JSON import/export to save and " +
-      "share your full calendar configuration.",
+      "Open the Output tab in the drawer. Open month or year print views and use " +
+      "your browser to print or Save as PDF, download an ICS file for real " +
+      "calendar apps, or use JSON import/export to save and share your full " +
+      "calendar configuration.",
   },
 ];

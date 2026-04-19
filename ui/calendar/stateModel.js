@@ -36,6 +36,8 @@ const I = (v, f = 0) => {
 
 const clampI = (v, min, max) => Math.max(min, Math.min(max, I(v, min)));
 const mod = (v, b) => (b > 0 ? ((v % b) + b) % b : 0);
+const HOLIDAY_ALGORITHM_PRESET_SCOPE_NONE = "none";
+const HOLIDAY_ALGORITHM_PRESET_SCOPE_EARTH_GREGORIAN = "earth-gregorian";
 
 const esc = (s) =>
   String(s)
@@ -80,6 +82,115 @@ export function monthLengthOverridesText(arr) {
         : "",
     )
     .join("\n");
+}
+
+const INTERCALARY_PERIOD_PLACEMENTS = new Set([
+  "append-to-month",
+  "before-month",
+  "after-month",
+  "year-end",
+]);
+const INTERCALARY_DURATION_MODES = new Set(["fixed", "derived-remainder"]);
+const INTERCALARY_WEEKDAY_FLOW_MODES = new Set(["in-flow", "outside-flow"]);
+const INTERCALARY_RECURRENCES = new Set(["yearly", "one-off", "cyclic"]);
+const LEGACY_INTERCALARY_PERIOD_ID = "intercalary-legacy-derived-remainder";
+
+function normalizeIntercalaryPlacement(value) {
+  const key = String(value || "")
+    .trim()
+    .toLowerCase();
+  return INTERCALARY_PERIOD_PLACEMENTS.has(key) ? key : "year-end";
+}
+
+function normalizeIntercalaryDurationMode(value) {
+  const key = String(value || "")
+    .trim()
+    .toLowerCase();
+  return INTERCALARY_DURATION_MODES.has(key) ? key : "fixed";
+}
+
+function normalizeIntercalaryWeekdayFlowMode(value) {
+  const key = String(value || "")
+    .trim()
+    .toLowerCase();
+  return INTERCALARY_WEEKDAY_FLOW_MODES.has(key) ? key : "in-flow";
+}
+
+function normalizeIntercalaryRecurrence(value) {
+  const key = String(value || "")
+    .trim()
+    .toLowerCase();
+  return INTERCALARY_RECURRENCES.has(key) ? key : "yearly";
+}
+
+export function normIntercalaryPeriod(raw, idx, monthsPerYear) {
+  const p = raw && typeof raw === "object" ? raw : {};
+  const maxMonth = Math.max(0, I(monthsPerYear, 12) - 1);
+  const placement = normalizeIntercalaryPlacement(p.placement);
+  const durationMode = normalizeIntercalaryDurationMode(p.durationMode);
+  const anchorMonthIndexRaw = p.anchorMonthIndex;
+  const anchorMonthIndex =
+    anchorMonthIndexRaw == null || anchorMonthIndexRaw === ""
+      ? null
+      : clampI(anchorMonthIndexRaw, 0, maxMonth);
+  return {
+    id: String(p.id || `intercalary-${idx + 1}`),
+    name: String(p.name || "").trim(),
+    placement,
+    anchorMonthIndex,
+    recurrence: normalizeIntercalaryRecurrence(p.recurrence),
+    year: Math.max(1, I(p.year ?? p.startYear ?? 1, 1)),
+    cycleYears: Math.max(1, I(p.cycleYears ?? 1, 1)),
+    offsetYear: Math.max(1, I(p.offsetYear ?? 1, 1)),
+    durationMode,
+    durationDays:
+      durationMode === "derived-remainder" ? null : Math.max(1, I(p.durationDays ?? 1, 1)),
+    weekdayFlowMode: normalizeIntercalaryWeekdayFlowMode(p.weekdayFlowMode),
+    exceptYears: parseIntList(p.exceptYears ?? p.skipYears ?? [], 1, 1000000),
+    legacyCompatibility: !!p.legacyCompatibility,
+  };
+}
+
+export function normIntercalaryPeriods(list, monthsPerYear) {
+  return (Array.isArray(list) ? list : [])
+    .map((period, idx) => normIntercalaryPeriod(period, idx, monthsPerYear))
+    .filter((period) => period.name || period.legacyCompatibility);
+}
+
+function buildLegacyDerivedRemainderIntercalaryPeriod() {
+  return {
+    id: LEGACY_INTERCALARY_PERIOD_ID,
+    name: "Year-end remainder",
+    placement: "append-to-month",
+    anchorMonthIndex: null,
+    recurrence: "yearly",
+    year: 1,
+    cycleYears: 1,
+    offsetYear: 1,
+    durationMode: "derived-remainder",
+    durationDays: null,
+    weekdayFlowMode: "in-flow",
+    exceptYears: [],
+    legacyCompatibility: true,
+  };
+}
+
+function hasLegacyIntercalaryCompatibilitySource(raw, ri, ru) {
+  if (hasOwn(raw, "inputs") || hasOwn(raw, "ui")) return true;
+  return [
+    "calendarName",
+    "basis",
+    "monthsPerYear",
+    "daysPerMonth",
+    "daysPerWeek",
+    "holidays",
+    "specialDays",
+    "festivalRules",
+    "intercalaryDays",
+    "leapRules",
+    "monthLengthOverrides",
+    "monthLengthOverridesEnabled",
+  ].some((key) => hasOwn(ri, key) || hasOwn(ru, key));
 }
 
 export function clonePlain(v) {
@@ -206,6 +317,41 @@ export function normalizeHolidayColorTag(value) {
     .trim()
     .toLowerCase();
   return HOLIDAY_COLOR_TAG_SET.has(key) ? key : "gold";
+}
+
+export function normalizeHolidayAlgorithmPresetScope(value) {
+  const scope = String(value || HOLIDAY_ALGORITHM_PRESET_SCOPE_NONE)
+    .trim()
+    .toLowerCase();
+  return scope === HOLIDAY_ALGORITHM_PRESET_SCOPE_EARTH_GREGORIAN
+    ? HOLIDAY_ALGORITHM_PRESET_SCOPE_EARTH_GREGORIAN
+    : HOLIDAY_ALGORITHM_PRESET_SCOPE_NONE;
+}
+
+export function holidayAlgorithmAllowed(scopeInput, algorithmKeyInput) {
+  const scope = normalizeHolidayAlgorithmPresetScope(scopeInput);
+  const algorithmKey = String(algorithmKeyInput || "none").trim();
+  if (algorithmKey === "none") return true;
+  if (algorithmKey === "gregorian-easter-western") {
+    return scope === HOLIDAY_ALGORITHM_PRESET_SCOPE_EARTH_GREGORIAN;
+  }
+  return HOLIDAY_ALGORITHMS.some(([value]) => value === algorithmKey);
+}
+
+export function buildHolidayAlgorithmSupport(scopeInput) {
+  const scope = normalizeHolidayAlgorithmPresetScope(scopeInput);
+  const allowsAlgorithmicAnchors = scope === HOLIDAY_ALGORITHM_PRESET_SCOPE_EARTH_GREGORIAN;
+  return {
+    scope,
+    allowsAlgorithmicAnchors,
+    availableAlgorithmKeys: HOLIDAY_ALGORITHMS.filter(([value]) =>
+      holidayAlgorithmAllowed(scope, value),
+    ).map(([value]) => value),
+    unavailableReason:
+      "Built-in Gregorian algorithm presets are only available in Sol/Earth Gregorian-compatible profiles.",
+    availableMessage:
+      "Gregorian Easter (Western) preset is available in this profile. Use the wider rule system for non-Gregorian holidays.",
+  };
 }
 
 export function normalizeHolidayCategoryFilters(raw) {
@@ -469,6 +615,8 @@ export function normHolidayRule(raw, idx, monthsPerYear) {
     recurrence: RECURRENCES.some(([v]) => v === h.recurrence) ? h.recurrence : "yearly",
     startMonth: clampI(h.startMonth ?? h.monthIndex ?? 0, 0, maxMonth),
     year: Math.max(1, I(h.year ?? h.startYear ?? 1, 1)),
+    cycleYears: Math.max(1, I(h.cycleYears ?? 1, 1)),
+    offsetYear: Math.max(1, I(h.offsetYear ?? 1, 1)),
     attrs,
     dayOfMonth: clampI(h.dayOfMonth ?? h.day ?? 1, 1, 400),
     durationDays: Math.max(1, I(h.durationDays ?? h.lengthDays ?? 1, 1)),
@@ -521,6 +669,8 @@ export function normFestivalRule(raw, idx, monthsPerYear) {
     recurrence: RECURRENCES.some(([v]) => v === f.recurrence) ? f.recurrence : "yearly",
     startMonth: clampI(f.startMonth ?? f.monthIndex ?? 0, 0, maxMonth),
     year: Math.max(1, I(f.year ?? f.startYear ?? 1, 1)),
+    cycleYears: Math.max(1, I(f.cycleYears ?? 1, 1)),
+    offsetYear: Math.max(1, I(f.offsetYear ?? 1, 1)),
     afterDay: clampI(f.afterDay ?? f.dayOfMonth ?? f.day ?? 0, 0, 500),
     durationDays: Math.max(1, I(f.durationDays ?? f.lengthDays ?? 1, 1)),
     outsideWeekFlow: !!(f.outsideWeekFlow ?? f.outsideWeek ?? f.intercalary),
@@ -657,18 +807,34 @@ export function evaluateWorkCyclesForDay(workCycles, absoluteDay) {
 }
 
 export function recursInMonth(holiday, year, monthIndex, monthsPerYear) {
-  if (holiday.recurrence === "one-off") {
+  const recurrence = String(holiday?.recurrence || "yearly");
+  const safeYear = Math.max(1, I(year, 1));
+  const safeMonthsPerYear = Math.max(1, I(monthsPerYear, 12));
+  const safeMonthIndex = clampI(monthIndex, 0, safeMonthsPerYear - 1);
+  const startMonth = clampI(holiday?.startMonth, 0, safeMonthsPerYear - 1);
+
+  if (recurrence === "one-off") {
+    return safeYear === Math.max(1, I(holiday?.year, 1)) && safeMonthIndex === startMonth;
+  }
+
+  if (recurrence === "cyclic") {
+    const cycleYears = Math.max(1, I(holiday?.cycleYears, 1));
+    const offsetYear = Math.max(1, I(holiday?.offsetYear, 1));
     return (
-      Math.max(1, I(year, 1)) === Math.max(1, I(holiday.year, 1)) &&
-      clampI(monthIndex, 0, monthsPerYear - 1) === clampI(holiday.startMonth, 0, monthsPerYear - 1)
+      safeMonthIndex === startMonth &&
+      safeYear >= offsetYear &&
+      mod(safeYear - offsetYear, cycleYears) === 0
     );
   }
-  const now =
-    (Math.max(1, I(year, 1)) - 1) * monthsPerYear + clampI(monthIndex, 0, monthsPerYear - 1);
-  const start = clampI(holiday.startMonth, 0, monthsPerYear - 1);
+
+  const now = (safeYear - 1) * safeMonthsPerYear + safeMonthIndex;
+  const start = startMonth;
   if (now < start) return false;
-  if (holiday.recurrence === "weekly") return true;
-  const interval = RECUR_MONTHS[holiday.recurrence] || 12;
+  if (recurrence === "weekly") return true;
+  const interval =
+    recurrence === "yearly"
+      ? safeMonthsPerYear
+      : Math.max(1, I(RECUR_MONTHS[recurrence], safeMonthsPerYear));
   return mod(now - start, interval) === 0;
 }
 
@@ -923,6 +1089,7 @@ export function createCalendarStateStoreBindings({
         monthNames: [],
         monthLengthOverridesEnabled: false,
         monthLengthOverrides: [],
+        intercalaryPeriods: [],
         yearDisplayMode: "numeric",
         yearOffset: 0,
         yearPrefix: "",
@@ -947,11 +1114,14 @@ export function createCalendarStateStoreBindings({
         leapRules: [],
         holidays: [],
         holidayAdvanced: false,
+        holidayAlgorithmPresetScope: HOLIDAY_ALGORITHM_PRESET_SCOPE_NONE,
         festivalRules: [],
         holidayCategoryFilters: normalizeHolidayCategoryFilters({}),
         workWeekendRule: "none",
         weekendDayIndexes: [5, 6],
         workCycles: [],
+        auditScope: "month",
+        auditKind: "all",
         jumpAbsoluteDay: 0,
         jumpYear: 1,
         jumpMonthIndex: 0,
@@ -979,6 +1149,44 @@ export function createCalendarStateStoreBindings({
     const raw = rawProfile && typeof rawProfile === "object" ? rawProfile : {};
     const ri = raw.inputs && typeof raw.inputs === "object" ? raw.inputs : raw;
     const ru = raw.ui && typeof raw.ui === "object" ? raw.ui : raw;
+    const monthsPerYearInput =
+      ri.monthsPerYear == null ? d.inputs.monthsPerYear : clampI(ri.monthsPerYear, 1, 240);
+    const hasExplicitIntercalaryPeriods =
+      hasOwn(raw, "intercalaryPeriods") ||
+      (raw.ui && typeof raw.ui === "object" && hasOwn(raw.ui, "intercalaryPeriods"));
+    const shouldSynthesizeLegacyIntercalaryPeriod =
+      !hasExplicitIntercalaryPeriods && hasLegacyIntercalaryCompatibilitySource(raw, ri, ru);
+    const normalizedIntercalaryPeriods = normIntercalaryPeriods(
+      hasExplicitIntercalaryPeriods ? ru.intercalaryPeriods : [],
+      monthsPerYearInput ?? 12,
+    );
+    if (
+      shouldSynthesizeLegacyIntercalaryPeriod &&
+      !normalizedIntercalaryPeriods.some((period) => period.legacyCompatibility)
+    ) {
+      normalizedIntercalaryPeriods.push(
+        normIntercalaryPeriod(
+          buildLegacyDerivedRemainderIntercalaryPeriod(),
+          0,
+          monthsPerYearInput ?? 12,
+        ),
+      );
+    }
+    const sourcePlanetId = String(ri.sourcePlanetId || d.inputs.sourcePlanetId || "").trim();
+    const legacyHolidayList = Array.isArray(ru.holidays)
+      ? ru.holidays
+      : Array.isArray(ru.specialDays)
+        ? ru.specialDays
+        : [];
+    const inferredHolidayAlgorithmPresetScope =
+      sourcePlanetId === "p_earth" &&
+      legacyHolidayList.some(
+        (holiday) =>
+          String(holiday?.anchor?.type || "") === "algorithmic" &&
+          String(holiday?.anchor?.algorithmKey || "") === "gregorian-easter-western",
+      )
+        ? HOLIDAY_ALGORITHM_PRESET_SCOPE_EARTH_GREGORIAN
+        : HOLIDAY_ALGORITHM_PRESET_SCOPE_NONE;
     const profile = {
       inputs: {
         ...d.inputs,
@@ -987,7 +1195,7 @@ export function createCalendarStateStoreBindings({
         extraMoonIds: uniqIds(
           ri.extraMoonIds || ri.additionalMoonIds || d.inputs.extraMoonIds,
         ).slice(0, 3),
-        monthsPerYear: ri.monthsPerYear == null ? null : clampI(ri.monthsPerYear, 1, 240),
+        monthsPerYear: monthsPerYearInput,
         daysPerMonth: ri.daysPerMonth == null ? null : clampI(ri.daysPerMonth, 1, 500),
         daysPerWeek: ri.daysPerWeek == null ? null : clampI(ri.daysPerWeek, 1, 30),
       },
@@ -1008,6 +1216,7 @@ export function createCalendarStateStoreBindings({
           ru.monthLengthOverridesEnabled ?? d.ui.monthLengthOverridesEnabled
         ),
         monthLengthOverrides: splitMonthLengths(ru.monthLengthOverrides),
+        intercalaryPeriods: normalizedIntercalaryPeriods,
         yearDisplayMode: ["numeric", "era", "pre-calendar"].includes(
           String(ru.yearDisplayMode || ""),
         )
@@ -1034,6 +1243,9 @@ export function createCalendarStateStoreBindings({
             ? ru.specialDays
             : [],
         holidayAdvanced: !!(ru.holidayAdvanced ?? d.ui.holidayAdvanced),
+        holidayAlgorithmPresetScope: normalizeHolidayAlgorithmPresetScope(
+          ru.holidayAlgorithmPresetScope ?? inferredHolidayAlgorithmPresetScope,
+        ),
         festivalRules: Array.isArray(ru.festivalRules)
           ? ru.festivalRules
           : Array.isArray(ru.intercalaryDays)
@@ -1056,6 +1268,14 @@ export function createCalendarStateStoreBindings({
         ),
         workCycles: Array.isArray(ru.workCycles) ? ru.workCycles : [],
         holidayCategoryFilters: normalizeHolidayCategoryFilters(ru.holidayCategoryFilters),
+        auditScope: ["month", "year"].includes(String(ru.auditScope || ""))
+          ? String(ru.auditScope)
+          : d.ui.auditScope,
+        auditKind: ["all", "holiday", "festival", "intercalary", "marker", "cycle"].includes(
+          String(ru.auditKind || ""),
+        )
+          ? String(ru.auditKind)
+          : d.ui.auditKind,
         jumpAbsoluteDay: Math.max(0, I(ru.jumpAbsoluteDay ?? 0, 0)),
         jumpYear: Math.max(1, I(ru.jumpYear ?? 1, 1)),
         jumpMonthIndex: Math.max(0, I(ru.jumpMonthIndex ?? 0, 0)),
@@ -1096,7 +1316,7 @@ export function createCalendarStateStoreBindings({
         drawerSection: ["structure", "identity", "rules", "output"].includes(ru.drawerSection)
           ? ru.drawerSection
           : d.ui.drawerSection,
-        rulesTab: ["holidays", "festivals", "leap", "cycles"].includes(ru.rulesTab)
+        rulesTab: ["holidays", "festivals", "intercalary", "leap", "cycles"].includes(ru.rulesTab)
           ? ru.rulesTab
           : d.ui.rulesTab,
       },
@@ -1201,6 +1421,8 @@ export function createCalendarStateStoreBindings({
     defaultState,
     deriveMoonSynodicDays,
     derivePlanetPeriodDays,
+    normIntercalaryPeriod,
+    normIntercalaryPeriods,
     normalizeSingleProfile,
     persistState,
     readState,

@@ -31,16 +31,18 @@ export async function copyTextToClipboard(text) {
 }
 
 export function createCalendarExportEnvelope(state, clonePlain) {
+  const clone =
+    typeof clonePlain === "function" ? clonePlain : (value) => JSON.parse(JSON.stringify(value));
   let calendarPayload = {
-    inputs: { ...state.inputs },
-    ui: { ...state.ui },
+    inputs: clone(state?.inputs || {}),
+    ui: clone(state?.ui || {}),
   };
   if (Array.isArray(state?._allProfiles) && state._allProfiles.length) {
     const profiles = state._allProfiles.map((profile, idx) => ({
       id: String(profile?.id || `cal-${idx + 1}`),
       name: String(profile?.name || profile?.ui?.calendarName || `Calendar ${idx + 1}`),
-      inputs: clonePlain(profile?.inputs || {}),
-      ui: clonePlain(profile?.ui || {}),
+      inputs: clone(profile?.inputs || {}),
+      ui: clone(profile?.ui || {}),
     }));
     calendarPayload = {
       activeProfileId: String(state.profileId || profiles[0]?.id || "cal-1"),
@@ -62,7 +64,16 @@ export function readCalendarCandidate(parsed) {
   if (parsed.world && parsed.world.calendar && typeof parsed.world.calendar === "object") {
     return parsed.world.calendar;
   }
-  if (parsed.inputs || parsed.ui || parsed.specialDays || parsed.holidays || parsed.leapRules) {
+  if (
+    parsed.inputs ||
+    parsed.ui ||
+    parsed.specialDays ||
+    parsed.holidays ||
+    parsed.leapRules ||
+    parsed.festivalRules ||
+    parsed.workCycles ||
+    parsed.intercalaryPeriods
+  ) {
     return parsed;
   }
   return null;

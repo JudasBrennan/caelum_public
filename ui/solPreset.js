@@ -128,6 +128,24 @@ const GREGORIAN_LEAP_RULES = [
   },
 ];
 
+const GREGORIAN_COMPATIBILITY_INTERCALARY_PERIODS = [
+  {
+    id: "intercalary-gregorian-derived-remainder",
+    name: "Gregorian derived remainder",
+    placement: "append-to-month",
+    anchorMonthIndex: 11,
+    recurrence: "yearly",
+    year: 1,
+    cycleYears: 1,
+    offsetYear: 1,
+    durationMode: "derived-remainder",
+    durationDays: null,
+    weekdayFlowMode: "in-flow",
+    exceptYears: [],
+    legacyCompatibility: true,
+  },
+];
+
 const UK_SUBSTITUTE_OBSERVANCE = {
   weekendRule: "next-weekday",
   holidayConflictRule: "next-weekday",
@@ -1176,7 +1194,9 @@ const SOL_PRESET_WORLD = {
           },
           leapRules: GREGORIAN_LEAP_RULES,
           holidays: UK_HOLIDAY_RULES,
+          holidayAlgorithmPresetScope: "earth-gregorian",
           festivalRules: [],
+          intercalaryPeriods: GREGORIAN_COMPATIBILITY_INTERCALARY_PERIODS,
           holidayCategoryFilters: {
             civic: true,
             religious: true,
@@ -1221,51 +1241,53 @@ const SOL_PRESET_WORLD = {
 const SOL_SELECTED_PLANET_ID = "p_earth";
 const SOL_SELECTED_MOON_ID = "m_luna";
 const SOL_SELECTED_COMET_ID = "c_halley";
-const SOL_MAJOR_GAS_GIANT_MOON_IDS = new Set([
+const SOL_EXPANDED_PLANET_IDS = new Set([
+  "p_mercury",
+  "p_venus",
+  "p_earth",
+  "p_mars",
+  "p_ceres",
+  "p_pluto",
+]);
+const SOL_EXPANDED_GAS_GIANT_IDS = new Set(["gg_jupiter", "gg_saturn", "gg_uranus", "gg_neptune"]);
+const SOL_EXPANDED_DEBRIS_DISK_IDS = new Set(["dd_asteroid_belt", "dd_kuiper_belt"]);
+const SOL_EXPANDED_COMET_IDS = new Set(["c_halley"]);
+const SOL_EXPANDED_MOON_IDS = new Set([
+  "m_luna",
+  "m_phobos",
+  "m_deimos",
   "m_io",
   "m_europa",
   "m_ganymede",
   "m_callisto",
   "m_mimas",
   "m_enceladus",
-  "m_tethys",
-  "m_dione",
-  "m_rhea",
   "m_titan",
-  "m_s_hyperion",
   "m_iapetus",
   "m_miranda",
-  "m_ariel",
-  "m_umbriel",
   "m_titania",
-  "m_oberon",
   "m_triton",
-  "m_nereid",
+  "m_charon",
 ]);
-const SOL_INNER_REGULAR_MOON_LIMITS_KM = Object.freeze({
-  gg_jupiter: 300000,
-  gg_saturn: 500000,
-  gg_uranus: 1000000,
-  gg_neptune: 500000,
-});
 
-function isProvisionalMoonDesignation(moon) {
-  const name = String(moon?.name || moon?.inputs?.name || "").trim();
-  return /^S\//.test(name);
+function shouldKeepSolPresetPlanet(planet) {
+  return SOL_EXPANDED_PLANET_IDS.has(planet?.id);
 }
 
-function isCoreGasGiantMoon(moon) {
-  if (!moon?.planetId?.startsWith?.("gg_")) return false;
-  if (SOL_MAJOR_GAS_GIANT_MOON_IDS.has(moon.id)) return true;
-  const limitKm = SOL_INNER_REGULAR_MOON_LIMITS_KM[moon.planetId] ?? null;
-  const semiMajorAxisKm = Number(moon?.inputs?.semiMajorAxisKm);
-  return Number.isFinite(limitKm) && Number.isFinite(semiMajorAxisKm) && semiMajorAxisKm < limitKm;
+function shouldKeepSolPresetGasGiant(gasGiant) {
+  return SOL_EXPANDED_GAS_GIANT_IDS.has(gasGiant?.id);
+}
+
+function shouldKeepSolPresetDebrisDisk(disk) {
+  return SOL_EXPANDED_DEBRIS_DISK_IDS.has(disk?.id);
+}
+
+function shouldKeepSolPresetComet(comet) {
+  return SOL_EXPANDED_COMET_IDS.has(comet?.id);
 }
 
 function shouldKeepSolPresetMoon(moon) {
-  if (isProvisionalMoonDesignation(moon)) return false;
-  if (moon?.planetId?.startsWith?.("gg_")) return isCoreGasGiantMoon(moon);
-  return true;
+  return SOL_EXPANDED_MOON_IDS.has(moon?.id);
 }
 
 function cloneSelectedBodySnapshot(entry) {
@@ -1287,14 +1309,23 @@ function buildCompleteSolPresetWorld() {
   world.system.orbitMode = SOL_PRESET_WORLD.system.orbitMode;
   world.system.spacingFactor = SOL_PRESET_WORLD.system.spacingFactor;
   world.system.orbit1Au = SOL_PRESET_WORLD.system.orbit1Au;
-  world.system.gasGiants = makeCollection(deepClone(SOL_GAS_GIANTS), "gg_");
+  world.system.gasGiants = makeCollection(
+    deepClone(SOL_GAS_GIANTS).filter(shouldKeepSolPresetGasGiant),
+    "gg_",
+  );
   world.system.gasGiants.selectedId = SOL_PRESET_WORLD.system.gasGiants.selectedId;
-  world.system.debrisDisks = makeCollection(deepClone(SOL_DEBRIS_DISKS), "dd_");
-  world.system.comets = makeCollection(deepClone(SOL_COMETS), "c_");
+  world.system.debrisDisks = makeCollection(
+    deepClone(SOL_DEBRIS_DISKS).filter(shouldKeepSolPresetDebrisDisk),
+    "dd_",
+  );
+  world.system.comets = makeCollection(
+    deepClone(SOL_COMETS).filter(shouldKeepSolPresetComet),
+    "c_",
+  );
   world.system.comets.selectedId = SOL_SELECTED_COMET_ID;
   world.system.oortCloud = deepClone(SOL_OORT_CLOUD);
 
-  world.planets = makeCollection(deepClone(SOL_PLANETS), "p_");
+  world.planets = makeCollection(deepClone(SOL_PLANETS).filter(shouldKeepSolPresetPlanet), "p_");
   world.planets.selectedId = SOL_SELECTED_PLANET_ID;
   world.moons = makeCollection(deepClone(SOL_MOONS).filter(shouldKeepSolPresetMoon), "m_");
   world.moons.selectedId = SOL_SELECTED_MOON_ID;

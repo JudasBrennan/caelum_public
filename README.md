@@ -1,4 +1,4 @@
-# WorldSmith Web 2.2.0
+# WorldSmith Web 2.3.0
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -6,6 +6,9 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- The calendar builder now supports structural intercalary periods before months, after months, at year end, or appended inside a month, with dedicated authoring, rendering, and export support.
+- Holiday and festival rules now follow authored calendar years correctly, support cyclic year intervals, and expose a Rule Audit workflow with preview, agenda, and trace surfaces.
+- Calendar JSON, printable, and ICS flows now preserve the updated calendar model more faithfully, and the Sol and Realmspace presets better demonstrate the shipped calendar structure.
 - Consequence-aware destructive confirmations now explain what will change before deleting planets, moons, stars, calendar profiles, cluster items, or replacing browser data.
 - The shell interaction model now treats dialogs and the mobile nav drawer consistently, with better focus handling, clearer route orientation, and a quieter accessibility surface.
 - Star and Calendar now surface current-state summaries and inline guidance so dense editor workflows are easier to scan without tooltip hunting.

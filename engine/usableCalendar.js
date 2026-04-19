@@ -187,6 +187,697 @@ function isLeapRuleActive(rule, year) {
   return mod(year - offset, cycle) === 0;
 }
 
+function parseYearList(raw) {
+  if (Array.isArray(raw)) {
+    const out = [];
+    const seen = new Set();
+    for (const value of raw) {
+      const year = Math.max(1, positiveInt(value, NaN));
+      if (!Number.isFinite(year) || seen.has(year)) continue;
+      seen.add(year);
+      out.push(year);
+    }
+    return out.sort((a, b) => a - b);
+  }
+
+  const text = String(raw || "").trim();
+  if (!text) return [];
+
+  const out = [];
+  const seen = new Set();
+  for (const token of text.split(/[\s,;|]+/g)) {
+    const year = Math.max(1, positiveInt(token, NaN));
+    if (!Number.isFinite(year) || seen.has(year)) continue;
+    seen.add(year);
+    out.push(year);
+  }
+  return out.sort((a, b) => a - b);
+}
+
+function normalizeIntercalaryPeriod(period, index, monthsPerYear) {
+  const raw = period && typeof period === "object" ? period : {};
+  const maxMonthIndex = Math.max(0, positiveInt(monthsPerYear, 1) - 1);
+  const placement = String(raw?.placement || "")
+    .trim()
+    .toLowerCase();
+  const durationMode = String(raw?.durationMode || "")
+    .trim()
+    .toLowerCase();
+  const weekdayFlowMode = String(raw?.weekdayFlowMode || "")
+    .trim()
+    .toLowerCase();
+  const recurrence = String(raw?.recurrence || "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedPlacement = [
+    "append-to-month",
+    "before-month",
+    "after-month",
+    "year-end",
+  ].includes(placement)
+    ? placement
+    : "year-end";
+  const normalizedDurationMode = ["fixed", "derived-remainder"].includes(durationMode)
+    ? durationMode
+    : "fixed";
+  const normalizedWeekdayFlowMode = ["in-flow", "outside-flow"].includes(weekdayFlowMode)
+    ? weekdayFlowMode
+    : "in-flow";
+  const normalizedRecurrence = ["yearly", "one-off", "cyclic"].includes(recurrence)
+    ? recurrence
+    : "yearly";
+
+  const anchorMonthIndex =
+    raw?.anchorMonthIndex == null || raw.anchorMonthIndex === ""
+      ? null
+      : clamp(toInt(raw.anchorMonthIndex, maxMonthIndex), 0, maxMonthIndex);
+
+  return {
+    id: String(raw?.id || `intercalary-${index + 1}`),
+    name: String(raw?.name || "").trim(),
+    placement: normalizedPlacement,
+    anchorMonthIndex,
+    recurrence: normalizedRecurrence,
+    year: Math.max(1, positiveInt(raw?.year ?? raw?.startYear ?? 1, 1)),
+    cycleYears: Math.max(1, positiveInt(raw?.cycleYears ?? 1, 1)),
+    offsetYear: Math.max(1, positiveInt(raw?.offsetYear ?? 1, 1)),
+    durationMode: normalizedDurationMode,
+    durationDays:
+      normalizedDurationMode === "derived-remainder"
+        ? null
+        : Math.max(1, positiveInt(raw?.durationDays ?? 1, 1)),
+    weekdayFlowMode: normalizedWeekdayFlowMode,
+    exceptYears: parseYearList(raw?.exceptYears ?? raw?.skipYears ?? []),
+    legacyCompatibility: !!raw?.legacyCompatibility,
+  };
+}
+
+function normalizeIntercalaryPeriodsForYear(intercalaryPeriods, metrics) {
+  const monthsPerYear = positiveInt(metrics?.monthsPerYear, 12);
+  if (intercalaryPeriods === undefined) {
+    const legacyDays = toInt(metrics?.intercalaryDays, 0);
+    if (legacyDays === 0) return [];
+    return [
+      normalizeIntercalaryPeriod(
+        {
+          id: "__legacy-metrics-intercalary__",
+          name: "Year-end remainder",
+          placement: "append-to-month",
+          anchorMonthIndex: monthsPerYear - 1,
+          recurrence: "yearly",
+          year: 1,
+          cycleYears: 1,
+          offsetYear: 1,
+          durationMode: "derived-remainder",
+          weekdayFlowMode: "in-flow",
+          legacyCompatibility: true,
+        },
+        0,
+        monthsPerYear,
+      ),
+    ];
+  }
+
+  return (Array.isArray(intercalaryPeriods) ? intercalaryPeriods : [])
+    .map((period, index) => normalizeIntercalaryPeriod(period, index, monthsPerYear))
+    .filter((period) => period.name || period.legacyCompatibility);
+}
+
+function isIntercalaryPeriodActive(period, year) {
+  const safeYear = Math.max(1, positiveInt(year, 1));
+  if ((period?.exceptYears || []).includes(safeYear)) return false;
+
+  if (period?.recurrence === "one-off") {
+    return safeYear === Math.max(1, positiveInt(period?.year, 1));
+  }
+  if (period?.recurrence === "cyclic") {
+    const cycle = Math.max(1, positiveInt(period?.cycleYears, 1));
+    const offset = Math.max(1, positiveInt(period?.offsetYear, 1));
+    return mod(safeYear - offset, cycle) === 0;
+  }
+  return safeYear >= Math.max(1, positiveInt(period?.year, 1));
+}
+
+function resolveIntercalaryAnchorMonth(period, monthsPerYear) {
+  if (String(period?.placement || "") === "year-end") return null;
+  const fallback = Math.max(0, positiveInt(monthsPerYear, 1) - 1);
+  if (period?.anchorMonthIndex == null) return fallback;
+  return clamp(toInt(period.anchorMonthIndex, fallback), 0, fallback);
+}
+
+export function createYearLayoutRuntime() {
+  return {
+    daysBeforeYear: new Map([[1, 0]]),
+    weekdayAdvancingDaysBeforeYear: new Map([[1, 0]]),
+    yearLayouts: new Map(),
+  };
+}
+
+function buildYearLayoutCacheKey({
+  metrics,
+  year,
+  leapRules,
+  monthLengthOverrides,
+  intercalaryPeriods,
+  firstYearStartDayIndex,
+}) {
+  return JSON.stringify({
+    metrics: {
+      monthsPerYear: positiveInt(metrics?.monthsPerYear, 12),
+      daysPerMonth: Math.max(1, positiveInt(metrics?.daysPerMonth, 30)),
+      daysPerWeek: positiveInt(metrics?.daysPerWeek, 7),
+      weeksPerMonth: positiveInt(metrics?.weeksPerMonth, 4),
+      intercalaryDays: toInt(metrics?.intercalaryDays, 0),
+    },
+    year: Math.max(1, positiveInt(year, 1)),
+    leapRules: normalizeLeapRules(leapRules, positiveInt(metrics?.monthsPerYear, 12)),
+    monthLengthOverrides: normalizeMonthLengthOverrides(
+      monthLengthOverrides,
+      positiveInt(metrics?.monthsPerYear, 12),
+    ),
+    intercalaryPeriods: normalizeIntercalaryPeriodsForYear(intercalaryPeriods, metrics),
+    firstYearStartDayIndex: mod(
+      toInt(firstYearStartDayIndex, 0),
+      positiveInt(metrics?.daysPerWeek, 7),
+    ),
+  });
+}
+
+function sumSegmentLengths(segments) {
+  return segments.reduce((sum, segment) => sum + Math.max(0, toInt(segment?.lengthDays, 0)), 0);
+}
+
+function resolveYearStructure({
+  metrics,
+  year,
+  leapRules = [],
+  monthLengthOverrides = [],
+  intercalaryPeriods,
+}) {
+  const safeYear = Math.max(1, positiveInt(year, 1));
+  const monthsPerYear = positiveInt(metrics?.monthsPerYear, 12);
+  const baseDaysPerMonth = Math.max(1, positiveInt(metrics?.daysPerMonth, 30));
+  const normalizedOverrides = normalizeMonthLengthOverrides(monthLengthOverrides, monthsPerYear);
+  const normalizedLeapRules = normalizeLeapRules(leapRules, monthsPerYear);
+  const normalizedIntercalaryPeriods = normalizeIntercalaryPeriodsForYear(
+    intercalaryPeriods,
+    metrics,
+  );
+  const activeIntercalaryPeriods = normalizedIntercalaryPeriods.filter((period) =>
+    isIntercalaryPeriodActive(period, safeYear),
+  );
+
+  const baseMonthLengths = Array.from(
+    { length: monthsPerYear },
+    (_, index) => normalizedOverrides[index] ?? baseDaysPerMonth,
+  );
+  const appendAdjustmentsByMonth = Array.from({ length: monthsPerYear }, () => []);
+  const beforeMonthSegments = new Map();
+  const afterMonthSegments = new Map();
+  const yearEndSegments = [];
+
+  const addPlacementSegment = (period, lengthDays) => {
+    const resolvedLength = Math.max(0, toInt(lengthDays, 0));
+    if (resolvedLength <= 0) return;
+    const anchorMonthIndex = resolveIntercalaryAnchorMonth(period, monthsPerYear);
+    const resolved = {
+      intercalaryPeriodId: period.id,
+      placement: period.placement,
+      anchorMonthIndex,
+      lengthDays: resolvedLength,
+      advancesWeekdayFlow: String(period.weekdayFlowMode || "in-flow") !== "outside-flow",
+      weekdayFlowMode: String(period.weekdayFlowMode || "in-flow"),
+      legacyCompatibility: !!period.legacyCompatibility,
+      name: period.name,
+    };
+    if (period.placement === "year-end") {
+      yearEndSegments.push(resolved);
+      return;
+    }
+    if (period.placement === "before-month") {
+      if (!beforeMonthSegments.has(anchorMonthIndex)) beforeMonthSegments.set(anchorMonthIndex, []);
+      beforeMonthSegments.get(anchorMonthIndex).push(resolved);
+      return;
+    }
+    if (period.placement === "after-month") {
+      if (!afterMonthSegments.has(anchorMonthIndex)) afterMonthSegments.set(anchorMonthIndex, []);
+      afterMonthSegments.get(anchorMonthIndex).push(resolved);
+    }
+  };
+
+  for (const period of activeIntercalaryPeriods) {
+    if (period.durationMode !== "fixed") continue;
+    if (period.placement === "append-to-month") {
+      const anchorMonthIndex = resolveIntercalaryAnchorMonth(period, monthsPerYear);
+      appendAdjustmentsByMonth[anchorMonthIndex].push({
+        intercalaryPeriodId: period.id,
+        lengthDays: Math.max(0, toInt(period.durationDays, 0)),
+        advancesWeekdayFlow: String(period.weekdayFlowMode || "in-flow") !== "outside-flow",
+        weekdayFlowMode: String(period.weekdayFlowMode || "in-flow"),
+        legacyCompatibility: !!period.legacyCompatibility,
+        name: period.name,
+      });
+      continue;
+    }
+    addPlacementSegment(period, period.durationDays);
+  }
+
+  const fixedAppendDays = appendAdjustmentsByMonth.reduce(
+    (sum, list) => sum + list.reduce((inner, item) => inner + item.lengthDays, 0),
+    0,
+  );
+  const fixedNonAppendDays =
+    sumSegmentLengths([...beforeMonthSegments.values()].flat()) +
+    sumSegmentLengths([...afterMonthSegments.values()].flat()) +
+    sumSegmentLengths(yearEndSegments);
+
+  const derivedPeriod =
+    activeIntercalaryPeriods.find((period) => period.durationMode === "derived-remainder") || null;
+  if (derivedPeriod) {
+    let derivedLengthDays = 0;
+    if (derivedPeriod.legacyCompatibility) {
+      derivedLengthDays = toInt(metrics?.intercalaryDays, 0);
+    } else {
+      const resolvedYearTarget =
+        monthsPerYear * baseDaysPerMonth + toInt(metrics?.intercalaryDays, 0);
+      derivedLengthDays =
+        resolvedYearTarget -
+        baseMonthLengths.reduce((sum, days) => sum + days, 0) -
+        fixedAppendDays -
+        fixedNonAppendDays;
+    }
+    if (derivedPeriod.placement === "append-to-month") {
+      const anchorMonthIndex = resolveIntercalaryAnchorMonth(derivedPeriod, monthsPerYear);
+      appendAdjustmentsByMonth[anchorMonthIndex].push({
+        intercalaryPeriodId: derivedPeriod.id,
+        lengthDays: toInt(derivedLengthDays, 0),
+        advancesWeekdayFlow: String(derivedPeriod.weekdayFlowMode || "in-flow") !== "outside-flow",
+        weekdayFlowMode: String(derivedPeriod.weekdayFlowMode || "in-flow"),
+        legacyCompatibility: !!derivedPeriod.legacyCompatibility,
+        name: derivedPeriod.name,
+      });
+    } else {
+      addPlacementSegment(derivedPeriod, derivedLengthDays);
+    }
+  }
+
+  const monthLengths = baseMonthLengths.map((baseLength, monthIndex) => {
+    const appendedDelta = appendAdjustmentsByMonth[monthIndex].reduce(
+      (sum, item) => sum + toInt(item.lengthDays, 0),
+      0,
+    );
+    return Math.max(1, baseLength + appendedDelta);
+  });
+
+  for (const rule of normalizedLeapRules) {
+    if (!isLeapRuleActive(rule, safeYear)) continue;
+    const monthIndex = clamp(toInt(rule.monthIndex, 0), 0, monthsPerYear - 1);
+    monthLengths[monthIndex] = Math.max(1, monthLengths[monthIndex] + toInt(rule.dayDelta, 0));
+  }
+
+  return {
+    monthsPerYear,
+    monthLengths,
+    appendAdjustmentsByMonth,
+    beforeMonthSegments,
+    afterMonthSegments,
+    yearEndSegments,
+  };
+}
+
+function getDaysBeforeYearInternal(options, runtime) {
+  const safeYear = Math.max(1, positiveInt(options?.year, 1));
+  if (runtime.daysBeforeYear.has(safeYear)) return runtime.daysBeforeYear.get(safeYear);
+
+  let highestKnownYear = 1;
+  for (const cachedYear of runtime.daysBeforeYear.keys()) {
+    if (cachedYear <= safeYear && cachedYear > highestKnownYear) highestKnownYear = cachedYear;
+  }
+
+  let total = runtime.daysBeforeYear.get(highestKnownYear) || 0;
+  for (let currentYear = highestKnownYear; currentYear < safeYear; currentYear++) {
+    const yearLength = buildYearLayoutForYearInternal(
+      { ...options, year: currentYear },
+      runtime,
+    ).yearLengthDays;
+    total += yearLength;
+    runtime.daysBeforeYear.set(currentYear + 1, total);
+  }
+  return runtime.daysBeforeYear.get(safeYear) || 0;
+}
+
+function getWeekdayAdvancingDaysBeforeYearInternal(options, runtime) {
+  const safeYear = Math.max(1, positiveInt(options?.year, 1));
+  if (runtime.weekdayAdvancingDaysBeforeYear.has(safeYear)) {
+    return runtime.weekdayAdvancingDaysBeforeYear.get(safeYear);
+  }
+
+  let highestKnownYear = 1;
+  for (const cachedYear of runtime.weekdayAdvancingDaysBeforeYear.keys()) {
+    if (cachedYear <= safeYear && cachedYear > highestKnownYear) highestKnownYear = cachedYear;
+  }
+
+  let total = runtime.weekdayAdvancingDaysBeforeYear.get(highestKnownYear) || 0;
+  for (let currentYear = highestKnownYear; currentYear < safeYear; currentYear++) {
+    const weekdayAdvancingDays = buildYearLayoutForYearInternal(
+      { ...options, year: currentYear },
+      runtime,
+    ).weekdayAdvancingDays;
+    total += weekdayAdvancingDays;
+    runtime.weekdayAdvancingDaysBeforeYear.set(currentYear + 1, total);
+  }
+  return runtime.weekdayAdvancingDaysBeforeYear.get(safeYear) || 0;
+}
+
+function buildYearLayoutForYearInternal(
+  {
+    metrics,
+    year = 1,
+    leapRules = [],
+    monthLengthOverrides = [],
+    intercalaryPeriods,
+    firstYearStartDayIndex = 0,
+  },
+  runtime,
+) {
+  const options = {
+    metrics,
+    year,
+    leapRules,
+    monthLengthOverrides,
+    intercalaryPeriods,
+    firstYearStartDayIndex,
+  };
+  const cacheKey = buildYearLayoutCacheKey(options);
+  if (runtime.yearLayouts.has(cacheKey)) return runtime.yearLayouts.get(cacheKey);
+
+  const safeYear = Math.max(1, positiveInt(year, 1));
+  const daysPerWeek = positiveInt(metrics?.daysPerWeek, 7);
+  const firstStartWeekday = mod(toInt(firstYearStartDayIndex, 0), daysPerWeek);
+  const yearAbsoluteStart = getDaysBeforeYearInternal({ ...options, year: safeYear }, runtime);
+  const weekdayAdvancingDaysBeforeYear = getWeekdayAdvancingDaysBeforeYearInternal(
+    { ...options, year: safeYear },
+    runtime,
+  );
+  const yearStartWeekdayIndex = mod(
+    firstStartWeekday + weekdayAdvancingDaysBeforeYear,
+    daysPerWeek,
+  );
+  const structure = resolveYearStructure(options);
+
+  let absoluteCursor = yearAbsoluteStart;
+  let weekdayCursor = yearStartWeekdayIndex;
+  let weekdayAdvancingDays = 0;
+  const monthSegments = Array.from({ length: structure.monthsPerYear }, () => null);
+  const segments = [];
+
+  const pushIntercalarySegments = (items) => {
+    for (const item of items || []) {
+      const lengthDays = Math.max(0, toInt(item.lengthDays, 0));
+      if (lengthDays <= 0) continue;
+      const segment = {
+        kind: "intercalary",
+        year: safeYear,
+        monthIndex: item.anchorMonthIndex,
+        lengthDays,
+        absoluteStartDay: absoluteCursor,
+        dayOfYearStart: absoluteCursor - yearAbsoluteStart,
+        startWeekdayIndex: weekdayCursor,
+        advancesWeekdayFlow: !!item.advancesWeekdayFlow,
+        intercalaryPeriodId: item.intercalaryPeriodId,
+        placement: item.placement,
+        anchorMonthIndex: item.anchorMonthIndex,
+        weekdayFlowMode: item.weekdayFlowMode,
+        legacyCompatibility: !!item.legacyCompatibility,
+        name: item.name,
+      };
+      segments.push(segment);
+      absoluteCursor += lengthDays;
+      if (segment.advancesWeekdayFlow) {
+        weekdayCursor = mod(weekdayCursor + lengthDays, daysPerWeek);
+        weekdayAdvancingDays += lengthDays;
+      }
+    }
+  };
+
+  for (let monthIndex = 0; monthIndex < structure.monthsPerYear; monthIndex++) {
+    pushIntercalarySegments(structure.beforeMonthSegments.get(monthIndex));
+
+    const monthLength = Math.max(1, toInt(structure.monthLengths[monthIndex], 1));
+    const segment = {
+      kind: "month",
+      year: safeYear,
+      monthIndex,
+      lengthDays: monthLength,
+      absoluteStartDay: absoluteCursor,
+      dayOfYearStart: absoluteCursor - yearAbsoluteStart,
+      startWeekdayIndex: weekdayCursor,
+      advancesWeekdayFlow: true,
+      intercalaryPeriodId: null,
+      appendedIntercalaryPeriods: structure.appendAdjustmentsByMonth[monthIndex]
+        .filter((item) => toInt(item.lengthDays, 0) !== 0)
+        .map((item) => ({ ...item })),
+    };
+    monthSegments[monthIndex] = segment;
+    segments.push(segment);
+    absoluteCursor += monthLength;
+    weekdayCursor = mod(weekdayCursor + monthLength, daysPerWeek);
+    weekdayAdvancingDays += monthLength;
+
+    pushIntercalarySegments(structure.afterMonthSegments.get(monthIndex));
+  }
+
+  pushIntercalarySegments(structure.yearEndSegments);
+
+  const layout = {
+    year: safeYear,
+    yearAbsoluteStart,
+    yearStartWeekdayIndex,
+    yearLengthDays: absoluteCursor - yearAbsoluteStart,
+    weekdayAdvancingDays,
+    monthLengths: monthSegments.map((segment) => segment.lengthDays),
+    monthSegments,
+    monthStartWeekdayByMonth: monthSegments.map((segment) => segment.startWeekdayIndex),
+    monthAbsoluteStartByMonth: monthSegments.map((segment) => segment.absoluteStartDay),
+    segments,
+  };
+
+  runtime.yearLayouts.set(cacheKey, layout);
+  return layout;
+}
+
+/**
+ * Builds the resolved structural layout for a year. Month segments
+ * always remain month-only lengths; intercalary periods are resolved
+ * separately and ordered around those month segments unless their
+ * placement explicitly appends them into a month.
+ *
+ * @param {object} options
+ * @param {object} options.metrics - Calendar basis metrics.
+ * @param {number} [options.year=1] - Target year (1-based).
+ * @param {object[]} [options.leapRules=[]] - Leap rule definitions.
+ * @param {(number|null)[]} [options.monthLengthOverrides=[]] - Per-month
+ *   overrides for authored month lengths.
+ * @param {object[]|undefined} [options.intercalaryPeriods] - Explicit
+ *   intercalary periods. When omitted, legacy metrics.intercalaryDays
+ *   behaviour is preserved for backward compatibility.
+ * @param {number} [options.firstYearStartDayIndex=0] - Weekday index for
+ *   year 1, used to derive segment weekday starts.
+ * @returns {{ year: number, yearAbsoluteStart: number,
+ *   yearStartWeekdayIndex: number, yearLengthDays: number,
+ *   weekdayAdvancingDays: number, monthLengths: number[],
+ *   monthSegments: object[], monthStartWeekdayByMonth: number[],
+ *   monthAbsoluteStartByMonth: number[], segments: object[] }}
+ *   Resolved structural layout for the year.
+ */
+export function buildYearLayoutForYear(options, runtime = createYearLayoutRuntime()) {
+  return buildYearLayoutForYearInternal(options || {}, runtime);
+}
+
+export function getYearLengthForYear(options, runtime = createYearLayoutRuntime()) {
+  return buildYearLayoutForYear(options, runtime).yearLengthDays;
+}
+
+export function getAbsoluteDayForDate(
+  {
+    metrics,
+    year = 1,
+    monthIndex = 0,
+    dayOfMonth = 1,
+    intercalaryPeriodId = "",
+    intercalaryDay = 1,
+    leapRules = [],
+    monthLengthOverrides = [],
+    intercalaryPeriods,
+    firstYearStartDayIndex = 0,
+  },
+  runtime = createYearLayoutRuntime(),
+) {
+  const layout = buildYearLayoutForYearInternal(
+    {
+      metrics,
+      year,
+      leapRules,
+      monthLengthOverrides,
+      intercalaryPeriods,
+      firstYearStartDayIndex,
+    },
+    runtime,
+  );
+
+  if (intercalaryPeriodId) {
+    const segment = layout.segments.find(
+      (item) => item.kind === "intercalary" && item.intercalaryPeriodId === intercalaryPeriodId,
+    );
+    if (segment) {
+      const safeIntercalaryDay = clamp(
+        toInt(intercalaryDay, 1),
+        1,
+        Math.max(1, segment.lengthDays),
+      );
+      return segment.absoluteStartDay + safeIntercalaryDay - 1;
+    }
+  }
+
+  const monthsPerYear = positiveInt(metrics?.monthsPerYear, 12);
+  const safeMonthIndex = clamp(toInt(monthIndex, 0), 0, monthsPerYear - 1);
+  const monthSegment = layout.monthSegments[safeMonthIndex];
+  const safeDayOfMonth = clamp(toInt(dayOfMonth, 1), 1, Math.max(1, monthSegment.lengthDays));
+  return monthSegment.absoluteStartDay + safeDayOfMonth - 1;
+}
+
+export function getDatePartsForAbsoluteDay(
+  {
+    metrics,
+    absoluteDay = 0,
+    leapRules = [],
+    monthLengthOverrides = [],
+    intercalaryPeriods,
+    firstYearStartDayIndex = 0,
+  },
+  runtime = createYearLayoutRuntime(),
+) {
+  const safeAbsoluteDay = Math.max(0, toInt(absoluteDay, 0));
+  const sampleYearLength = Math.max(
+    1,
+    buildYearLayoutForYearInternal(
+      {
+        metrics,
+        year: 1,
+        leapRules,
+        monthLengthOverrides,
+        intercalaryPeriods,
+        firstYearStartDayIndex,
+      },
+      runtime,
+    ).yearLengthDays,
+  );
+
+  let year = Math.max(1, Math.floor(safeAbsoluteDay / sampleYearLength) - 1);
+  let yearStart = getDaysBeforeYearInternal(
+    {
+      metrics,
+      year,
+      leapRules,
+      monthLengthOverrides,
+      intercalaryPeriods,
+      firstYearStartDayIndex,
+    },
+    runtime,
+  );
+
+  while (yearStart > safeAbsoluteDay && year > 1) {
+    year -= 1;
+    yearStart = getDaysBeforeYearInternal(
+      {
+        metrics,
+        year,
+        leapRules,
+        monthLengthOverrides,
+        intercalaryPeriods,
+        firstYearStartDayIndex,
+      },
+      runtime,
+    );
+  }
+
+  while (true) {
+    const layout = buildYearLayoutForYearInternal(
+      {
+        metrics,
+        year,
+        leapRules,
+        monthLengthOverrides,
+        intercalaryPeriods,
+        firstYearStartDayIndex,
+      },
+      runtime,
+    );
+    if (safeAbsoluteDay < layout.yearAbsoluteStart + layout.yearLengthDays) {
+      const offsetInYear = safeAbsoluteDay - layout.yearAbsoluteStart;
+      for (const segment of layout.segments) {
+        const start = segment.dayOfYearStart;
+        const end = start + segment.lengthDays;
+        if (offsetInYear < start || offsetInYear >= end) continue;
+        const offsetInSegment = safeAbsoluteDay - segment.absoluteStartDay;
+        if (segment.kind === "month") {
+          return {
+            kind: "month",
+            year,
+            monthIndex: segment.monthIndex,
+            dayOfMonth: offsetInSegment + 1,
+            intercalaryDay: null,
+            intercalaryPeriodId: null,
+            absoluteDay: safeAbsoluteDay,
+            weekdayIndex: mod(
+              segment.startWeekdayIndex + offsetInSegment,
+              positiveInt(metrics?.daysPerWeek, 7),
+            ),
+            advancesWeekdayFlow: true,
+            anchorMonthIndex: segment.monthIndex,
+            placement: "month",
+          };
+        }
+        return {
+          kind: "intercalary",
+          year,
+          monthIndex: segment.anchorMonthIndex,
+          dayOfMonth: null,
+          intercalaryDay: offsetInSegment + 1,
+          intercalaryPeriodId: segment.intercalaryPeriodId,
+          absoluteDay: safeAbsoluteDay,
+          weekdayIndex: segment.advancesWeekdayFlow
+            ? mod(segment.startWeekdayIndex + offsetInSegment, positiveInt(metrics?.daysPerWeek, 7))
+            : segment.startWeekdayIndex,
+          advancesWeekdayFlow: !!segment.advancesWeekdayFlow,
+          anchorMonthIndex: segment.anchorMonthIndex,
+          placement: segment.placement,
+        };
+      }
+      break;
+    }
+    year += 1;
+    if (year > 100000) {
+      break;
+    }
+  }
+
+  return {
+    kind: "month",
+    year: 100000,
+    monthIndex: 0,
+    dayOfMonth: 1,
+    intercalaryDay: null,
+    intercalaryPeriodId: null,
+    absoluteDay: safeAbsoluteDay,
+    weekdayIndex: 0,
+    advancesWeekdayFlow: true,
+    anchorMonthIndex: 0,
+    placement: "month",
+  };
+}
+
 /**
  * Computes the day-length of every month in a given year, applying
  * intercalary days and any active leap rules.
@@ -200,83 +891,23 @@ function isLeapRuleActive(rule, year) {
  *   day-count overrides (null entries use base daysPerMonth).
  * @returns {number[]} Array of month lengths (one entry per month).
  */
-export function getMonthLengthsForYear({
-  metrics,
-  year = 1,
-  leapRules = [],
-  monthLengthOverrides = [],
-}) {
-  const monthsPerYear = positiveInt(metrics?.monthsPerYear, 12);
-  const baseDaysPerMonth = Math.max(1, positiveInt(metrics?.daysPerMonth, 30));
-  const overrides = normalizeMonthLengthOverrides(monthLengthOverrides, monthsPerYear);
-  const monthLengths = Array.from(
-    { length: monthsPerYear },
-    (_, i) => overrides[i] ?? baseDaysPerMonth,
-  );
-  const intercalaryDays = toInt(metrics?.intercalaryDays, 0);
-  if (intercalaryDays !== 0) {
-    monthLengths[monthsPerYear - 1] = Math.max(
-      1,
-      monthLengths[monthsPerYear - 1] + intercalaryDays,
-    );
-  }
-
-  for (const rule of normalizeLeapRules(leapRules, monthsPerYear)) {
-    if (!isLeapRuleActive(rule, year)) continue;
-    const idx = clamp(toInt(rule.monthIndex, 0), 0, monthsPerYear - 1);
-    monthLengths[idx] = Math.max(1, monthLengths[idx] + toInt(rule.dayDelta, 0));
-  }
-
-  return monthLengths;
+export function getMonthLengthsForYear(
+  { metrics, year = 1, leapRules = [], monthLengthOverrides = [], intercalaryPeriods },
+  runtime = createYearLayoutRuntime(),
+) {
+  return buildYearLayoutForYear(
+    {
+      metrics,
+      year,
+      leapRules,
+      monthLengthOverrides,
+      intercalaryPeriods,
+    },
+    runtime,
+  ).monthLengths;
 }
 
-function daysBeforeYear(metrics, year, leapRules, monthLengthOverrides = []) {
-  const target = Math.max(1, positiveInt(year, 1));
-  if (target <= 1) return 0;
-  const monthsPerYear = positiveInt(metrics?.monthsPerYear, 12);
-  const baseDaysPerMonth = Math.max(1, positiveInt(metrics?.daysPerMonth, 30));
-  const intercalaryDays = toInt(metrics?.intercalaryDays, 0);
-  const overrides = normalizeMonthLengthOverrides(monthLengthOverrides, monthsPerYear);
-  const baseMonths = Array.from(
-    { length: monthsPerYear },
-    (_, i) => overrides[i] ?? baseDaysPerMonth,
-  );
-  if (intercalaryDays !== 0) {
-    baseMonths[monthsPerYear - 1] = Math.max(1, baseMonths[monthsPerYear - 1] + intercalaryDays);
-  }
-  const baseYearLength = baseMonths.reduce((sum, d) => sum + d, 0);
-  const normalized = normalizeLeapRules(leapRules, monthsPerYear);
-
-  // Guard: negative deltas can trigger month-length clamping (min 1 day), making
-  // the closed-form count unsafe. Fall back to O(year) iteration in that case.
-  if (normalized.some((rule) => rule.dayDelta < 0)) {
-    let total = 0;
-    for (let y = 1; y < target; y++) {
-      total += getMonthLengthsForYear({ metrics, year: y, leapRules, monthLengthOverrides }).reduce(
-        (sum, d) => sum + d,
-        0,
-      );
-    }
-    return total;
-  }
-
-  // O(rules) fast path: each leap rule fires on an arithmetic sequence of years
-  // (offset, offset+cycle, offset+2·cycle, …). Count firings in [1, target-1]
-  // and accumulate the day delta for each.
-  let total = (target - 1) * baseYearLength;
-  for (const rule of normalized) {
-    const cycle = positiveInt(rule.cycleYears, 1);
-    const offset = Math.max(1, positiveInt(rule.offsetYear, 1));
-    const delta = rule.dayDelta;
-    const residue = mod(offset, cycle);
-    const firstY = residue === 0 ? cycle : residue;
-    if (firstY <= target - 1) {
-      const count = Math.floor((target - 1 - firstY) / cycle) + 1;
-      total += count * delta;
-    }
-  }
-  return total;
-}
+// (offset, offset+cycle, offset+2·cycle, …). Count firings in [1, target-1]
 
 /**
  * Determines the weekday index on which a given year begins, accounting
@@ -291,17 +922,28 @@ function daysBeforeYear(metrics, year, leapRules, monthLengthOverrides = []) {
  * @returns {number} Weekday index (0-based) for the first day of the
  *   target year.
  */
-export function getYearStartDayIndex({
-  metrics,
-  year = 1,
-  firstYearStartDayIndex = 0,
-  leapRules = [],
-  monthLengthOverrides = [],
-}) {
-  const daysPerWeek = positiveInt(metrics?.daysPerWeek, 7);
-  const startDay = mod(toInt(firstYearStartDayIndex, 0), daysPerWeek);
-  const offset = daysBeforeYear(metrics, year, leapRules, monthLengthOverrides);
-  return mod(startDay + offset, daysPerWeek);
+export function getYearStartDayIndex(
+  {
+    metrics,
+    year = 1,
+    firstYearStartDayIndex = 0,
+    leapRules = [],
+    monthLengthOverrides = [],
+    intercalaryPeriods,
+  },
+  runtime = createYearLayoutRuntime(),
+) {
+  return buildYearLayoutForYear(
+    {
+      metrics,
+      year,
+      firstYearStartDayIndex,
+      leapRules,
+      monthLengthOverrides,
+      intercalaryPeriods,
+    },
+    runtime,
+  ).yearStartWeekdayIndex;
 }
 
 /**
@@ -403,34 +1045,31 @@ export function buildUsableCalendarMonth({
   moonSynodicDays = 29.5306,
   moonEpochOffsetDays = 0,
   monthLengthOverrides = [],
+  intercalaryPeriods,
 }) {
   const monthsPerYear = positiveInt(metrics?.monthsPerYear, 12);
   const daysPerWeek = positiveInt(metrics?.daysPerWeek, 7);
   const safeYear = Math.max(1, positiveInt(year, 1));
   const safeMonthIndex = clamp(toInt(monthIndex, 0), 0, monthsPerYear - 1);
   const safeWeekStart = mod(toInt(weekStartDayIndex, 0), daysPerWeek);
-  const monthLengths = getMonthLengthsForYear({
+  const yearLayout = buildYearLayoutForYear({
     metrics,
     year: safeYear,
     leapRules,
     monthLengthOverrides,
+    intercalaryPeriods,
+    firstYearStartDayIndex,
   });
-  const monthLength = monthLengths[safeMonthIndex];
+  const monthSegment = yearLayout.monthSegments[safeMonthIndex];
+  const monthLengths = yearLayout.monthLengths;
+  const monthLength = monthSegment.lengthDays;
 
   const normalizedDayNames = normalizeNameList(dayNames, daysPerWeek, "Day");
   const configuredWeeksPerMonth = Math.max(1, positiveInt(metrics?.weeksPerMonth, 4));
   const normalizedWeekNames = normalizeNameList(weekNames, configuredWeeksPerMonth, "Week");
   const normalizedHolidays = normalizeHolidays(holidays, monthsPerYear);
 
-  const yearStart = getYearStartDayIndex({
-    metrics,
-    year: safeYear,
-    firstYearStartDayIndex,
-    leapRules,
-    monthLengthOverrides,
-  });
-  const daysBeforeMonth = monthLengths.slice(0, safeMonthIndex).reduce((sum, d) => sum + d, 0);
-  const monthStartWeekday = mod(yearStart + daysBeforeMonth, daysPerWeek);
+  const monthStartWeekday = monthSegment.startWeekdayIndex;
   const leadingEmptyCount = mod(monthStartWeekday - safeWeekStart, daysPerWeek);
 
   const headers = Array.from(
@@ -439,8 +1078,7 @@ export function buildUsableCalendarMonth({
   );
 
   const allCells = [];
-  const absoluteMonthStartDay =
-    daysBeforeYear(metrics, safeYear, leapRules, monthLengthOverrides) + daysBeforeMonth;
+  const absoluteMonthStartDay = monthSegment.absoluteStartDay;
 
   for (let i = 0; i < leadingEmptyCount; i++) {
     allCells.push(null);

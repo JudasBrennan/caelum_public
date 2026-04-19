@@ -4,6 +4,147 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.3.0 - 2026-04-19
+
+### Calendar Audit And Import Follow-Up
+
+**Closed the remaining calendar UX follow-up gaps by preserving live
+view state during calendar-only import, broadening Rule Audit cache
+invalidation, and fully resetting rule editors during profile changes**
+(ui/calendar/transferFlows.js, ui/calendar/profileState.js,
+ui/calendarPage.js, tests/calendarPage.ui.test.js,
+tests/calendarPage.data.ui.test.js)
+
+Calendar-only JSON import now keeps the imported month/day selection
+instead of snapping the view back to the first month and first day after
+apply. That keeps round-tripped calendars aligned with the exported live
+state and makes phase 7's "do not hide or drop live calendar data"
+acceptance criteria true in practice, not just in the schema.
+
+Rule Audit preview and agenda invalidation is now keyed from the full
+holiday and festival editor state, plus the broader calendar context the
+audit summaries depend on. Editing categories, skip lists, advanced
+anchor/conflict fields, or related display context now refreshes the
+audit immediately instead of leaving stale preview text cached until
+some other field happens to change.
+
+Profile switches and calendar imports now reuse a shared editor-reset
+path, which clears holiday, festival, intercalary, and cycle edit state
+consistently. That closes the intercalary editor leak where switching to
+another profile could leave the form looking like it was still editing a
+rule from the previous profile.
+
+**Tests** (tests/calendarPage.ui.test.js,
+tests/calendarPage.data.ui.test.js)
+
+- Added regressions for preserving imported month/day selection and
+  selected-day state through calendar JSON apply flows.
+- Added Rule Audit regressions proving preview text updates when holiday
+  category and festival skip-year inputs change.
+- Added profile-switch coverage proving the intercalary editor resets to
+  a clean add state on the newly active profile.
+
+### Calendar Recurrence And Export Lock-In
+
+**Completed calendar UX plan phases 6 and 7 by expanding holiday and
+festival recurrence, hardening calendar-only export/import round-trips,
+and locking the new audit/export behavior in with regression coverage**
+(ui/calendar/constants.js, ui/calendar/stateModel.js,
+ui/calendar/renderHelpers.js, ui/calendar/ruleEditorFlows.js,
+ui/calendar/calendarIo.js, ui/calendarPage.js,
+tests/calendarIo.test.js, tests/calendarPage.ui.test.js,
+tests/calendarStateModel.test.js)
+
+Holiday and festival rules can now use a true `cyclic` recurrence with
+explicit `cycleYears` and `offsetYear` fields, instead of forcing
+authors to approximate every-N-years behavior through unrelated month
+logic. The Calendar editor now exposes those fields directly, editor
+enable/disable behavior matches the selected recurrence, and rule
+summaries, previews, and trace output explain cyclic and one-off timing
+in calendar-relative language.
+
+Calendar-only JSON export/import is now safer for live calendar work.
+Export envelopes deep-clone the active profile payload even when only a
+single profile is present, preventing nested festival, recurrence, and
+audit state from being shared by reference during later edits. UI
+round-trip coverage now proves that custom-year yearly recurrence on
+13-month calendars survives export/import, and that festival metadata
+such as category, colour, cyclic recurrence, outside-week-flow, and
+exception lists remains editable after import.
+
+The release is also locked in with targeted recurrence and audit
+regressions. Tests now cover cyclic holiday/festival normalization,
+calendar-relative recurrence evaluation, calendar JSON round-trips for
+audit filters and festival metadata, and the existing rule-audit agenda
+surfaces alongside the broader calendar transfer and world import/export
+paths.
+
+### Calendar Intercalary Periods
+
+**Completed the calendar intercalary periods feature, turning extra
+calendar days into first-class structural time instead of implicit last-
+month remainder hacks**
+(ui/calendar/stateModel.js, engine/usableCalendar.js, ui/calendarPage.js,
+ui/calendar/renderContext.js, ui/calendar/renderHelpers.js,
+ui/calendar/ruleEditorFlows.js, ui/calendar/transferFlows.js,
+ui/realmspacePreset.js, ui/solPreset.js,
+tests/usableCalendar.test.js, tests/calendarStateModel.test.js,
+tests/calendarPage.ui.test.js, tests/calendarPage.data.ui.test.js,
+tests/calendarTransferFlows.test.js, tests/importExport.test.js)
+
+Calendar profiles now support explicit `intercalaryPeriods` with stable
+schema fields for placement, recurrence, duration, weekday-flow mode,
+and exception years. Existing worlds still load without visible
+regression because legacy calendars are migrated onto an explicit
+compatibility `append-to-month` derived-remainder period when needed,
+while newly authored calendars can keep month lengths and intercalary
+placement separate.
+
+The calendar engine now resolves an ordered year layout made up of month
+segments and intercalary segments, with support for `before-month`,
+`after-month`, `year-end`, and compatibility `append-to-month`
+behaviour. Absolute-day conversion, year-start calculation, month-length
+resolution, and rendered month models all follow that shared resolved
+layout, so intercalary days behave as real chronology whether they
+advance weekday flow or sit outside it.
+
+The Calendar UI also now exposes intercalary periods as a first-class
+authoring tool. Users can create, edit, and delete named structural
+periods, the month view renders dedicated intercalary day rows before
+and after months, selected-day and date-converter flows can land on and
+describe intercalary dates directly, and the structure/compact summaries
+report intercalary placement explicitly instead of disguising it as a
+longer last month.
+
+External calendar outputs now preserve the same structure. Calendar JSON
+round-trips explicit intercalary data, printable output renders
+structural intercalary blocks, and ICS export uses resolved absolute
+dates for both structural and appended intercalary periods while keeping
+ordinary festival export behaviour intact.
+
+Shipped content now demonstrates the new model. Realmspace's Harptos
+calendar uses explicit structural periods for Midwinter, Greengrass,
+Midsummer, Shieldmeet, Highharvestide, and Feast of the Moon, making it
+the canonical preset example of authored intercalary structure. Sol
+keeps Gregorian behaviour unchanged, but now serializes an explicit
+compatibility derived-remainder period so it stays on the new schema
+path without relying on implicit migration-time synthesis.
+
+**Tests** (tests/usableCalendar.test.js, tests/calendarStateModel.test.js,
+tests/calendarPage.ui.test.js, tests/calendarPage.data.ui.test.js,
+tests/calendarTransferFlows.test.js, tests/importExport.test.js)
+
+- Added engine coverage for fixed and derived intercalary resolution,
+  `before-month`, `after-month`, `year-end`, and `append-to-month`
+  placements, plus absolute-day traversal across intercalary
+  boundaries.
+- Added UI and data-round-trip coverage for the dedicated intercalary
+  editor, structural rendering, selected-day/date-converter behaviour,
+  and JSON import/export persistence.
+- Added transfer and preset regressions for printable output, ICS export,
+  old-schema migration, Sol compatibility behaviour, and Realmspace's
+  explicit Harptos layout including Shieldmeet.
+
 ## 2.2.0 - 2026-04-17
 
 ### Celestial Render Performance Plan

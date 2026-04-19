@@ -21,7 +21,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.2.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.3.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, and calendars. Explore your creations in an interactive 3D
@@ -332,6 +332,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Experimentally proved that parity is not conserved in weak nuclear interactions, showing how careful instrumentation and rigorous verification can reveal structure hidden by prior assumptions.",
   },
+  "2.3.0": {
+    name: "Albert Einstein",
+    born: 1879,
+    died: 1955,
+    country: "Germany",
+    summary:
+      "Developed the theories of special and general relativity, fundamentally reshaping our understanding of space, time, and gravity.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -371,6 +379,17 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.3.0",
+      "(from 2.2.0)",
+      [
+        "<b>Structural Intercalary Calendars</b> &mdash; Calendar profiles can now place named intercalary periods before months, after months, at year end, or inside a month instead of faking extra days by stretching the last month. Those structural days now render, export, and behave like real chronology throughout the calendar UI.",
+        "<b>Rule Audit</b> &mdash; The Calendar page now includes a Rule Audit panel that previews the rule you are editing, shows a resolved agenda for the current month or year, and can jump straight to traced days. This makes it much easier to understand why a holiday, festival, or marker did or did not appear.",
+        "<b>Calendar-True Recurrence</b> &mdash; Holiday and festival rules now recur by authored calendar year instead of assuming a 12-month year, and they can also use cyclic year intervals for every-N-years behavior. Custom calendars no longer need workarounds to keep yearly observances honest.",
+        "<b>Safer Calendar Round-Trips</b> &mdash; Calendar JSON import/export now preserves more live state, printable and ICS outputs follow the resolved intercalary layout, and the shipped Sol and Realmspace presets better demonstrate the new structure.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.2.0",
       "(from 2.1.0)",
       [
@@ -379,7 +398,7 @@ function changelogHTML() {
         "<b>Planet And Calendar Stability</b> &mdash; The Planet and Calendar pages received a large stability pass around host-frame logic, brown-dwarf companion outputs, profile handling, and export flows, helping dense editing sessions stay more predictable.",
         "<b>Storage Recovery Hardening</b> &mdash; Clearing unreadable or stale saved data is now more isolated and resilient, reducing the chance that browser storage problems leave the app in a half-cleared state.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.1.0",
