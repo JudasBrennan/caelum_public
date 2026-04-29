@@ -1,3 +1,4 @@
+import { classifyBrownDwarfSpectralFamily } from "./starClassification.js";
 import { clamp, fmt, toFinite } from "./utils.js";
 import {
   BROWN_DWARF_MAX_MSOL,
@@ -53,20 +54,6 @@ function brownDwarfTempKFromMassAge(massMjup, ageGyr) {
   const mass = clamp(toFinite(massMjup, 30), 13, 75);
   const age = clamp(toFinite(ageGyr, 4.6), 0.01, 20);
   return clamp(2100 * (mass / 30) ** 0.58 * (age + 0.08) ** -0.34, 250, 3200);
-}
-
-function classifyBrownDwarfSpectralFamily(tempK) {
-  const t = clamp(toFinite(tempK, 1000), 250, 3200);
-  if (t >= 1300) {
-    const subtype = clamp(Math.floor((2400 - Math.min(t, 2400)) / 110), 0, 9);
-    return { family: "L", subtype };
-  }
-  if (t >= 700) {
-    const subtype = clamp(Math.floor((1300 - t) / 60), 0, 9);
-    return { family: "T", subtype };
-  }
-  const subtype = clamp(Math.floor((700 - t) / 45), 0, 9);
-  return { family: "Y", subtype };
 }
 
 function hexToRgb(hex) {

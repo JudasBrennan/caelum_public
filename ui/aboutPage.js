@@ -21,7 +21,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.3.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.4.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, and calendars. Explore your creations in an interactive 3D
@@ -340,6 +340,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Developed the theories of special and general relativity, fundamentally reshaping our understanding of space, time, and gravity.",
   },
+  "2.4.0": {
+    name: "Kip Thorne",
+    born: 1940,
+    died: null,
+    country: "United States",
+    summary:
+      "Made foundational contributions to gravitational physics and helped turn faint astrophysical signatures into measurable structure.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -379,6 +387,16 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.4.0",
+      "(from 2.3.0)",
+      [
+        "<b>Stellar Class Authoring</b> &mdash; The Star page can now accept spectral class text such as G2V, K dwarf, sun-like, red dwarf, and L/T/Y brown dwarf targets, then solve the nearest matching mass for the focused star or companion. Clear status messages explain successful matches, invalid entries, and age-sensitive brown dwarf targets.",
+        "<b>Wide-Orbit Controls</b> &mdash; Rocky planets, gas giants, debris disks, and comets now share AU controls that preserve fine inner-system slider precision while still allowing distant objects out to the million-AU model ceiling.",
+        "<b>Tidal Locking Accuracy</b> &mdash; Rocky planet and moon-context tidal locking outputs now use differentiated-body Love-number and inertia factors, keeping Earth-like despinning timescales closer to expected long-term behavior.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.3.0",
       "(from 2.2.0)",
       [
@@ -387,7 +405,7 @@ function changelogHTML() {
         "<b>Calendar-True Recurrence</b> &mdash; Holiday and festival rules now recur by authored calendar year instead of assuming a 12-month year, and they can also use cyclic year intervals for every-N-years behavior. Custom calendars no longer need workarounds to keep yearly observances honest.",
         "<b>Safer Calendar Round-Trips</b> &mdash; Calendar JSON import/export now preserves more live state, printable and ICS outputs follow the resolved intercalary layout, and the shipped Sol and Realmspace presets better demonstrate the new structure.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.2.0",

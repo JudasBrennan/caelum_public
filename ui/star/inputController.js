@@ -1,4 +1,5 @@
 import { clamp } from "../../engine/utils.js";
+import { solveStellarClassInput } from "../../engine/starClassSolver.js";
 
 export function createStarInputController({
   defaults = {},
@@ -33,6 +34,9 @@ export function createStarInputController({
     quaternaryNameEl,
     radiusOverrideEl,
     starEditorTargetEl,
+    stellarClassApplyBtn,
+    stellarClassInputEl,
+    stellarClassStatusEl,
     tempOverrideEl,
     tertiaryMassEl,
     tertiaryNameEl,
@@ -86,6 +90,7 @@ export function createStarInputController({
     sanitiseTertiaryName,
     setEditorMode,
     setSelectedEditorTarget,
+    setDerivMode,
     syncBoundInputs,
     syncFocusedStarEditorInputs,
     updateTopologyUI,
@@ -133,6 +138,58 @@ export function createStarInputController({
       return commit ? sanitiseTertiaryName(value) : sanitiseTertiaryName(String(value ?? ""));
     }
     return commit ? sanitiseQuaternaryName(value) : sanitiseQuaternaryName(String(value ?? ""));
+  }
+
+  function setClassStatus(message, kind = "info") {
+    if (!stellarClassStatusEl) return;
+    stellarClassStatusEl.textContent = message;
+    stellarClassStatusEl.dataset.kind = kind;
+  }
+
+  function formatResolvedMass(massMsol) {
+    const mass = Number(massMsol);
+    if (!Number.isFinite(mass)) return "";
+    return mass < 0.1 ? mass.toFixed(5) : mass.toFixed(4);
+  }
+
+  function applyClassInput({ commit = true } = {}) {
+    const state = getState();
+    const focusedStarId = getFocusedStarEditorId();
+    const result = solveStellarClassInput(stellarClassInputEl?.value || "", {
+      ageGyr: state.ageGyr,
+      metallicityFeH: state.metallicityFeH,
+    });
+
+    if (!result.ok) {
+      setClassStatus(result.message || "Could not apply that stellar class.", "error");
+      return result;
+    }
+
+    assignStarDraftState(focusedStarId, {
+      massMsol: result.resolvedMassMsol,
+      radiusRsolOverride: null,
+      luminosityLsolOverride: null,
+      tempKOverride: null,
+      physicsMode: "simple",
+      advancedDerivationMode: "rl",
+    });
+    if (result.regime === "star") {
+      state.evolutionMode = "zams";
+    }
+
+    setDerivMode?.("rl");
+    syncFocusedStarEditorInputs();
+    if (commit) {
+      persistState();
+    }
+    render();
+
+    const noticeText = result.notices?.length ? ` ${result.notices.join(" ")}` : "";
+    setClassStatus(
+      `Applied ${result.requestedLabel} as ${formatResolvedMass(result.resolvedMassMsol)} Msol (${result.resolvedClass}).${noticeText}`,
+      "ok",
+    );
+    return result;
   }
 
   function applyFromInputs({ commit = false } = {}) {
@@ -733,6 +790,15 @@ export function createStarInputController({
       applyFromInputs({ commit: true });
     });
 
+    stellarClassApplyBtn?.addEventListener("click", () => {
+      applyClassInput({ commit: true });
+    });
+    stellarClassInputEl?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      applyClassInput({ commit: true });
+    });
+
     starCreateQuickBtn?.addEventListener("click", () => {
       openStarGuidedQuickPicker();
     });
@@ -784,6 +850,7 @@ export function createStarInputController({
   }
 
   return {
+    applyClassInput,
     applyCompatStarInputs,
     applyFromInputs,
     applyStarSystemInputs,

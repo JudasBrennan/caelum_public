@@ -1,5 +1,6 @@
 import { fmt } from "../utils.js";
 import {
+  DIFFERENTIATED_PLANET_K2_SCALE,
   EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR,
   GAS_GIANT_HOST_TIDAL_QUALITY_FACTOR,
   getMoonMaterialProfileByClass,
@@ -25,8 +26,6 @@ const TIDAL_MOON_MASS_SCALE = LEGACY_TIDAL_MOON_MASS_KG / moonMassToKg(1);
 const RIGIDITY = SILICATE_RIGIDITY_PA;
 const EARTH_TIDES_REF = 1501373691439.2996;
 const EARTH_GEOTHERMAL_WM2 = 0.09;
-
-const K2_DIFFERENTIATION = 0.37;
 
 const MELT_FLUX_CRIT = 0.02;
 const PARTIALLY_MOLTEN_PROFILE = getMoonMaterialProfileByClass({
@@ -175,7 +174,9 @@ export function computeMoonTidalState({
   const planetSemiMajorAxisM = auToMeters(planetSemiMajorAxisAu);
 
   const inertiaMoon = 0.4 * moonMassKg * moonRadiusM ** 2;
-  const inertiaPlanet = 0.4 * planetMassKg * planetRadiusM ** 2;
+  const isGasGiant = planetDensityGcm3 < 2;
+  const planetMomentOfInertiaFactor = isGasGiant ? 0.25 : 0.3307;
+  const inertiaPlanet = planetMomentOfInertiaFactor * planetMassKg * planetRadiusM ** 2;
 
   const k2Moon = calcK2LoveNumber({
     densityKgM3: moonDensityKgM3,
@@ -189,6 +190,7 @@ export function computeMoonTidalState({
     radiusM: planetRadiusM,
     rigidityPa: RIGIDITY,
   });
+  const k2PlanetForLock = isGasGiant ? k2Planet : k2Planet * DIFFERENTIATED_PLANET_K2_SCALE;
 
   const tMoonLockGyr =
     calcTidalLockTimeSeconds({
@@ -207,7 +209,7 @@ export function computeMoonTidalState({
       momentOfInertiaKgM2: inertiaPlanet,
       qualityFactor: EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR,
       otherMassKg: moonMassKg,
-      loveNumberK2: k2Planet,
+      loveNumberK2: k2PlanetForLock,
       radiusM: planetRadiusM,
     }) * SECONDS_TO_GYR;
   const tPlanetLockToStarGyr =
@@ -217,7 +219,7 @@ export function computeMoonTidalState({
       momentOfInertiaKgM2: inertiaPlanet,
       qualityFactor: EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR,
       otherMassKg: starMassKg,
-      loveNumberK2: k2Planet,
+      loveNumberK2: k2PlanetForLock,
       radiusM: planetRadiusM,
     }) * SECONDS_TO_GYR;
 
@@ -267,8 +269,7 @@ export function computeMoonTidalState({
   const tidalHeatingWm2 = surfaceAreaM2 > 0 ? tidalHeatingW / surfaceAreaM2 : 0;
   const tidalHeatingEarth = tidalHeatingWm2 / EARTH_GEOTHERMAL_WM2;
 
-  const isGasGiant = planetDensityGcm3 < 2;
-  const k2PlanetEff = k2Planet * K2_DIFFERENTIATION;
+  const k2PlanetEff = k2Planet * DIFFERENTIATED_PLANET_K2_SCALE;
   const qPlanetEff = isGasGiant
     ? GAS_GIANT_HOST_TIDAL_QUALITY_FACTOR
     : EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR;

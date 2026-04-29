@@ -408,6 +408,10 @@ export function initStarPage(mountEl, options = {}) {
   const topologyKindRowEl = topologyKindEl?.closest(".form-row") || null;
   const primaryStarNameRowEl = wrap.querySelector("#primaryStarNameRow");
   const primaryStarMassRowEl = wrap.querySelector("#primaryStarMassRow");
+  const stellarClassInputRowEl = wrap.querySelector("#stellarClassInputRow");
+  const stellarClassInputEl = wrap.querySelector("#stellarClassInput");
+  const stellarClassApplyBtn = wrap.querySelector("#stellarClassApply");
+  const stellarClassStatusEl = wrap.querySelector("#stellarClassStatus");
   const sharedAgeRowEl = wrap.querySelector("#sharedAgeRow");
   const sharedEvolutionBlockEl = wrap.querySelector("#sharedEvolutionBlock");
   const sharedMetallicityRowEl = wrap.querySelector("#sharedMetallicityRow");
@@ -569,6 +573,7 @@ export function initStarPage(mountEl, options = {}) {
     starEditorHintEl,
     primaryStarNameRowEl,
     primaryStarMassRowEl,
+    stellarClassInputRowEl,
     primaryPhysicsBlockEl,
     advancedDerivRowEl,
     radiusOverrideRowEl,
@@ -1740,6 +1745,9 @@ export function initStarPage(mountEl, options = {}) {
       radiusOverrideRowEl,
       luminosityOverrideRowEl,
       tempOverrideRowEl,
+      stellarClassApplyBtn,
+      stellarClassInputEl,
+      stellarClassStatusEl,
       starEditorTargetEl,
       tempOverrideEl,
       tertiaryMassEl,

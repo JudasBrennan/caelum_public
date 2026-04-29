@@ -376,6 +376,35 @@ export function buildStarPageMarkup({ hostComponentMassMinText }) {
           </div>
           </div>
 
+          <div class="form-row star-class-entry-row" id="stellarClassInputRow">
+            <div>
+              <div class="label">Stellar Class ${tipIcon(TIP_LABEL["Class Input"] || "")}</div>
+              <div class="hint">Apply a supported class as a mass-based shortcut.</div>
+            </div>
+            <div class="star-class-entry">
+              <div class="star-class-entry__controls">
+                <input
+                  id="stellarClassInput"
+                  type="text"
+                  maxlength="32"
+                  placeholder="G2V, K dwarf, T6 BD"
+                  aria-label="Stellar class"
+                  aria-describedby="stellarClassStatus"
+                />
+                <button id="stellarClassApply" type="button">Apply</button>
+              </div>
+              <div
+                class="hint star-class-entry__status"
+                id="stellarClassStatus"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                Supports OBAFGKM dwarfs and age-dependent L/T/Y brown dwarfs. Very cool Y targets may need older system ages.
+              </div>
+            </div>
+          </div>
+
           <div class="form-row" id="sharedAgeRow">
             <div>
               <div class="label">Current Age <span class="unit">Gyr</span> ${tipIcon(TIP_LABEL["Current Age"] || "")}</div>

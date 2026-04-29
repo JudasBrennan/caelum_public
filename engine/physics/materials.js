@@ -7,6 +7,9 @@ export const ICY_TIDAL_QUALITY_FACTOR = 7;
 export const ROCKY_PLANET_BASE_TIDAL_Q = 12;
 export const EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR = 13;
 export const GAS_GIANT_HOST_TIDAL_QUALITY_FACTOR = 1e5;
+// Homogeneous elastic k2 overestimates centrally condensed planets; 0.37 maps
+// an Earth-like elastic estimate (~0.8) back to the observed/exoplanet-standard ~0.3.
+export const DIFFERENTIATED_PLANET_K2_SCALE = 0.37;
 export const ROCKY_MOON_BULK_DENSITY_KGM3 = 2500;
 export const ROCKY_MOON_COLD_RIGIDITY_PA = 65e9;
 export const ROCKY_MOON_COLD_TIDAL_QUALITY_FACTOR = 100;

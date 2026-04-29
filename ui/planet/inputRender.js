@@ -1,5 +1,11 @@
 import { createElement, replaceChildren, replaceSelectOptions } from "../domHelpers.js";
 import {
+  createOrbitRangeModeToggleNode,
+  ORBIT_AU_MAX,
+  ORBIT_AU_MIN,
+  orbitRangeModeForValue,
+} from "../orbitRangeControl.js";
+import {
   listRingStyleOptions,
   normalizeRingStyleId,
   RING_STYLE_AUTO,
@@ -109,6 +115,50 @@ function createSliderRow({
       createRangeInput({ id: `${id}_slider`, label }),
       createRangeMeta({ id, min, max, withIds: withMetaIds }),
     ]),
+    { style, className },
+  );
+}
+
+function createOrbitSliderRow({
+  id,
+  label,
+  unit = "AU",
+  hint = "",
+  step = 0.01,
+  tip = "",
+  value = "",
+  style = "",
+  className = "",
+  statusSubject = "orbit",
+} = {}) {
+  const selectedMode = orbitRangeModeForValue(value);
+  return createFormRow(
+    createLabelBlock({ label, unit, tip, hint }),
+    createElement(
+      "div",
+      {
+        className: "input-pair orbit-range-control",
+        dataset: { orbitRangeControl: id, orbitRangeSubject: statusSubject },
+      },
+      [
+        createNumberInput({
+          id,
+          label,
+          step,
+          value,
+        }),
+        createOrbitRangeModeToggleNode({
+          name: `${id}_orbitRange`,
+          selectedModeId: selectedMode.id,
+        }),
+        createRangeInput({ id: `${id}_slider`, label }),
+        createRangeMeta({ id, min: ORBIT_AU_MIN, max: ORBIT_AU_MAX, withIds: true }),
+        createElement("div", {
+          className: "hint orbit-range-status",
+          attrs: { id: `${id}_orbit_status` },
+        }),
+      ],
+    ),
     { style, className },
   );
 }
@@ -265,14 +315,6 @@ export function renderRockyInputForm(
       min: 0.1,
       max: 1000000,
       step: 0.1,
-    },
-    {
-      id: "a",
-      label: "Semi-Major axis",
-      unit: "AU",
-      min: 0.01,
-      max: 1000000,
-      step: 0.01,
     },
     { id: "e", label: "Eccentricity", min: 0, max: 0.99, step: 0.001 },
     { id: "inc", label: "Inclination", unit: "\u00b0", min: 0, max: 180, step: 0.1 },
@@ -474,7 +516,15 @@ export function renderRockyInputForm(
     ...createRockyFieldRows(secondaryPhysicalFields, tipLabels),
     createSpacer(8),
     createSectionLabel("Orbit & Rotation", tipLabels["Orbit & Rotation"] || ""),
-    ...createRockyFieldRows(orbitFields, tipLabels),
+    ...createRockyFieldRows(orbitFields.slice(0, 1), tipLabels),
+    createOrbitSliderRow({
+      id: "a",
+      label: "Semi-Major axis",
+      tip: tipLabels["Semi-Major axis"] || "",
+      hint: "Manual orbit distance.",
+      value: p.semiMajorAxisAu ?? 1,
+    }),
+    ...createRockyFieldRows(orbitFields.slice(1), tipLabels),
     createSpacer(8),
     createSectionLabel("Atmosphere", tipLabels.Atmosphere || ""),
     ...createRockyFieldRows(atmosphereFields.slice(0, 1), tipLabels),
@@ -719,14 +769,12 @@ export function renderGasGiantInputForm(
       options: slotOptions,
       style: "margin-top:8px",
     }),
-    createSliderRow({
+    createOrbitSliderRow({
       id: "ggAu",
       label: "Orbit",
       unit: "AU",
       tip: tipLabels["Custom orbit"] || "",
       hint: "Manual orbit distance.",
-      min: 0.01,
-      max: 1000,
       step: 0.01,
       value: Number(giant?.au || 0),
       className: "gg-custom-au-row",

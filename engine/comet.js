@@ -73,8 +73,8 @@ function normalizeCometInputs(raw = {}) {
     sourceReservoir: normalizeReservoir(raw?.sourceReservoir),
     semiMajorAxisAu: clamp(
       toFinite(raw?.semiMajorAxisAu ?? raw?.aAu, DEFAULT_COMET.semiMajorAxisAu),
-      0.05,
-      100000,
+      0.01,
+      1000000,
     ),
     eccentricity: clamp(
       toFinite(raw?.eccentricity ?? raw?.ecc, DEFAULT_COMET.eccentricity),

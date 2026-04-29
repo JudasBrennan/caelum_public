@@ -7,6 +7,13 @@ import { bindNumberAndSlider } from "./bind.js";
 import { paintCometPreview, resolveCometAppearance } from "./cometAppearance.js";
 import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import { createElement, replaceChildren } from "./domHelpers.js";
+import {
+  bindOrbitRangeControl,
+  createOrbitRangeModeToggleNode,
+  ORBIT_AU_MAX,
+  ORBIT_AU_MIN,
+  orbitRangeModeForValue,
+} from "./orbitRangeControl.js";
 import { buildPageIntroHtml } from "./pageIntro.js";
 import { enableKpiInteractions } from "./planet/outputRender.js";
 import { buildDeleteCometPlan, buildDeleteDebrisDiskPlan } from "./store/destructiveActions.js";
@@ -648,26 +655,48 @@ export function initOuterObjectsPage(mountEl) {
     placeholder = null,
     rangeMinLabel,
     rangeMaxLabel,
+    orbitRangeName = "",
+    orbitRangeStatusSubject = "orbit",
   }) {
     const normalizedValue = value == null ? "" : String(value);
-    return createElement("div", { className: "input-pair" }, [
-      createElement("input", {
-        className: inputClass,
-        attrs: {
-          type: "number",
-          step,
-          min,
-          max,
-          placeholder,
-          value: normalizedValue,
-        },
-      }),
-      createElement("input", {
-        className: sliderClass,
-        attrs: { type: "range", value: normalizedValue },
-      }),
-      rangeMetaNode(rangeMinLabel, rangeMaxLabel),
-    ]);
+    const isOrbitRange = !!orbitRangeName;
+    return createElement(
+      "div",
+      {
+        className: `input-pair${isOrbitRange ? " orbit-range-control" : ""}`,
+        dataset: isOrbitRange ? { orbitRangeSubject: orbitRangeStatusSubject } : {},
+      },
+      [
+        createElement("input", {
+          className: inputClass,
+          attrs: {
+            type: "number",
+            step,
+            min,
+            max,
+            placeholder,
+            value: normalizedValue,
+          },
+        }),
+        isOrbitRange
+          ? createOrbitRangeModeToggleNode({
+              name: orbitRangeName,
+              selectedModeId: orbitRangeModeForValue(value).id,
+            })
+          : null,
+        createElement("input", {
+          className: sliderClass,
+          attrs: { type: "range", value: normalizedValue },
+        }),
+        rangeMetaNode(rangeMinLabel, rangeMaxLabel),
+        isOrbitRange
+          ? createElement("div", {
+              className: "hint orbit-range-status",
+              dataset: { orbitRangeSubject: orbitRangeStatusSubject },
+            })
+          : null,
+      ],
+    );
   }
 
   function setInputValue(node, value) {
@@ -754,10 +783,12 @@ export function initOuterObjectsPage(mountEl) {
           sliderClass: "dd-inner-slider",
           value: inner,
           step: "0.01",
-          min: "0.01",
-          max: "1000",
-          rangeMinLabel: "0.01",
-          rangeMaxLabel: "1000",
+          min: String(ORBIT_AU_MIN),
+          max: String(ORBIT_AU_MAX),
+          rangeMinLabel: String(ORBIT_AU_MIN),
+          rangeMaxLabel: String(ORBIT_AU_MAX),
+          orbitRangeName: `dd_${disk.id}_innerRange`,
+          orbitRangeStatusSubject: "edge",
         }),
       ],
     );
@@ -776,10 +807,12 @@ export function initOuterObjectsPage(mountEl) {
           sliderClass: "dd-outer-slider",
           value: outer,
           step: "0.01",
-          min: "0.01",
-          max: "1000",
-          rangeMinLabel: "0.01",
-          rangeMaxLabel: "1000",
+          min: String(ORBIT_AU_MIN),
+          max: String(ORBIT_AU_MAX),
+          rangeMinLabel: String(ORBIT_AU_MIN),
+          rangeMaxLabel: String(ORBIT_AU_MAX),
+          orbitRangeName: `dd_${disk.id}_outerRange`,
+          orbitRangeStatusSubject: "edge",
         }),
       ],
     );
@@ -803,10 +836,12 @@ export function initOuterObjectsPage(mountEl) {
           sliderClass: "dd-center-slider",
           value: center,
           step: "0.01",
-          min: "0.01",
-          max: "1000",
-          rangeMinLabel: "0.01",
-          rangeMaxLabel: "1000",
+          min: String(ORBIT_AU_MIN),
+          max: String(ORBIT_AU_MAX),
+          rangeMinLabel: String(ORBIT_AU_MIN),
+          rangeMaxLabel: String(ORBIT_AU_MAX),
+          orbitRangeName: `dd_${disk.id}_centerRange`,
+          orbitRangeStatusSubject: "center",
         }),
       ],
     );
@@ -825,10 +860,12 @@ export function initOuterObjectsPage(mountEl) {
           sliderClass: "dd-width-slider",
           value: width,
           step: "0.01",
-          min: "0.01",
-          max: "500",
-          rangeMinLabel: "0.01",
-          rangeMaxLabel: "500",
+          min: String(ORBIT_AU_MIN),
+          max: String(ORBIT_AU_MAX),
+          rangeMinLabel: String(ORBIT_AU_MIN),
+          rangeMaxLabel: String(ORBIT_AU_MAX),
+          orbitRangeName: `dd_${disk.id}_widthRange`,
+          orbitRangeStatusSubject: "width",
         }),
       ],
     );
@@ -1548,26 +1585,60 @@ export function initOuterObjectsPage(mountEl) {
     tipText,
     unit = null,
     className,
+    sliderClassName = "",
     type = "number",
     step = null,
     min = null,
     max = null,
     value = "",
+    orbitRangeName = "",
+    orbitRangeStatusSubject = "orbit",
   }) {
+    const isOrbitRange = !!orbitRangeName;
     return createElement("div", { className: "form-row comet-field" }, [
       createElement("div", {}, [labelWithTipNode(label, tipText, { unit })]),
-      createElement("div", { className: "input-pair" }, [
-        createElement("input", {
-          className,
-          attrs: {
-            type,
-            ...(step != null ? { step } : {}),
-            ...(min != null ? { min } : {}),
-            ...(max != null ? { max } : {}),
-            value: value == null ? "" : String(value),
-          },
-        }),
-      ]),
+      createElement(
+        "div",
+        {
+          className: `input-pair${isOrbitRange ? " orbit-range-control" : ""}`,
+          dataset: isOrbitRange ? { orbitRangeSubject: orbitRangeStatusSubject } : {},
+        },
+        [
+          createElement("input", {
+            className,
+            attrs: {
+              type,
+              ...(step != null ? { step } : {}),
+              ...(min != null ? { min } : {}),
+              ...(max != null ? { max } : {}),
+              value: value == null ? "" : String(value),
+            },
+          }),
+          isOrbitRange
+            ? createOrbitRangeModeToggleNode({
+                name: orbitRangeName,
+                selectedModeId: orbitRangeModeForValue(value).id,
+              })
+            : null,
+          isOrbitRange
+            ? createElement("input", {
+                className: sliderClassName,
+                attrs: {
+                  type: "range",
+                  "aria-label": `${label} slider`,
+                  value: value == null ? "" : String(value),
+                },
+              })
+            : null,
+          isOrbitRange ? rangeMetaNode(String(ORBIT_AU_MIN), String(ORBIT_AU_MAX)) : null,
+          isOrbitRange
+            ? createElement("div", {
+                className: "hint orbit-range-status",
+                dataset: { orbitRangeSubject: orbitRangeStatusSubject },
+              })
+            : null,
+        ],
+      ),
     ]);
   }
 
@@ -1661,10 +1732,13 @@ export function initOuterObjectsPage(mountEl) {
             tipText: TIP_LABEL["Semi-major axis"],
             unit: "AU",
             className: "comet-a",
+            sliderClassName: "comet-a-slider",
             step: "0.01",
-            min: "0.05",
-            max: "100000",
+            min: String(ORBIT_AU_MIN),
+            max: String(ORBIT_AU_MAX),
             value: comet.semiMajorAxisAu,
+            orbitRangeName: `comet_${comet.id}_axisRange`,
+            orbitRangeStatusSubject: "orbit",
           }),
           cometFieldNode({
             label: "Eccentricity",
@@ -1981,7 +2055,29 @@ export function initOuterObjectsPage(mountEl) {
 
     for (const row of cometsEditorEl.querySelectorAll(".comet-row")) {
       const cometId = row.getAttribute("data-comet-id");
+      const cometAxisEl = row.querySelector(".comet-a");
+      const cometAxisSliderEl = row.querySelector(".comet-a-slider");
+      if (cometAxisEl && cometAxisSliderEl) {
+        bindOrbitRangeControl({
+          numberEl: cometAxisEl,
+          sliderEl: cometAxisSliderEl,
+          root: cometAxisEl.closest(".orbit-range-control"),
+          min: ORBIT_AU_MIN,
+          max: ORBIT_AU_MAX,
+          step: 0.01,
+          commitOnInput: false,
+          statusSubject: "orbit",
+          onChange: saveFromEditor,
+        });
+      }
       for (const field of row.querySelectorAll("input, select")) {
+        if (
+          field === cometAxisEl ||
+          field === cometAxisSliderEl ||
+          field.matches("[data-orbit-range-mode]")
+        ) {
+          continue;
+        }
         field.addEventListener("change", saveFromEditor);
       }
 
@@ -2218,40 +2314,48 @@ export function initOuterObjectsPage(mountEl) {
         saveFromEditor();
       };
 
-      bindNumberAndSlider({
+      bindOrbitRangeControl({
         numberEl: innerEl,
         sliderEl: innerSl,
-        min: 0.01,
-        max: 1000,
+        root: innerEl.closest(".orbit-range-control"),
+        min: ORBIT_AU_MIN,
+        max: ORBIT_AU_MAX,
         step: 0.01,
-        mode: "auto",
+        commitOnInput: false,
+        statusSubject: "edge",
         onChange,
       });
-      bindNumberAndSlider({
+      bindOrbitRangeControl({
         numberEl: outerEl,
         sliderEl: outerSl,
-        min: 0.01,
-        max: 1000,
+        root: outerEl.closest(".orbit-range-control"),
+        min: ORBIT_AU_MIN,
+        max: ORBIT_AU_MAX,
         step: 0.01,
-        mode: "auto",
+        commitOnInput: false,
+        statusSubject: "edge",
         onChange,
       });
-      bindNumberAndSlider({
+      bindOrbitRangeControl({
         numberEl: centerEl,
         sliderEl: centerSl,
-        min: 0.01,
-        max: 1000,
+        root: centerEl.closest(".orbit-range-control"),
+        min: ORBIT_AU_MIN,
+        max: ORBIT_AU_MAX,
         step: 0.01,
-        mode: "auto",
+        commitOnInput: false,
+        statusSubject: "center",
         onChange,
       });
-      bindNumberAndSlider({
+      bindOrbitRangeControl({
         numberEl: widthEl,
         sliderEl: widthSl,
-        min: 0.01,
-        max: 500,
+        root: widthEl.closest(".orbit-range-control"),
+        min: ORBIT_AU_MIN,
+        max: ORBIT_AU_MAX,
         step: 0.01,
-        mode: "auto",
+        commitOnInput: false,
+        statusSubject: "width",
         onChange,
       });
 
@@ -2310,6 +2414,7 @@ export function initOuterObjectsPage(mountEl) {
           edgesGroup.style.display = "";
           centerGroup.style.display = "none";
         }
+        if (!hydrating) saveFromEditor();
       });
 
       row.querySelector(".dd-name").addEventListener("change", saveFromEditor);

@@ -4,6 +4,88 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.4.0 - 2026-04-29
+
+### Wide-Orbit Authoring Controls
+
+**Added shared range-mode AU controls so rocky planets, gas giants,
+debris disks, and comets can be authored out to the million-AU model
+ceiling without losing practical inner-system slider precision**
+(ui/orbitRangeControl.js, ui/planet/inputRender.js, ui/planetPage.js,
+ui/outerObjectsPage.js, ui/store/cometModel.js, engine/comet.js,
+styles.css, tests/inputDraftStability.ui.test.js,
+tests/outerObjectsComets.ui.test.js, tests/comet.test.js,
+tests/cometStoreModel.test.js)
+
+AU placement fields now keep a full-range number input while the slider
+switches between Inner, Outer, and Distant bands. Common 1-30 AU edits
+stay precise, but distant worlds, belts, and comet orbits can be typed or
+slid up to 1,000,000 AU with clear status feedback.
+
+**Tests** (tests/inputDraftStability.ui.test.js,
+tests/outerObjectsComets.ui.test.js, tests/comet.test.js,
+tests/cometStoreModel.test.js)
+
+- Added regressions for distant rocky-planet, gas-giant, debris-disk, and
+  comet authoring, plus comet normalization at the shared million-AU cap.
+
+### Stellar Classification Input
+
+**Added stellar-class-driven star authoring with shared spectral parsing,
+mass solving, UI application, persistence, and regression coverage**
+(engine/starClassification.js, engine/starClassSolver.js, engine/star.js,
+engine/brownDwarf.js, ui/star/markup.js, ui/star/inputController.js,
+ui/star/constants.js, ui/starPage.js, styles.css, tests/starClassification.test.js,
+tests/starClassSolver.test.js, tests/starInputController.test.js,
+tests/starTopologyAuthoring.ui.test.js, tests/browser/smoke.spec.js)
+
+Star authoring now accepts spectral class text such as `G2V`, `K dwarf`,
+`sun-like`, `red dwarf`, and L/T/Y brown dwarf inputs, normalizes aliases
+through a shared parser, and solves the nearest mass that produces the
+requested class. Main-sequence requests resolve against ZAMS expectations,
+while brown dwarf requests use the current system age so cooling-sensitive
+targets report clear age-dependent feedback.
+
+The Star page now exposes the workflow directly beside mass editing for
+the focused star, including Apply and Enter-key submission, success/error
+status, automatic cleanup of conflicting advanced overrides, persistence,
+reload support, and multistar companion targeting.
+
+**Tests** (tests/starClassification.test.js, tests/starClassSolver.test.js,
+tests/starInputController.test.js, tests/starTopologyAuthoring.ui.test.js,
+tests/browser/smoke.spec.js)
+
+- Added parser and solver coverage for accepted aliases, rejected invalid
+  classes, main-sequence targets, and age-sensitive brown dwarf targets.
+- Added controller and UI regressions proving class application clears
+  conflicting overrides, preserves intended evolution behavior, targets
+  focused companions, avoids mutation on invalid input, persists changes,
+  survives reload, and appears in exported world JSON.
+
+### Tidal Locking Accuracy
+
+**Corrected rocky-planet tidal despinning timescales by applying
+differentiated-planet Love-number and inertia factors**
+(engine/planet.js, engine/moon/tides.js, engine/physics/materials.js,
+tests/planet.test.js)
+
+Rocky planets now use the differentiated moment-of-inertia factor already
+derived by the oblateness model instead of a uniform-sphere `0.4 MR^2`
+assumption when estimating star-driven tidal locking. Their homogeneous
+elastic Love number is also scaled back to Earth-like differentiated-body
+values, preventing Earth-like planets from reporting despinning times
+that are too short by roughly a factor of two.
+
+Moon-system tidal reporting now shares the same differentiated-planet
+Love-number correction for rocky parent lock-to-star and lock-to-moon
+estimates, keeping the standalone planet page and moon context aligned.
+
+**Tests** (tests/planet.test.js)
+
+- Added a regression for an Earth-like near-Sun orbit that now remains
+  near a 10 Gyr despinning timescale instead of the previously too-short
+  roughly 4.3 Gyr result.
+
 ## 2.3.0 - 2026-04-19
 
 ### Calendar Audit And Import Follow-Up

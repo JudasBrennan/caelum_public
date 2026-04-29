@@ -5,6 +5,7 @@ import { normalizeRingMode, RING_MODE_AUTO, RING_MODE_FORCE_ON } from "../engine
 import { fmt, relativeLuminance } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { confirmDestructiveAction } from "./destructiveActionDialog.js";
+import { bindOrbitRangeControl, ORBIT_AU_MAX, ORBIT_AU_MIN } from "./orbitRangeControl.js";
 import {
   buildGuidedGoalQuestionValues,
   buildGuidedGoalStatus,
@@ -1193,7 +1194,17 @@ export function initPlanetPage(mountEl, options = {}) {
       isoK40: "k40Abundance",
     };
 
+    const commitRockyField = (id, value) => {
+      const w = loadWorld();
+      const pid = w.planets.selectedId;
+      const inputKey = inputKeyMap[id];
+      updatePlanet(pid, { inputs: { [inputKey]: value } });
+      updateWorld({ planet: { [inputKey]: value } });
+      scheduleRender(true);
+    };
+
     for (const [id, val] of Object.entries(fieldMap)) {
+      if (id === "a") continue;
       const el = bodyInputsEl.querySelector(`#${id}`);
       if (el) el.value = val ?? "";
       const [min, max, step] = sliderBindings[id];
@@ -1207,18 +1218,33 @@ export function initPlanetPage(mountEl, options = {}) {
           step,
           mode: "auto",
           commitOnInput: false,
-          onChange: () => {
+          onChange: (value) => {
             if (hydrating) return;
-            const w = loadWorld();
-            const pid = w.planets.selectedId;
-            const inputKey = inputKeyMap[id];
-            updatePlanet(pid, { inputs: { [inputKey]: Number(el.value) } });
-            updateWorld({ planet: { [inputKey]: Number(el.value) } });
-            scheduleRender(true);
+            commitRockyField(id, value);
           },
         });
         el.dispatchEvent(new Event("input", { bubbles: true }));
       }
+    }
+
+    const orbitEl = bodyInputsEl.querySelector("#a");
+    const orbitSliderEl = bodyInputsEl.querySelector("#a_slider");
+    if (orbitEl && orbitSliderEl) {
+      orbitEl.value = fieldMap.a ?? "";
+      bindOrbitRangeControl({
+        numberEl: orbitEl,
+        sliderEl: orbitSliderEl,
+        root: orbitEl.closest(".orbit-range-control"),
+        min: ORBIT_AU_MIN,
+        max: ORBIT_AU_MAX,
+        step: 0.01,
+        commitOnInput: false,
+        statusSubject: "orbit",
+        onChange: (value) => {
+          if (hydrating) return;
+          commitRockyField("a", value);
+        },
+      });
     }
 
     // CMF input (special: supports auto mode via cmfPct = -1)
@@ -2748,14 +2774,15 @@ export function initPlanetPage(mountEl, options = {}) {
 
     const auEl = bodyInputsEl.querySelector("#ggAu");
     const auSlider = bodyInputsEl.querySelector("#ggAu_slider");
-    bindNumberAndSlider({
+    bindOrbitRangeControl({
       numberEl: auEl,
       sliderEl: auSlider,
-      min: 0.01,
-      max: 1000,
+      root: auEl?.closest(".orbit-range-control"),
+      min: ORBIT_AU_MIN,
+      max: ORBIT_AU_MAX,
       step: 0.01,
-      mode: "auto",
       commitOnInput: false,
+      statusSubject: "orbit",
       onChange: () => {
         if (!hydrating) saveGiant();
       },

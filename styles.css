@@ -1485,6 +1485,31 @@ button.primary:hover {
   grid-template-columns: 1fr;
   gap: 8px;
 }
+.star-class-entry-row {
+  grid-template-columns: 1fr minmax(220px, 0.85fr);
+  align-items: start;
+}
+.star-class-entry {
+  display: grid;
+  gap: 6px;
+}
+.star-class-entry__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.star-class-entry__controls button {
+  white-space: nowrap;
+}
+.star-class-entry__status {
+  margin-top: 0;
+}
+.star-class-entry__status[data-kind="ok"] {
+  color: var(--good);
+}
+.star-class-entry__status[data-kind="error"] {
+  color: var(--bad);
+}
 input[type="range"] {
   width: 100%;
   accent-color: var(--accent);
@@ -1496,6 +1521,34 @@ input[type="range"] {
   color: var(--muted);
   font-size: 12px;
   font-family: var(--mono);
+}
+.orbit-range-control {
+  gap: 7px;
+}
+.orbit-range-toggle {
+  height: 30px;
+}
+.orbit-range-toggle input[type="radio"] {
+  height: 26px;
+}
+.orbit-range-toggle label {
+  line-height: 26px;
+}
+.orbit-range-toggle > span {
+  height: 26px;
+}
+.orbit-range-status {
+  margin-top: -2px;
+  min-height: 0;
+}
+.orbit-range-status:empty {
+  display: none;
+}
+.orbit-range-status[data-range-kind="outer"] {
+  color: var(--warn);
+}
+.orbit-range-status[data-range-kind="distant"] {
+  color: var(--accent);
 }
 
 /* Fixed background layer (prevents gradient from scrolling) */

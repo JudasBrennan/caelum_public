@@ -56,8 +56,8 @@ export function normalizeComet(raw, idx = 1, { fallbackHostFrameId = null } = {}
     semiMajorAxisAu: clampOrDefault(
       raw?.semiMajorAxisAu ?? raw?.aAu,
       DEFAULT_COMET.semiMajorAxisAu,
-      0.05,
-      100000,
+      0.01,
+      1000000,
     ),
     eccentricity: clampOrDefault(
       raw?.eccentricity ?? raw?.ecc,

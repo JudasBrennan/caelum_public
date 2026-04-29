@@ -1,4 +1,4 @@
-# WorldSmith Web 2.3.0
+# WorldSmith Web 2.4.0
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -6,9 +6,12 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
-- The calendar builder now supports structural intercalary periods before months, after months, at year end, or appended inside a month, with dedicated authoring, rendering, and export support.
-- Holiday and festival rules now follow authored calendar years correctly, support cyclic year intervals, and expose a Rule Audit workflow with preview, agenda, and trace surfaces.
-- Calendar JSON, printable, and ICS flows now preserve the updated calendar model more faithfully, and the Sol and Realmspace presets better demonstrate the shipped calendar structure.
+- Star authoring now accepts spectral class text such as `G2V`, `K dwarf`, `sun-like`, `red dwarf`, and L/T/Y brown dwarf targets, then solves the nearest matching mass for the focused star or companion.
+- Rocky planets, gas giants, debris disks, and comets now share AU controls that keep inner-system slider precision while still allowing distant bodies out to the million-AU model ceiling.
+- Rocky-planet tidal locking estimates now use differentiated-body Love-number and inertia factors, bringing standalone planet and moon-context tidal outputs into closer agreement.
+- The calendar builder supports structural intercalary periods before months, after months, at year end, or appended inside a month, with dedicated authoring, rendering, and export support.
+- Holiday and festival rules follow authored calendar years correctly, support cyclic year intervals, and expose a Rule Audit workflow with preview, agenda, and trace surfaces.
+- Calendar JSON, printable, and ICS flows preserve the updated calendar model more faithfully, and the Sol and Realmspace presets better demonstrate the shipped calendar structure.
 - Consequence-aware destructive confirmations now explain what will change before deleting planets, moons, stars, calendar profiles, cluster items, or replacing browser data.
 - The shell interaction model now treats dialogs and the mobile nav drawer consistently, with better focus handling, clearer route orientation, and a quieter accessibility surface.
 - Star and Calendar now surface current-state summaries and inline guidance so dense editor workflows are easier to scan without tooltip hunting.

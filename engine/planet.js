@@ -32,6 +32,7 @@ import { deriveRockyRingScience } from "./planetaryRings.js";
 import { calcStar } from "./star.js";
 import { findNearestResonance } from "./debrisDisk.js";
 import {
+  DIFFERENTIATED_PLANET_K2_SCALE,
   calcRockyPlanetRigidityPa,
   calcRockyPlanetTidalQualityFactor,
 } from "./physics/materials.js";
@@ -549,13 +550,14 @@ export function calcPlanetExact({
   const mPlanetKg = planetMassEarthToKg(massEarth);
   const orbitM = semiMajorAxisAuToMeters(semiMajorAxisAu);
   const omegaPlanet = (2 * PI) / (rotationPeriodHours * 3600);
-  const I_planet = 0.4 * mPlanetKg * radiusM ** 2;
-  const k2Planet = calcK2LoveNumber({
+  const I_planet = oblateness.momentOfInertiaFactor * mPlanetKg * radiusM ** 2;
+  const elasticK2Planet = calcK2LoveNumber({
     densityKgM3,
     gravityMs2,
     radiusM,
     rigidityPa: rigidity,
   });
+  const k2Planet = elasticK2Planet * DIFFERENTIATED_PLANET_K2_SCALE;
   const tidalLockBodyGyr = tidalLockTimeGyr(
     omegaPlanet,
     orbitM,

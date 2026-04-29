@@ -15,6 +15,7 @@
 //    spectralClass, habitableZoneAu, habitableZoneMillionKm, earthLikeLifePossible
 
 import { calcBrownDwarf, computeBrownDwarfXuvModel } from "./brownDwarf.js";
+import { classifyMainSequenceSpectralClassFromTempK } from "./starClassification.js";
 import { clamp, fmt, toFinite } from "./utils.js";
 import { BROWN_DWARF_MIN_MSOL, classifyHostRegimeByMass } from "./substellarRegime.js";
 
@@ -770,7 +771,7 @@ export function calcStar({
     m >= 0.5 && m <= 1.4 ? (age >= 3.5 ? "Yes" : "Star Too Young") : "No";
 
   // Spectral class mirrors Calculations!B4:C10 logic:
-  const spectralClass = calcSpectralClassFromTemp(tempK);
+  const spectralClass = classifyMainSequenceSpectralClassFromTempK(tempK);
 
   // Extra physical values also shown in STAR sheet (right-side metric conversions)
   const massKg = 1.989e30 * m;
@@ -850,39 +851,4 @@ export function calcStar({
     },
     starColourHex: starColourHexFromTempK(tempK),
   };
-}
-
-// Mirrors Calculations sheet: letter based on temperature ranges, subtype based on linear mapping.
-// The spreadsheet uses exclusive comparisons with bounds (e.g. 6000>t and t>5200).
-function calcSpectralClassFromTemp(tempK) {
-  const t = Number(tempK);
-  if (!Number.isFinite(t)) return "NA";
-
-  // Each bucket:
-  // M: 2000 < t < 3700, subtype: ROUNDDOWN(((1 - (t-2000)/1700))*10,1) & "V"
-  // K: 3700 < t < 5200, denom 1500
-  // G: 5200 < t < 6000, denom 800
-  // F: 6000 < t < 7500, denom 1500
-  // A: 7500 < t < 10000, denom 2500
-  // B: 10000 < t < 33000, denom 23000
-  // O: 33000 < t < 95000, denom 62000
-
-  const buckets = [
-    { letter: "M", lo: 2000, hi: 3700, denom: 1700 },
-    { letter: "K", lo: 3700, hi: 5200, denom: 1500 },
-    { letter: "G", lo: 5200, hi: 6000, denom: 800 },
-    { letter: "F", lo: 6000, hi: 7500, denom: 1500 },
-    { letter: "A", lo: 7500, hi: 10000, denom: 2500 },
-    { letter: "B", lo: 10000, hi: 33000, denom: 23000 },
-    { letter: "O", lo: 33000, hi: 95000, denom: 62000 },
-  ];
-
-  const b = buckets.find((x) => t >= x.lo && t < x.hi);
-  if (!b) return "NA";
-
-  const raw = (1 - (t - b.lo) / b.denom) * 10;
-  // Excel: ROUNDDOWN(value, 1)
-  const subtype = Math.floor(raw * 10) / 10;
-
-  return `${b.letter}${subtype}V`;
 }
