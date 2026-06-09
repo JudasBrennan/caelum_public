@@ -11,39 +11,42 @@ export function buildStarPageMarkup({ hostComponentMassMinText }) {
         <button id="starTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        ${buildPageIntroHtml({
-          summary:
-            "Define the home-system layout and shared stellar context before editing later body pages.",
-          controls:
-            "The system topology, default orbit host, and whichever star or shared pair is currently selected.",
-          affects:
-            "System slots, host-frame context, stellar flux, and stability assumptions used across planet and moon workflows.",
-          primaryAction:
-            "Choose the topology first, then confirm the default orbit host before tuning stellar properties.",
-        })}
-        <div id="starCurrentStatePanel" class="context-summary" aria-label="Current star system context">
-          <div class="context-summary__header">
+        <div id="starCockpit" class="star-cockpit" aria-label="Star authoring cockpit">
+          <div class="star-cockpit__overview">
             <div>
-              <div class="context-summary__title">Current System Context</div>
-              <div id="starCurrentStateCopy" class="context-summary__copy"></div>
+              <div class="star-cockpit__eyebrow">Star setup</div>
+              <p id="starCockpitSummary" class="star-cockpit__summary">
+                Define the home system layout, then tune the active star or pair.
+              </p>
+            </div>
+            <div class="star-cockpit__status-grid" aria-label="Current star setup status">
+              <div class="star-cockpit__status-card">
+                <div class="star-cockpit__status-label">Editing</div>
+                <div id="starCockpitTargetValue" class="star-cockpit__status-value">Star A</div>
+                <div id="starCockpitTargetMeta" class="star-cockpit__status-meta">Manual editor target</div>
+              </div>
+              <div class="star-cockpit__status-card">
+                <div class="star-cockpit__status-label">Topology</div>
+                <div id="starCockpitTopologyValue" class="star-cockpit__status-value">Single</div>
+                <div id="starCockpitTopologyMeta" class="star-cockpit__status-meta">One host frame</div>
+              </div>
+              <div class="star-cockpit__status-card">
+                <div class="star-cockpit__status-label">Default Host</div>
+                <div id="starCockpitHostValue" class="star-cockpit__status-value">Star A</div>
+                <div id="starCockpitHostMeta" class="star-cockpit__status-meta">Future orbit host</div>
+              </div>
+              <div id="starCockpitHealthCard" class="star-cockpit__status-card" hidden>
+                <div class="star-cockpit__status-label">Hierarchy Health</div>
+                <div id="starCockpitHealthValue" class="star-cockpit__status-value">Good</div>
+                <div id="starCockpitHealthMeta" class="star-cockpit__status-meta">Stable hierarchy</div>
+              </div>
             </div>
           </div>
-          <div id="starCurrentStateGrid" class="context-summary__grid"></div>
-          <div id="starCurrentStateNotes" class="context-summary__notes"></div>
-        </div>
-      </div>
-    </div>
 
-    <div class="grid-2">
-      <div class="panel">
-        <div class="panel__header"><h2>Inputs</h2></div>
-        <div class="panel__body">
-          <div id="starCreateEntry" class="guided-entry-strip">
+          <div id="starCreateEntry" class="guided-entry-strip star-cockpit__entry">
             <div class="guided-entry-strip__title">Create This Star</div>
             <div id="starCreateEntryHint" class="guided-entry-strip__copy">
-              Quick applies a stellar archetype, Guided walks you to a recommendation, and
-              Advanced is the direct editor below. Sol-ish Preset and Reset remain available as
-              direct input helpers.
+              Quick applies an archetype, Guided recommends a fit, and Manual keeps the direct editor visible.
             </div>
             <div class="guided-entry-strip__modes">
               <button id="starCreateQuickBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("quick"))}>
@@ -53,11 +56,47 @@ export function buildStarPageMarkup({ hostComponentMassMinText }) {
                 Guided
               </button>
               <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page" ${tipAttr(getGuidedEntryModeTooltip("advanced"))}>
-                Advanced
+                Manual
               </span>
             </div>
           </div>
 
+          <details id="starContextDisclosure" class="star-context-disclosure">
+            <summary>
+              <span>How this affects other pages</span>
+              <span id="starContextDisclosureSummary">Topology, default host, and stellar context feed later workflows.</span>
+            </summary>
+            <div class="star-context-disclosure__body">
+              ${buildPageIntroHtml({
+                summary:
+                  "Define the home-system layout and shared stellar context before editing later body pages.",
+                controls:
+                  "The system topology, default orbit host, and whichever star or shared pair is currently selected.",
+                affects:
+                  "System slots, host-frame context, stellar flux, and stability assumptions used across planet and moon workflows.",
+                primaryAction:
+                  "Choose the topology first, then confirm the default orbit host before tuning stellar properties.",
+              })}
+              <div id="starCurrentStatePanel" class="context-summary" aria-label="Current star system context">
+                <div class="context-summary__header">
+                  <div>
+                    <div class="context-summary__title">Current System Context</div>
+                    <div id="starCurrentStateCopy" class="context-summary__copy"></div>
+                  </div>
+                </div>
+                <div id="starCurrentStateGrid" class="context-summary__grid"></div>
+                <div id="starCurrentStateNotes" class="context-summary__notes"></div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel__header"><h2>Inputs</h2></div>
+        <div class="panel__body">
           <div class="subsection">
             <div class="subsection__title">Home System Layout ${tipIcon(TIP_LABEL["Home System Architecture"] || "")}</div>
             <div id="starTopologyGuidance" class="context-summary__note context-summary__note--accent"></div>

@@ -28,6 +28,7 @@ const FULL_MOON_APP_MAG = -12.74;
 const JUPITER_RADIUS_KM = 69911;
 const EARTH_RADIUS_KM = 6371;
 const SUN_RADIUS_KM = 695700;
+const DAY_SIDE_MAX_ELONGATION_DEG = 90;
 
 function clampCos(value) {
   if (!Number.isFinite(value)) return NaN;
@@ -122,6 +123,14 @@ function defaultCurrentDistanceAu(orbitAu, homeAu) {
   return min + (max - min) * 0.5;
 }
 
+function canAppearInDaySideSky(elongationDeg) {
+  return (
+    Number.isFinite(elongationDeg) &&
+    elongationDeg > 20 &&
+    elongationDeg < DAY_SIDE_MAX_ELONGATION_DEG
+  );
+}
+
 function classifyObservable({
   orbitAu,
   homeAu,
@@ -141,8 +150,7 @@ function classifyObservable({
   if (
     Number.isFinite(apparentMagnitude) &&
     apparentMagnitude < -6 &&
-    Number.isFinite(elongationDeg) &&
-    elongationDeg > 20
+    canAppearInDaySideSky(elongationDeg)
   ) {
     return "Day and night";
   }

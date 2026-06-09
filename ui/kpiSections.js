@@ -26,7 +26,10 @@ export function createKpiSection(section = {}) {
       {
         className:
           `kpi-section ${section.density === "compact" ? "kpi-section--compact" : ""}`.trim(),
-        attrs: section.open === false ? {} : { open: "" },
+        attrs: {
+          ...(section.id ? { id: section.id } : {}),
+          ...(section.open === false ? {} : { open: "" }),
+        },
       },
       [
         createElement("summary", { className: "kpi-section__header" }, [

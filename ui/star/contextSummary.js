@@ -15,6 +15,62 @@ function createContextSummaryNote(title, body) {
   ]);
 }
 
+function setText(node, text) {
+  if (!node) return;
+  node.textContent = text == null ? "" : String(text);
+}
+
+export function renderStarCockpit({
+  summaryEl,
+  targetValueEl,
+  targetMetaEl,
+  topologyValueEl,
+  topologyMetaEl,
+  hostValueEl,
+  hostMetaEl,
+  healthCardEl,
+  healthValueEl,
+  healthMetaEl,
+  disclosureSummaryEl,
+  selectedTargetLabel,
+  selectedTargetMeta,
+  isMulti,
+  topologyLabel,
+  hostFrameCount,
+  activeHostFrameLabel,
+  activeHostFrameModeLabel,
+  topologyHealth,
+} = {}) {
+  setText(
+    summaryEl,
+    isMulti
+      ? `${topologyLabel} layout. Edit one star or pair at a time, then review the live outputs.`
+      : "Single star ready. Tune the star directly, or choose a richer topology when your system needs companions.",
+  );
+  setText(targetValueEl, selectedTargetLabel || "Star A");
+  setText(targetMetaEl, selectedTargetMeta || "Manual editor target");
+  setText(topologyValueEl, topologyLabel || "Single");
+  setText(
+    topologyMetaEl,
+    isMulti ? `${hostFrameCount} available host frame(s)` : "One host frame available",
+  );
+  setText(hostValueEl, activeHostFrameLabel || "Star A");
+  setText(hostMetaEl, activeHostFrameModeLabel || "Future orbit host");
+
+  if (healthCardEl) healthCardEl.hidden = !isMulti;
+  setText(healthValueEl, isMulti ? topologyHealth?.headline || "Check needed" : "");
+  setText(
+    healthMetaEl,
+    isMulti ? `${topologyHealth?.summary || ""} ${topologyHealth?.fluxSummary || ""}`.trim() : "",
+  );
+  setText(
+    disclosureSummaryEl,
+    isMulti
+      ? "Host frames, orbit defaults, and hierarchy health feed later planets and debris."
+      : "Topology, default host, and stellar context feed later workflows.",
+  );
+}
+
 export function renderStarCurrentStateSummary({
   copyEl,
   gridEl,

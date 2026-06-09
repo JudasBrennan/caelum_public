@@ -113,7 +113,7 @@ export function createStarOutputStrip({
     if (!summarySectionEl) return;
     summarySectionEl.querySelector("#starOutputStrip")?.remove();
     const descriptors = buildOutputStarPreviewDescriptors(draftState);
-    if (!descriptors.length) return;
+    if (descriptors.length <= 1) return;
     const stripEl = createElement("div", {
       className: "star-output-strip",
       attrs: { id: "starOutputStrip" },

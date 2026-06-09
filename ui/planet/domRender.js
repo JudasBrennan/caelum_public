@@ -239,6 +239,52 @@ export function renderBodyActionButtons(container, actions = []) {
   return container;
 }
 
+export function renderPlanetEmptyState(
+  container,
+  {
+    title = "No planet selected",
+    body = "Create or select a world before derived outputs can be calculated.",
+    guidedLabel = "Guided",
+  } = {},
+) {
+  replaceChildren(container, [
+    createElement(
+      "section",
+      {
+        className: "planet-empty-state",
+        attrs: {
+          id: "planetEmptyState",
+          "aria-label": "Planet output empty state",
+        },
+      },
+      [
+        createElement("div", { className: "planet-empty-state__eyebrow", text: "Outputs" }),
+        createElement("h3", { className: "planet-empty-state__title", text: title }),
+        createElement("p", { className: "planet-empty-state__body", text: body }),
+        createElement("div", { className: "planet-empty-state__actions" }, [
+          createElement("button", {
+            className: "primary",
+            attrs: { type: "button" },
+            dataset: { planetEmptyAction: "new-rocky" },
+            text: "New rocky planet",
+          }),
+          createElement("button", {
+            attrs: { type: "button" },
+            dataset: { planetEmptyAction: "new-gas-giant" },
+            text: "New gas giant",
+          }),
+          createElement("button", {
+            attrs: { type: "button" },
+            dataset: { planetEmptyAction: "guided-rocky" },
+            text: guidedLabel,
+          }),
+        ]),
+      ],
+    ),
+  ]);
+  return container;
+}
+
 export function createRecipePickerOverlay({
   title = "Recipes",
   categories = [],

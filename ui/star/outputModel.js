@@ -20,6 +20,128 @@ export function shortPopulationLabel(label) {
   return txt;
 }
 
+function hasPositiveLifeSignal(value) {
+  return /^yes$/i.test(String(value || "").trim());
+}
+
+function hasYoungLifeSignal(value) {
+  return /young/i.test(String(value || ""));
+}
+
+function indefiniteArticleFor(text) {
+  return /^[aeiou]/i.test(String(text || "").trim()) ? "an" : "a";
+}
+
+function describeSpectralKind(classValue, isBrownDwarf) {
+  const raw = String(classValue || "").trim();
+  if (isBrownDwarf) return raw ? `${raw} brown dwarf` : "brown dwarf";
+  const spectralLetter = raw.match(/[OBAFGKM]/i)?.[0]?.toUpperCase() || "";
+  const family =
+    {
+      O: "hot O-type star",
+      B: "blue B-type star",
+      A: "white A-type star",
+      F: "yellow-white F-type star",
+      G: "G-type main-sequence star",
+      K: "cool K-type star",
+      M: "red M-type star",
+    }[spectralLetter] || "main-sequence star";
+  return raw ? `${family} (${raw})` : family;
+}
+
+function buildLifeInterpretation({ lifeValue, isBrownDwarf }) {
+  if (isBrownDwarf) {
+    return "Direct Earth-like life is not assigned to substellar hosts; use the current temperate-zone and moon outputs for habitability work.";
+  }
+  if (hasPositiveLifeSignal(lifeValue)) {
+    return "Earth-like life is plausible at the current age by the Star page rule of thumb.";
+  }
+  if (hasYoungLifeSignal(lifeValue)) {
+    return "Earth-like life is delayed by the current age; let the star mature or choose an older system.";
+  }
+  return "Earth-like life is unlikely for this focused host under the current mass and age rule.";
+}
+
+function buildTopologyInterpretation({
+  isMulti,
+  topologyLabel,
+  activeHostFrameLabel,
+  activeHostFrameModeLabel,
+  topologyHealth,
+}) {
+  if (!isMulti) {
+    return "Single-star layout keeps future planets, moons, and debris anchored to this host.";
+  }
+  const healthHeadline = String(topologyHealth?.headline || "").trim();
+  const healthCopy = healthHeadline ? ` Hierarchy health: ${healthHeadline}.` : "";
+  return `${topologyLabel} layout defaults future orbits to ${activeHostFrameLabel} (${activeHostFrameModeLabel}).${healthCopy}`;
+}
+
+export function buildStarResultSummary({
+  focusedStar,
+  model,
+  activity,
+  isMulti,
+  topologyLabel,
+  topologyHealth,
+  activeHostFrameLabel,
+  activeHostFrameModeLabel,
+  classValue,
+  zoneLabel,
+  zoneValue,
+  lifeValue,
+  isBrownDwarf,
+  energeticRecurrenceText,
+  formatLuminosityLsol,
+} = {}) {
+  const name = String(focusedStar?.name || "Focused star").trim() || "Focused star";
+  const spectralKind = describeSpectralKind(classValue, isBrownDwarf);
+  const article = indefiniteArticleFor(spectralKind);
+  const luminosity = Number(model?.luminosityLsol);
+  const formatLuminosity =
+    typeof formatLuminosityLsol === "function"
+      ? formatLuminosityLsol
+      : (value) => String(value ?? "n/a");
+  const luminosityCopy = Number.isFinite(luminosity)
+    ? ` at ${formatLuminosity(luminosity, 3)} Lsol`
+    : "";
+  const zoneCopy = zoneValue
+    ? `The current ${String(zoneLabel || "temperate zone").toLowerCase()} spans ${zoneValue} AU.`
+    : "No temperate-zone distance is available yet.";
+  const lifeCopy = buildLifeInterpretation({ lifeValue, isBrownDwarf });
+  const topologyCopy = buildTopologyInterpretation({
+    isMulti,
+    topologyLabel,
+    activeHostFrameLabel,
+    activeHostFrameModeLabel,
+    topologyHealth,
+  });
+  const activityCopy = activity?.teffBin
+    ? `Activity reads as ${activity.teffBin}/${activity.ageBand}, with energetic flares about every ${energeticRecurrenceText}.`
+    : "";
+  const blocked =
+    topologyHealth?.blocked || /blocked|inverted|caution/i.test(topologyHealth?.headline || "");
+  const tone =
+    blocked || hasYoungLifeSignal(lifeValue)
+      ? "warning"
+      : hasPositiveLifeSignal(lifeValue)
+        ? "good"
+        : "neutral";
+
+  return {
+    tone,
+    body: `${name} is ${article} ${spectralKind}${luminosityCopy}. ${zoneCopy} ${lifeCopy} ${topologyCopy} ${activityCopy}`.trim(),
+    items: [
+      { label: "Focus", value: name },
+      { label: "Temperate zone", value: zoneValue ? `${zoneValue} AU` : "n/a" },
+      {
+        label: isMulti ? "Hierarchy" : "Life signal",
+        value: isMulti ? topologyHealth?.headline || "Check" : lifeValue || "n/a",
+      },
+    ],
+  };
+}
+
 export function createStarOutputModelHelpers({
   buildDefaultOrbitHostSummary,
   buildHostFrameOptionText,
@@ -111,6 +233,11 @@ export function createStarOutputModelHelpers({
       value,
       meta,
       ...overrides,
+    });
+    const collapsedKpiSection = (section) => ({
+      ...section,
+      collapsible: true,
+      open: false,
     });
 
     const systemContextItems = [
@@ -235,10 +362,28 @@ export function createStarOutputModelHelpers({
       },
     ];
 
+    const resultSummary = buildStarResultSummary({
+      focusedStar,
+      model,
+      activity,
+      isMulti,
+      topologyLabel,
+      topologyHealth,
+      activeHostFrameLabel,
+      activeHostFrameModeLabel,
+      classValue,
+      zoneLabel,
+      zoneValue,
+      lifeValue,
+      isBrownDwarf: isBrownDwarfModel(model),
+      energeticRecurrenceText,
+      formatLuminosityLsol,
+    });
+
     const kpiSections = [
       {
         id: "star-summary",
-        title: "Summary",
+        title: "Key Numbers",
         items: [
           starKpi(
             "Focused Star Preview",
@@ -274,7 +419,7 @@ export function createStarOutputModelHelpers({
           starKpi(lifeLabel, lifeValue, lifeMeta, { tipLabel: "Earth-like Life?" }),
         ],
       },
-      {
+      collapsedKpiSection({
         id: "star-identity",
         title: "Identity & Class",
         density: "compact",
@@ -288,8 +433,8 @@ export function createStarOutputModelHelpers({
             { tipLabel: "Stellar Population" },
           ),
         ],
-      },
-      {
+      }),
+      collapsedKpiSection({
         id: "star-physical",
         title: "Physical State",
         density: "compact",
@@ -311,20 +456,20 @@ export function createStarOutputModelHelpers({
           starKpi("Density", formatNumber(model.densityGcm3, 3), "g/cm³"),
           starKpi("Temperature", formatNumber(model.tempK, 0), "K"),
         ],
-      },
-      {
+      }),
+      collapsedKpiSection({
         id: "star-environment",
         title: "Environment",
         density: "compact",
         items: [starKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" })],
-      },
-      {
+      }),
+      collapsedKpiSection({
         id: "star-system",
         title: "System Context",
         density: "compact",
         items: systemContextItems,
-      },
-      {
+      }),
+      collapsedKpiSection({
         id: "star-activity",
         title: "Activity & Radiation",
         density: "compact",
@@ -363,13 +508,13 @@ export function createStarOutputModelHelpers({
             activity.teffBin === "FGK" ? "Solar-cycle observed range" : "FGK stars only",
           ),
         ],
-      },
-      {
+      }),
+      collapsedKpiSection({
         id: "star-habitability",
         title: "Habitability",
         density: "compact",
         items: [starKpi(lifeLabel, lifeValue, lifeMeta, { tipLabel: "Earth-like Life?" })],
-      },
+      }),
     ];
 
     const detailSections = [
@@ -488,6 +633,7 @@ export function createStarOutputModelHelpers({
       detailSections,
       isMulti,
       kpiSections,
+      resultSummary,
       currentStateSummary: {
         activeHostFrameLabel,
         activeHostFrameModeLabel,

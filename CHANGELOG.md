@@ -4,6 +4,93 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.5.0 - 2026-06-09
+
+### Dense UI/UX Simplification
+
+**Reduced first-screen density across the Star, Moon, Planet, and Calendar
+authoring pages with action-first summaries, compact workflow context, and
+progressively disclosed secondary output details**
+(ui/pageIntro.js, ui/starPage.js, ui/star/markup.js,
+ui/star/contextSummary.js, ui/star/outputModel.js, ui/star/outputStrip.js,
+ui/star/resultSummary.js, ui/moonPage.js, ui/moon/domRender.js,
+ui/planetPage.js, ui/planet/domRender.js, ui/calendarPage.js,
+ui/kpiSections.js, styles.css, tests/browser/smoke.spec.js,
+tests/inputDraftStability.ui.test.js, tests/pageIntroPanels.ui.test.js,
+tests/planetDomRender.test.js, tests/starOutputModel.test.js,
+tests/starTopologyAuthoring.ui.test.js, tests/calendarPage.ui.test.js)
+
+The Star page now opens with a compact cockpit that explains the current
+editing target, topology, default host frame, and hierarchy health before users
+reach the deeper topology controls. The guided/manual creation strip has been
+pulled into that cockpit, the heavier system-context explanation now lives
+behind a disclosure, single-star layouts hide multistar-only topology clutter,
+and focused-editor hints adapt to the currently available star or pair targets.
+
+Star and Moon outputs now lead with a plain-language Result Summary and keep
+the primary output strip focused on Key Numbers, with identity, physical,
+environment, system, activity, and habitability sections collapsed until needed.
+The Planet page now shows an actionable empty output state with buttons for
+creating a rocky planet, creating a gas giant, or starting the rocky guided
+flow instead of leaving users at a terse "no selection" message.
+
+Calendar profile context is more compact, with rule counts grouped into a
+single summary card, profile-only output scope called out directly, and the
+long rule-order explanation placed behind a local disclosure. Planet and Moon
+page intro panels also use the compact workflow-context pattern so their first
+viewport is less crowded while still keeping downstream effects available.
+
+**Tests** (tests/browser/smoke.spec.js, tests/inputDraftStability.ui.test.js,
+tests/pageIntroPanels.ui.test.js, tests/planetDomRender.test.js,
+tests/starOutputModel.test.js, tests/starTopologyAuthoring.ui.test.js,
+tests/calendarPage.ui.test.js)
+
+- Added Star cockpit smoke coverage across desktop, mobile, and topology
+  changes, including paired quad behavior and collapsed context disclosures.
+- Added Planet output empty-state coverage for rocky, gas-giant, and guided
+  actions, plus escaping regressions for the empty-state renderer.
+- Added Moon and Calendar regressions for compact summaries, collapsed detail
+  sections, and preserved selected/unassigned body states.
+- Added output-model assertions proving Star and Moon now expose Result
+  Summary content and collapse non-primary KPI sections by default.
+
+### Apparent Visibility Geometry
+
+**Prevented very bright night-side planets from being labeled as visible
+"Day and night" when their elongation makes daytime viewing physically
+impossible**
+(engine/apparent.js, tests/apparent.test.js)
+
+Planet visibility classification now requires an object to be bright enough
+and positioned on the star-side half of the observer's sky before promoting it
+to "Day and night". Bright outer planets at opposition, around 180 deg
+elongation, now remain "At night" with a very-bright naked-eye visibility
+label instead of being incorrectly marked as day-visible.
+
+**Tests** (tests/apparent.test.js)
+
+- Added a positive day-side bright-object case that still reports "Day and
+  night".
+- Added a regression for a very bright outer planet at opposition that now
+  stays night-only.
+
+### Dev Server and Release Workflow
+
+**Hardened local dev-server startup, filtered test runs, and manual-upload
+release checklist expectations**
+(scripts/dev.mjs, scripts/serve-dist.mjs, scripts/run-tests.mjs,
+RELEASE_CHECKLIST.md)
+
+The `dev` script now probes for an available local port and automatically
+falls forward from the requested port when it is already in use, while
+`serve-dist` reports clearer bind and permission errors. The shared test
+runner now accepts filename filters while still forwarding Node test options,
+which makes targeted runs such as apparent-engine checks faster to execute.
+
+The release checklist now treats `dist/` as the local manual-upload artifact
+set and avoids asking maintainers to verify a live deployment before those
+files have been uploaded.
+
 ## 2.4.0 - 2026-04-29
 
 ### Wide-Orbit Authoring Controls

@@ -2348,8 +2348,11 @@ export function initCalendarPage(mountEl) {
           "Printable calendars, ICS export, and any world-specific moon-phase timing exposed elsewhere in the app.",
         primaryAction:
           "Choose or create a profile, sync from the selected planet and moons, then shape the rules and outputs.",
+        compact: true,
+        detailsTitle: "Calendar workflow context",
+        detailsSummary: "Profiles, structure rules, events, and exports stay calendar-scoped.",
       },
-    )}<div id="calProfileSummaryPanel" class="context-summary" aria-label="Active calendar profile summary"><div class="context-summary__header"><div><div class="context-summary__title">Active Profile Summary</div><div id="calProfileSummaryCopy" class="context-summary__copy"></div></div></div><div id="calProfileSummaryGrid" class="context-summary__grid"></div><div id="calProfileSummaryNotes" class="context-summary__notes"></div></div></div></div>
+    )}<div id="calProfileSummaryPanel" class="context-summary context-summary--compact calendar-profile-summary" aria-label="Active calendar profile summary"><div class="context-summary__header"><div><div class="context-summary__title">Active Profile Summary</div><div id="calProfileSummaryCopy" class="context-summary__copy"></div></div></div><div id="calProfileSummaryGrid" class="context-summary__grid context-summary__grid--compact"></div><div id="calProfileSummaryNotes" class="context-summary__notes"></div></div></div></div>
     <div class="calendar-workspace">
       <div class="calendar-toolbar">
         <div class="calendar-toolbar__left">
@@ -3310,7 +3313,14 @@ export function initCalendarPage(mountEl) {
     const primaryMoonLabel = ctx.moonDefs[0]?.name || "Primary moon";
     const profileNameLabel =
       String(state.profileName || state.ui.calendarName || "Calendar").trim() || "Calendar";
-    els.profileSummaryCopy.textContent = `${profileNameLabel} is built from ${sourcePlanetLabel} and ${primaryMoonLabel}. These rules reshape month structure, structural intercalary periods, events, and exports without changing the world model itself.`;
+    const ruleCountsText = [
+      `Holidays ${holidays.length}`,
+      `Festivals ${festivals.length}`,
+      `Intercalary ${intercalaryPeriods.length}`,
+      `Leap Rules ${leaps.length}`,
+      `Cycles ${workCycles.length}`,
+    ].join(" | ");
+    els.profileSummaryCopy.textContent = `${profileNameLabel} uses ${sourcePlanetLabel} and ${primaryMoonLabel}. Calendar rules affect views and exports only; world physics stays unchanged.`;
     els.profileSummaryGrid.replaceChildren(
       createContextSummaryCard(
         "Active Profile",
@@ -3323,37 +3333,14 @@ export function initCalendarPage(mountEl) {
         `${ctx.moonDefs.length} moon reference${ctx.moonDefs.length === 1 ? "" : "s"} available`,
       ),
       createContextSummaryCard(
-        "Holidays",
-        String(holidays.length),
-        holidays.length ? "Visible in month, detailed, and export views." : "No holiday rules yet.",
+        "Rules",
+        ruleCountsText,
+        "Open the Rules drawer tab for holiday, festival, leap, intercalary, and cycle editing.",
       ),
       createContextSummaryCard(
-        "Festivals",
-        String(festivals.length),
-        festivals.length
-          ? "Named event days layered into current views."
-          : "No festival days configured.",
-      ),
-      createContextSummaryCard(
-        "Intercalary",
-        String(intercalaryPeriods.length),
-        intercalaryPeriods.length
-          ? "Structural days placed before months, after months, at year end, or inside a month."
-          : "No structural intercalary periods configured.",
-      ),
-      createContextSummaryCard(
-        "Leap Rules",
-        String(leaps.length),
-        leaps.length
-          ? "Leap-year month adjustments resolve before intercalary placement and event matching."
-          : "No leap-year adjustments configured.",
-      ),
-      createContextSummaryCard(
-        "Cycles",
-        String(workCycles.length),
-        workCycles.length
-          ? "Weekend handling and duty markers apply across the active profile."
-          : "No work/rest cycles configured.",
+        "Output Scope",
+        "Profile-only",
+        "Printable views, ICS, and calendar JSON do not replace the world model.",
       ),
     );
     els.profileSummaryNotes.replaceChildren(
@@ -3361,9 +3348,12 @@ export function initCalendarPage(mountEl) {
         createElement("strong", { text: "Import/export scope. " }),
         "Calendar JSON here is profile-only. Use the Import/Export route when you want to replace or transfer an entire world instead.",
       ]),
-      createElement("div", { className: "context-summary__note" }, [
-        createElement("strong", { text: "Rule order. " }),
-        "Leap rules resolve month lengths first, intercalary periods then place structural extra days, holidays and festivals match against those resolved dates, and work/rest cycles add global weekend handling and cycle markers.",
+      createElement("details", { className: "context-summary__details" }, [
+        createElement("summary", { text: "Rule order" }),
+        createElement("div", { className: "context-summary__note" }, [
+          createElement("strong", { text: "Rule order. " }),
+          "Leap rules resolve month lengths first, intercalary periods then place structural extra days, holidays and festivals match against those resolved dates, and work/rest cycles add global weekend handling and cycle markers.",
+        ]),
       ]),
     );
     els.rulesSummary.textContent = [

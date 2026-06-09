@@ -1,4 +1,4 @@
-# WorldSmith Web 2.4.0
+# WorldSmith Web 2.5.0
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -6,6 +6,10 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Star, Moon, Planet, and Calendar authoring now use compact workflow summaries, clearer first-screen context, and progressively disclosed output sections so dense pages are easier to scan.
+- Star and Moon outputs now lead with plain-language Result Summaries before deeper KPI detail.
+- Apparent Size and Brightness now prevents very bright night-side planets from being mislabeled as visible "Day and night" when their elongation makes daytime viewing impossible.
+- The local dev server now falls forward to an available port when the requested port is busy, and targeted test runs can filter by filename.
 - Star authoring now accepts spectral class text such as `G2V`, `K dwarf`, `sun-like`, `red dwarf`, and L/T/Y brown dwarf targets, then solves the nearest matching mass for the focused star or companion.
 - Rocky planets, gas giants, debris disks, and comets now share AU controls that keep inner-system slider precision while still allowing distant bodies out to the million-AU model ceiling.
 - Rocky-planet tidal locking estimates now use differentiated-body Love-number and inertia factors, bringing standalone planet and moon-context tidal outputs into closer agreement.

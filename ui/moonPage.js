@@ -48,6 +48,7 @@ import {
   createMoonRecipePickerOverlay,
   renderMoonKpiSections,
   renderMoonDerivedDetails,
+  renderMoonResultSummary,
   renderMoonParentSelector,
   renderMoonSelector,
 } from "./moon/domRender.js";
@@ -532,6 +533,49 @@ function resolveMoonPageHostFrameContext(world, parentLike, homeSystemContext = 
   );
 }
 
+function inferMoonSummaryTone({ compactLifeLimits, compactOrbitalFate, lifeClass }) {
+  if (compactOrbitalFate !== "Stable") return "warning";
+  if (compactLifeLimits && compactLifeLimits !== "Clear") return "warning";
+  if (/surface|complex|simple|microbial|candidate|habitable/i.test(String(lifeClass || ""))) {
+    return "good";
+  }
+  return "neutral";
+}
+
+function buildMoonResultSummary({
+  moonName,
+  model,
+  moonProfile,
+  compactLifeLimits,
+  compactOrbitalFate,
+} = {}) {
+  const name = String(moonName || model?.inputs?.name || "Moon").trim() || "Moon";
+  const surfaceClass =
+    moonProfile?.displayClass || model?.display?.compositionClass || "moon environment";
+  const hydrosphere = model?.display?.hydrosphereState || "water state unresolved";
+  const atmosphere = model?.display?.atmosphereClass || "atmosphere unresolved";
+  const temp = model?.display?.surfaceTemp || "temperature unresolved";
+  const lifeClass = model?.display?.lifeClass || "life class unresolved";
+  const orbitCopy =
+    compactOrbitalFate === "Stable"
+      ? "The current orbit is not showing a strong inward decay or outward escape warning."
+      : `Orbital fate needs attention: ${model?.display?.orbitalFate || compactOrbitalFate}.`;
+  const limitCopy =
+    compactLifeLimits === "Clear"
+      ? "No compact life blockers are flagged."
+      : `${compactLifeLimits || "Some blockers"} ${compactLifeLimits === "1 blocker" ? "is" : "are"} active; inspect Habitability for the gate details.`;
+
+  return {
+    tone: inferMoonSummaryTone({ compactLifeLimits, compactOrbitalFate, lifeClass }),
+    body: `${name} reads as ${surfaceClass.toLowerCase()} with ${hydrosphere.toLowerCase()} and ${atmosphere.toLowerCase()}. Surface temperature is ${temp}. ${lifeClass} is the current habitability class. ${orbitCopy} ${limitCopy}`,
+    items: [
+      { label: "Focus", value: name },
+      { label: "Surface", value: surfaceClass },
+      { label: "Life signal", value: lifeClass },
+    ],
+  };
+}
+
 export function initMoonPage(mountEl, options = {}) {
   const guidedRoute = options?.routeContext?.guided || null;
   const world = loadWorld();
@@ -571,6 +615,10 @@ export function initMoonPage(mountEl, options = {}) {
             "Planet tides, calendar moon phases, and moon-specific habitability and visual outputs.",
           primaryAction:
             "Choose a parent world or leave the moon unassigned, then set orbit distance before fine-tuning the deeper modes.",
+          compact: true,
+          detailsTitle: "Moon workflow context",
+          detailsSummary:
+            "Parent, orbit, and environment choices feed tides, calendars, and visuals.",
         })}
       </div>
     </div>
@@ -580,8 +628,8 @@ export function initMoonPage(mountEl, options = {}) {
         <div class="panel__header"><h2>Inputs</h2></div>
         <div class="panel__body">
 
-          <div class="label">Derived Data ${tipIcon(TIP_LABEL["Derived Data"] || "")}</div>
-          <div class="derived-readout" id="context"></div>
+          <div class="label">Parent Context ${tipIcon(TIP_LABEL["Derived Data"] || "")}</div>
+          <div class="derived-readout derived-readout--context" id="context"></div>
 
           <div style="height:12px"></div>
 
@@ -1530,7 +1578,7 @@ export function initMoonPage(mountEl, options = {}) {
             ? "Mixed"
             : "Quiet";
     const compactLifeLimits = biosphere.limitingFactors?.length
-      ? `${biosphere.limitingFactors.length} blockers`
+      ? `${biosphere.limitingFactors.length} blocker${biosphere.limitingFactors.length === 1 ? "" : "s"}`
       : "Clear";
     const compactOrbitalFate = model.display.orbitalFate.startsWith("Roche limit")
       ? "Inward decay"
@@ -1594,10 +1642,22 @@ export function initMoonPage(mountEl, options = {}) {
       `${model.habitability?.habitabilityModelVersion || "phi-unified-v2"} | ${moonHabitabilityPolicyVersion}`;
 
     const prevMoonCanvas = kpisEl.querySelector(".moon-preview-canvas");
+    const collapsedMoonKpiSection = (section) => ({
+      ...section,
+      collapsible: true,
+      open: false,
+    });
+    const moonResultSummary = buildMoonResultSummary({
+      moonName: state.moonName || state.moon.name,
+      model,
+      moonProfile,
+      compactLifeLimits,
+      compactOrbitalFate,
+    });
     const sections = [
       {
         id: "moon-summary",
-        title: "Summary",
+        title: "Key Numbers",
         items: [
           {
             kind: "preview",
@@ -1612,7 +1672,6 @@ export function initMoonPage(mountEl, options = {}) {
           },
           buildMoonKpi("Composition", model.display.compositionClass),
           buildMoonKpi("Radius", model.display.radius, "derived"),
-          buildMoonKpi("Gravity", model.display.gravity),
           buildMoonKpi("Surface Temp", model.display.surfaceTemp),
           buildMoonKpi("Hydrosphere", model.display.hydrosphereState),
           buildMoonKpi("Atmosphere", model.display.atmosphereClass, model.display.atmosphereSource),
@@ -1620,7 +1679,7 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Habitability Index", model.display.habitabilityIndex, habitabilityMeta),
         ],
       },
-      {
+      collapsedMoonKpiSection({
         id: "moon-identity",
         title: "Identity & Class",
         density: "compact",
@@ -1628,8 +1687,8 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Composition", model.display.compositionClass),
           buildMoonKpi("Albedo", fmt(state.moon.albedo, 3)),
         ],
-      },
-      {
+      }),
+      collapsedMoonKpiSection({
         id: "moon-physical",
         title: "Physical State",
         density: "compact",
@@ -1640,8 +1699,8 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Gravity", model.display.gravity),
           buildMoonKpi("Escape Velocity", model.display.esc),
         ],
-      },
-      {
+      }),
+      collapsedMoonKpiSection({
         id: "moon-environment",
         title: "Environment",
         density: "compact",
@@ -1680,8 +1739,8 @@ export function initMoonPage(mountEl, options = {}) {
           ),
           buildMoonKpi("Seasonality", model.display.seasonality),
         ],
-      },
-      {
+      }),
+      collapsedMoonKpiSection({
         id: "moon-system",
         title: "System Context",
         density: "compact",
@@ -1708,8 +1767,8 @@ export function initMoonPage(mountEl, options = {}) {
               : model.display.orbitalFate,
           ),
         ],
-      },
-      {
+      }),
+      collapsedMoonKpiSection({
         id: "moon-activity",
         title: "Activity & Radiation",
         density: "compact",
@@ -1761,8 +1820,8 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Surface Radiation", model.display.surfaceRadiation),
           buildMoonKpi("Magnetic Shielding", model.display.magneticShielding),
         ],
-      },
-      {
+      }),
+      collapsedMoonKpiSection({
         id: "moon-habitability",
         title: "Habitability",
         density: "compact",
@@ -1813,10 +1872,11 @@ export function initMoonPage(mountEl, options = {}) {
               ]
             : []),
         ],
-      },
+      }),
     ];
 
     renderMoonKpiSections(kpisEl, sections);
+    renderMoonResultSummary(kpisEl, moonResultSummary);
 
     // Render moon preview canvas (animated native celestial controller)
     let moonCvs = kpisEl.querySelector(".moon-preview-canvas");

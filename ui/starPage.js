@@ -19,13 +19,14 @@ import {
   saveStellarSystem,
 } from "./store.js";
 import { createStarGuidedFlows } from "./star/guidedFlows.js";
-import { renderStarCurrentStateSummary } from "./star/contextSummary.js";
+import { renderStarCockpit, renderStarCurrentStateSummary } from "./star/contextSummary.js";
 import { TIP_LABEL } from "./star/constants.js";
 import { createStarDraftHelpers, normalizeQuadLayoutKind } from "./star/draftState.js";
 import { createStarInputController } from "./star/inputController.js";
 import { buildStarPageMarkup } from "./star/markup.js";
 import { createStarOutputModelHelpers } from "./star/outputModel.js";
 import { createStarOutputStrip } from "./star/outputStrip.js";
+import { renderStarResultSummary } from "./star/resultSummary.js";
 import { createStarPresetActions } from "./star/presetActions.js";
 import {
   buildDefaultOrbitHostSummary,
@@ -314,7 +315,7 @@ export function initStarPage(mountEl, options = {}) {
   };
 
   const wrap = document.createElement("div");
-  wrap.className = "page";
+  wrap.className = "page page--star";
   wrap.innerHTML = buildStarPageMarkup({
     hostComponentMassMinText: HOST_COMPONENT_MASS_MIN_TEXT,
   });
@@ -332,6 +333,17 @@ export function initStarPage(mountEl, options = {}) {
   const metallicityEl = wrap.querySelector("#metallicity");
   const kpisEl = wrap.querySelector("#kpis");
   const detailsEl = wrap.querySelector("#details");
+  const starCockpitSummaryEl = wrap.querySelector("#starCockpitSummary");
+  const starCockpitTargetValueEl = wrap.querySelector("#starCockpitTargetValue");
+  const starCockpitTargetMetaEl = wrap.querySelector("#starCockpitTargetMeta");
+  const starCockpitTopologyValueEl = wrap.querySelector("#starCockpitTopologyValue");
+  const starCockpitTopologyMetaEl = wrap.querySelector("#starCockpitTopologyMeta");
+  const starCockpitHostValueEl = wrap.querySelector("#starCockpitHostValue");
+  const starCockpitHostMetaEl = wrap.querySelector("#starCockpitHostMeta");
+  const starCockpitHealthCardEl = wrap.querySelector("#starCockpitHealthCard");
+  const starCockpitHealthValueEl = wrap.querySelector("#starCockpitHealthValue");
+  const starCockpitHealthMetaEl = wrap.querySelector("#starCockpitHealthMeta");
+  const starContextDisclosureSummaryEl = wrap.querySelector("#starContextDisclosureSummary");
   const starCurrentStateCopyEl = wrap.querySelector("#starCurrentStateCopy");
   const starCurrentStateGridEl = wrap.querySelector("#starCurrentStateGrid");
   const starCurrentStateNotesEl = wrap.querySelector("#starCurrentStateNotes");
@@ -748,11 +760,19 @@ export function initStarPage(mountEl, options = {}) {
     className: "star-editor-inspector__compat",
   });
   editorInspectorCompatEl.append(starEditorTargetRowEl, pairEditorTargetRowEl);
+  const editorInspectorTitleEl = createSectionTitle("Focused Editor");
+  editorInspectorTitleEl.id = "editorInspectorTitle";
+  const editorInspectorHintEl = createHintText(
+    "The single-star target is active. Switch topology above when you need companion stars or pair hosts.",
+  );
+  editorInspectorHintEl.id = "editorInspectorHint";
+  const editorInspectorHeaderEl = createElement("div", {
+    attrs: { id: "editorInspectorHeader" },
+    className: "star-editor-inspector__header",
+  });
+  editorInspectorHeaderEl.append(editorInspectorTitleEl, editorInspectorHintEl);
   editorInspectorSectionEl.append(
-    createSectionTitle("Focused Editor"),
-    createHintText(
-      "Choose Stars or Pairs, then focus one target at a time. The topology map, pills, and focused outputs stay in sync.",
-    ),
+    editorInspectorHeaderEl,
     editorInspectorModeEl,
     editorTargetPillsEl,
     editorTargetSummaryEl,
@@ -1118,6 +1138,9 @@ export function initStarPage(mountEl, options = {}) {
     const quadLayoutCopy = buildQuadLayoutCopy(state.quadLayoutKind);
     const topologyHealth = buildTopologyHealthAssessment();
     syncEditorSelectionState();
+    architectureSectionEl?.classList.toggle("star-layout-section--single", !isMulti);
+    topologyCardsSectionEl.classList.toggle("star-architecture-group--single", !isMulti);
+    topologyMapSectionEl.hidden = !isMulti;
     renderArchitectureCards({
       draftState: state,
       topologyCardGridEl,
@@ -1200,14 +1223,26 @@ export function initStarPage(mountEl, options = {}) {
         ),
       ),
     );
+    const hasVisibleTargetChoice = visibleTargetDescriptors.length > 1;
+    editorTargetPillsEl.hidden = !hasVisibleTargetChoice;
+    editorTargetPillsEl.setAttribute("aria-hidden", hasVisibleTargetChoice ? "false" : "true");
     editorTargetSummaryEl.style.display = selectedTargetDescriptor ? "" : "none";
     if (selectedTargetDescriptor) {
+      editorInspectorTitleEl.textContent = `Focused Editor: ${selectedTargetDescriptor.summaryTitle}`;
+      editorInspectorHintEl.textContent = hasVisibleTargetChoice
+        ? "Use the topology map or target chips to focus one star or pair editor at a time."
+        : hasPairTargets
+          ? "This mode has one editable target. Switch Stars or Pairs above to change editor type."
+          : "The single-star target is active. Switch topology above when you need companion stars or pair hosts.";
       editorTargetSummaryEyebrowEl.textContent =
         selectedTargetDescriptor.kind === "pair" ? "Pair target" : "Star target";
       editorTargetSummaryTitleEl.textContent = selectedTargetDescriptor.summaryTitle;
       editorTargetSummaryMetaEl.textContent = selectedTargetDescriptor.summaryMeta;
       editorTargetSummaryHintEl.textContent = selectedTargetDescriptor.summaryHint;
     } else {
+      editorInspectorTitleEl.textContent = "Focused Editor";
+      editorInspectorHintEl.textContent =
+        "Choose a topology above, then focus one target at a time.";
       editorTargetSummaryEyebrowEl.textContent = "Editing target";
       editorTargetSummaryTitleEl.textContent = "";
       editorTargetSummaryMetaEl.textContent = "";
@@ -1625,6 +1660,41 @@ export function initStarPage(mountEl, options = {}) {
       activeHostFrameRecord,
     });
 
+    const selectedEditorTargetId = normalizeSelectedEditorTargetId(
+      editorUiState.selectedEditorTargetId,
+      state,
+      {
+        preferredMode: editorUiState.selectedEditorMode,
+        rememberedStarEditorId: editorUiState.rememberedStarEditorId,
+        rememberedPairEditorId: editorUiState.rememberedPairEditorId,
+      },
+    );
+    const selectedTargetKind = getEditorTargetKind(selectedEditorTargetId);
+    const selectedTargetLabel =
+      selectedTargetKind === "pair"
+        ? buildPairEditorLabel(selectedEditorTargetId, state)
+        : buildStarEditorLabel(selectedEditorTargetId || focusedStarId, state);
+    const selectedTargetMeta =
+      selectedTargetKind === "pair"
+        ? "Pair orbit editor"
+        : `${getHostClassValue(model)} | ${fmt(focusedStar.massMsol, 4)} Msol`;
+    renderStarCockpit({
+      summaryEl: starCockpitSummaryEl,
+      targetValueEl: starCockpitTargetValueEl,
+      targetMetaEl: starCockpitTargetMetaEl,
+      topologyValueEl: starCockpitTopologyValueEl,
+      topologyMetaEl: starCockpitTopologyMetaEl,
+      hostValueEl: starCockpitHostValueEl,
+      hostMetaEl: starCockpitHostMetaEl,
+      healthCardEl: starCockpitHealthCardEl,
+      healthValueEl: starCockpitHealthValueEl,
+      healthMetaEl: starCockpitHealthMetaEl,
+      disclosureSummaryEl: starContextDisclosureSummaryEl,
+      selectedTargetLabel,
+      selectedTargetMeta,
+      ...outputViewModel.currentStateSummary,
+    });
+
     renderStarCurrentStateSummary({
       copyEl: starCurrentStateCopyEl,
       gridEl: starCurrentStateGridEl,
@@ -1635,6 +1705,7 @@ export function initStarPage(mountEl, options = {}) {
 
     syncFocusedStarEditorInputs({ syncVisibleInputs: !preserveFocusedDraft });
     renderKpiSections(kpisEl, outputViewModel.kpiSections);
+    renderStarResultSummary(kpisEl, outputViewModel.resultSummary);
     renderOutputStarStrip(kpisEl.querySelector("#star-summary"), focusedStarId, state);
 
     renderDerivedDetails(detailsEl, outputViewModel.detailSections, { title: "Derived Details" });

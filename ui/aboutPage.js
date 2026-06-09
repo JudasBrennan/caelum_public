@@ -21,7 +21,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.4.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.5.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, and calendars. Explore your creations in an interactive 3D
@@ -348,6 +348,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Made foundational contributions to gravitational physics and helped turn faint astrophysical signatures into measurable structure.",
   },
+  "2.5.0": {
+    name: "Neil deGrasse Tyson",
+    born: 1958,
+    died: null,
+    country: "United States",
+    summary:
+      "Astrophysicist and science communicator who has helped make complex cosmic ideas approachable for broad audiences.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -387,6 +395,17 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.5.0",
+      "(from 2.4.0)",
+      [
+        "<b>Clearer Dense Pages</b> &mdash; Star, Moon, Planet, and Calendar now lead with compact workflow context, action-first summaries, and progressively disclosed output detail, so the densest authoring pages are easier to scan before diving into the science.",
+        "<b>Result Summaries</b> &mdash; Star and Moon outputs now open with plain-language summaries and keep secondary identity, physical, environment, activity, system, and habitability details collapsed until needed.",
+        "<b>Apparent Visibility Fix</b> &mdash; Apparent Size and Brightness no longer labels extremely bright night-side planets as visible day and night when their elongation places them physically outside the day-side sky.",
+        "<b>Dev Workflow Polish</b> &mdash; The dev server now falls forward to an available local port when the requested one is busy, targeted test runs can filter by filename, and the release checklist now matches the manual-upload workflow.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.4.0",
       "(from 2.3.0)",
       [
@@ -394,7 +413,7 @@ function changelogHTML() {
         "<b>Wide-Orbit Controls</b> &mdash; Rocky planets, gas giants, debris disks, and comets now share AU controls that preserve fine inner-system slider precision while still allowing distant objects out to the million-AU model ceiling.",
         "<b>Tidal Locking Accuracy</b> &mdash; Rocky planet and moon-context tidal locking outputs now use differentiated-body Love-number and inertia factors, keeping Earth-like despinning timescales closer to expected long-term behavior.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.3.0",

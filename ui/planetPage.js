@@ -87,6 +87,7 @@ import {
   renderBodyActionButtons,
   renderBodySelector,
   renderMoonSection,
+  renderPlanetEmptyState,
   renderPlanetSlotSelector,
   renderVegetationGrid,
 } from "./planet/domRender.js";
@@ -536,6 +537,9 @@ export function initPlanetPage(mountEl, options = {}) {
             "Moon parents, visualizer placement, climate assumptions, and later apparent or biology-facing pages.",
           primaryAction:
             "Select or create a body, assign its host frame and slot, then tune the physical inputs.",
+          compact: true,
+          detailsTitle: "Planet workflow context",
+          detailsSummary: "Body selection, host frame, and slot choices drive downstream pages.",
         })}
       </div>
     </div>
@@ -687,6 +691,21 @@ export function initPlanetPage(mountEl, options = {}) {
     if (!moonId) return;
     selectMoon(moonId);
     location.hash = "#/moon";
+  });
+
+  bodyOutputsEl.addEventListener("click", (event) => {
+    const emptyActionBtn = event.target.closest?.("button[data-planet-empty-action]");
+    if (!emptyActionBtn) return;
+    const action = emptyActionBtn.dataset.planetEmptyAction || "";
+    if (action === "new-gas-giant") {
+      createNewGasGiant();
+      return;
+    }
+    if (action === "guided-rocky") {
+      createNewRockyPlanet({ openGuided: true });
+      return;
+    }
+    createNewRockyPlanet();
   });
 
   let isRendering = false;
@@ -1543,7 +1562,10 @@ export function initPlanetPage(mountEl, options = {}) {
   function renderRockyOutputs(world) {
     const planet = getSelectedPlanet(world);
     if (!planet) {
-      renderHint(bodyOutputsEl, "No planet selected.");
+      renderPlanetEmptyState(bodyOutputsEl, {
+        title: "No planet selected",
+        body: "Create a rocky planet or gas giant to see climate, orbit, visual, and habitability outputs here.",
+      });
       return;
     }
     const { model, visualProfile, ringState, ringAppearance } = deriveRockyPlanetAppearanceState(
@@ -3396,7 +3418,10 @@ export function initPlanetPage(mountEl, options = {}) {
 
   function renderGasGiantOutputs(world, giant, sysModel) {
     if (!giant) {
-      renderHint(bodyOutputsEl, "No gas giant selected.");
+      renderPlanetEmptyState(bodyOutputsEl, {
+        title: "No gas giant selected",
+        body: "Create or select a gas giant to see companion, ring, atmosphere, and moon-parent outputs here.",
+      });
       return;
     }
     const allGiants = listSystemGasGiants(world);
@@ -4217,7 +4242,7 @@ export function initPlanetPage(mountEl, options = {}) {
     });
   });
 
-  wrap.querySelector("#newRockyPlanet").addEventListener("click", () => {
+  function createNewRockyPlanet({ openGuided = false } = {}) {
     const w = loadWorld();
     const homeSystemContext = buildPlanetHomeSystemContext(w);
     const selectedPlanet = getSelectedPlanet(w);
@@ -4235,9 +4260,10 @@ export function initPlanetPage(mountEl, options = {}) {
     );
     selectBodyType("planet");
     render();
-  });
+    if (openGuided) openRockyGuidedFlow();
+  }
 
-  wrap.querySelector("#newGasGiant").addEventListener("click", () => {
+  function createNewGasGiant() {
     const w = loadWorld();
     const gasGiants = listSystemGasGiants(w);
     const homeSystemContext = buildPlanetHomeSystemContext(w);
@@ -4296,6 +4322,14 @@ export function initPlanetPage(mountEl, options = {}) {
     saveSystemGasGiants(now);
     selectGasGiant(newId);
     render();
+  }
+
+  wrap.querySelector("#newRockyPlanet").addEventListener("click", () => {
+    createNewRockyPlanet();
+  });
+
+  wrap.querySelector("#newGasGiant").addEventListener("click", () => {
+    createNewGasGiant();
   });
 
   wrap.querySelector("#deleteBody").addEventListener("click", async () => {
