@@ -4,6 +4,117 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+### Exotic Planetary Subtypes
+
+**Added conservative subtype classification, authoring evidence, downstream page
+guidance, and visual integration for unusual planet-class bodies**
+(engine/planetarySubtypes.js, engine/planetarySubtypes/\*,
+engine/worldSnapshot.js, engine/worldAdapters.js, ui/planet/inputRender.js,
+ui/planet/domRender.js, ui/planet/subtypeVisualHints.js, ui/climatePage.js,
+ui/populationPage.js, ui/tectonicsPage.js, ui/visualizer/snapshotModel.js,
+ui/visualizer/focusSummary.js, ui/systemPosterNativeThree.js,
+tests/planetarySubtypes.test.js, tests/planetarySubtypePhase0.test.js,
+tests/importExport.test.js, tests/inputDraftStability.ui.test.js,
+tests/worldSnapshot.test.js, tests/worldAdapters.test.js,
+tests/visualizerSnapshotModel.test.js)
+
+Planet-class bodies now resolve optional exotic subtypes on top of their broad
+family classification. Rocky and volatile worlds can surface carbon-rich,
+ocean/water, lava, icy dwarf, chthonian, rogue, sub-Neptune, mini-Neptune,
+hycean, super-puff, and radius-valley evidence, while giant planets can surface
+hot/warm/cold, inflated, and rogue-context signals without replacing the
+existing gas-giant model.
+
+The Planet page now exposes optional evidence fields for composition density,
+carbon-richness, internal/tidal heat flux, stripped-envelope history, migration
+history, and rogue-candidate context. Fresh saves and exports persist these
+fields through the canonical `world.planetaryBodies` model, while old worlds
+that omit them continue to import and migrate unchanged.
+
+Subtype metadata now feeds import/export previews, world snapshots, the
+Visualizer focus summary, System poster rendering, and page applicability
+guidance. Unsupported or limited surfaces such as Population, Climate, and
+Tectonics now keep their broad science outputs conservative when a subtype makes
+the page's assumptions unsafe.
+
+**Tests** (tests/planetarySubtypes.test.js,
+tests/planetarySubtypePhase0.test.js, tests/importExport.test.js,
+tests/inputDraftStability.ui.test.js, tests/worldSnapshot.test.js,
+tests/worldAdapters.test.js, tests/visualizerSnapshotModel.test.js)
+
+- Added subtype anchor fixtures and overlay regressions for carbon-rich,
+  ocean/water, lava, icy dwarf, chthonian, rogue, volatile, and giant subtype
+  evidence.
+- Added canonical save/export/import coverage for the optional evidence fields.
+- Added UI regressions for Planet authoring controls, page guidance, import
+  preview summaries, Visualizer subtype focus text, and System poster subtype
+  visual routing.
+
+### Unified Planetary Body Storage
+
+**Stopped persisting legacy rocky/gas-giant split projections during normal
+saves and exports**
+(ui/store.js, ui/store/importValidation.js,
+ui/store/planetaryBodyModel.js, tests/importExport.test.js,
+tests/worldStorage.test.js)
+
+Fresh world saves and exports now serialize planet-class bodies through the
+canonical `world.planetaryBodies` collection. Old split collections are still
+accepted by import and migration, and the app restores runtime compatibility
+projections after load for modules that have not yet been retired from the
+legacy shape.
+
+### Legacy Compatibility Boundaries
+
+**Documented and guarded the legacy compatibility ownership model while keeping
+old-world support intact**
+(package.json, README.md, scripts/check-compat-boundaries.mjs,
+scripts/check-compat-decommissioning.mjs,
+ui/store/worldMigration.js, ui/store/planetaryBodyModel.js,
+ui/store/compat/planetaryBodyCompatibility.js,
+ui/store/compat/worldShapeCompatibility.js,
+ui/store/compat/worldShapeMigrationHelpers.js,
+engine/planetaryBodyAdapters.js, engine/usableCalendar.js,
+engine/worldAdapters.js, engine/planetaryRings.js, engine/debrisDisk.js,
+filed-plans/LEGACY_COMPATIBILITY_BOUNDARIES_PLAN.md,
+filed-plans/LEGACY_COMPATIBILITY_INVENTORY.md,
+tests/legacyCompatibilityBoundaries.test.js, tests/worldMigration.test.js,
+tests/worldStorage.test.js, tests/importExport.test.js,
+tests/storeSystemFacade.test.js, tests/browser/smoke.spec.js)
+
+Legacy save, backup, spreadsheet import, split-collection, singleton
+planet/moon, calendar, debris preview, and ring fallback support remains in
+place, but the ownership boundaries are now explicit. Storage-key compatibility
+stays under `ui/worldStorage/`, workbook import compatibility stays in
+`ui/legacyXlsxImport.js`, persisted shape migration routes through
+`ui/store/worldMigration.js` and `ui/store/compat/`, and engine legacy-source
+normalization happens before calculators through narrow adapters.
+
+The new `npm run check:compat-boundaries` guardrail scans source files for
+legacy compatibility leakage and is wired into `npm run check`. Existing
+transitional route callers are budgeted so future changes can shrink them over
+time without quietly adding new historical-shape handling.
+
+The new `npm run check:compat-decommissioning` guardrail keeps the current
+long-term support decision explicit: no legacy path is being removed yet.
+Retained anchors cover old browser storage keys, singleton planet/moon
+projections, split rocky/gas-giant projections, `outermostGasGiantAu`
+migration, legacy workbook import, and current canonical round-trip tests.
+
+**Tests and checks** (`npm run check:compat-boundaries`,
+`npm run check:compat-decommissioning`,
+tests/legacyCompatibilityBoundaries.test.js, tests/worldMigration.test.js,
+tests/worldStorage.test.js, tests/importExport.test.js,
+tests/storeSystemFacade.test.js, tests/browser/smoke.spec.js, snapshot,
+adapter, calendar, debris, and ring regressions)
+
+- Added focused guard coverage for legacy browser keys, old singleton worlds,
+  split rocky/gas collections, canonical planetary body projections, moon
+  parent aliases, and snapshot adapter selector keys.
+- Kept old saves, old backups, legacy workbook import, current canonical saves,
+  and runtime compatibility projections covered while the internals move toward
+  canonical models.
+
 ## 2.5.0 - 2026-06-09
 
 ### Dense UI/UX Simplification

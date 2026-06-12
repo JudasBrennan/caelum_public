@@ -3,7 +3,7 @@ import { mergeDefaults } from "./deepMerge.js";
 import { DEFAULT_OORT_CLOUD_CONFIG } from "./oortCloudModel.js";
 import { createSingleStarStellarSystem } from "./stellarSystemModel.js";
 
-export const SCHEMA_VERSION = 67;
+export const SCHEMA_VERSION = 68;
 
 function hasNonEmptyPlainObject(value) {
   return (
@@ -76,6 +76,12 @@ export function defaultWorld() {
       componentOverrides: {},
     },
     planets: {
+      selectedId: null,
+      order: [],
+      byId: {},
+    },
+    planetaryBodies: {
+      schemaVersion: 1,
       selectedId: null,
       order: [],
       byId: {},

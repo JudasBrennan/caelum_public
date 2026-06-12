@@ -184,6 +184,86 @@ export function buildLesson08(mode) {
       mode,
     ),
 
+    concept(
+      "Exotic Subtypes",
+      `<p>Some planets are still rocky or volatile worlds underneath, but their
+      observed evidence suggests a more specific subtype. WorldSmith treats
+      these as <b>overlays</b>: a planet can remain a rocky world while also
+      being flagged as carbon-rich, lava-dominated, oceanic, icy, stripped, or
+      isolated from its star.</p>
+      <p>The subtype label is intentionally conservative. It is a clue about
+      which assumptions deserve caution, not a guarantee that the planet has a
+      single simple nature.</p>
+      ${dataTable(
+        ["Subtype", "Evidence", "Model caution"],
+        [
+          [
+            "Carbon-rich",
+            "High carbon/rock signal or authored carbon evidence",
+            "Surface minerals, colour, and volatile chemistry may differ from Earth-like silicates",
+          ],
+          [
+            "Ocean or water world",
+            "High water fraction, low density, or ocean-friendly state",
+            "Deep water can hide the rocky surface and suppress familiar tectonics",
+          ],
+          [
+            "Lava world",
+            "Very high equilibrium or surface temperature",
+            "Climate and habitability pages should not treat the surface as temperate land",
+          ],
+          [
+            "Icy dwarf",
+            "Low mass, cold orbit, and volatile retention",
+            "Surface inventory may be dominated by ice rather than exposed silicate rock",
+          ],
+          [
+            "Chthonian",
+            "Dense close-in remnant with stripped-envelope evidence",
+            "The body may be the core of a former volatile or giant planet",
+          ],
+          [
+            "Rogue",
+            "No stellar host or explicit rogue-candidate context",
+            "Temperature depends more on stored/internal heat than sunlight",
+          ],
+        ],
+      )}
+      ${keyIdea("Subtype labels add evidence-aware context while preserving the broad planet family. A lava world is still solved as a planet; the overlay explains where normal surface assumptions become risky.")}`,
+
+      `<p>WorldSmith's subtype overlays combine broad physical
+      classification with optional evidence fields such as bulk density,
+      carbon-richness, internal heat flux, tidal heat flux,
+      stripped-envelope history, migration history, and rogue-candidate
+      context. The output records both the matching subtype and a
+      confidence/applicability note for downstream pages.</p>
+      <p>The same overlay layer covers carbon-rich, ocean/water, lava world,
+      icy dwarf, chthonian, rogue, and volatile-envelope cases when the
+      evidence supports them.</p>
+      <p>This matters because many familiar page models assume a solid surface
+      under starlight. A lava world can keep thermal and orbital outputs but
+      needs climate caution; a rogue world may still have internal heat but not
+      ordinary daylight; a chthonian candidate may share the mass of a rocky
+      planet while having a very different history.</p>
+      ${dataTable(
+        ["Evidence field", "Why it helps"],
+        [
+          ["Bulk density", "Separates dense stripped cores from puffier volatile-rich bodies"],
+          ["Carbon-richness", "Flags alternate mineral and volatile chemistry"],
+          ["Internal heat flux", "Supports subsurface or rogue-world thermal context"],
+          ["Tidal heat flux", "Distinguishes star-heated worlds from tidally stressed worlds"],
+          ["Stripped-envelope history", "Raises confidence for chthonian remnant candidates"],
+          ["Migration history", "Explains close-in remnants that formed farther out"],
+          [
+            "Rogue-candidate context",
+            "Prevents unsupported pages from assuming normal stellar forcing",
+          ],
+        ],
+      )}
+      ${cite("Madhusudhan, N. et al. (2012), ApJ 759, L40; Leger, A. et al. (2011), Icarus 213, 1; Raymond, S. N. et al. (2008), ApJ 687, L107.")}`,
+      mode,
+    ),
+
     /* ── Calculator ── */
     tryIt(
       "Planet Properties Calculator",

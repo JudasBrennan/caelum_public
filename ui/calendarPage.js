@@ -2999,11 +2999,14 @@ export function initCalendarPage(mountEl) {
     const ddp = clampI(state.ui.derivedDecimalPlaces ?? 6, 0, 6);
     const orbDp = roundOn ? ddp : 6;
     const rotDp = roundOn ? Math.min(ddp, 3) : 3;
-    els.derivedData.textContent =
+    const derivedTimingText =
       `Planet orbital period: ${N(ctx.planetOrbitalPeriodDays).toFixed(orbDp)} days\n` +
       `Moon orbital period: ${N(ctx.primaryMoonSynodicDays).toFixed(orbDp)} days\n` +
       `Planet rotation: ${N(ctx.planetRotationPeriodHours).toFixed(rotDp)} hours (sidereal)\n` +
       `Solar day: ${N(ctx.solarDayHours).toFixed(rotDp)} hours`;
+    els.derivedData.textContent = ctx.unsupportedSourceMessage
+      ? `${ctx.unsupportedSourceMessage}\nCalendar timing is using neutral Earth-like defaults until you select a rocky, surface-applicable planet.`
+      : `${ctx.limitedSourceMessage ? `${ctx.limitedSourceMessage}\n` : ""}${derivedTimingText}`;
 
     els.derivedRoundEnabled.checked = roundOn;
     els.derivedDecimalPlaces.value = String(ddp);

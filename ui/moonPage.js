@@ -57,6 +57,7 @@ import {
   loadWorld,
   updateWorld,
   updatePlanet,
+  listMoonParentBodies,
   listPlanets,
   listMoons,
   listSystemGasGiants,
@@ -1224,8 +1225,9 @@ export function initMoonPage(mountEl, options = {}) {
 
   function populatePlanetOptions() {
     const w = loadWorld();
-    const planets = listPlanets(w);
-    const gasGiants = listSystemGasGiants(w);
+    const parentBodies = listMoonParentBodies(w);
+    const planets = parentBodies.filter((body) => body.moonParentKind === "planet");
+    const gasGiants = parentBodies.filter((body) => body.moonParentKind === "gasGiant");
     renderMoonParentSelector(moonPlanetSelectEl, {
       planets,
       gasGiants,

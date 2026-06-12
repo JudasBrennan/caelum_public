@@ -10,19 +10,24 @@ import {
   renderUnassignedMoons,
   renderUnassignedPlanets,
 } from "./system/domRender.js";
+import {
+  getPlanetaryBodyClassification,
+  getPlanetaryBodyClassificationLabel,
+} from "./planet/bodyClassificationSummary.js";
 import { drawSystemPosterNative, disposeSystemPosterNative } from "./lazySystemPosterNative.js";
 import {
   loadWorld,
   updateWorld,
   listPlanets,
   listMoons,
+  listMoonParentBodies,
+  listPlanetaryBodies,
   assignPlanetToSlot,
   assignMoonToPlanet,
   selectPlanet,
   selectMoon,
   togglePlanetLock,
   toggleMoonLock,
-  listSystemGasGiants,
   listSystemDebrisDisks,
   setOrbitMode,
   buildWorldHomeSystemContext,
@@ -124,6 +129,47 @@ function filterBodiesForHostFrame(entries, hostFrameId, fallbackHostFrameId) {
   );
 }
 
+function planetaryBodyOrbitAu(body) {
+  const au = Number(body?.orbit?.semiMajorAxisAu);
+  return Number.isFinite(au) ? au : Number.NaN;
+}
+
+function planetaryBodyKindLabel(body) {
+  const classification = getPlanetaryBodyClassification(body);
+  const label = getPlanetaryBodyClassificationLabel(classification);
+  if (label) return label;
+  if (body?.legacyKind === "gasGiant") {
+    return body?.giant?.companionClass === "brownDwarf" ? "Brown dwarf" : "Gas giant";
+  }
+  return "Rocky planet";
+}
+
+function gasGiantFromBodyProjection(body) {
+  return {
+    id: body.id,
+    name: body.name,
+    au: planetaryBodyOrbitAu(body),
+    hostFrameId: body.hostFrameId,
+    slotIndex: body.slotIndex,
+    locked: Boolean(body.locked),
+    style: body.appearance?.styleId || body.legacy?.source?.style || "",
+    companionClass: body.giant?.companionClass || body.classificationSeed?.companionClass || null,
+    massMjup: body.giant?.massMjup ?? null,
+    radiusRj: body.giant?.radiusRj ?? null,
+    sourceBody: body,
+  };
+}
+
+function manualBodyListItemFromProjection(body) {
+  const au = planetaryBodyOrbitAu(body);
+  return {
+    kind: planetaryBodyKindLabel(body),
+    name: body.name || body.id,
+    au: Number.isFinite(au) && au > 0 ? au : Number.POSITIVE_INFINITY,
+    auLabel: Number.isFinite(au) && au > 0 ? `${fmt(au, 3)} AU` : "Orbit TBD",
+  };
+}
+
 function formatHostFrameScopeLabel(hostFrame) {
   if (!hostFrame) return "Host frame";
   if (hostFrame.frameKind === "pair") return "P-type circumbinary";
@@ -188,62 +234,50 @@ function buildHostFrameOptions(homeSystemContext) {
 }
 
 function buildOtherHostFrameBodies({
-  planets,
-  gasGiants,
+  bodies,
   selectedHostFrameId,
   fallbackHostFrameId,
   homeSystemContext,
   orbitMode,
 }) {
-  const bodies = [];
+  const rows = [];
   const targetHostFrameId = normalizeHostFrameId(selectedHostFrameId, fallbackHostFrameId);
   const pushBody = (body) => {
     if (!body) return;
-    bodies.push(body);
+    rows.push(body);
   };
 
-  for (const planet of planets || []) {
-    const hostFrameId = normalizeHostFrameId(planet?.hostFrameId, fallbackHostFrameId);
+  for (const body of bodies || []) {
+    const hostFrameId = normalizeHostFrameId(body?.hostFrameId, fallbackHostFrameId);
     if (hostFrameId === targetHostFrameId) continue;
     const hostFrame = homeSystemContext?.hostFramesById?.[hostFrameId] || null;
+    const manualAu = planetaryBodyOrbitAu(body);
     const orbitSlots = hostFrame?.system?.orbitsAu || [];
     const slotAu =
-      planet?.slotIndex != null ? Number(orbitSlots[planet.slotIndex - 1]) : Number.NaN;
-    const manualAu = Number(planet?.inputs?.semiMajorAxisAu);
-    const au =
-      orbitMode === "manual" ? manualAu : Number.isFinite(slotAu) && slotAu > 0 ? slotAu : manualAu;
-    const orbitLabel =
-      orbitMode === "manual"
-        ? Number.isFinite(manualAu) && manualAu > 0
-          ? `${fmt(manualAu, 3)} AU`
-          : "Orbit TBD"
-        : planet?.slotIndex != null
+      body?.slotIndex != null && body?.legacyKind === "rocky"
+        ? Number(orbitSlots[body.slotIndex - 1])
+        : Number.NaN;
+    const usesSlot = body?.legacyKind === "rocky" && orbitMode !== "manual";
+    const au = usesSlot && Number.isFinite(slotAu) && slotAu > 0 ? slotAu : manualAu;
+    let orbitLabel =
+      Number.isFinite(manualAu) && manualAu > 0 ? `${fmt(manualAu, 3)} AU` : "Orbit TBD";
+    if (usesSlot) {
+      orbitLabel =
+        body?.slotIndex != null
           ? Number.isFinite(slotAu) && slotAu > 0
-            ? `Slot ${String(planet.slotIndex).padStart(2, "0")} - ${fmt(slotAu, 3)} AU`
-            : `Slot ${String(planet.slotIndex).padStart(2, "0")}`
+            ? `Slot ${String(body.slotIndex).padStart(2, "0")} - ${fmt(slotAu, 3)} AU`
+            : `Slot ${String(body.slotIndex).padStart(2, "0")}`
           : "Unassigned";
+    }
     pushBody({
-      name: planet.name || planet.inputs?.name || planet.id,
-      kind: `Rocky planet - ${hostFrame?.label || hostFrameId}`,
+      name: body.name || body.id,
+      kind: `${planetaryBodyKindLabel(body)} - ${hostFrame?.label || hostFrameId}`,
       au: Number.isFinite(au) && au > 0 ? au : Number.POSITIVE_INFINITY,
       auLabel: orbitLabel,
     });
   }
 
-  for (const giant of gasGiants || []) {
-    const hostFrameId = normalizeHostFrameId(giant?.hostFrameId, fallbackHostFrameId);
-    if (hostFrameId === targetHostFrameId) continue;
-    const hostFrame = homeSystemContext?.hostFramesById?.[hostFrameId] || null;
-    const au = Number(giant?.au);
-    pushBody({
-      name: giant.name || giant.id,
-      kind: `Gas giant - ${hostFrame?.label || hostFrameId}`,
-      au: Number.isFinite(au) && au > 0 ? au : Number.POSITIVE_INFINITY,
-      auLabel: Number.isFinite(au) && au > 0 ? `${fmt(au, 3)} AU` : "Orbit TBD",
-    });
-  }
-
-  return bodies.sort((left, right) => left.au - right.au);
+  return rows.sort((left, right) => left.au - right.au);
 }
 
 const TUTORIAL_STEPS = [
@@ -655,7 +689,10 @@ export function initSystemPage(mountEl) {
   let isRendering = false;
 
   function getGasGiants(w) {
-    return listSystemGasGiants(w).sort((a, b) => a.au - b.au);
+    return listMoonParentBodies(w)
+      .filter((body) => body.legacyKind === "gasGiant")
+      .map(gasGiantFromBodyProjection)
+      .sort((a, b) => a.au - b.au);
   }
 
   function getDebrisDisks(w) {
@@ -871,17 +908,34 @@ export function initSystemPage(mountEl) {
         state.activeHostFrameId,
         fallbackHostFrameId,
       );
-      const gasGiantsForUi = filterBodiesForHostFrame(
-        getGasGiants(worldForUi),
+      const allBodyProjectionsForUi = listPlanetaryBodies(worldForUi);
+      const bodyProjectionsForUi = filterBodiesForHostFrame(
+        allBodyProjectionsForUi,
         state.activeHostFrameId,
         fallbackHostFrameId,
       );
+      const bodyProjectionById = new Map(bodyProjectionsForUi.map((body) => [body.id, body]));
+      const annotatedPlanetsForUi = planetsForUi.map((planet) => {
+        const projection = bodyProjectionById.get(planet.id);
+        if (!projection) return planet;
+        return {
+          ...planet,
+          classification: projection.classification,
+          classificationLabel: planetaryBodyKindLabel(projection),
+        };
+      });
       const moonsForUi = listMoons(worldForUi);
-      const planetsById = worldForUi?.planets?.byId || {};
-      const visibleParentIds = new Set([
-        ...planetsForUi.map((planet) => planet.id),
-        ...gasGiantsForUi.map((giant) => giant.id),
-      ]);
+      const moonParentBodiesForUi = filterBodiesForHostFrame(
+        listMoonParentBodies(worldForUi),
+        state.activeHostFrameId,
+        fallbackHostFrameId,
+      );
+      const moonParentsById = Object.fromEntries(
+        moonParentBodiesForUi.map((parent) => [parent.moonParentId || parent.id, parent]),
+      );
+      const visibleParentIds = new Set(
+        moonParentBodiesForUi.map((parent) => parent.moonParentId || parent.id),
+      );
       const moonsByPlanet = new Map();
       for (const moon of moonsForUi) {
         const pid = moon?.planetId;
@@ -894,19 +948,19 @@ export function initSystemPage(mountEl) {
       for (const [pid, list] of moonsByPlanet.entries()) {
         moonCountByPlanet.set(pid, list.length);
       }
-      const renderCtx = { planetsById, moonsByPlanet, moonCountByPlanet };
+      const renderCtx = { planetsById: moonParentsById, moonsByPlanet, moonCountByPlanet };
 
       // Unassigned list
-      const unassigned = planetsForUi.filter((p) => p.slotIndex == null);
+      const unassigned = annotatedPlanetsForUi.filter((p) => p.slotIndex == null);
       renderUnassignedPlanets(unassignedEl, unassigned, model, { moonCountByPlanet });
 
       const unassignedMoons = moonsForUi.filter((m) => m.planetId == null).sort(sortMoonsByOrbitKm);
-      renderUnassignedMoons(unassignedMoonsEl, unassignedMoons, { planetsById });
+      renderUnassignedMoons(unassignedMoonsEl, unassignedMoons, { planetsById: moonParentsById });
       renderOrbitSlots(slotsUiEl, {
         hostTitle: activeHostFrame?.label || "Host frame",
         hostSummary: `${formatHostFrameScopeLabel(activeHostFrame)} - ${fmt(state.starMassMsol, 4)} Msol`,
         orbitItems,
-        planets: planetsForUi,
+        planets: annotatedPlanetsForUi,
         sysModel: model,
         renderCtx,
       });
@@ -919,25 +973,7 @@ export function initSystemPage(mountEl) {
 
       // ── Manual mode: sorted body list ──
       if (isManual) {
-        const allBodies = [];
-        for (const p of planetsForUi) {
-          const au = Number(p.inputs?.semiMajorAxisAu) || 0;
-          allBodies.push({
-            kind: "Rocky planet",
-            name: p.name || p.id,
-            au,
-            auLabel: `${fmt(au, 3)} AU`,
-          });
-        }
-        for (const g of gasGiantsForUi) {
-          const au = Number(g.au) || 0;
-          allBodies.push({
-            kind: "Gas giant",
-            name: g.name || g.id,
-            au,
-            auLabel: `${fmt(au, 3)} AU`,
-          });
-        }
+        const allBodies = bodyProjectionsForUi.map(manualBodyListItemFromProjection);
         for (const d of debrisRows) {
           const mid = (d.inner + d.outer) / 2;
           allBodies.push({
@@ -953,8 +989,7 @@ export function initSystemPage(mountEl) {
         manualBodyListEl.replaceChildren();
       }
       const otherHostBodies = buildOtherHostFrameBodies({
-        planets: allPlanetsForUi,
-        gasGiants: getGasGiants(worldForUi),
+        bodies: allBodyProjectionsForUi,
         selectedHostFrameId: state.activeHostFrameId,
         fallbackHostFrameId,
         homeSystemContext,
@@ -981,7 +1016,14 @@ export function initSystemPage(mountEl) {
         radiusKm: planet.radiusKm,
         dayHex: planet.dayHex,
         horizonHex: planet.horizonHex,
+        renderFamily: planet.renderFamily,
+        classLabel: planet.classLabel,
+        style: planet.style,
+        gasCalc: planet.gasCalc,
         visualProfile: planet.visualProfile,
+        visualSubtypeKey: planet.visualSubtypeKey,
+        subtypeSummary: planet.subtypeSummary,
+        recipeId: planet.recipeId,
         ringAppearance: planet.ringAppearance,
       }));
 

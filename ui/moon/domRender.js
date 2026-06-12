@@ -29,15 +29,19 @@ export function renderMoonParentSelector(
     createOptgroupNode(
       "Planets",
       (planets || []).map((planet) => ({
-        value: planet?.id || "",
-        label: planet?.name || planet?.inputs?.name || planet?.id || "Planet",
+        value: planet?.moonParentId || planet?.id || "",
+        label: `${planet?.name || planet?.inputs?.name || planet?.id || "Planet"}${
+          planet?.classification?.displayLabel ? ` - ${planet.classification.displayLabel}` : ""
+        }`,
       })),
     ),
     createOptgroupNode(
       "Gas Giants",
       (gasGiants || []).map((gasGiant) => ({
-        value: gasGiant?.id || "",
-        label: gasGiant?.name || gasGiant?.id || "Gas Giant",
+        value: gasGiant?.moonParentId || gasGiant?.id || "",
+        label: `${gasGiant?.name || gasGiant?.id || "Gas Giant"}${
+          gasGiant?.classification?.displayLabel ? ` - ${gasGiant.classification.displayLabel}` : ""
+        }`,
       })),
     ),
   ]);

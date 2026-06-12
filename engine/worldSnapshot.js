@@ -2,6 +2,7 @@ import { calcStar } from "./star.js";
 import { calcSystem } from "./system.js";
 import { calcPlanetExact } from "./planet.js";
 import { calcGasGiant } from "./gasGiant.js";
+import { calcPlanetaryBody } from "./planetaryBody.js";
 import {
   buildGasGiantMoonParentOverride,
   buildRockyMoonParentOverride,
@@ -103,6 +104,235 @@ function buildOtherGiantsById(gasGiantEntries) {
     );
   }
   return byId;
+}
+
+function finiteOrNull(value) {
+  if (value == null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function optionalString(value) {
+  const text = String(value ?? "").trim();
+  return text || undefined;
+}
+
+function optionalFlag(value) {
+  if (value === true || value === false) return value;
+  return optionalString(value);
+}
+
+function optionalNumberFields(source, keys) {
+  const result = {};
+  for (const key of keys) {
+    const value = finiteOrNull(source?.[key]);
+    if (value != null) result[key] = value;
+  }
+  return result;
+}
+
+function optionalStringFields(source, keys) {
+  const result = {};
+  for (const key of keys) {
+    const value = optionalString(source?.[key]);
+    if (value !== undefined) result[key] = value;
+  }
+  return result;
+}
+
+function optionalFlagFields(source, keys) {
+  const result = {};
+  for (const key of keys) {
+    const value = optionalFlag(source?.[key]);
+    if (value !== undefined) result[key] = value;
+  }
+  return result;
+}
+
+function planetaryBodyKey(legacyKind, id) {
+  return `${legacyKind === "gasGiant" ? "gasGiant" : "planet"}:${id}`;
+}
+
+function toRockyUnifiedBody(raw, idx = 1) {
+  const inputs = raw?.inputs && typeof raw.inputs === "object" ? raw.inputs : {};
+  const massEarth = finiteOrNull(inputs.massEarth) ?? 1;
+  return {
+    id: String(raw?.id || `p${idx}`),
+    name: String(raw?.name || inputs.name || raw?.id || `Planet ${idx}`),
+    role: "planetaryBody",
+    bodyType: "planetaryBody",
+    legacyKind: "rocky",
+    authoringIntent: raw?.authoringIntent || inputs.authoringIntent || "rocky",
+    hostFrameId: normalizeHostFrameId(raw?.hostFrameId, null),
+    slotIndex: finiteOrNull(raw?.slotIndex),
+    locked: Boolean(raw?.locked),
+    orbit: {
+      semiMajorAxisAu: finiteOrNull(inputs.semiMajorAxisAu) ?? 0,
+      eccentricity: finiteOrNull(inputs.eccentricity),
+      inclinationDeg: finiteOrNull(inputs.inclinationDeg),
+      longitudeOfPeriapsisDeg: finiteOrNull(inputs.longitudeOfPeriapsisDeg),
+    },
+    rotation: {
+      axialTiltDeg: finiteOrNull(inputs.axialTiltDeg),
+      rotationPeriodHours: finiteOrNull(inputs.rotationPeriodHours),
+      subsolarLongitudeDeg: finiteOrNull(inputs.subsolarLongitudeDeg),
+    },
+    composition: {
+      massEarth,
+      radiusEarth: finiteOrNull(inputs.radiusEarth),
+      cmfPct: finiteOrNull(inputs.cmfPct),
+      wmfPct: finiteOrNull(inputs.wmfPct) ?? 0,
+      hHeEnvelopeMassPct: finiteOrNull(inputs.hHeEnvelopeMassPct) ?? 0,
+      ...optionalStringFields(inputs, ["carbonRichness"]),
+      ...optionalNumberFields(inputs, ["bulkDensityGcm3"]),
+    },
+    thermal: {
+      ...optionalNumberFields(inputs, ["internalHeatFluxWm2", "tidalHeatFluxWm2"]),
+    },
+    history: {
+      ...optionalFlagFields(inputs, [
+        "strippedEnvelopeCandidate",
+        "migratedCloseIn",
+        "rogueCandidate",
+      ]),
+    },
+    selector: {
+      type: "planet",
+      value: `planet:${raw?.id || `p${idx}`}`,
+      badge: massEarth < 0.01 ? "D" : "R",
+    },
+    classificationSeed: {
+      source: "legacy-rocky",
+      legacyKind: "rocky",
+      massEarth,
+      radiusEarth: finiteOrNull(inputs.radiusEarth),
+      cmfPct: finiteOrNull(inputs.cmfPct),
+      wmfPct: finiteOrNull(inputs.wmfPct) ?? 0,
+      hHeEnvelopeMassPct: finiteOrNull(inputs.hHeEnvelopeMassPct) ?? 0,
+      companionClass: null,
+    },
+    legacy: {
+      kind: "rocky",
+      collection: "world.planets",
+      source: raw,
+    },
+  };
+}
+
+function toGasGiantUnifiedBody(raw, idx = 1) {
+  const id = String(raw?.id || `gg${idx}`);
+  const massMjup = finiteOrNull(raw?.massMjup ?? raw?.massJupiter ?? raw?.massMj);
+  const radiusRj = finiteOrNull(
+    raw?.radiusRj ?? raw?.radiusJupiter ?? raw?.sizeRj ?? raw?.radiusRadiiJupiter,
+  );
+  const companionClass = String(raw?.companionClass || "gasGiant");
+  const isSubstellar = companionClass === "brownDwarf";
+  return {
+    id,
+    name: String(raw?.name || id),
+    role: isSubstellar ? "substellarCompanion" : "planetaryBody",
+    bodyType: "planetaryBody",
+    legacyKind: "gasGiant",
+    authoringIntent: raw?.authoringIntent || (isSubstellar ? "substellar" : "gasGiant"),
+    hostFrameId: normalizeHostFrameId(raw?.hostFrameId, null),
+    slotIndex: finiteOrNull(raw?.slotIndex),
+    locked: Boolean(raw?.locked),
+    orbit: {
+      semiMajorAxisAu: finiteOrNull(raw?.au ?? raw?.orbitAu ?? raw?.semiMajorAxisAu) ?? 0,
+      eccentricity: finiteOrNull(raw?.eccentricity ?? raw?.ecc),
+      inclinationDeg: finiteOrNull(raw?.inclinationDeg ?? raw?.inclination),
+      longitudeOfPeriapsisDeg: finiteOrNull(
+        raw?.longitudeOfPeriapsisDeg ?? raw?.longitudeOfPeriapsis ?? raw?.argPeriapsisDeg,
+      ),
+    },
+    rotation: {
+      axialTiltDeg: finiteOrNull(raw?.axialTiltDeg ?? raw?.axialTilt ?? raw?.obliquity),
+      rotationPeriodHours: finiteOrNull(
+        raw?.rotationPeriodHours ?? raw?.rotationHours ?? raw?.rotPeriodH,
+      ),
+      subsolarLongitudeDeg: null,
+    },
+    giant: {
+      massMjup,
+      radiusRj,
+      metallicitySolar: finiteOrNull(raw?.metallicity ?? raw?.metallicitySolar),
+      companionClass,
+    },
+    composition: {
+      massEarth: massMjup == null ? null : massMjup * 317.83,
+      radiusEarth: radiusRj == null ? null : radiusRj * (69911 / 6371),
+      cmfPct: null,
+      wmfPct: null,
+      hHeEnvelopeMassPct: null,
+      ...optionalStringFields(raw, ["carbonRichness"]),
+      ...optionalNumberFields(raw, ["bulkDensityGcm3"]),
+    },
+    thermal: {
+      ...optionalNumberFields(raw, ["internalHeatFluxWm2", "tidalHeatFluxWm2"]),
+    },
+    history: {
+      ...optionalFlagFields(raw, [
+        "strippedEnvelopeCandidate",
+        "migratedCloseIn",
+        "rogueCandidate",
+      ]),
+    },
+    selector: {
+      type: "gasGiant",
+      value: `gasGiant:${id}`,
+      badge: isSubstellar ? "B" : "G",
+    },
+    classificationSeed: {
+      source: "legacy-gas-giant",
+      legacyKind: "gasGiant",
+      massEarth: massMjup == null ? null : massMjup * 317.83,
+      radiusEarth: radiusRj == null ? null : radiusRj * (69911 / 6371),
+      massMjup,
+      radiusRj,
+      companionClass,
+      style: raw?.style || "",
+    },
+    legacy: {
+      kind: "gasGiant",
+      collection: "world.system.gasGiants",
+      source: raw,
+    },
+  };
+}
+
+function toPlanetaryBodyEntry({ raw, body, model, moonIds, mode, hostFrameId }) {
+  const orbitAu = Number(model?.orbit?.semiMajorAxisAu);
+  const base = {
+    id: body.id,
+    key: planetaryBodyKey(body.legacyKind, body.id),
+    kind: "planetaryBody",
+    legacyKind: body.legacyKind,
+    role: model?.role || body.role || "planetaryBody",
+    name: body.name || body.id,
+    orbitAu: Number.isFinite(orbitAu) ? orbitAu : 0,
+    moonIds,
+    hostFrameId,
+    classification: model?.classification || null,
+  };
+
+  if (mode === "summary") {
+    return {
+      ...base,
+      radiusEarth: model?.physical?.radiusEarth ?? null,
+      radiusRj: model?.physical?.radiusRj ?? null,
+      surfaceTempK: model?.thermal?.surfaceTempK ?? null,
+      effectiveTempK: model?.thermal?.effectiveTempK ?? null,
+      orbitalPeriodDays: model?.orbit?.orbitalPeriodDays ?? null,
+      orbitalPeriodYears: model?.orbit?.orbitalPeriodYears ?? null,
+      ringType: model?.rings?.ringType ?? null,
+    };
+  }
+
+  return {
+    ...base,
+    source: shallowCloneRaw(raw),
+    model,
+  };
 }
 
 function toPlanetEntry(raw, model, moonIds, mode, hostFrameId) {
@@ -356,6 +586,71 @@ export function buildWorldSnapshot(world, options = {}) {
   });
   const planetModelsById = new Map(planetModels.map((entry) => [entry.raw.id, entry.model]));
 
+  const planetaryBodyModels = [
+    ...planetEntries.map((raw, index) => {
+      const hostFrameId = normalizeHostFrameId(raw?.hostFrameId, defaultHostFrameId);
+      const solveContext = planetSolveContextById.get(raw.id) || fallbackHostFrameSolveContext;
+      const body = toRockyUnifiedBody(raw, index + 1);
+      return {
+        raw,
+        body,
+        model: calcPlanetaryBody(body, {
+          starMassMsol: solveContext?.starConfig?.massMsol ?? starConfig.massMsol,
+          starAgeGyr: solveContext?.starConfig?.ageGyr ?? starConfig.ageGyr,
+          starMetallicityFeH: solveContext?.starConfig?.metallicityFeH ?? starConfig.metallicityFeH,
+          starRadiusRsolOverride:
+            solveContext?.starConfig?.radiusRsolOverride ?? starConfig.radiusRsolOverride,
+          starLuminosityLsolOverride:
+            solveContext?.starConfig?.luminosityLsolOverride ?? starConfig.luminosityLsolOverride,
+          starTempKOverride: solveContext?.starConfig?.tempKOverride ?? starConfig.tempKOverride,
+          starEvolutionMode: solveContext?.starConfig?.evolutionMode ?? starConfig.evolutionMode,
+          hostFrameId: solveContext?.hostFrameId || hostFrameId,
+          hostFrame: solveContext?.hostFrame || null,
+          hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
+          companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
+          companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
+          fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
+          moons: moonInputsByParentId.get(raw.id) || [],
+          gasGiants: gasGiantEntries.filter(
+            (entry) =>
+              normalizeHostFrameId(entry?.hostFrameId, defaultHostFrameId) ===
+              (solveContext?.hostFrameId || hostFrameId),
+          ),
+          detailLevel,
+        }),
+      };
+    }),
+    ...gasGiantEntries.map((raw, index) => {
+      const hostFrameId = normalizeHostFrameId(raw?.hostFrameId, defaultHostFrameId);
+      const solveContext = gasGiantSolveContextById.get(raw.id) || fallbackHostFrameSolveContext;
+      const body = toGasGiantUnifiedBody(raw, index + 1);
+      return {
+        raw,
+        body,
+        model: calcPlanetaryBody(body, {
+          starMassMsol: solveContext?.starConfig?.massMsol ?? starConfig.massMsol,
+          starLuminosityLsol: solveContext?.starModel?.luminosityLsol ?? star.luminosityLsol,
+          starAgeGyr: solveContext?.starConfig?.ageGyr ?? starConfig.ageGyr,
+          starRadiusRsol: solveContext?.starModel?.radiusRsol ?? star.radiusRsol,
+          starMetallicityFeH: solveContext?.starConfig?.metallicityFeH ?? starConfig.metallicityFeH,
+          hostFrameId: solveContext?.hostFrameId || hostFrameId,
+          hostFrame: solveContext?.hostFrame || null,
+          hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
+          companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
+          companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
+          fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
+          otherGiants: (otherGiantsById.get(raw.id) || []).filter(
+            (other) =>
+              normalizeHostFrameId(other?.hostFrameId, defaultHostFrameId) ===
+              (solveContext?.hostFrameId || hostFrameId),
+          ),
+          moons: moonInputsByParentId.get(raw.id) || [],
+          detailLevel,
+        }),
+      };
+    }),
+  ];
+
   const moonModels = [];
   for (const parentId of moonInputsByParentId.keys()) {
     const fullMoonEntries = moonEntries.filter((entry) => entry.planetId === parentId);
@@ -517,6 +812,22 @@ export function buildWorldSnapshot(world, options = {}) {
     ]),
   );
 
+  const planetaryBodyEntries = planetaryBodyModels.map((entry) =>
+    toPlanetaryBodyEntry({
+      raw: entry.raw,
+      body: entry.body,
+      model: entry.model,
+      moonIds: moonsByParentId[entry.raw.id] || [],
+      mode,
+      hostFrameId: normalizeHostFrameId(entry.raw?.hostFrameId, defaultHostFrameId),
+    }),
+  );
+  const planetaryBodiesInOrbitOrder = sortByOrbit(planetaryBodyEntries);
+  const planetaryBodiesById = Object.fromEntries(
+    planetaryBodyEntries.map((entry) => [entry.key, entry]),
+  );
+  const planetaryBodyOrder = planetaryBodiesInOrbitOrder.map((entry) => entry.key);
+
   const orbitEntries = [
     ...Object.values(planetsById).map((entry) => ({
       id: entry.id,
@@ -557,6 +868,9 @@ export function buildWorldSnapshot(world, options = {}) {
     hostFramesById: homeSystemContext?.hostFramesById || {},
     planetsById,
     gasGiantsById,
+    planetaryBodiesById,
+    planetaryBodyOrder,
+    planetaryBodiesInOrbitOrder,
     moonsById,
     bodiesInOrbitOrder,
     bodiesInOrbitOrderByHostFrame,
@@ -570,6 +884,7 @@ export function buildWorldSnapshot(world, options = {}) {
       counts: {
         planets: planetModels.length,
         gasGiants: gasGiantModels.length,
+        planetaryBodies: planetaryBodyModels.length,
         moons: moonModels.length,
       },
       evaluation: {

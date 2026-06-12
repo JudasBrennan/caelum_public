@@ -41,7 +41,7 @@ export function createMoonCard(moon, { showParent = false, planetsById = null } 
     Number.isFinite(orbitKm) && orbitKm > 0 ? `${fmt(orbitKm, 0)} km` : "Orbit unknown";
   const parent = moon.planetId ? planetsById?.[moon.planetId] : null;
   const parentText = parent
-    ? `Planet: ${parent.name || parent.inputs?.name || parent.id}`
+    ? `Parent: ${parent.name || parent.inputs?.name || parent.id}`
     : "Unassigned";
   const metaText = showParent ? `${orbitText} - ${parentText}` : orbitText;
   const locked = !!moon.locked;
@@ -101,7 +101,8 @@ export function createPlanetCard(
   const slotText =
     planet.slotIndex != null ? `Slot ${String(planet.slotIndex).padStart(2, "0")}` : "Unassigned";
   const metaTextBase = meta ? `${slotText} - ${meta}` : slotText;
-  const metaText = `${metaTextBase} - Moons: ${moonCount}`;
+  const classText = String(planet.classificationLabel || "").trim();
+  const metaText = `${classText ? `${classText} - ` : ""}${metaTextBase} - Moons: ${moonCount}`;
   const name = planet.name || planet.inputs?.name || planet.id;
 
   return createElement(
@@ -253,11 +254,12 @@ export function renderOrbitSlots(
 
     if (item.type === "gas") {
       const giant = item.giant;
+      const giantKind = giant.companionClass === "brownDwarf" ? "Brown dwarf" : "Gas giant";
       rows.push(
         createSlotRow(
-          `${giant.name || "Gas giant"} (Slot ${String(item.slot).padStart(2, "0")} - ${fmt(Number(giant.au) || item.au, 3)} AU)`,
+          `${giant.name || giantKind} (Slot ${String(item.slot).padStart(2, "0")} - ${fmt(Number(giant.au) || item.au, 3)} AU)`,
           createElement("div", {}, [
-            createHint(`Gas giant marker (${styleLabel(giant.style || "jupiter")}).`),
+            createHint(`${giantKind} marker (${styleLabel(giant.style || "jupiter")}).`),
             createElement("div", { className: "button-row", attrs: { style: "margin-top:8px" } }, [
               createElement("button", {
                 className: "small",

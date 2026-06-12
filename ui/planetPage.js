@@ -1,4 +1,5 @@
 import { calcPlanetExact, ISOTOPE_HEAT_FRACTIONS } from "../engine/planet.js";
+import { calcPlanetaryBody } from "../engine/planetaryBody.js";
 import { calcStar } from "../engine/star.js";
 import { calcSystem } from "../engine/system.js";
 import { normalizeRingMode, RING_MODE_AUTO, RING_MODE_FORCE_ON } from "../engine/planetaryRings.js";
@@ -27,7 +28,11 @@ import { createCelestialVisualPreviewController } from "./lazyCelestialVisualPre
 import { createTutorial } from "./tutorial.js";
 import { launchGuidedMoonForParent } from "./moonGuidedLaunch.js";
 import { buildPageIntroHtml } from "./pageIntro.js";
-import { buildBodySelectorEntries } from "./planet/bodySelector.js";
+import { buildBodySelectorEntries, filterBodySelectorEntries } from "./planet/bodySelector.js";
+import {
+  buildPlanetaryBodyClassificationSummary,
+  hasLimitedSurfaceApplicability,
+} from "./planet/bodyClassificationSummary.js";
 import {
   applyGasGiantGuidedRecommendation,
   applyGasGiantPresetInputs,
@@ -86,6 +91,7 @@ import {
   createVegetationInfoOverlay,
   renderBodyActionButtons,
   renderBodySelector,
+  renderPlanetaryBodyClassificationSummary,
   renderMoonSection,
   renderPlanetEmptyState,
   renderPlanetSlotSelector,
@@ -95,6 +101,7 @@ import { createKpiGrid, renderTectonicProbabilityBar } from "./planet/outputRend
 import { createDerivedDetails } from "./derivedDetails.js";
 import { renderKpiSections } from "./kpiSections.js";
 import { renderGasGiantInputForm, renderRockyInputForm } from "./planet/inputRender.js";
+import { PLANET_TUTORIAL_STEPS as TUTORIAL_STEPS } from "./planet/tutorials.js";
 import {
   GAS_GIANT_RADIUS_MAX_RJ,
   GAS_GIANT_RADIUS_MIN_RJ,
@@ -110,6 +117,7 @@ import {
   getGiantCompanionMassBounds,
   loadWorld,
   updateWorld,
+  listPlanetaryBodies,
   listPlanets,
   getSelectedPlanet,
   selectPlanet,
@@ -143,7 +151,7 @@ const TIP_LABEL = {
 
   // ── Body selector ──
   "Body selection":
-    "Choose which body you are editing. Bodies are sorted by orbital distance. [R] = rocky planet, [D] = dwarf planet, [G] = gas giant, [B] = brown dwarf companion.",
+    "Choose which body you are editing. Bodies are grouped by host frame, sorted by orbital distance, and labelled by the current physical classification.",
 
   "Body Class":
     "Classification based on mass. Bodies below 0.1 M\u2295 (~Mars mass) are labelled as dwarf planets. The physics model is identical \u2014 this is purely a label.\n\nReal examples: Ceres (0.00016 M\u2295), Pluto (0.0022 M\u2295), Eris (0.0028 M\u2295).",
@@ -158,6 +166,10 @@ const TIP_LABEL = {
   Mass: "Planet mass in Earth masses.\n\nTerrestrial planets: 0.1\u201310 MEarth.\nHabitable Earth-like planets: 0.1\u20133.5 MEarth.\n\nEarth = 1 MEarth = 5.972E24 kg",
   CMF: "Core Mass Fraction (CMF) \u2014 percentage of planetary mass in the iron core.\n\nBy default, auto-derived from the host star\u2019s metallicity [Fe/H] (Schulze et al. 2021, PSJ 2, 113). Use the \u2018auto\u2019 button to reset, or enter a manual value.\n\nMercury \u2248 70%\nVenus \u2248 32%\nEarth \u2248 32.5%\nMars \u2248 22%\nMoon \u2248 2%",
   WMF: "Water Mass Fraction (WMF) \u2014 percentage of planetary mass that is water or ice.\n\nHigher WMF inflates the radius, reduces bulk density, and deepens oceans.\n\nDry: < 0.01%\nShallow oceans: 0.01\u20130.1% (Earth ~0.02%)\nExtensive oceans: 0.1\u20131%\nGlobal ocean: 1\u201310% (no exposed land)\nDeep ocean: 10\u201330% (high-pressure ice at seafloor)\nIce world: > 30%\n\nReference: Zeng & Sasselov (2016, ApJ 819, 127) three-layer interior model.",
+  "H/He Envelope":
+    "Hydrogen/helium envelope mass fraction. Values above about 0.1% move low-mass bodies toward mini-Neptune or ice-giant classification and route them through the volatile-envelope radius and escape model.",
+  "Observed Radius":
+    "Optional measured transit/photosphere radius in Earth radii. When blank, the volatile solver uses its modelled radius; when filled, detection and bulk-density outputs use the observed radius while still reporting the modelled radius separately.",
   "Axial Tilt":
     "Obliquity of the planet\u2019s rotational axis relative to the orbital plane (0\u2013180\u00b0).\n\n0\u201390\u00b0 = prograde spin. 90\u2013180\u00b0 = retrograde spin. Higher tilt produces more extreme seasons; 0\u00b0/180\u00b0 = no seasons.\n\nHabitable range: 0\u201345\u00b0.\n\nEarth = 23.5\u00b0",
   "Albedo (Bond)":
@@ -424,65 +436,6 @@ const TIP_LABEL = {
 
 /* ── Page ────────────────────────────────────────────────────────── */
 
-const TUTORIAL_STEPS = [
-  {
-    title: "Getting Started",
-    body:
-      "The Planets page configures rocky planets and gas giants. Select a body " +
-      "from the dropdown at the top, or create a new one. Inputs are on the " +
-      "left; derived outputs update live on the right.",
-  },
-  {
-    title: "Creating Bodies",
-    body:
-      "Click New Rocky Planet or New Gas Giant. Assign each body to an orbital " +
-      "slot, then give it a name. The Delete button removes the selected body.",
-  },
-  {
-    title: "Mass and Composition",
-    body:
-      "For rocky planets, set Mass, Core Mass Fraction (CMF), and Water Mass " +
-      "Fraction (WMF). The Auto button for CMF derives a value from stellar " +
-      "metallicity. Composition class and radius are computed from these.",
-  },
-  {
-    title: "Orbit and Rotation",
-    body:
-      "Set semi-major axis, eccentricity, inclination, and rotation period. " +
-      "These determine year length, tidal locking, and day/night cycles. " +
-      "Habitable zone status appears in outputs.",
-  },
-  {
-    title: "Atmosphere",
-    body:
-      "Set atmospheric pressure and gas composition. Choose a greenhouse mode: " +
-      "Core uses CO\u2082/H\u2082O/CH\u2084, Full adds expert gases, Manual lets you set " +
-      "the effect directly. Toggle atmospheric escape to model gas loss.",
-  },
-  {
-    title: "Surface and Interior",
-    body:
-      "Choose a tectonic regime, set mantle oxidation, and configure internal " +
-      "heat. Vegetation colours can be auto-derived from star type or set " +
-      "manually. These shape the planet\u2019s visual appearance.",
-  },
-  {
-    title: "Gas Giants",
-    body:
-      "Gas giants use radius as the primary input; mass and metallicity can be " +
-      "auto-derived. Sudarsky class, ring type, and atmospheric bands are " +
-      "computed from temperature and composition.",
-  },
-  {
-    title: "Creation Modes",
-    body:
-      "Use Create This Rocky World at the top of Inputs. Quick applies a " +
-      "rocky archetype, Guided walks you to a recommendation, Recipes opens " +
-      "the preset library for exact planet templates, and Advanced is the " +
-      "direct editor below.",
-  },
-];
-
 export function initPlanetPage(mountEl, options = {}) {
   const guidedRoute = options?.routeContext?.guided || null;
   // CMF auto-mode state (shared between selection handler and renderRockyOutputs)
@@ -555,17 +508,29 @@ export function initPlanetPage(mountEl, options = {}) {
           <div class="label">Body selection ${tipIcon(TIP_LABEL["Body selection"])}</div>
           <div class="form-row">
             <div>
-              <div class="hint">Select a body to edit, or create a new one.</div>
+              <div class="hint">Select, search, or create a body in the current system.</div>
             </div>
-            <div class="select-stack">
+            <div class="select-stack body-switcher">
+              <input id="bodySearch" class="body-switcher__search" type="search" placeholder="Search bodies" aria-label="Search bodies" />
               <select id="bodySelect"></select>
+              <div class="new-body-control">
+                <select id="newBodyIntent" aria-label="New body starting intent">
+                  <option value="rocky">Rocky world</option>
+                  <option value="volatile">Volatile / mini-Neptune</option>
+                  <option value="iceGiant">Ice giant</option>
+                  <option value="gasGiant">Gas giant</option>
+                  <option value="substellar">Substellar companion</option>
+                </select>
+                <button id="newBody" class="small" type="button">New body</button>
+              </div>
               <div class="select-actions">
-                <button id="newRockyPlanet" class="small" type="button">New rocky planet</button>
-                <button id="newGasGiant" class="small" type="button">New gas giant</button>
+                <button id="newRockyPlanet" class="small" type="button">Rocky quick start</button>
+                <button id="newGasGiant" class="small" type="button">Gas giant quick start</button>
                 <button id="deleteBody" class="small danger" type="button">Delete</button>
               </div>
             </div>
           </div>
+          <div id="bodyClassificationSummary" class="body-classification-summary" hidden></div>
 
           <div id="rockyCreateEntry" class="guided-entry-strip" hidden>
             <div class="guided-entry-strip__title">Create This Rocky World</div>
@@ -643,6 +608,10 @@ export function initPlanetPage(mountEl, options = {}) {
 
   const starInfoEl = wrap.querySelector("#starInfo");
   const bodySel = wrap.querySelector("#bodySelect");
+  const bodySearchEl = wrap.querySelector("#bodySearch");
+  const newBodyIntentEl = wrap.querySelector("#newBodyIntent");
+  const newBodyBtn = wrap.querySelector("#newBody");
+  const bodyClassificationSummaryEl = wrap.querySelector("#bodyClassificationSummary");
   const rockyCreateEntryEl = wrap.querySelector("#rockyCreateEntry");
   const rockyCreateEntryHintEl = wrap.querySelector("#rockyCreateEntryHint");
   const rockyCreateQuickBtn = wrap.querySelector("#rockyCreateQuickBtn");
@@ -1043,16 +1012,139 @@ export function initPlanetPage(mountEl, options = {}) {
 
   /* ── Body selector ──────────────────────────────────────────────── */
 
-  function populateBodySelector(world) {
+  function getSelectedBodySelectorValue(world) {
     const bodyType = world.selectedBodyType || "planet";
-    const entries = buildBodySelectorEntries(listPlanets(world), listSystemGasGiants(world));
-
     const selectedId =
       bodyType === "gasGiant" ? world.system?.gasGiants?.selectedId : world.planets?.selectedId;
-    const selectedValue =
-      bodyType === "gasGiant" ? `gasGiant:${selectedId}` : `planet:${selectedId}`;
+    return selectedId ? `${bodyType === "gasGiant" ? "gasGiant" : "planet"}:${selectedId}` : "";
+  }
 
-    renderBodySelector(bodySel, entries, selectedValue);
+  function getSelectedPlanetaryBodyModel(world) {
+    const selectedValue = getSelectedBodySelectorValue(world);
+    if (!selectedValue) return null;
+    return (
+      listPlanetaryBodies(world).find((body) => {
+        const selectorType =
+          body?.selector?.type || (body?.legacyKind === "gasGiant" ? "gasGiant" : "planet");
+        const selectorId = body?.legacyId || body?.id;
+        return (
+          body?.selector?.value === selectedValue ||
+          `${selectorType}:${selectorId}` === selectedValue
+        );
+      }) || null
+    );
+  }
+
+  function buildSolvedSelectedBodyForSummary(world, sysModel, homeSystemContext) {
+    const body = getSelectedPlanetaryBodyModel(world);
+    if (!body) return null;
+    try {
+      return calcPlanetaryBody({
+        body,
+        context: buildUnifiedBodyCalcContext(
+          world,
+          body,
+          sysModel,
+          homeSystemContext || buildPlanetHomeSystemContext(world),
+        ),
+      });
+    } catch {
+      return body;
+    }
+  }
+
+  function renderSelectedBodyClassification(world, sysModel, homeSystemContext) {
+    const summary = buildPlanetaryBodyClassificationSummary(
+      buildSolvedSelectedBodyForSummary(world, sysModel, homeSystemContext),
+    );
+    renderPlanetaryBodyClassificationSummary(bodyClassificationSummaryEl, summary);
+    return summary;
+  }
+
+  function buildUnifiedBodyCalcContext(world, body, sysModel, homeSystemContext) {
+    const primaryStar = getProjectedPrimaryStar(world);
+    const solveContext = resolvePlanetPageHostFrameContext(
+      world,
+      body,
+      sysModel,
+      homeSystemContext,
+    );
+    const hostFrameId = normalizeHostFrameId(
+      solveContext?.hostFrameId,
+      homeSystemContext?.defaultHostFrameId,
+    );
+    const legacyParentId = body?.legacyId || body?.id;
+    const parentKind = body?.legacyKind === "gasGiant" ? "gasGiant" : "planet";
+    const moons = listMoons(world)
+      .filter(
+        (moon) =>
+          moon?.parentBodyId === body?.id ||
+          (moon?.parentKind === parentKind && moon?.planetId === legacyParentId) ||
+          moon?.planetId === legacyParentId,
+      )
+      .map((moon) => moon?.inputs || {});
+    const gasGiants = filterBodiesForHostFrame(
+      listSystemGasGiants(world),
+      hostFrameId,
+      homeSystemContext?.defaultHostFrameId,
+    );
+    return {
+      starMassMsol:
+        Number(solveContext?.starConfig?.massMsol) || Number(primaryStar?.massMsol) || 1,
+      starAgeGyr: Number(solveContext?.starConfig?.ageGyr) || Number(primaryStar?.ageGyr) || 4.6,
+      starMetallicityFeH:
+        Number(solveContext?.starConfig?.metallicityFeH) ||
+        Number(primaryStar?.metallicityFeH) ||
+        0,
+      starRadiusRsol:
+        Number(solveContext?.starModel?.radiusRsol) ||
+        Number(solveContext?.starConfig?.radiusRsolOverride) ||
+        1,
+      starLuminosityLsol:
+        Number(solveContext?.starModel?.luminosityLsol) ||
+        Number(solveContext?.starConfig?.luminosityLsolOverride) ||
+        1,
+      starRadiusRsolOverride: solveContext?.starConfig?.radiusRsolOverride ?? null,
+      starLuminosityLsolOverride: solveContext?.starConfig?.luminosityLsolOverride ?? null,
+      starTempKOverride: solveContext?.starConfig?.tempKOverride ?? null,
+      starEvolutionMode: solveContext?.starConfig?.evolutionMode || "zams",
+      hostFrameId,
+      hostFrame: solveContext?.hostFrame || null,
+      hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
+      companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
+      companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
+      fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
+      moons,
+      gasGiants,
+    };
+  }
+
+  function readOptionalSelectValue(selectEl) {
+    const value = String(selectEl?.value || "").trim();
+    return value || null;
+  }
+
+  function readOptionalNonNegativeNumber(numberEl, previousValue = null) {
+    if (!numberEl) return { ok: true, value: null };
+    const raw = String(numberEl.value || "").trim();
+    if (!raw) return { ok: true, value: null };
+    const value = Number(raw);
+    if (Number.isFinite(value) && value >= 0) return { ok: true, value };
+    numberEl.value = previousValue ?? "";
+    return { ok: false, value: previousValue ?? null };
+  }
+
+  function populateBodySelector(world) {
+    const entries = buildBodySelectorEntries(listPlanetaryBodies(world));
+    const selectedValue = getSelectedBodySelectorValue(world);
+    const filteredEntries = filterBodySelectorEntries(entries, bodySearchEl?.value || "");
+    const selectedEntry = entries.find((entry) => entry.value === selectedValue);
+    const visibleEntries =
+      selectedEntry && !filteredEntries.some((entry) => entry.value === selectedValue)
+        ? [selectedEntry, ...filteredEntries]
+        : filteredEntries;
+
+    renderBodySelector(bodySel, visibleEntries, selectedValue);
   }
 
   /* ── Rocky planet rendering ─────────────────────────────────────── */
@@ -1128,6 +1220,7 @@ export function initPlanetPage(mountEl, options = {}) {
     const fieldMap = {
       mass: p.massEarth,
       wmf: p.wmfPct,
+      hhe: p.hHeEnvelopeMassPct,
       tilt: p.axialTiltDeg,
       albedo: p.albedoBond,
       gh: p.greenhouseEffect,
@@ -1157,6 +1250,7 @@ export function initPlanetPage(mountEl, options = {}) {
     const sliderBindings = {
       mass: [0.0001, 1000, 0.0001],
       wmf: [0, 50, 0.1],
+      hhe: [0, 20, 0.01],
       tilt: [0, 180, 0.1],
       albedo: [0, 0.95, 0.01],
       gh: [0, 500, 0.1],
@@ -1186,6 +1280,7 @@ export function initPlanetPage(mountEl, options = {}) {
     const inputKeyMap = {
       mass: "massEarth",
       wmf: "wmfPct",
+      hhe: "hHeEnvelopeMassPct",
       tilt: "axialTiltDeg",
       albedo: "albedoBond",
       gh: "greenhouseEffect",
@@ -1213,13 +1308,17 @@ export function initPlanetPage(mountEl, options = {}) {
       isoK40: "k40Abundance",
     };
 
-    const commitRockyField = (id, value) => {
+    const commitRockyInputPatch = (patch) => {
       const w = loadWorld();
       const pid = w.planets.selectedId;
-      const inputKey = inputKeyMap[id];
-      updatePlanet(pid, { inputs: { [inputKey]: value } });
-      updateWorld({ planet: { [inputKey]: value } });
+      updatePlanet(pid, { inputs: patch });
+      updateWorld({ planet: patch });
       scheduleRender(true);
+    };
+
+    const commitRockyField = (id, value) => {
+      const inputKey = inputKeyMap[id];
+      commitRockyInputPatch({ [inputKey]: value });
     };
 
     for (const [id, val] of Object.entries(fieldMap)) {
@@ -1244,6 +1343,41 @@ export function initPlanetPage(mountEl, options = {}) {
         });
         el.dispatchEvent(new Event("input", { bubbles: true }));
       }
+    }
+
+    const observedRadiusEl = bodyInputsEl.querySelector("#observedRadius");
+    observedRadiusEl?.addEventListener("change", () => {
+      if (hydrating) return;
+      const raw = String(observedRadiusEl.value || "").trim();
+      const radiusEarth = raw ? Number(raw) : null;
+      if (raw && (!Number.isFinite(radiusEarth) || radiusEarth <= 0)) {
+        observedRadiusEl.value = p.radiusEarth ?? "";
+        return;
+      }
+      const w = loadWorld();
+      updatePlanet(w.planets.selectedId, { inputs: { radiusEarth } });
+      updateWorld({ planet: { radiusEarth } });
+      scheduleRender(true);
+    });
+
+    bodyInputsEl.querySelector("#carbonRichness")?.addEventListener("change", (event) => {
+      if (hydrating) return;
+      commitRockyInputPatch({ carbonRichness: readOptionalSelectValue(event.currentTarget) });
+    });
+
+    for (const fieldName of ["bulkDensityGcm3", "internalHeatFluxWm2", "tidalHeatFluxWm2"]) {
+      bodyInputsEl.querySelector(`#${fieldName}`)?.addEventListener("change", (event) => {
+        if (hydrating) return;
+        const result = readOptionalNonNegativeNumber(event.currentTarget, p[fieldName]);
+        if (result.ok) commitRockyInputPatch({ [fieldName]: result.value });
+      });
+    }
+
+    for (const fieldName of ["strippedEnvelopeCandidate", "migratedCloseIn", "rogueCandidate"]) {
+      bodyInputsEl.querySelector(`#${fieldName}`)?.addEventListener("change", (event) => {
+        if (hydrating) return;
+        commitRockyInputPatch({ [fieldName]: !!event.currentTarget.checked });
+      });
     }
 
     const orbitEl = bodyInputsEl.querySelector("#a");
@@ -1559,7 +1693,7 @@ export function initPlanetPage(mountEl, options = {}) {
     hydrating = false;
   }
 
-  function renderRockyOutputs(world) {
+  function renderRockyOutputs(world, classificationSummary = null) {
     const planet = getSelectedPlanet(world);
     if (!planet) {
       renderPlanetEmptyState(bodyOutputsEl, {
@@ -1951,6 +2085,18 @@ export function initPlanetPage(mountEl, options = {}) {
     const summaryItems = allRockyItems
       .filter((item) => item && summaryLabels.has(item.label))
       .map((item) => normalizeRockyItem(item));
+    if (hasLimitedSurfaceApplicability(classificationSummary)) {
+      summaryItems.unshift(
+        normalizeRockyItem({
+          label: "Solver Scope",
+          value: "Compatibility projection",
+          meta:
+            classificationSummary.surfaceApplicability === "none"
+              ? "No accessible surface; surface and climate values are core/body estimates."
+              : "Surface confidence is limited; surface and climate values are estimates.",
+        }),
+      );
+    }
     const identityItems = allRockyItems
       .filter((item) => item && identityLabels.has(item.label))
       .map((item) => normalizeRockyItem(item));
@@ -2430,6 +2576,151 @@ export function initPlanetPage(mountEl, options = {}) {
     }
   }
 
+  function renderVolatileOutputs(world, body, sysModel) {
+    if (!body) {
+      renderPlanetEmptyState(bodyOutputsEl, {
+        title: "No volatile body selected",
+        body: "Select or create a volatile body to see envelope radius, escape, and detection outputs here.",
+      });
+      return;
+    }
+    const homeSystemContext = buildPlanetHomeSystemContext(world);
+    const model = calcPlanetaryBody({
+      body,
+      context: buildUnifiedBodyCalcContext(world, body, sysModel, homeSystemContext),
+    });
+    celestialPreviewController.detach();
+    const display = model.legacy?.volatileModel?.display || model.visuals?.display || {};
+    const physical = model.physical || {};
+    const envelope = model.envelope || model.atmosphere?.envelope || {};
+    const thermal = model.thermal || {};
+    const orbit = model.orbit || {};
+    const classificationLabel = model.classification?.displayLabel || "Volatile body";
+    const radiusSourceMeta =
+      physical.radiusSource === "observed"
+        ? `Modelled radius: ${display.modelRadius}; observed value is used for transit/photosphere outputs.`
+        : "No observed radius supplied; modelled radius is used for transit/photosphere outputs.";
+    const normalizeVolatileItem = (item) => ({
+      ...item,
+      tip: item.tip || TIP_LABEL[item.tipLabel] || TIP_LABEL[item.label] || "",
+      kpiClass: item.kpiClass ? `kpi--compact ${item.kpiClass}`.trim() : "kpi--compact",
+    });
+
+    const summaryItems = [
+      {
+        label: "Classification",
+        value: classificationLabel,
+        meta: `${String(model.classification?.confidence || "modelled")} confidence | ${
+          model.classification?.modelVersion || "planetary-classification-v1"
+        }`,
+      },
+      { label: "Transit Radius", value: display.transitRadius, meta: radiusSourceMeta },
+      {
+        label: "Solid/Core Radius",
+        value: display.solidRadius,
+        meta: "Estimated solid plus water-rich interior below the H/He envelope.",
+      },
+      { label: "Envelope State", value: display.envelopeState, meta: envelope.stateReason || "" },
+      {
+        label: "Surface Applicability",
+        value: "No accessible solid surface",
+        meta: "Rocky climate, terrain, and habitability outputs are hidden for this solver.",
+      },
+    ].map(normalizeVolatileItem);
+
+    const physicalItems = [
+      { label: "Mass", value: `${fmt(physical.massEarth, 3)} M\u2295` },
+      { label: "Modelled Radius", value: display.modelRadius, meta: display.radiusSource },
+      { label: "Envelope Thickness", value: display.envelopeThickness },
+      { label: "Bulk Density", value: display.density },
+      {
+        label: "Gravity",
+        value: display.gravity,
+        meta: `${fmt(physical.gravityMs2, 2)} m/s\u00b2`,
+      },
+      { label: "Escape Velocity", value: display.escape },
+      {
+        label: "Water Regime",
+        value: physical.waterRegime || "Unknown",
+        meta: physical.compositionClass || "",
+      },
+    ].map(normalizeVolatileItem);
+
+    const envelopeItems = [
+      { label: "Envelope Mass", value: display.envelopeMass },
+      { label: "Mass Loss Rate", value: display.massLossRate },
+      {
+        label: "Survival Timescale",
+        value: display.envelopeTimescale,
+        meta: envelope.stateReason || "",
+      },
+      {
+        label: "XUV Flux",
+        value: `${fmt(envelope.xuvFluxRatioEarth, 2)}x Earth`,
+        meta: `${fmt(envelope.xuvFluxErgCm2S, 3)} erg cm^-2 s^-1`,
+      },
+      {
+        label: "Exobase Temp",
+        value: `${fmt(envelope.exobaseTempK, 0)} K`,
+        meta: `H2 ${envelope.jeansEscape?.h2?.status || "unknown"} | He ${
+          envelope.jeansEscape?.he?.status || "unknown"
+        }`,
+      },
+      {
+        label: "Model Version",
+        value: model.legacy?.volatileModel?.modelVersion || "volatile-radius-lopez-fortney-v1",
+      },
+    ].map(normalizeVolatileItem);
+
+    const environmentItems = [
+      { label: "Equilibrium Temp", value: display.equilibriumTemp },
+      { label: "Insolation", value: display.insolation },
+      { label: "Absorbed Flux", value: `${fmt(thermal.absorbedFluxWm2, 1)} W/m\u00b2` },
+      {
+        label: "Orbital Period",
+        value: `${fmt(orbit.orbitalPeriodDays, 2)} days`,
+        meta: `${fmt(orbit.orbitalPeriodYears, 4)} years`,
+      },
+    ].map(normalizeVolatileItem);
+
+    const detectionItems = [
+      { label: "Transit Depth", value: display.transitDepth, meta: display.transitProbability },
+      {
+        label: "RV Semi-Amplitude",
+        value: display.rvSemiAmplitude,
+        meta: "Edge-on / transiting reference",
+      },
+      {
+        label: "Transit Radius Source",
+        value: physical.radiusSource === "observed" ? "Observed" : "Modelled",
+      },
+    ].map(normalizeVolatileItem);
+
+    bodyOutputsEl.replaceChildren();
+    renderKpiSections(bodyOutputsEl, [
+      { id: "volatile-summary", title: "Summary", items: summaryItems },
+      {
+        id: "volatile-physical",
+        title: "Core & Envelope",
+        density: "compact",
+        items: physicalItems,
+      },
+      {
+        id: "volatile-envelope",
+        title: "Envelope Escape",
+        density: "compact",
+        items: envelopeItems,
+      },
+      {
+        id: "volatile-environment",
+        title: "Thermal Context",
+        density: "compact",
+        items: environmentItems,
+      },
+      { id: "volatile-detection", title: "Detection", density: "compact", items: detectionItems },
+    ]);
+  }
+
   /* ── Vegetation info dialog ─────────────────────────────────────── */
 
   const VEG_GRID_STARS = [
@@ -2768,6 +3059,21 @@ export function initPlanetPage(mountEl, options = {}) {
       g.rotationPeriodHours = rotVal !== "" ? Number(rotVal) || null : null;
       const metVal = bodyInputsEl.querySelector("#ggMetallicity").value;
       g.metallicity = metVal !== "" ? Number(metVal) || null : null;
+      g.carbonRichness = readOptionalSelectValue(bodyInputsEl.querySelector("#ggCarbonRichness"));
+      for (const fieldName of ["bulkDensityGcm3", "internalHeatFluxWm2", "tidalHeatFluxWm2"]) {
+        const result = readOptionalNonNegativeNumber(
+          bodyInputsEl.querySelector(
+            `#gg${fieldName.charAt(0).toUpperCase()}${fieldName.slice(1)}`,
+          ),
+          g[fieldName],
+        );
+        if (!result.ok) return;
+        g[fieldName] = result.value;
+      }
+      g.strippedEnvelopeCandidate = !!bodyInputsEl.querySelector("#ggStrippedEnvelopeCandidate")
+        ?.checked;
+      g.migratedCloseIn = !!bodyInputsEl.querySelector("#ggMigratedCloseIn")?.checked;
+      g.rogueCandidate = !!bodyInputsEl.querySelector("#ggRogueCandidate")?.checked;
       const eccVal = bodyInputsEl.querySelector("#ggEcc").value;
       g.eccentricity = eccVal !== "" ? Number(eccVal) || null : null;
       const incVal = bodyInputsEl.querySelector("#ggInc").value;
@@ -2944,6 +3250,19 @@ export function initPlanetPage(mountEl, options = {}) {
     });
     ggRingStyleSelectEl?.addEventListener("change", () => {
       if (!hydrating) saveGiant();
+    });
+    [
+      "#ggCarbonRichness",
+      "#ggBulkDensityGcm3",
+      "#ggInternalHeatFluxWm2",
+      "#ggTidalHeatFluxWm2",
+      "#ggStrippedEnvelopeCandidate",
+      "#ggMigratedCloseIn",
+      "#ggRogueCandidate",
+    ].forEach((selector) => {
+      bodyInputsEl.querySelector(selector)?.addEventListener("change", () => {
+        if (!hydrating) saveGiant();
+      });
     });
 
     // Fire initial slider sync
@@ -3658,6 +3977,13 @@ export function initPlanetPage(mountEl, options = {}) {
       value: m.display.massLossRate,
       meta: m.display.evaporationTimescale,
     };
+    const surfaceApplicabilityItem = {
+      label: "Surface Applicability",
+      value: isBrownDwarf ? "Substellar companion" : "No accessible solid surface",
+      meta: isBrownDwarf
+        ? "Use host-zone and moon outputs instead of rocky surface tools."
+        : "Rocky climate, terrain, and habitability outputs are hidden for this body.",
+    };
 
     const summaryItems = isBrownDwarf
       ? [
@@ -3686,7 +4012,7 @@ export function initPlanetPage(mountEl, options = {}) {
     const physicalItems = [massItem, radiusItem, densityItem, gravityItem, escapeVelocityItem];
     const environmentItems = isBrownDwarf
       ? [temperatureItem, luminosityItem, zoneItem, atmosphereItem]
-      : [temperatureItem, atmosphereItem, ringsItem];
+      : [temperatureItem, atmosphereItem, ringsItem, surfaceApplicabilityItem];
     const systemItems = [
       hostFrameItem,
       orbitalPeriodItem,
@@ -4161,6 +4487,11 @@ export function initPlanetPage(mountEl, options = {}) {
         syncRockyCreationEntry(world, bodyType);
         syncGasGiantCreationEntry(world, bodyType);
       }
+      const selectedClassificationSummary = renderSelectedBodyClassification(
+        world,
+        sysModel,
+        homeSystemContext,
+      );
 
       if (bodyType === "gasGiant") {
         const giant = getSelectedGasGiant(world);
@@ -4172,7 +4503,12 @@ export function initPlanetPage(mountEl, options = {}) {
         const planet = getSelectedPlanet(world);
         const bodyId = world.planets?.selectedId;
         if (!outputsOnly) renderRockyInputs(world, planet, sysModel);
-        renderRockyOutputs(world);
+        const selectedUnifiedBody = getSelectedPlanetaryBodyModel(world);
+        if (selectedClassificationSummary?.solverFamily === "volatile") {
+          renderVolatileOutputs(world, selectedUnifiedBody, sysModel);
+        } else {
+          renderRockyOutputs(world, selectedClassificationSummary);
+        }
         if (!outputsOnly) renderMoons(world, "planet", bodyId);
       }
 
@@ -4197,6 +4533,10 @@ export function initPlanetPage(mountEl, options = {}) {
       selectBodyType("planet");
     }
     render();
+  });
+
+  bodySearchEl?.addEventListener("input", () => {
+    populateBodySelector(loadWorld());
   });
 
   rockyCreateQuickBtn?.addEventListener("click", () => {
@@ -4242,7 +4582,12 @@ export function initPlanetPage(mountEl, options = {}) {
     });
   });
 
-  function createNewRockyPlanet({ openGuided = false } = {}) {
+  function createNewRockyPlanet({
+    openGuided = false,
+    authoringIntent = "rocky",
+    name = "New Planet",
+    starterInputs = {},
+  } = {}) {
     const w = loadWorld();
     const homeSystemContext = buildPlanetHomeSystemContext(w);
     const selectedPlanet = getSelectedPlanet(w);
@@ -4252,18 +4597,52 @@ export function initPlanetPage(mountEl, options = {}) {
     createPlanetFromInputs(
       {
         ...baseInputs,
+        ...starterInputs,
+        name,
+        authoringIntent,
         hostFrameId: normalizeHostFrameId(selectedPlanet?.hostFrameId, defaultHostFrameId),
         ringMode: RING_MODE_AUTO,
         ringStyleId: RING_STYLE_AUTO,
       },
-      { name: "New Planet" },
+      { name },
     );
     selectBodyType("planet");
     render();
     if (openGuided) openRockyGuidedFlow();
   }
 
-  function createNewGasGiant() {
+  function createNewVolatileBody() {
+    createNewRockyPlanet({
+      authoringIntent: "volatile",
+      name: "Volatile world",
+      starterInputs: {
+        massEarth: 5,
+        cmfPct: 20,
+        wmfPct: 25,
+        hHeEnvelopeMassPct: 1,
+        albedoBond: 0.45,
+        greenhouseMode: "core",
+        greenhouseEffect: 0,
+        pressureAtm: 8,
+        h2Pct: 12,
+        hePct: 4,
+        o2Pct: 0,
+        co2Pct: 2,
+        arPct: 0.2,
+        h2oPct: 0.5,
+        ch4Pct: 1,
+      },
+    });
+  }
+
+  function createNewGasGiant({
+    authoringIntent = "gasGiant",
+    namePrefix = "Gas giant",
+    companionClass = GIANT_COMPANION_CLASS_GAS_GIANT,
+    massMjup = null,
+    radiusRj = null,
+    style = "jupiter",
+  } = {}) {
     const w = loadWorld();
     const gasGiants = listSystemGasGiants(w);
     const homeSystemContext = buildPlanetHomeSystemContext(w);
@@ -4307,22 +4686,69 @@ export function initPlanetPage(mountEl, options = {}) {
     const now = [...gasGiants];
     now.push({
       id: newId,
-      name: `Gas giant ${gasGiants.length + 1}`,
+      name: `${namePrefix} ${gasGiants.length + 1}`,
       hostFrameId,
       au: slot ? sysModel.orbitsAu[slot - 1] : Number(targetAu.toFixed(2)),
       slotIndex: slot,
-      companionClass: GIANT_COMPANION_CLASS_GAS_GIANT,
-      style: "jupiter",
+      authoringIntent,
+      companionClass,
+      style,
       ringMode: RING_MODE_AUTO,
       ringStyleId: RING_STYLE_AUTO,
-      radiusRj: randomGasGiantRadiusRj(),
-      massMjup: null,
+      radiusRj: radiusRj ?? randomGasGiantRadiusRj(),
+      massMjup,
       rotationPeriodHours: null,
     });
     saveSystemGasGiants(now);
     selectGasGiant(newId);
     render();
   }
+
+  function createNewBodyFromIntent(intent) {
+    switch (intent) {
+      case "volatile":
+        createNewVolatileBody();
+        break;
+      case "iceGiant":
+        createNewGasGiant({
+          authoringIntent: "iceGiant",
+          namePrefix: "Ice giant",
+          massMjup: 0.054,
+          radiusRj: 0.36,
+          style: "neptune",
+        });
+        break;
+      case "gasGiant":
+        createNewGasGiant({
+          authoringIntent: "gasGiant",
+          massMjup: 1,
+          radiusRj: 1,
+          style: "jupiter",
+        });
+        break;
+      case "substellar":
+        createNewGasGiant({
+          authoringIntent: "substellar",
+          namePrefix: "Brown dwarf",
+          companionClass: GIANT_COMPANION_CLASS_BROWN_DWARF,
+          massMjup: 20,
+          radiusRj: 1,
+          style: "brown-dwarf-t",
+        });
+        break;
+      case "rocky":
+      default:
+        createNewRockyPlanet({
+          authoringIntent: "rocky",
+          name: "Rocky world",
+        });
+        break;
+    }
+  }
+
+  newBodyBtn?.addEventListener("click", () => {
+    createNewBodyFromIntent(newBodyIntentEl?.value || "rocky");
+  });
 
   wrap.querySelector("#newRockyPlanet").addEventListener("click", () => {
     createNewRockyPlanet();

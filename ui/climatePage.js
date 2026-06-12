@@ -3,9 +3,20 @@ import { fmt } from "../engine/utils.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { createElement, replaceChildren, replaceSelectOptions } from "./domHelpers.js";
-import { solvePlanetExactForWorld } from "./bodySolveHelpers.js";
-import { getSelectedPlanet, listPlanets, loadWorld, selectPlanet, updateWorld } from "./store.js";
+import { solvePlanetExactForWorld, solvePlanetaryBodyForWorld } from "./bodySolveHelpers.js";
+import {
+  findPlanetaryBody,
+  getSelectedPlanet,
+  listPlanets,
+  loadWorld,
+  selectPlanet,
+  updateWorld,
+} from "./store.js";
 import { createTutorial } from "./tutorial.js";
+import {
+  buildSubtypeUnsupportedMessage,
+  getSubtypePageApplicability,
+} from "./planet/bodyClassificationSummary.js";
 
 // ── Tooltips ────────────────────────────────────────────────
 
@@ -92,6 +103,20 @@ function getClimateContext(world) {
 
   const planet = getSelectedPlanet(world);
   if (!planet) return fallback;
+  const body =
+    findPlanetaryBody(world, `planet:${planet.id}`) || findPlanetaryBody(world, planet.id);
+  const pageBody = body ? solvePlanetaryBodyForWorld(world, body).model || body : null;
+  const pageApplicability = pageBody ? getSubtypePageApplicability(pageBody, "climate") : null;
+  const subtypeMessage =
+    pageApplicability && pageApplicability.status !== "full"
+      ? buildSubtypeUnsupportedMessage(pageBody, "climate")
+      : "";
+  if (pageApplicability?.status === "none") {
+    return {
+      ...fallback,
+      unsupportedSurfaceMessage: subtypeMessage,
+    };
+  }
 
   const { model } = solvePlanetExactForWorld(world, planet);
 
@@ -111,6 +136,7 @@ function getClimateContext(world) {
     climateState: model.derived.climateState || "Stable",
     insolationEarth: model.derived.insolationEarth || 1,
     gravityG: model.derived.gravityG || 1,
+    limitedSurfaceMessage: pageApplicability?.status === "limited" ? subtypeMessage : "",
   };
 }
 
@@ -332,6 +358,15 @@ export function initClimatePage(containerEl) {
   }
 
   function renderClimateDynamic(container, model, ctx) {
+    if (ctx.unsupportedSurfaceMessage) {
+      replaceChildren(container, [
+        createElement("div", {
+          className: "derived-readout",
+          text: ctx.unsupportedSurfaceMessage,
+        }),
+      ]);
+      return;
+    }
     const dominantLabel =
       DOMINANT_NAMES[model.display.dominantClass] || model.display.dominantClass;
     const legendItems = Object.entries(MASTER_COLORS)
@@ -357,6 +392,9 @@ export function initClimatePage(containerEl) {
       );
 
     replaceChildren(container, [
+      ctx.limitedSurfaceMessage
+        ? createElement("div", { className: "derived-readout", text: ctx.limitedSurfaceMessage })
+        : null,
       model.advisory
         ? createElement("div", { className: "clim-advisory", text: model.advisory })
         : null,
@@ -435,7 +473,9 @@ export function initClimatePage(containerEl) {
   function update() {
     const w = loadWorld();
     const ctx = getClimateContext(w);
-    const model = calcClimateZones({ ...ctx, altitudeM: state.altitudeM });
+    const model = ctx.unsupportedSurfaceMessage
+      ? null
+      : calcClimateZones({ ...ctx, altitudeM: state.altitudeM });
 
     const dyn = containerEl.querySelector("#climDynamic");
     if (!dyn) return;
@@ -452,7 +492,9 @@ export function initClimatePage(containerEl) {
     const pList = listPlanets(w);
     const selected = getSelectedPlanet(w);
     const ctx = getClimateContext(w);
-    const model = calcClimateZones({ ...ctx, altitudeM: state.altitudeM });
+    const model = ctx.unsupportedSurfaceMessage
+      ? null
+      : calcClimateZones({ ...ctx, altitudeM: state.altitudeM });
 
     containerEl.innerHTML = `
       <div class="page">

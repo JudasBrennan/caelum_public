@@ -30,9 +30,9 @@ import { createTutorial } from "./tutorial.js";
 import {
   getSelectedComet,
   getSystemOortCloudConfig,
+  listDebrisDiskPerturbers,
   listSystemComets,
   loadWorld,
-  listSystemGasGiants,
   listSystemDebrisDisks,
   saveSystemComets,
   saveSystemDebrisDisks,
@@ -520,7 +520,7 @@ export function initOuterObjectsPage(mountEl) {
 
   function getGasGiants(world, { hostFrameId = null, fallbackHostFrameId = null } = {}) {
     return filterBodiesForHostFrame(
-      listSystemGasGiants(world),
+      listDebrisDiskPerturbers(world),
       hostFrameId,
       fallbackHostFrameId,
     ).sort((a, b) => Number(a.au) - Number(b.au));
@@ -568,7 +568,7 @@ export function initOuterObjectsPage(mountEl) {
       starAgeGyr: getSystemStarAgeGyr(world, homeSystemContext),
       locationLy: Number(world?.cluster?.locationLy),
       stellarDensityPerLy3: Number(world?.cluster?.stellarDensityPerLy3),
-      gasGiants: listSystemGasGiants(world).map((gasGiant) => ({
+      gasGiants: listDebrisDiskPerturbers(world).map((gasGiant) => ({
         au: gasGiant?.au,
         massMjup: gasGiant?.massMjup,
       })),

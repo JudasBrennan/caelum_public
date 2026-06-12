@@ -69,7 +69,11 @@ import { renderVisualizerFocusSummary } from "./visualizer/focusSummaryPanel.js"
 import { createMoonRenderHelpers } from "./visualizer/moonRenderHelpers.js";
 import { createVisualizerRouteChrome } from "./visualizer/routeChrome.js";
 import { createStarActivityRuntime, flareEnergyNorm } from "./visualizer/starActivityRuntime.js";
-import { createBodyMeshService, vizBodyCacheKey } from "./visualizer/bodyMeshService.js";
+import {
+  buildPlanetBodyMeshItem,
+  createBodyMeshService,
+  vizBodyCacheKey,
+} from "./visualizer/bodyMeshService.js";
 import { appendWarmCandidate, createVisibleWarmupController } from "./visualizer/visibleWarmup.js";
 import { bindVisualizerInputBindings } from "./visualizer/inputBindings.js";
 import { loadThreeCore } from "./threeBridge2d.js";
@@ -3260,13 +3264,7 @@ export function initVisualiserPage(root, options = {}) {
       if (usePhysicalSize && pr < PHYS_VIS_THRESHOLD_PX) {
         addPositionIndicatorNative(pPos.x, pPos.y, 0x9ec4ff, bodyZ + 0.8);
       } else {
-        const vizKey = vizBodyCacheKey("rocky", p);
-        const meshModel = {
-          bodyType: "rocky",
-          visualProfile: p.visualProfile,
-          ringAppearance: p.ringAppearance,
-          axialTiltDeg: planetAxialTiltDeg,
-        };
+        const { key: vizKey, model: meshModel } = buildPlanetBodyMeshItem(p, planetAxialTiltDeg);
         positionBodyMesh(
           vizKey,
           meshModel,

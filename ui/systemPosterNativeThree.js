@@ -470,13 +470,14 @@ function arcLabelPos(cx, cy, radius, targetY) {
 /* ── Poster body pre-rendering (procedural celestial textures) ── */
 
 function bodyKey(body) {
+  const subtypeKey = String(body?.visualSubtypeKey || "").trim();
   if (isBrownDwarfRenderBody(body)) {
-    return `brown-dwarf:${body.id || ""}:${starKey(body.starVisual)}`;
+    return `brown-dwarf:${body.id || ""}:${subtypeKey}:${starKey(body.starVisual)}`;
   }
-  if (body.type === "gas") {
-    return `gas:${body.id || ""}:${body.style || "jupiter"}:${body.rings ? 1 : 0}:${ringAppearanceKey(body.ringAppearance)}`;
+  if (body.type === "gas" || body.renderFamily === "volatile") {
+    return `gas:${body.id || ""}:${body.style || "jupiter"}:${subtypeKey}:${body.rings ? 1 : 0}:${ringAppearanceKey(body.ringAppearance)}`;
   }
-  return `rocky:${JSON.stringify(body.visualProfile || {})}:${ringAppearanceKey(body.ringAppearance)}`;
+  return `rocky:${subtypeKey}:${JSON.stringify(body.visualProfile || {})}:${ringAppearanceKey(body.ringAppearance)}`;
 }
 
 function moonKey(m) {
@@ -508,26 +509,33 @@ async function ensureBodyCanvas(body, shouldContinue = null) {
   const canvas = document.createElement("canvas");
   canvas.width = 128;
   canvas.height = 128;
-  const model =
-    body.type === "gas"
-      ? {
-          bodyType: "gasGiant",
-          styleId: body.style || "jupiter",
-          showRings: !!body.rings,
-          ringMode: body.ringMode,
-          ringStyleId: body.ringAppearance?.ringStyleId,
-          ringAppearance: body.ringAppearance,
-          gasCalc: body.gasCalc,
-        }
-      : {
-          bodyType: "rocky",
-          visualProfile: body.visualProfile,
-          ringAppearance: body.ringAppearance,
-        };
+  const model = posterBodyTextureModel(body);
   const ok = await renderCelestialRecipeSnapshot(canvas, model, { shouldContinue });
   if (!ok || (typeof shouldContinue === "function" && !shouldContinue())) return null;
   POSTER_CACHE.set(key, canvas);
   return canvas;
+}
+
+function posterBodyTextureModel(body) {
+  if (body?.type === "gas" || body?.renderFamily === "volatile") {
+    return {
+      bodyType: "gasGiant",
+      styleId: body.style || (body.renderFamily === "volatile" ? "sub-neptune" : "jupiter"),
+      showRings: !!body.rings,
+      ringMode: body.ringMode,
+      ringStyleId: body.ringAppearance?.ringStyleId,
+      ringAppearance: body.ringAppearance,
+      gasCalc: body.gasCalc,
+      visualSubtypeKey: body.visualSubtypeKey || "",
+    };
+  }
+  return {
+    bodyType: "rocky",
+    visualProfile: body.visualProfile,
+    ringAppearance: body.ringAppearance,
+    recipeId: body.recipeId || body.visualProfile?.recipeId || "",
+    visualSubtypeKey: body.visualSubtypeKey || "",
+  };
 }
 
 async function ensureMoonCanvas(m, shouldContinue = null) {
@@ -696,23 +704,7 @@ export async function drawSystemPosterNative(canvas, data, opts = {}, onReady = 
   for (const body of allBodies) {
     if (POSTER_CACHE.has(bodyKey(body))) continue;
     if (isBrownDwarfRenderBody(body)) continue;
-    warmModels.push(
-      body.type === "gas"
-        ? {
-            bodyType: "gasGiant",
-            styleId: body.style || "jupiter",
-            showRings: !!body.rings,
-            ringMode: body.ringMode,
-            ringStyleId: body.ringAppearance?.ringStyleId,
-            ringAppearance: body.ringAppearance,
-            gasCalc: body.gasCalc,
-          }
-        : {
-            bodyType: "rocky",
-            visualProfile: body.visualProfile,
-            ringAppearance: body.ringAppearance,
-          },
-    );
+    warmModels.push(posterBodyTextureModel(body));
   }
   for (const m of moons || []) {
     if (!m.parentId || !m.moonCalc || POSTER_CACHE.has(moonKey(m))) continue;

@@ -1,6 +1,11 @@
 import { fmt } from "../../engine/utils.js";
-import { createElement, replaceChildren, replaceSelectOptions } from "../domHelpers.js";
-import { buildBodySelectorOptions } from "./bodySelector.js";
+import {
+  createElement,
+  createOption,
+  replaceChildren,
+  replaceSelectOptions,
+} from "../domHelpers.js";
+import { buildBodySelectorOptionGroups, buildBodySelectorOptions } from "./bodySelector.js";
 
 function tipIconNode(text) {
   if (!text) return null;
@@ -76,12 +81,135 @@ function createVegetationGridTable(headers = [], rows = []) {
 }
 
 export function renderBodySelector(selectEl, entries, selectedValue) {
-  replaceSelectOptions(selectEl, buildBodySelectorOptions(entries));
+  const groups = buildBodySelectorOptionGroups(entries);
+  if (groups.length > 1 || groups[0]?.label) {
+    replaceChildren(
+      selectEl,
+      groups.map((group) =>
+        createElement(
+          "optgroup",
+          {
+            attrs: {
+              label: group.label || "Bodies",
+            },
+          },
+          (group.options || []).map((option) => createOption(option)),
+        ),
+      ),
+    );
+  } else {
+    replaceSelectOptions(selectEl, buildBodySelectorOptions(entries));
+  }
   const nextValue = String(selectedValue || "");
   selectEl.value = [...selectEl.options].some((option) => option.value === nextValue)
     ? nextValue
     : "";
   return selectEl;
+}
+
+function summaryReasonNode(reason) {
+  return createElement("li", {}, [
+    createElement("span", { text: reason?.label || "" }),
+    reason?.detail ? createElement("span", { text: ` ${reason.detail}` }) : null,
+  ]);
+}
+
+function subtypeChipNode(subtype) {
+  return createElement("span", {
+    className: "body-classification-chip",
+    text: subtype?.label || "",
+  });
+}
+
+function pageGuidanceNode(item) {
+  const text = `${item?.pageLabel || "Page"} ${item?.statusLabel || "limited"}`;
+  const meta = item?.subtypeLabel ? ` (${item.subtypeLabel})` : "";
+  return createElement("li", {}, [createElement("span", { text }), meta]);
+}
+
+export function renderPlanetaryBodyClassificationSummary(container, summary) {
+  if (!container) return container;
+  container.hidden = !summary;
+  if (!summary) {
+    replaceChildren(container, []);
+    return container;
+  }
+
+  const confidenceLabel = `${String(summary.confidence || "unknown").toUpperCase()} confidence`;
+  const warnings = Array.isArray(summary.warnings) ? summary.warnings : [];
+  const secondarySubtypes = Array.isArray(summary.secondarySubtypes)
+    ? summary.secondarySubtypes
+    : [];
+  const subtypeReasons = Array.isArray(summary.subtypeReasons) ? summary.subtypeReasons : [];
+  const pageGuidance = Array.isArray(summary.pageGuidance) ? summary.pageGuidance : [];
+
+  replaceChildren(container, [
+    createElement("div", { className: "body-classification-summary__main" }, [
+      createElement("div", {
+        className: "body-classification-summary__label",
+        text: summary.label,
+      }),
+      createElement("div", { className: "body-classification-summary__badges" }, [
+        createElement("span", {
+          className: "body-classification-badge",
+          text: confidenceLabel,
+        }),
+        createElement("span", {
+          className: "body-classification-badge",
+          text: summary.authoringIntentLabel || "Auto start",
+        }),
+        createElement("span", {
+          className: "body-classification-badge",
+          text: summary.surfaceApplicabilityLabel || "Surface model unknown",
+        }),
+        summary.primarySubtype
+          ? createElement("span", {
+              className: "body-classification-badge body-classification-badge--primary",
+              text: summary.primarySubtype.label,
+            })
+          : null,
+      ]),
+    ]),
+    secondarySubtypes.length
+      ? createElement(
+          "div",
+          { className: "body-classification-summary__chips" },
+          secondarySubtypes.slice(0, 5).map(subtypeChipNode),
+        )
+      : null,
+    summary.reasons?.length
+      ? createElement(
+          "ul",
+          { className: "body-classification-summary__reasons" },
+          summary.reasons.map(summaryReasonNode),
+        )
+      : null,
+    subtypeReasons.length
+      ? createElement(
+          "ul",
+          { className: "body-classification-summary__subtype-reasons" },
+          subtypeReasons.map(summaryReasonNode),
+        )
+      : null,
+    warnings.length
+      ? createElement(
+          "ul",
+          { className: "body-classification-summary__warnings" },
+          warnings.map(summaryReasonNode),
+        )
+      : null,
+    pageGuidance.length
+      ? createElement(
+          "ul",
+          { className: "body-classification-summary__guidance" },
+          pageGuidance.map(pageGuidanceNode),
+        )
+      : null,
+  ]);
+  container.dataset.classification = summary.family || "";
+  container.dataset.surfaceApplicability = summary.surfaceApplicability || "";
+  container.dataset.primarySubtype = summary.primarySubtype?.id || "";
+  return container;
 }
 
 export function buildPlanetSlotOptions({ orbitsAu, planets, gasGiants, debrisDisks, planet } = {}) {

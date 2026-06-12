@@ -1,6 +1,5 @@
-import { calcPlanetExact } from "../../engine/planet.js";
 import { calcStar } from "../../engine/star.js";
-import { calcGasGiant } from "../../engine/gasGiant.js";
+import { calcPlanetaryBody } from "../../engine/planetaryBody.js";
 import { computeStellarActivityModel } from "../../engine/stellarActivity.js";
 import {
   gasGiantRingScienceFromCalc,
@@ -20,6 +19,7 @@ import {
   resolveRingAppearance,
   RING_STYLE_AUTO,
 } from "../ringAppearanceProfiles.js";
+import { applySubtypeVisualHintsToRockyProfile } from "./subtypeVisualHints.js";
 import {
   BROWN_DWARF_MASS_MAX_MJUP,
   BROWN_DWARF_MASS_MIN_MJUP,
@@ -32,6 +32,8 @@ import {
   getStarOverrides,
   listMoons,
   listSystemGasGiants,
+  planetFromGasGiantEntry,
+  planetFromRockyEntry,
 } from "../store.js";
 import {
   buildPlanetHomeSystemContext,
@@ -190,43 +192,44 @@ export function buildGasGiantCalc(
     resolvedHomeSystemContext?.defaultHostFrameId,
   );
   const hostSystem = solveContext?.hostFrame?.system || sysModel;
-  return calcGasGiant({
-    companionClass: giant.companionClass,
-    massMjup: giant.massMjup,
-    radiusRj: giant.radiusRj,
-    orbitAu: Number(giant.au) || hostSystem?.frostLineAu || sysModel.frostLineAu,
-    eccentricity: giant.eccentricity,
-    inclinationDeg: giant.inclinationDeg,
-    axialTiltDeg: giant.axialTiltDeg,
-    rotationPeriodHours: giant.rotationPeriodHours,
-    metallicity: giant.metallicity,
-    otherGiants: gasGiants
-      .filter(
-        (candidate) =>
-          candidate.id !== giant.id &&
-          normalizeHostFrameId(
-            candidate?.hostFrameId,
-            resolvedHomeSystemContext?.defaultHostFrameId,
-          ) === hostFrameId,
-      )
-      .map((candidate) => ({ name: candidate.name, au: candidate.au })),
-    moons: listMoons(world)
-      .filter((moon) => moon.planetId === giant.id)
-      .map((moon) => moon.inputs),
-    starMassMsol: Number(solveContext?.starConfig?.massMsol) || Number(primaryStar.massMsol) || 1,
-    starLuminosityLsol:
-      Number(solveContext?.starModel?.luminosityLsol) || sysModel.star.luminosityLsol,
-    starAgeGyr: Number(solveContext?.starConfig?.ageGyr) || Number(primaryStar.ageGyr) || 4.6,
-    starRadiusRsol: Number(solveContext?.starModel?.radiusRsol) || sysModel.star.radiusRsol,
-    hostFrameId: solveContext?.hostFrameId || hostFrameId,
-    hostFrame: solveContext?.hostFrame || null,
-    hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
-    companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
-    companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
-    fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
-    stellarMetallicityFeH:
-      Number(solveContext?.starConfig?.metallicityFeH) || Number(primaryStar.metallicityFeH) || 0,
-  });
+  const orbitAu = Number(giant.au) || hostSystem?.frostLineAu || sysModel.frostLineAu;
+  const otherGiants = gasGiants
+    .filter(
+      (candidate) =>
+        candidate.id !== giant.id &&
+        normalizeHostFrameId(
+          candidate?.hostFrameId,
+          resolvedHomeSystemContext?.defaultHostFrameId,
+        ) === hostFrameId,
+    )
+    .map((candidate) => ({ name: candidate.name, au: candidate.au }));
+  const moons = listMoons(world)
+    .filter((moon) => moon.planetId === giant.id)
+    .map((moon) => moon.inputs);
+  const unified = calcPlanetaryBody(
+    planetFromGasGiantEntry({
+      ...giant,
+      au: orbitAu,
+    }),
+    {
+      starMassMsol: Number(solveContext?.starConfig?.massMsol) || Number(primaryStar.massMsol) || 1,
+      starLuminosityLsol:
+        Number(solveContext?.starModel?.luminosityLsol) || sysModel.star.luminosityLsol,
+      starAgeGyr: Number(solveContext?.starConfig?.ageGyr) || Number(primaryStar.ageGyr) || 4.6,
+      starRadiusRsol: Number(solveContext?.starModel?.radiusRsol) || sysModel.star.radiusRsol,
+      hostFrameId: solveContext?.hostFrameId || hostFrameId,
+      hostFrame: solveContext?.hostFrame || null,
+      hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
+      companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
+      companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
+      fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
+      stellarMetallicityFeH:
+        Number(solveContext?.starConfig?.metallicityFeH) || Number(primaryStar.metallicityFeH) || 0,
+      otherGiants,
+      moons,
+    },
+  );
+  return unified.legacy.gasGiantModel;
 }
 
 export function deriveGasGiantAppearanceState(
@@ -456,7 +459,7 @@ export function buildRockyPlanetModel(world, planet, options = {}) {
     name: gasGiant.name,
     au: gasGiant.au,
   }));
-  return calcPlanetExact({
+  const unified = calcPlanetaryBody(planetFromRockyEntry(planet), {
     starMassMsol: Number(solveContext?.starConfig?.massMsol) || Number(primaryStar.massMsol),
     starAgeGyr: Number(solveContext?.starConfig?.ageGyr) || Number(primaryStar.ageGyr),
     starMetallicityFeH:
@@ -480,10 +483,17 @@ export function buildRockyPlanetModel(world, planet, options = {}) {
     companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
     companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
     fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
-    planet: planet.inputs || {},
     moons: assignedMoons,
     gasGiants: sysGiants,
   });
+  const rockyModel = unified.legacy.rockyModel;
+  if (rockyModel && typeof rockyModel === "object") {
+    Object.defineProperty(rockyModel, "unifiedModel", {
+      value: unified,
+      configurable: true,
+    });
+  }
+  return rockyModel;
 }
 
 export function deriveRockyPlanetAppearanceState(world, planet) {
@@ -494,7 +504,10 @@ export function deriveRockyPlanetAppearanceState(world, planet) {
     scienceEnabled: ringScience.scienceEnabled,
     scienceReason: ringScience.scienceReason,
   });
-  const visualProfile = computeRockyVisualProfile(model?.derived || {}, planet?.inputs || {});
+  const visualProfile = applySubtypeVisualHintsToRockyProfile(
+    computeRockyVisualProfile(model?.derived || {}, planet?.inputs || {}),
+    model?.unifiedModel,
+  );
   const ringAppearance = resolveRingAppearance({
     bodyType: "rocky",
     ringState,

@@ -25,6 +25,20 @@ function describeMoonSolventPathway(moonCalc) {
   return "Surface and subsurface moon-world outputs are derived from the saved moon inputs.";
 }
 
+function subtypeSummaryLine(body) {
+  const labels = Array.isArray(body?.subtypeLabels)
+    ? body.subtypeLabels
+    : Array.isArray(body?.subtypeSummary?.subtypes)
+      ? body.subtypeSummary.subtypes.map((entry) => entry?.label).filter(Boolean)
+      : [];
+  const primaryLabel =
+    String(body?.primarySubtypeLabel || body?.subtypeSummary?.primarySubtypeLabel || "").trim() ||
+    labels[0] ||
+    "";
+  const value = labels.length ? labels.join(", ") : primaryLabel;
+  return value ? { label: labels.length > 1 ? "Subtypes" : "Subtype", value } : null;
+}
+
 function summarizeMoon(parent, moon) {
   const moonCalc = moon?.moonCalc;
   if (!moonCalc) return null;
@@ -55,14 +69,35 @@ function summarizeMoon(parent, moon) {
 }
 
 function summarizePlanet(planet) {
+  const subtypeLine = subtypeSummaryLine(planet);
+  if (planet?.renderFamily === "volatile") {
+    const lines = [
+      { label: "Radius", value: `${fmtNumber(planet?.radiusEarth, 2)} Earth` },
+      { label: "Envelope", value: planet?.envelopeState || "H/He envelope" },
+      {
+        label: "Surface",
+        value: "No accessible solid surface model",
+      },
+      { label: "Moons", value: String(Array.isArray(planet?.moons) ? planet.moons.length : 0) },
+    ];
+    if (subtypeLine) lines.splice(1, 0, subtypeLine);
+    return {
+      title: planet?.name || "Planet",
+      subtitle: `${planet?.classLabel || "Mini-Neptune"} | ${fmtNumber(planet?.au, 2)} AU`,
+      lines,
+      note: "Volatile planets use envelope and transit-radius outputs rather than rocky surface climate outputs.",
+    };
+  }
+  const lines = [
+    { label: "Radius", value: `${fmtNumber(planet?.radiusEarth, 2)} Earth` },
+    { label: "Surface temp", value: `${fmtNumber(planet?.surfaceTempK, 0)} K` },
+    { label: "Moons", value: String(Array.isArray(planet?.moons) ? planet.moons.length : 0) },
+  ];
+  if (subtypeLine) lines.splice(1, 0, subtypeLine);
   return {
     title: planet?.name || "Planet",
-    subtitle: `Rocky planet | ${fmtNumber(planet?.au, 2)} AU`,
-    lines: [
-      { label: "Radius", value: `${fmtNumber(planet?.radiusEarth, 2)} Earth` },
-      { label: "Surface temp", value: `${fmtNumber(planet?.surfaceTempK, 0)} K` },
-      { label: "Moons", value: String(Array.isArray(planet?.moons) ? planet.moons.length : 0) },
-    ],
+    subtitle: `${planet?.classLabel || "Rocky planet"} | ${fmtNumber(planet?.au, 2)} AU`,
+    lines,
   };
 }
 
@@ -70,6 +105,8 @@ function summarizeGasGiant(gasGiant) {
   const classLabel = gasGiant?.classLabel || "Gas giant";
   const isBrownDwarf = String(gasGiant?.companionClass || gasGiant?.regime || "") === "brownDwarf";
   const lines = [{ label: "Radius", value: `${fmtNumber(gasGiant?.radiusRj, 2)} RJ` }];
+  const subtypeLine = subtypeSummaryLine(gasGiant);
+  if (subtypeLine) lines.push(subtypeLine);
   if (isBrownDwarf) {
     if (gasGiant?.gasCalc?.classification?.substellarClass) {
       lines.push({
@@ -197,6 +234,11 @@ function formatAssignedBodyCounts(bodyCounts) {
   if (Number(bodyCounts.rockyPlanets) > 0) {
     parts.push(
       `${Number(bodyCounts.rockyPlanets)} rocky planet${Number(bodyCounts.rockyPlanets) === 1 ? "" : "s"}`,
+    );
+  }
+  if (Number(bodyCounts.volatilePlanets) > 0) {
+    parts.push(
+      `${Number(bodyCounts.volatilePlanets)} volatile planet${Number(bodyCounts.volatilePlanets) === 1 ? "" : "s"}`,
     );
   }
   if (Number(bodyCounts.gasGiants) > 0) {

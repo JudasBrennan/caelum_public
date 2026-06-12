@@ -2117,6 +2117,170 @@ button.danger:hover {
   align-items: stretch;
 }
 
+.body-switcher__search {
+  min-height: 36px;
+}
+
+.new-body-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.body-classification-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid rgba(var(--overlay-color), 0.12);
+  border-left: 4px solid rgba(var(--accent-rgb), 0.64);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, rgba(var(--overlay-color), 0.045), rgba(var(--bg-rgb), 0.24)),
+    rgba(var(--panel-rgb), 0.34);
+}
+
+.body-classification-summary[hidden] {
+  display: none !important;
+}
+
+.body-classification-summary__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.body-classification-summary__label {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.body-classification-summary__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.body-classification-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid rgba(var(--overlay-color), 0.14);
+  border-radius: 999px;
+  background: rgba(var(--overlay-color), 0.055);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.body-classification-badge--primary {
+  border-color: rgba(var(--accent-rgb), 0.32);
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--text);
+}
+
+.body-classification-summary__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.body-classification-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid rgba(var(--overlay-color), 0.12);
+  border-radius: 999px;
+  background: rgba(var(--overlay-color), 0.04);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.body-classification-summary__reasons,
+.body-classification-summary__warnings,
+.body-classification-summary__subtype-reasons,
+.body-classification-summary__guidance {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.body-classification-summary__subtype-reasons,
+.body-classification-summary__guidance {
+  color: var(--muted);
+}
+
+.body-classification-summary__warnings {
+  color: var(--warn);
+}
+
+.exotic-traits-panel {
+  margin: 10px 0 8px;
+  border: 1px solid rgba(var(--overlay-color), 0.12);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--overlay-color), 0.035);
+}
+
+.exotic-traits-panel > summary {
+  min-height: 34px;
+  padding: 8px 10px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.exotic-traits-panel__body {
+  display: grid;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+.exotic-traits-panel__row {
+  margin: 0;
+}
+
+.exotic-traits-panel__toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px;
+}
+
+.exotic-traits-panel__check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 5px 7px;
+  border: 1px solid rgba(var(--overlay-color), 0.1);
+  border-radius: 6px;
+  background: rgba(var(--bg-rgb), 0.18);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.exotic-traits-panel__check input {
+  flex: 0 0 auto;
+}
+
 .planet-empty-state {
   display: grid;
   gap: 11px;
@@ -2177,6 +2341,15 @@ button.danger:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .new-body-control {
+    grid-template-columns: 1fr;
+  }
+  .new-body-control > button {
+    width: 100%;
+  }
 }
 
 /* Moon list under planet cards in system slots */

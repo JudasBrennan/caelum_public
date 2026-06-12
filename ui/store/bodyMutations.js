@@ -1,11 +1,21 @@
 import { normalizeMoonInputs } from "../../engine/moon/config.js";
+import {
+  ensureCanonicalPlanetaryBodyStorage,
+  getSelectedPlanetaryBodyLegacyId,
+  listRockyPlanetEntries,
+  replacePlanetaryBodiesByLegacyKind,
+  selectPlanetaryBodyByLegacyId,
+  syncMoonParentAliases,
+  syncLegacyPlanetCollections,
+} from "./compat/planetaryBodyCompatibility.js";
+import { isValidMoonParentId } from "./planetaryBodyModel.js";
 
 function makeEntityId(prefix) {
   return prefix + Math.random().toString(36).slice(2, 9);
 }
 
 function syncSelectedPlanetSnapshot(world) {
-  const selectedPlanet = world.planets.byId[world.planets.selectedId];
+  const selectedPlanet = world.planets?.byId?.[world.planets?.selectedId];
   if (selectedPlanet) {
     world.planet = { ...selectedPlanet.inputs, name: selectedPlanet.name };
   }
@@ -23,9 +33,15 @@ function syncSelectedMoonSnapshot(world) {
   }
 }
 
+function syncBodyStorage(world) {
+  ensureCanonicalPlanetaryBodyStorage(world);
+  syncLegacyPlanetCollections(world);
+  syncMoonParentAliases(world);
+  return world;
+}
+
 export function selectPlanetInWorld(world, planetId) {
-  if (!world.planets.byId[planetId]) return world;
-  world.planets.selectedId = planetId;
+  if (!selectPlanetaryBodyByLegacyId(world, "rocky", planetId)) return world;
   world.selectedBodyType = "planet";
   syncSelectedPlanetSnapshot(world);
   return world;
@@ -47,24 +63,24 @@ export function createPlanetInWorld(world, inputs, { name = "New Planet" } = {})
     locked: false,
     inputs: normalizedInputs,
   };
-  world.planets.byId[id] = planet;
-  world.planets.order.push(id);
-  world.planets.selectedId = id;
+  const planets = listRockyPlanetEntries(world);
+  planets.push(planet);
+  replacePlanetaryBodiesByLegacyKind(world, "rocky", planets, { selectedLegacyId: id });
   world.selectedBodyType = "planet";
   world.planet = { ...planet.inputs, name: planet.name };
   return world;
 }
 
 export function deletePlanetInWorld(world, planetId) {
-  if (!world.planets.byId[planetId]) return world;
+  const planets = listRockyPlanetEntries(world);
+  if (!planets.some((planet) => planet.id === planetId)) return world;
+  const nextPlanets = planets.filter((planet) => planet.id !== planetId);
+  const fallbackPlanetId = nextPlanets[0]?.id || null;
 
-  delete world.planets.byId[planetId];
-  world.planets.order = world.planets.order.filter((id) => id !== planetId);
-
-  const fallbackPlanetId = world.planets.order[0] || Object.keys(world.planets.byId)[0] || null;
-  if (world.planets.selectedId === planetId || !world.planets.byId[world.planets.selectedId]) {
-    world.planets.selectedId = fallbackPlanetId || "p1";
-  }
+  replacePlanetaryBodiesByLegacyKind(world, "rocky", nextPlanets, {
+    selectedLegacyId:
+      getSelectedPlanetaryBodyLegacyId(world, "rocky") === planetId ? fallbackPlanetId : undefined,
+  });
 
   if (world.moons?.byId && typeof world.moons.byId === "object") {
     for (const moonId of Object.keys(world.moons.byId)) {
@@ -81,11 +97,12 @@ export function deletePlanetInWorld(world, planetId) {
 
   syncSelectedPlanetSnapshot(world);
   syncSelectedMoonSnapshot(world);
-  return world;
+  return syncBodyStorage(world);
 }
 
 export function updatePlanetInWorld(world, planetId, patch) {
-  const planet = world.planets.byId[planetId];
+  const planets = listRockyPlanetEntries(world);
+  const planet = planets.find((entry) => entry.id === planetId);
   if (!planet) return world;
 
   if (patch.name != null) planet.name = patch.name;
@@ -93,7 +110,10 @@ export function updatePlanetInWorld(world, planetId, patch) {
   if (patch.hostFrameId !== undefined) planet.hostFrameId = patch.hostFrameId || null;
   if (patch.inputs) planet.inputs = { ...planet.inputs, ...patch.inputs };
 
-  if (world.planets.selectedId === planetId) syncSelectedPlanetSnapshot(world);
+  replacePlanetaryBodiesByLegacyKind(world, "rocky", planets, {
+    selectedLegacyId: getSelectedPlanetaryBodyLegacyId(world, "rocky"),
+  });
+  syncSelectedPlanetSnapshot(world);
   return world;
 }
 
@@ -101,12 +121,15 @@ export function selectMoonInWorld(world, moonId) {
   if (!world.moons.byId[moonId]) return world;
   world.moons.selectedId = moonId;
   syncSelectedMoonSnapshot(world);
-  return world;
+  return syncBodyStorage(world);
 }
 
 export function createMoonInWorld(world, inputs, { name = "New Moon", planetId } = {}) {
   const id = makeEntityId("m");
-  const parentId = planetId === undefined ? world.planets.selectedId || null : planetId || null;
+  const parentId =
+    planetId === undefined
+      ? getSelectedPlanetaryBodyLegacyId(world, "rocky") || null
+      : planetId || null;
   const moon = {
     id,
     name: name || inputs?.name || "New Moon",
@@ -118,7 +141,7 @@ export function createMoonInWorld(world, inputs, { name = "New Moon", planetId }
   world.moons.order.push(id);
   world.moons.selectedId = id;
   world.moon = { ...moon.inputs, name: moon.name };
-  return world;
+  return syncBodyStorage(world);
 }
 
 export function deleteMoonInWorld(world, moonId) {
@@ -129,7 +152,7 @@ export function deleteMoonInWorld(world, moonId) {
     world.moons.selectedId = world.moons.order[0] || Object.keys(world.moons.byId)[0];
   }
   syncSelectedMoonSnapshot(world);
-  return world;
+  return syncBodyStorage(world);
 }
 
 export function updateMoonInWorld(world, moonId, patch) {
@@ -145,7 +168,7 @@ export function updateMoonInWorld(world, moonId, patch) {
     const nextPlanetId =
       patch.planetId == null || patch.planetId === "" ? null : String(patch.planetId);
     if (
-      (nextPlanetId == null || world.planets.byId[nextPlanetId]) &&
+      (nextPlanetId == null || isValidMoonParentId(world, nextPlanetId)) &&
       (!moon.locked || nextPlanetId === moon.planetId)
     ) {
       moon.planetId = nextPlanetId;
@@ -155,7 +178,7 @@ export function updateMoonInWorld(world, moonId, patch) {
   if (patch.inputs) moon.inputs = normalizeMoonInputs({ ...moon.inputs, ...patch.inputs });
 
   if (world.moons.selectedId === moonId) syncSelectedMoonSnapshot(world);
-  return world;
+  return syncBodyStorage(world);
 }
 
 export function toggleMoonLockInWorld(world, moonId) {
@@ -163,10 +186,10 @@ export function toggleMoonLockInWorld(world, moonId) {
   if (!moon) return world;
   if (moon.planetId == null) {
     moon.locked = false;
-    return world;
+    return syncBodyStorage(world);
   }
   moon.locked = !moon.locked;
-  return world;
+  return syncBodyStorage(world);
 }
 
 export function assignMoonToPlanetInWorld(world, moonId, planetIdOrNull, { force = false } = {}) {
@@ -175,15 +198,14 @@ export function assignMoonToPlanetInWorld(world, moonId, planetIdOrNull, { force
 
   const nextPlanetId =
     planetIdOrNull == null || planetIdOrNull === "" ? null : String(planetIdOrNull);
-  const isValidParent =
-    world.planets.byId[nextPlanetId] || world.system?.gasGiants?.byId?.[nextPlanetId];
+  const isValidParent = isValidMoonParentId(world, nextPlanetId);
   if (nextPlanetId != null && !isValidParent) return world;
   if (!force && moon.locked && nextPlanetId !== moon.planetId) return world;
 
   moon.planetId = nextPlanetId;
   if (nextPlanetId == null) moon.locked = false;
   if (world.moons.selectedId === moonId) syncSelectedMoonSnapshot(world);
-  return world;
+  return syncBodyStorage(world);
 }
 
 export function applyMoonSiblingPatchInWorld(
@@ -245,6 +267,8 @@ export function applyMoonSiblingPatchInWorld(
   }
   syncSelectedMoonSnapshot(world);
 
+  syncBodyStorage(world);
+
   return {
     changed: createdMoonIds.length > 0 || updatedMoonIds.length > 0,
     createdMoonIds,
@@ -253,21 +277,25 @@ export function applyMoonSiblingPatchInWorld(
 }
 
 export function togglePlanetLockInWorld(world, planetId) {
-  const planet = world.planets.byId[planetId];
+  const planets = listRockyPlanetEntries(world);
+  const planet = planets.find((entry) => entry.id === planetId);
   if (!planet) return world;
   planet.locked = !planet.locked;
+  replacePlanetaryBodiesByLegacyKind(world, "rocky", planets, {
+    selectedLegacyId: getSelectedPlanetaryBodyLegacyId(world, "rocky"),
+  });
   return world;
 }
 
 export function assignPlanetToSlotInWorld(world, planetId, slotIndexOrNull) {
-  const planet = world.planets.byId[planetId];
+  const planets = listRockyPlanetEntries(world);
+  const planet = planets.find((entry) => entry.id === planetId);
   if (!planet) return world;
   const targetHostFrameKey = normalizeHostFrameKey(planet.hostFrameId);
 
   if (slotIndexOrNull != null) {
-    for (const otherId of world.planets.order) {
-      if (otherId === planetId) continue;
-      const other = world.planets.byId[otherId];
+    for (const other of planets) {
+      if (other.id === planetId) continue;
       if (!other) continue;
       if (normalizeHostFrameKey(other.hostFrameId) !== targetHostFrameKey) continue;
       if (other.slotIndex === slotIndexOrNull) other.slotIndex = null;
@@ -275,6 +303,9 @@ export function assignPlanetToSlotInWorld(world, planetId, slotIndexOrNull) {
   }
 
   planet.slotIndex = slotIndexOrNull;
-  if (world.planets.selectedId === planetId) syncSelectedPlanetSnapshot(world);
+  replacePlanetaryBodiesByLegacyKind(world, "rocky", planets, {
+    selectedLegacyId: getSelectedPlanetaryBodyLegacyId(world, "rocky"),
+  });
+  syncSelectedPlanetSnapshot(world);
   return world;
 }

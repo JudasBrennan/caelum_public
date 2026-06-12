@@ -275,6 +275,8 @@ function normalizeIntercalaryPeriod(period, index, monthsPerYear) {
 
 function normalizeIntercalaryPeriodsForYear(intercalaryPeriods, metrics) {
   const monthsPerYear = positiveInt(metrics?.monthsPerYear, 12);
+  // Phase 5: keep old metrics.intercalaryDays local because it changes
+  // year-layout semantics only when no explicit intercalary periods exist.
   if (intercalaryPeriods === undefined) {
     const legacyDays = toInt(metrics?.intercalaryDays, 0);
     if (legacyDays === 0) return [];

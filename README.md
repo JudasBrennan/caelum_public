@@ -23,6 +23,7 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Brown dwarfs now work as first-class objects across host-star authoring, orbiting giant companions, shared outputs, and the visualizer.
 - Editable comets now have dedicated authoring, appearance previews, import/export support, and Local Frame rendering.
 - System-wide Oort clouds now use a paper-backed baseline model with `Auto / Guided / Manual` controls and seeded long-period comet generation.
+- Exotic planetary subtypes now layer conservative labels, evidence notes, and visual hints onto the unified planetary body model, including carbon-rich, ocean/water, lava, icy dwarf, chthonian, rogue, sub-Neptune, hycean, and inflated giant candidates.
 - The Science and Maths page now has search and live filtering, making the growing reference catalogue much easier to navigate.
 - Multistar home systems now work as a normalized first-class feature across binary, triple, and quad layouts, including paired quads, host-frame-aware editing, and whole-system visualizer overviews.
 - Seeded random system generation can now draft complete star systems with curated names, AU-safe orbit allocation, and preserve/reroll strategies.
@@ -121,6 +122,8 @@ npm install
 - `npm run check:runtime-deps` - Validate bundled runtime dependency configuration.
 - `npm run check:mojibake` - Detect UTF-8 mojibake and replacement-character corruption in text files.
 - `npm run check:maintainability` - Verify the largest route shells stay under line-count budgets and that the extracted Phase 3 seam modules still exist.
+- `npm run check:compat-boundaries` - Verify legacy compatibility handling stays inside documented storage, import, migration, store, and engine adapter boundaries.
+- `npm run check:compat-decommissioning` - Verify retained legacy compatibility paths have not been silently removed without a product decision, changelog entry, and test update.
 - `npm run check:ux-guardrails` - Verify the shell accessibility, overlay, and help-pattern contracts that keep the UX pass from drifting.
 - `npm run check:bundle-budget` - Verify the built entry bundle, largest app-owned lazy chunk, and largest vendor-only lazy chunk stay within budget.
 - `npm run lint` - Run ESLint.
@@ -136,7 +139,7 @@ npm install
 - `npm run test:browser` - Run Playwright smoke tests against the built production app.
 - `npm run test` - Run the full test suite with custom reporter output.
 - `npm run test:report` - Generate `test-results.md`.
-- `npm run check` - Run repo integrity, syntax, runtime dependency, mojibake, lint, format, and test checks.
+- `npm run check` - Run repo integrity, syntax, runtime dependency, mojibake, maintainability, compatibility-boundary, compatibility-decommissioning, UX, lint, format, and test checks.
 - `npm run assets:runtime` - Sync KaTeX and Draco runtime assets into `assets/vendor/`.
 - `npm run build` - Bundle production files into `dist/`.
 - `npm run backup:live` - Create a zip backup of live deploy files in `Backup/`.
@@ -156,6 +159,11 @@ npm install
 ## Data Storage and Safety
 
 - World data is stored in browser storage, primarily IndexedDB with `localStorage` reserved for lightweight settings and migration markers.
+- Fresh saves and exports store planet-class bodies in the canonical `world.planetaryBodies` collection. Legacy rocky/gas-giant split collections are still read during migration, then restored as runtime compatibility projections where older modules need them.
+- Old saves are normalized at storage, import, and migration boundaries before feature code consumes them. Add new legacy storage-key handling under `ui/worldStorage/`, legacy workbook parsing in `ui/legacyXlsxImport.js`, persisted shape migration in `ui/store/worldMigration.js`, and domain bridge code under `ui/store/compat/` or a narrow engine adapter.
+- Compatibility projections exist only for older modules and transitional adapters. New route shells and feature modules should consume canonical store APIs instead of reading historical fields such as singleton `world.planet`/`world.moon` data directly.
+- Do not remove an old data path as cleanup. Compatibility decommissioning requires a specific product decision, a changelog entry naming the removed path, current-world round-trip coverage, and a migration or backup story for users who may still have old saves.
+- Canonical planet-class bodies may include optional subtype evidence fields when the authoring UI or import data provides them: `composition.carbonRichness`, `composition.bulkDensityGcm3`, `thermal.internalHeatFluxWm2`, `thermal.tidalHeatFluxWm2`, `history.strippedEnvelopeCandidate`, `history.migratedCloseIn`, and `history.rogueCandidate`. These fields are additive evidence for classification and visualization; old worlds that omit them still load unchanged.
 - Debounced world saves are flushed when the tab is hidden or closed, reducing the risk of losing the latest edits during shutdown.
 - If the current saved world becomes unreadable, the app now shows a recovery flow that clears only the broken current save while preserving backups.
 - Imports create in-app restore points before replacement.
@@ -168,9 +176,12 @@ npm install
 - `npm run release:verify` is the automated pre-release gate.
 - `npm run release:verify` now starts by validating repo integrity so CI fails early if required tracked files are missing from the pushed commit.
 - `npm run release:verify` now includes the maintainability guardrail check, so oversized route shells and missing refactor seams fail before a release candidate is built.
+- `npm run release:verify` now includes the compatibility-boundary guardrail through `npm run check`, so new legacy handling fails unless it lands in an approved boundary or an intentional transition budget.
+- `npm run release:verify` now includes the compatibility-decommissioning guardrail through `npm run check`, so old-save paths cannot disappear without an intentional support decision and updated tests.
 - `npm run release:verify` now includes the UX guardrail check, so live-region misuse, unlabeled shell controls, and overlay/help contract drift fail before release.
 - `npm run release:verify` is intended to work from a clean clone on Windows, macOS, and Linux without relying on machine-specific Git line-ending settings.
 - `RELEASE_CHECKLIST.md` covers the manual clean-install, build-output, and browser-pass steps.
+- `filed-plans/EXOTIC_PLANETARY_SUBTYPES_PLAN.md` includes the subtype-specific manual smoke pass for old-world import, canonical save/export, Planet mobile behavior, Visualiser, System poster, unsupported-page guidance, and browser validation.
 
 ## Repository Hygiene
 
@@ -185,6 +196,8 @@ npm install
 - New routes in `app.js` should default to lazy loading. Keep eager loading only when there is a measured startup reason, and extend direct-route smoke coverage when a route is added or reshaped.
 - When a change touches a known large route shell, prefer landing it in the extracted seam modules first and let the route file remain orchestration.
 - `npm run check:maintainability` is the fast source-level guardrail for those seam locations and hotspot budgets. It also runs inside `npm run check` and CI.
+- `npm run check:compat-boundaries` is the source-level guardrail for legacy support. Keep old shape parsing in storage/import/migration owners, keep planetary body bridges under `ui/store/compat/`, and use narrow engine adapters before calculators.
+- `npm run check:compat-decommissioning` is the source-level guardrail against accidental compatibility removal. Update it only when there is an explicit decision to stop supporting a named old shape, with tests and release notes in the same change.
 - `npm run check:ux-guardrails` is the fast source-level guardrail for shell accessibility and help-pattern contracts. Keep blocking overlays on `ui/overlayController.js`, keep tutorial panels non-modal, and do not reintroduce broad live regions on the app shell.
 
 ## Refactor Map
@@ -194,6 +207,7 @@ npm install
 - `ui/calendarPage.js` is the route shell. Transfer/export flows, detail overlay logic, and rule-editor flows live under `ui/calendar/`.
 - `ui/visualizerPage.js` is the route shell. Route chrome, focus summary rendering, and lower-level rendering helpers live under `ui/visualizer/`.
 - `ui/worldStorage.js` remains the public persistence boundary. IndexedDB, legacy storage, and lifecycle flushing helpers live under `ui/worldStorage/`.
+- `ui/store/compat/` owns old-to-current world-shape and planetary body bridges. Engine compatibility input normalization belongs in narrow adapters such as `engine/planetaryBodyAdapters.js`; small calculation-local fallbacks stay documented beside their calculator.
 
 ## Runtime Dependencies
 

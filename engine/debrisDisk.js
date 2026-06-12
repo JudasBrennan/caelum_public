@@ -92,7 +92,8 @@ export function calcDebrisDiskSuggestions({ gasGiants, starLuminosityLsol, count
   const suggestions = [];
 
   if (sorted.length === 0) {
-    // Frost-line fallback — no gas giants
+    // Phase 5: this is a domain fallback for systems with no giants, not
+    // storage/schema compatibility.
     const frost = 4.85 * Math.sqrt(sLum);
     suggestions.push({
       innerAu: round(frost * 6, 2),
@@ -326,7 +327,8 @@ function classifyComposition(tempInnerK, tempMidK, tempOuterK, starMetallicityFe
     (a, b) => b.weightedMassFraction - a.weightedMassFraction,
   );
 
-  // Backward-compatible 4-class labels
+  // Phase 5: keep legacy display labels local to preserve debris-disk output
+  // taxonomy for existing callers.
   let className, dominantMaterials;
   if (tMid > 300) {
     className = "Silicate-dominated";

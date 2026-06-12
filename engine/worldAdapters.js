@@ -21,6 +21,11 @@ import { suggestStyles } from "../ui/gasGiantStyles.js";
 import { getOortCloudConfig } from "../ui/store/oortCloudModel.js";
 import { computeRockyVisualProfile } from "../ui/rockyPlanetStyles.js";
 import { resolveRingAppearance } from "../ui/ringAppearanceProfiles.js";
+import {
+  applySubtypeVisualHintsToRockyProfile,
+  buildSubtypeVisualDescriptor,
+  resolveSubtypeEnvelopeStyle,
+} from "../ui/planet/subtypeVisualHints.js";
 
 const MOON_PHASE_INTEGRAL = 0.9;
 export const SNAPSHOT_MODE_BUDGETS = Object.freeze({
@@ -105,6 +110,55 @@ function requireFullEntry(entry, label) {
   return entry;
 }
 
+function isVolatilePlanetEntry(entry) {
+  return entry?.renderFamily === "volatile" || !!entry?.unifiedModel?.legacy?.volatileModel;
+}
+
+function volatilePlanetGeometricAlbedo(entry) {
+  const family = String(entry?.unifiedModel?.classification?.family || "");
+  if (family === "iceGiant") return 0.45;
+  return 0.35;
+}
+
+function getFullSnapshotPlanetEntries(snapshot) {
+  const unifiedEntries = Object.values(snapshot?.planetaryBodiesById || {})
+    .filter((entry) => entry?.legacyKind === "rocky" && entry?.source && entry?.model)
+    .map((entry) => ({
+      ...entry,
+      kind: "planet",
+      unifiedModel: entry.model,
+      model: entry.model.legacy?.rockyModel || entry.model.legacy?.volatileModel || entry.model,
+      renderFamily: entry.model.legacy?.volatileModel ? "volatile" : "rocky",
+      classLabel: entry.model.classification?.displayLabel || null,
+    }));
+  if (unifiedEntries.length) return unifiedEntries;
+  return Object.values(snapshot?.planetsById || {}).map((entry) => ({
+    ...entry,
+    renderFamily: "rocky",
+    classLabel: "Planet",
+    unifiedModel: null,
+  }));
+}
+
+function getFullSnapshotGasGiantEntries(snapshot) {
+  const unifiedEntries = Object.values(snapshot?.planetaryBodiesById || {})
+    .filter(
+      (entry) =>
+        entry?.legacyKind === "gasGiant" && entry?.source && entry?.model?.legacy?.gasGiantModel,
+    )
+    .map((entry) => ({
+      ...entry,
+      kind: "gasGiant",
+      regime: entry.model.legacy.gasGiantModel?.regime,
+      companionClass: entry.model.legacy.gasGiantModel?.companionClass,
+      classLabel: entry.model.classification?.displayLabel || null,
+      unifiedModel: entry.model,
+      model: entry.model.legacy.gasGiantModel,
+    }));
+  if (unifiedEntries.length) return unifiedEntries;
+  return Object.values(snapshot?.gasGiantsById || {});
+}
+
 function orderedCollectionValues(section) {
   if (!section || typeof section !== "object") return [];
   const byId = section.byId && typeof section.byId === "object" ? section.byId : {};
@@ -115,6 +169,82 @@ function orderedCollectionValues(section) {
 function toFiniteOrNull(value) {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
+}
+
+function titleCase(value) {
+  return String(value || "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function classificationForSubtypeSummary(entry) {
+  return (
+    entry?.classification ||
+    entry?.unifiedModel?.classification ||
+    entry?.model?.classification ||
+    null
+  );
+}
+
+function buildBodySubtypeSummary(entry) {
+  const classification = classificationForSubtypeSummary(entry);
+  const rawSubtypes = Array.isArray(classification?.subtypes)
+    ? classification.subtypes
+    : Array.isArray(entry?.subtypes)
+      ? entry.subtypes
+      : [];
+  const subtypes = rawSubtypes
+    .map((subtype) => {
+      const id = String(subtype?.id || "").trim();
+      if (!id) return null;
+      return {
+        id,
+        label: String(subtype?.label || "").trim() || titleCase(id),
+        confidence: subtype?.confidence || "unknown",
+        applicability: subtype?.applicability || "",
+      };
+    })
+    .filter(Boolean);
+  if (!subtypes.length) return null;
+
+  const primarySubtypeId =
+    String(classification?.primarySubtypeId || entry?.primarySubtype?.id || "").trim() ||
+    subtypes[0].id;
+  const primarySubtype = subtypes.find((subtype) => subtype.id === primarySubtypeId) || subtypes[0];
+
+  return {
+    primarySubtypeId: primarySubtype?.id || "",
+    primarySubtypeLabel: primarySubtype?.label || "",
+    subtypes,
+  };
+}
+
+function buildPlanetarySubtypeSummary(entries) {
+  const counts = new Map();
+  for (const entry of entries || []) {
+    const summary = buildBodySubtypeSummary(entry);
+    if (!summary) continue;
+    for (const subtype of summary.subtypes) {
+      const current = counts.get(subtype.id) || {
+        id: subtype.id,
+        label: subtype.label,
+        count: 0,
+        primaryCount: 0,
+      };
+      current.count += 1;
+      if (subtype.id === summary.primarySubtypeId) current.primaryCount += 1;
+      counts.set(subtype.id, current);
+    }
+  }
+  return [...counts.values()].sort(
+    (left, right) =>
+      right.primaryCount - left.primaryCount ||
+      right.count - left.count ||
+      left.label.localeCompare(right.label),
+  );
 }
 
 function normalizeHostFrameId(value, fallbackId = null) {
@@ -253,6 +383,8 @@ function buildDebrisRanges(world, rawWorld, { hostFramesById = null } = {}) {
 
   if (normalizedRanges.length) return normalizedRanges;
 
+  // Phase 5: keep raw debris aliases local to the import preview; they do not
+  // migrate storage or become canonical debris disk state.
   const legacyOuter = Number(
     rawWorld?.system?.debrisDiskOuterAu ?? rawWorld?.system?.debrisOuterAu,
   );
@@ -286,6 +418,23 @@ export function buildImportPreviewSummary(world, { rawWorld = world } = {}) {
   const snapshot = buildWorldSnapshot(world, { mode: SNAPSHOT_MODE_BUDGETS.importPreview });
   const planets = orderedCollectionValues(world?.planets);
   const gasGiants = Object.values(snapshot.gasGiantsById || {});
+  const planetaryBodies = Object.values(snapshot.planetaryBodiesById || {});
+  const planetaryBodyCounts = planetaryBodies.reduce(
+    (counts, entry) => {
+      const family = String(entry?.classification?.family || "");
+      if (["dwarfRocky", "rocky", "superEarth", "radiusValley"].includes(family)) {
+        counts.rockyLike += 1;
+      } else if (["miniNeptune", "volatileCandidate"].includes(family)) {
+        counts.volatile += 1;
+      } else if (["iceGiant", "gasGiant"].includes(family)) {
+        counts.giant += 1;
+      } else if (family === "brownDwarf") {
+        counts.substellar += 1;
+      }
+      return counts;
+    },
+    { rockyLike: 0, volatile: 0, giant: 0, substellar: 0 },
+  );
   const debrisRanges = buildDebrisRanges(world, rawWorld, {
     hostFramesById: snapshot.hostFramesById,
   });
@@ -355,6 +504,12 @@ export function buildImportPreviewSummary(world, { rawWorld = world } = {}) {
     topologyKind: snapshot.meta?.topologyKind || snapshot.stellarSystem?.topologyKind || "single",
     starCount: snapshot.stellarSystem?.stars?.order?.length || 1,
     defaultHostFrameId: snapshot.meta?.defaultHostFrameId || null,
+    planetaryBodies: snapshot.meta?.counts?.planetaryBodies ?? planetaryBodies.length,
+    rockyLikeBodies: planetaryBodyCounts.rockyLike,
+    volatileBodies: planetaryBodyCounts.volatile,
+    giantBodies: planetaryBodyCounts.giant,
+    substellarBodies: planetaryBodyCounts.substellar,
+    planetarySubtypeSummary: buildPlanetarySubtypeSummary(planetaryBodies),
     planets: snapshot.meta?.counts?.planets ?? planets.length,
     moons: snapshot.meta?.counts?.moons ?? Object.keys(snapshot.moonsById || {}).length,
     assigned,
@@ -435,47 +590,88 @@ export function buildSystemPosterSnapshotInputs(
   );
 
   const planets = filterEntriesForHostFrame(
-    Object.values(snapshot.planetsById || {}),
+    getFullSnapshotPlanetEntries(snapshot),
     resolvedHostFrameId,
     fallbackHostFrameId,
   )
     .filter((entry) => includedPlanetIds.has(entry.id))
     .map((entry) => {
-      const visualProfile = computeRockyVisualProfile(entry.model?.derived, entry.source?.inputs);
+      const volatileEntry = isVolatilePlanetEntry(entry);
+      const subtypeSource = entry.unifiedModel || entry;
+      const subtypeSummary = buildBodySubtypeSummary(subtypeSource);
+      const subtypeVisual = buildSubtypeVisualDescriptor(subtypeSource);
+      const volatileStyle = volatileEntry
+        ? resolveSubtypeEnvelopeStyle(subtypeSource, "sub-neptune")
+        : "";
+      const visualProfile = volatileEntry
+        ? null
+        : applySubtypeVisualHintsToRockyProfile(
+            computeRockyVisualProfile(entry.model?.derived, entry.source?.inputs),
+            subtypeSource,
+          );
       const ringAppearance = resolveRingAppearance({
-        bodyType: "rocky",
+        bodyType: volatileEntry ? "gasGiant" : "rocky",
         ringState: {
-          ringMode: visualProfile?.ring?.ringMode || entry.source?.inputs?.ringMode || "auto",
-          effectiveEnabled: !!visualProfile?.ring?.enabled,
+          ringMode: volatileEntry
+            ? "auto"
+            : visualProfile?.ring?.ringMode || entry.source?.inputs?.ringMode || "auto",
+          effectiveEnabled: volatileEntry ? false : !!visualProfile?.ring?.enabled,
         },
-        ringStyleId: entry.source?.inputs?.ringStyleId,
-        derived: entry.model?.derived,
+        ringStyleId: volatileEntry ? "auto" : entry.source?.inputs?.ringStyleId,
+        derived: volatileEntry ? null : entry.model?.derived,
+        gasCalc: volatileEntry ? entry.model : null,
+        bodyStyleId: volatileEntry ? volatileStyle : undefined,
         seed: entry.id || entry.name,
       });
+      const volatilePhysical = volatileEntry ? entry.model?.physical || {} : {};
+      const volatileOrbit = volatileEntry ? entry.model?.orbit || {} : {};
       return {
         id: entry.id,
         name: entry.name,
-        au: Number(entry.model?.inputs?.semiMajorAxisAu),
-        radiusKm: Number(entry.model?.derived?.radiusKm),
-        dayHex: entry.model?.derived?.skyColourDayHex || "#9bbbe0",
-        horizonHex: entry.model?.derived?.skyColourHorizonHex || "#6a6a6a",
+        au: Number(
+          volatileEntry ? volatileOrbit.semiMajorAxisAu : entry.model?.inputs?.semiMajorAxisAu,
+        ),
+        radiusKm: Number(
+          volatileEntry
+            ? volatilePhysical.transitRadiusKm || volatilePhysical.radiusKm
+            : entry.model?.derived?.radiusKm,
+        ),
+        dayHex: volatileEntry ? "#9fbde8" : entry.model?.derived?.skyColourDayHex || "#9bbbe0",
+        horizonHex: volatileEntry
+          ? "#778fb3"
+          : entry.model?.derived?.skyColourHorizonHex || "#6a6a6a",
+        renderFamily: volatileEntry ? "volatile" : "rocky",
+        classLabel: entry.classLabel || entry.unifiedModel?.classification?.displayLabel || null,
+        subtypeSummary,
+        style: volatileStyle,
+        visualSubtypeKey: subtypeVisual.visualSubtypeKey,
+        recipeId: visualProfile?.recipeId || subtypeVisual.rockyRecipeId || "",
+        gasCalc: volatileEntry ? entry.model : null,
         visualProfile,
         ringAppearance,
         source: entry.source,
         model: entry.model,
+        unifiedModel: entry.unifiedModel || null,
       };
     })
     .filter((entry) => Number.isFinite(entry.au) && entry.au > 0);
 
   const gasGiants = filterEntriesForHostFrame(
-    Object.values(snapshot.gasGiantsById || {}),
+    getFullSnapshotGasGiantEntries(snapshot),
     resolvedHostFrameId,
     fallbackHostFrameId,
   )
     .map((entry) => {
+      const subtypeSource = entry.unifiedModel || entry;
+      const subtypeSummary = buildBodySubtypeSummary(subtypeSource);
+      const subtypeVisual = buildSubtypeVisualDescriptor(subtypeSource);
       const companionClass = resolveGiantCompanionClass(entry.source, entry.model);
       const classLabel = resolveGiantCompanionLabel(entry.source, entry.model);
-      const styleId = resolveGiantCompanionStyle(entry.source, entry.model);
+      const baseStyleId = resolveGiantCompanionStyle(entry.source, entry.model);
+      const styleId =
+        companionClass === "brownDwarf"
+          ? baseStyleId
+          : subtypeVisual.envelopeStyleId || baseStyleId;
       const name = resolveGiantCompanionName(entry.source, entry.model);
       const ringState = resolveGasGiantRingState({
         ringMode: entry.source?.ringMode,
@@ -518,6 +714,9 @@ export function buildSystemPosterSnapshotInputs(
         ringAppearance,
         gasCalc: entry.model,
         source: entry.source,
+        unifiedModel: entry.unifiedModel || null,
+        subtypeSummary,
+        visualSubtypeKey: subtypeVisual.visualSubtypeKey,
       };
     })
     .filter((entry) => Number.isFinite(entry.au) && entry.au > 0);
@@ -622,20 +821,26 @@ export function buildApparentSnapshotInputs(
   { homePlanetId = "", distanceByBodyId = {}, moonPhaseDeg = 0 } = {},
 ) {
   const fullSnapshot = snapshot && typeof snapshot === "object" ? snapshot : {};
-  const planetEntries = Object.values(fullSnapshot.planetsById || {}).map((entry) =>
+  const planetEntries = getFullSnapshotPlanetEntries(fullSnapshot).map((entry) =>
     requireFullEntry(entry, "Planet adapter"),
   );
-  const gasGiantEntries = Object.values(fullSnapshot.gasGiantsById || {}).map((entry) =>
+  const gasGiantEntries = getFullSnapshotGasGiantEntries(fullSnapshot).map((entry) =>
     requireFullEntry(entry, "Gas giant adapter"),
   );
 
   const planets = planetEntries
     .map((entry) => {
       const raw = entry.source?.inputs || {};
-      const derived = entry.model?.derived || {};
-      const radiusKm = Number(derived.radiusKm);
-      const orbitAu = Number(entry.model?.inputs?.semiMajorAxisAu);
-      const hasAtmosphere = Number(raw.pressureAtm ?? 0) > 0.01;
+      const volatileEntry = isVolatilePlanetEntry(entry);
+      const derived = volatileEntry ? entry.model?.physical || {} : entry.model?.derived || {};
+      const orbit = volatileEntry ? entry.model?.orbit || {} : null;
+      const radiusKm = Number(
+        volatileEntry ? derived.transitRadiusKm || derived.radiusKm : derived.radiusKm,
+      );
+      const orbitAu = Number(
+        volatileEntry ? orbit?.semiMajorAxisAu : entry.model?.inputs?.semiMajorAxisAu,
+      );
+      const hasAtmosphere = volatileEntry ? true : Number(raw.pressureAtm ?? 0) > 0.01;
       const bodyType = classifyBodyType(radiusKm, hasAtmosphere);
       const bondAlbedo = Number(raw.albedoBond ?? 0.3);
 
@@ -643,17 +848,24 @@ export function buildApparentSnapshotInputs(
         id: `planet:${entry.id}`,
         kind: "planet",
         name: entry.name,
-        classLabel: "Planet",
+        classLabel:
+          entry.classLabel ||
+          entry.unifiedModel?.classification?.displayLabel ||
+          (volatileEntry ? "Mini-Neptune" : "Planet"),
         hostFrameId: entry.hostFrameId,
         orbitAu,
         radiusKm,
-        geometricAlbedo: bondToGeometricAlbedo(bondAlbedo, bodyType),
+        geometricAlbedo: volatileEntry
+          ? volatilePlanetGeometricAlbedo(entry)
+          : bondToGeometricAlbedo(bondAlbedo, bodyType),
         hasAtmosphere,
-        skyDayHex: derived.skyColourDayHex || null,
-        skyDayEdgeHex: derived.skyColourDayEdgeHex || null,
-        skyHorizonHex: derived.skyColourHorizonHex || null,
+        renderFamily: volatileEntry ? "volatile" : "rocky",
+        skyDayHex: volatileEntry ? null : derived.skyColourDayHex || null,
+        skyDayEdgeHex: volatileEntry ? null : derived.skyColourDayEdgeHex || null,
+        skyHorizonHex: volatileEntry ? null : derived.skyColourHorizonHex || null,
         _derived: derived,
         _planetInputs: raw,
+        _styleId: volatileEntry ? "sub-neptune" : undefined,
       };
     })
     .filter((entry) => Number.isFinite(entry.orbitAu) && entry.orbitAu > 0);

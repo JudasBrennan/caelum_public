@@ -548,6 +548,12 @@ export function initImportExportPage(root) {
       m.moons > 0
         ? `${moonWorlds.withAtmosphere} atmosphere-bearing | ${moonWorlds.withLiquidOrVapour} wet/steam | ${moonWorlds.withSubsurfaceOcean} subsurface-ocean | ${moonWorlds.withSurfaceBiosphere} non-sterile surface`
         : "-";
+    const subtypeText = Array.isArray(m.planetarySubtypeSummary)
+      ? m.planetarySubtypeSummary
+          .filter((entry) => entry?.count > 0)
+          .map((entry) => `${entry.label || entry.id} x${entry.count}`)
+          .join(", ")
+      : "";
 
     const grid = createElement("div", { className: "io-preview-grid" });
     const addRow = (label, value) => {
@@ -569,6 +575,16 @@ export function initImportExportPage(root) {
         m.defaultHostFrameId ? ` | default ${formatHostFrameLabel(m.defaultHostFrameId)}` : ""
       }`,
     );
+    if (m.planetaryBodies != null) {
+      const buckets = [
+        `${m.rockyLikeBodies || 0} rocky/surface`,
+        `${m.volatileBodies || 0} volatile`,
+        `${m.giantBodies || 0} giant`,
+        `${m.substellarBodies || 0} substellar`,
+      ];
+      addRow("Planetary bodies", `${m.planetaryBodies} total (${buckets.join(", ")})`);
+      addRow("Exotic subtypes", subtypeText || "-");
+    }
     addRow("Planets", `${m.planets} total (${m.assigned} assigned, ${m.unassigned} unassigned)`);
     addRow("Moons", `${m.moons} total`);
     addRow("Moon worlds", moonWorldText);

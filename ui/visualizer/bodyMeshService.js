@@ -40,12 +40,44 @@ import { recordCelestialTextureFulfillment } from "../celestialPerfDebug.js";
 
 export const BODY_MESH_MIN_PX = 4;
 
+function visualSubtypeKeySuffix(body) {
+  const key = String(body?.visualSubtypeKey || "").trim();
+  return key ? `:${key}` : "";
+}
+
 export function vizBodyCacheKey(type, body) {
   const id = body?.id || "";
-  if (type === "rocky") return `rocky:${id}`;
-  if (type === "gas") return `gas:${id}`;
+  if (type === "rocky") return `rocky:${id}${visualSubtypeKeySuffix(body)}`;
+  if (type === "volatile") return `volatile:${id}${visualSubtypeKeySuffix(body)}`;
+  if (type === "gas") return `gas:${id}${visualSubtypeKeySuffix(body)}`;
   if (type === "moon") return `moon:${id}`;
   return id;
+}
+
+export function buildPlanetBodyMeshModel(planet, axialTiltDeg = planet?.axialTiltDeg) {
+  if (planet?.renderFamily === "volatile") {
+    return {
+      bodyType: "gasGiant",
+      styleId: planet.style || "sub-neptune",
+      showRings: false,
+      gasCalc: planet.gasCalc,
+      visualSubtypeKey: planet.visualSubtypeKey || "",
+      axialTiltDeg: normalizeAxialTiltDeg(axialTiltDeg),
+    };
+  }
+  return {
+    bodyType: "rocky",
+    visualProfile: planet.visualProfile,
+    ringAppearance: planet.ringAppearance,
+    recipeId: planet.recipeId || planet.visualProfile?.recipeId || "",
+    visualSubtypeKey: planet.visualSubtypeKey || "",
+    axialTiltDeg: normalizeAxialTiltDeg(axialTiltDeg),
+  };
+}
+
+export function buildPlanetBodyMeshItem(planet, axialTiltDeg = planet?.axialTiltDeg) {
+  const key = vizBodyCacheKey(planet?.renderFamily === "volatile" ? "volatile" : "rocky", planet);
+  return { key, model: buildPlanetBodyMeshModel(planet, axialTiltDeg) };
 }
 
 export function collectBodyMeshWarmItems(snapshot, options = {}) {
@@ -53,14 +85,8 @@ export function collectBodyMeshWarmItems(snapshot, options = {}) {
   const needed = [];
 
   for (const planet of snapshot.planetNodes || []) {
-    if (!planet.visualProfile) continue;
-    const key = vizBodyCacheKey("rocky", planet);
-    const model = {
-      bodyType: "rocky",
-      visualProfile: planet.visualProfile,
-      ringAppearance: planet.ringAppearance,
-      axialTiltDeg: normalizeAxialTiltDeg(planet.axialTiltDeg),
-    };
+    if (planet?.renderFamily !== "volatile" && !planet?.visualProfile) continue;
+    const { key, model } = buildPlanetBodyMeshItem(planet);
     if (hasKey(key, model)) continue;
     needed.push({ key, model });
   }
@@ -76,6 +102,7 @@ export function collectBodyMeshWarmItems(snapshot, options = {}) {
       ringStyleId: gasGiant.ringAppearance?.ringStyleId,
       ringAppearance: gasGiant.ringAppearance,
       gasCalc: gasGiant.gasCalc,
+      visualSubtypeKey: gasGiant.visualSubtypeKey || "",
       axialTiltDeg: normalizeAxialTiltDeg(gasGiant.axialTiltDeg ?? 0),
     };
     if (hasKey(key, model)) continue;
@@ -171,6 +198,8 @@ export function buildBodyStructuralSignature(model) {
     ringAppearance: model?.ringAppearance || null,
     gasCalc: model?.gasCalc || null,
     visualProfile: model?.visualProfile || null,
+    recipeId: model?.recipeId || "",
+    visualSubtypeKey: model?.visualSubtypeKey || "",
     moonCalc: model?.moonCalc || null,
   });
 }

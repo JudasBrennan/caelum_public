@@ -45,7 +45,6 @@ import {
 } from "./store/worldSnapshotCache.js";
 import {
   getDebrisDisks as getDebrisDisksModel,
-  getGasGiants,
   makeCollection,
   normalizeDebrisDisk as normalizeDebrisDiskModel,
   normalizeClusterSystemNames,
@@ -69,6 +68,16 @@ import {
   normalizeStellarSystem,
   projectPrimaryStarFromStellarSystem,
 } from "./store/stellarSystemModel.js";
+import {
+  getSelectedPlanetaryBodyLegacyId,
+  listGasGiantEntries,
+  listRockyPlanetEntries,
+  replacePlanetaryBodiesByLegacyKind,
+  selectPlanetaryBodyByLegacyId,
+  syncLegacyPlanetCollections,
+  syncMoonParentAliases,
+  syncUnifiedPlanetaryBodies,
+} from "./store/planetaryBodyModel.js";
 
 export { validateEnvelope };
 export {
@@ -88,6 +97,26 @@ export {
   getGiantCompanionMassBounds,
   randomGasGiantRadiusRj,
 } from "./store/gasGiantModel.js";
+export {
+  findPlanetaryBody,
+  isValidMoonParentId,
+  listApparentOrbitSamples,
+  listDebrisDiskPerturbers,
+  listGiantPlanetBodies,
+  listMoonParentBodies,
+  listPlanetaryBodies,
+  listPlanetaryBodiesByHostFrame,
+  listRockyLikeBodies,
+  listSubstellarCompanionBodies,
+  listVolatilePlanetBodies,
+  normalizePlanetaryBody,
+  planetFromGasGiantEntry,
+  planetFromRockyEntry,
+  splitPlanetaryBodiesByLegacyKind,
+  syncLegacyPlanetCollections,
+  syncMoonParentAliases,
+  syncUnifiedPlanetaryBodies,
+} from "./store/planetaryBodyModel.js";
 export {
   createBackup,
   flushStorage,
@@ -335,12 +364,25 @@ export function resolveWorldHostFrameContext(
   );
 }
 
+function syncLegacyPlanetaryBodyWrites(world) {
+  syncUnifiedPlanetaryBodies(world);
+  syncMoonParentAliases(world);
+  return world;
+}
+
+function syncCompatibilityPlanetaryBodyProjections(world) {
+  syncLegacyPlanetCollections(world);
+  syncMoonParentAliases(world);
+  return world;
+}
+
 export function listPlanets(world = loadWorld()) {
-  return world.planets.order.map((id) => world.planets.byId[id]).filter(Boolean);
+  return listRockyPlanetEntries(world);
 }
 
 export function getSelectedPlanet(world = loadWorld()) {
-  return world.planets.byId[world.planets.selectedId];
+  const selectedId = getSelectedPlanetaryBodyLegacyId(world, "rocky");
+  return listPlanets(world).find((planet) => planet.id === selectedId) || null;
 }
 
 export function selectPlanet(planetId) {
@@ -486,8 +528,8 @@ export function setOrbitMode(mode, orbitsAu) {
 
   if (next === "manual") {
     const homeSystemContext = buildHomeSystemContext(world);
-    for (const planetId of world.planets.order) {
-      const planet = world.planets.byId[planetId];
+    const planets = listRockyPlanetEntries(world);
+    for (const planet of planets) {
       if (!planet || planet.slotIndex == null) continue;
       const orbitSlots = resolveOrbitSlotsForHostFrame(
         homeSystemContext,
@@ -499,24 +541,23 @@ export function setOrbitMode(mode, orbitsAu) {
         planet.inputs.semiMajorAxisAu = slotAu;
       }
     }
-    const gasGiants = world.system.gasGiants;
-    if (gasGiants?.byId) {
-      for (const gasGiantId of gasGiants.order || []) {
-        const gasGiant = gasGiants.byId[gasGiantId];
-        if (!gasGiant || gasGiant.slotIndex == null) continue;
-        const orbitSlots = resolveOrbitSlotsForHostFrame(
-          homeSystemContext,
-          gasGiant.hostFrameId,
-          orbitsAu,
-        );
-        const slotAu = orbitSlots[gasGiant.slotIndex - 1];
-        if (Number.isFinite(slotAu) && slotAu > 0) gasGiant.au = slotAu;
-      }
+    const gasGiants = listGasGiantEntries(world);
+    for (const gasGiant of gasGiants) {
+      if (!gasGiant || gasGiant.slotIndex == null) continue;
+      const orbitSlots = resolveOrbitSlotsForHostFrame(
+        homeSystemContext,
+        gasGiant.hostFrameId,
+        orbitsAu,
+      );
+      const slotAu = orbitSlots[gasGiant.slotIndex - 1];
+      if (Number.isFinite(slotAu) && slotAu > 0) gasGiant.au = slotAu;
     }
+    replacePlanetaryBodiesByLegacyKind(world, "rocky", planets);
+    replacePlanetaryBodiesByLegacyKind(world, "gasGiant", gasGiants);
   }
 
   world.system.orbitMode = next;
-  const selectedPlanet = world.planets.byId[world.planets.selectedId];
+  const selectedPlanet = getSelectedPlanet(world);
   if (selectedPlanet) {
     world.planet = { ...selectedPlanet.inputs, name: selectedPlanet.name };
   }
@@ -526,7 +567,8 @@ export function setOrbitMode(mode, orbitsAu) {
 
 export function saveWorld(world, options = {}) {
   const normalized = migrateWorld(mergeWorldForMigration(world));
-  const raw = JSON.stringify(normalized);
+  const persistable = stripLegacyKeys(normalized);
+  const raw = JSON.stringify(persistable);
   const saved = saveWorldRaw(raw, options);
   if (saved) {
     cacheWorldSnapshot(raw, normalized, { reason: "seed" });
@@ -592,6 +634,11 @@ export function applyGeneratedSystemDraft(draftEnvelope, options = {}) {
     draftWorld.moons && typeof draftWorld.moons === "object" ? draftWorld.moons : nextWorld.moons;
   nextWorld.moon = draftWorld.moon && typeof draftWorld.moon === "object" ? draftWorld.moon : {};
   nextWorld.selectedBodyType = draftWorld.selectedBodyType === "gasGiant" ? "gasGiant" : "planet";
+  const hasDraftCanonicalPlanetaryBodies =
+    draftWorld.planetaryBodies && typeof draftWorld.planetaryBodies === "object";
+  if (hasDraftCanonicalPlanetaryBodies) {
+    nextWorld.planetaryBodies = structuredClone(draftWorld.planetaryBodies);
+  }
 
   const preserveWorldSections = Array.isArray(draftEnvelope?.generationMeta?.preserveWorldSections)
     ? draftEnvelope.generationMeta.preserveWorldSections
@@ -611,13 +658,16 @@ export function applyGeneratedSystemDraft(draftEnvelope, options = {}) {
     };
   }
 
+  if (!hasDraftCanonicalPlanetaryBodies) syncLegacyPlanetaryBodyWrites(nextWorld);
   saveWorld(nextWorld, options);
   return nextWorld;
 }
 
 export function updateWorld(patch) {
   const world = loadWorld();
-  const next = migrateWorld(deepMerge(world, patch));
+  const merged = deepMerge(world, patch);
+  if (patch?.planets || patch?.system?.gasGiants) syncLegacyPlanetaryBodyWrites(merged);
+  const next = migrateWorld(merged);
   saveWorld(next);
   return next;
 }
@@ -675,7 +725,9 @@ export function updateClusterAdjustments(adj) {
 }
 
 export function listSystemGasGiants(world = loadWorld()) {
-  return getGasGiants(world, normalizeGasGiantModel);
+  return listGasGiantEntries(world)
+    .map((gasGiant, index) => normalizeGasGiantModel(gasGiant, index + 1))
+    .filter((gasGiant) => gasGiant.au > 0);
 }
 
 export function getStellarSystem(world = loadWorld()) {
@@ -691,41 +743,41 @@ function reconcileStellarSystemAssignments(world, nextStellarSystem) {
     return validHostFrameIds.has(resolvedHostFrameId) ? resolvedHostFrameId : fallbackHostFrameId;
   };
 
-  if (world.planets?.byId) {
-    for (const planet of Object.values(world.planets.byId)) {
-      if (!planet) continue;
-      const nextHostFrameId = resolveNextHostFrameId(planet.hostFrameId);
-      if (nextHostFrameId !== normalizeHostFrameId(planet.hostFrameId, fallbackHostFrameId)) {
-        planet.hostFrameId = nextHostFrameId;
-        if (planet.slotIndex != null) planet.slotIndex = null;
-      } else {
-        planet.hostFrameId = nextHostFrameId;
-      }
+  const planets = listRockyPlanetEntries(world);
+  for (const planet of planets) {
+    if (!planet) continue;
+    const nextHostFrameId = resolveNextHostFrameId(planet.hostFrameId);
+    if (nextHostFrameId !== normalizeHostFrameId(planet.hostFrameId, fallbackHostFrameId)) {
+      planet.hostFrameId = nextHostFrameId;
+      if (planet.slotIndex != null) planet.slotIndex = null;
+    } else {
+      planet.hostFrameId = nextHostFrameId;
     }
   }
 
-  const gasGiants = world.system?.gasGiants;
-  if (gasGiants?.byId) {
-    for (const gasGiantId of gasGiants.order || []) {
-      const gasGiant = gasGiants.byId?.[gasGiantId];
-      if (!gasGiant) continue;
-      const nextHostFrameId = resolveNextHostFrameId(gasGiant.hostFrameId);
-      if (nextHostFrameId !== normalizeHostFrameId(gasGiant.hostFrameId, fallbackHostFrameId)) {
-        gasGiant.hostFrameId = nextHostFrameId;
-        if (gasGiant.slotIndex != null) gasGiant.slotIndex = null;
-      } else {
-        gasGiant.hostFrameId = nextHostFrameId;
-      }
+  const gasGiants = listGasGiantEntries(world);
+  for (const gasGiant of gasGiants) {
+    if (!gasGiant) continue;
+    const nextHostFrameId = resolveNextHostFrameId(gasGiant.hostFrameId);
+    if (nextHostFrameId !== normalizeHostFrameId(gasGiant.hostFrameId, fallbackHostFrameId)) {
+      gasGiant.hostFrameId = nextHostFrameId;
+      if (gasGiant.slotIndex != null) gasGiant.slotIndex = null;
+    } else {
+      gasGiant.hostFrameId = nextHostFrameId;
     }
   }
+  replacePlanetaryBodiesByLegacyKind(world, "rocky", planets);
+  replacePlanetaryBodiesByLegacyKind(world, "gasGiant", gasGiants);
+
+  const parentHostFrames = new Map([
+    ...planets.map((planet) => [planet.id, planet.hostFrameId]),
+    ...gasGiants.map((gasGiant) => [gasGiant.id, gasGiant.hostFrameId]),
+  ]);
 
   if (world.moons?.byId) {
     for (const moon of Object.values(world.moons.byId)) {
       if (!moon) continue;
-      const parentHostFrameId =
-        world.planets?.byId?.[moon.planetId]?.hostFrameId ||
-        world.system?.gasGiants?.byId?.[moon.planetId]?.hostFrameId ||
-        fallbackHostFrameId;
+      const parentHostFrameId = parentHostFrames.get(moon.planetId) || fallbackHostFrameId;
       moon.hostFrameId = resolveNextHostFrameId(moon.hostFrameId || parentHostFrameId);
     }
   }
@@ -752,6 +804,7 @@ export function saveStellarSystem(stellarSystem, options = {}) {
   world.stellarSystem = normalizeStellarSystem(stellarSystem, { fallbackStar: world?.star });
   reconcileStellarSystemAssignments(world, world.stellarSystem);
   world.star = projectPrimaryStarFromStellarSystem(world.stellarSystem, world?.star);
+  syncCompatibilityPlanetaryBodyProjections(world);
   saveWorld(world, options);
   return world;
 }
@@ -797,22 +850,22 @@ export function getSystemOortCloudConfig(world = loadWorld()) {
 
 export function saveSystemGasGiants(list) {
   const world = loadWorld();
-  const prevSelectedGg = world.system.gasGiants?.selectedId ?? null;
+  const prevSelectedGg = getSelectedPlanetaryBodyLegacyId(world, "gasGiant");
   const giants = (list || []).map((gasGiant, index) => normalizeGasGiantModel(gasGiant, index + 1));
-  world.system.gasGiants = makeCollection(giants, "gg");
-  world.system.gasGiants.selectedId =
-    prevSelectedGg && world.system.gasGiants.byId[prevSelectedGg]
+  replacePlanetaryBodiesByLegacyKind(world, "gasGiant", giants, {
+    selectedLegacyId: giants.some((gasGiant) => gasGiant.id === prevSelectedGg)
       ? prevSelectedGg
-      : world.system.gasGiants.order[0] || null;
+      : giants[0]?.id || null,
+  });
   const next = migrateWorld(world);
   saveWorld(next);
   return next;
 }
 
 export function getSelectedGasGiant(world = loadWorld()) {
-  const id = world.system?.gasGiants?.selectedId;
+  const id = getSelectedPlanetaryBodyLegacyId(world, "gasGiant");
   if (!id) return null;
-  const raw = world.system.gasGiants.byId?.[id];
+  const raw = listGasGiantEntries(world).find((gasGiant) => gasGiant.id === id);
   return raw ? normalizeGasGiantModel(raw, 1) : null;
 }
 
@@ -822,8 +875,7 @@ export function planDeleteGasGiant(gasGiantId, world = loadWorld()) {
 
 export function selectGasGiant(gasGiantId) {
   const world = loadWorld();
-  if (!world.system?.gasGiants?.byId?.[gasGiantId]) return world;
-  world.system.gasGiants.selectedId = gasGiantId;
+  if (!selectPlanetaryBodyByLegacyId(world, "gasGiant", gasGiantId)) return world;
   world.selectedBodyType = "gasGiant";
   saveWorld(world);
   return world;
@@ -831,7 +883,7 @@ export function selectGasGiant(gasGiantId) {
 
 export function deleteGasGiant(gasGiantId) {
   const world = loadWorld();
-  if (!world.system?.gasGiants?.byId?.[gasGiantId]) return world;
+  if (!listGasGiantEntries(world).some((gasGiant) => gasGiant.id === gasGiantId)) return world;
 
   if (world.moons?.byId) {
     for (const moon of Object.values(world.moons.byId)) {
@@ -841,18 +893,19 @@ export function deleteGasGiant(gasGiantId) {
     }
   }
 
-  const prevSelectedGasGiantId = world.system.gasGiants?.selectedId ?? null;
+  const prevSelectedGasGiantId = getSelectedPlanetaryBodyLegacyId(world, "gasGiant");
   const giants = listSystemGasGiants(world)
     .filter((entry) => entry.id !== gasGiantId)
     .map((gasGiant, index) => normalizeGasGiantModel(gasGiant, index + 1));
 
-  world.system.gasGiants = makeCollection(giants, "gg");
-  world.system.gasGiants.selectedId =
-    prevSelectedGasGiantId && world.system.gasGiants.byId[prevSelectedGasGiantId]
-      ? prevSelectedGasGiantId
-      : world.system.gasGiants.order[0] || null;
+  replacePlanetaryBodiesByLegacyKind(world, "gasGiant", giants, {
+    selectedLegacyId: prevSelectedGasGiantId === gasGiantId ? giants[0]?.id || null : undefined,
+  });
 
-  if (!world.system.gasGiants.selectedId && world.selectedBodyType === "gasGiant") {
+  if (
+    !getSelectedPlanetaryBodyLegacyId(world, "gasGiant") &&
+    world.selectedBodyType === "gasGiant"
+  ) {
     world.selectedBodyType = "planet";
   }
 
@@ -863,8 +916,13 @@ export function deleteGasGiant(gasGiantId) {
 
 export function applySelectedGasGiantPatch(patch) {
   const world = loadWorld();
-  const selectedGasGiantId = world.system?.gasGiants?.selectedId ?? null;
-  if (!selectedGasGiantId || !world.system?.gasGiants?.byId?.[selectedGasGiantId]) return null;
+  const selectedGasGiantId = getSelectedPlanetaryBodyLegacyId(world, "gasGiant");
+  if (
+    !selectedGasGiantId ||
+    !listGasGiantEntries(world).some((entry) => entry.id === selectedGasGiantId)
+  ) {
+    return null;
+  }
 
   const giants = listSystemGasGiants(world).map((entry) =>
     entry.id === selectedGasGiantId
@@ -876,14 +934,12 @@ export function applySelectedGasGiantPatch(patch) {
       : entry,
   );
 
-  world.system.gasGiants = makeCollection(
+  replacePlanetaryBodiesByLegacyKind(
+    world,
+    "gasGiant",
     giants.map((gasGiant, index) => normalizeGasGiantModel(gasGiant, index + 1)),
-    "gg",
+    { selectedLegacyId: selectedGasGiantId },
   );
-  world.system.gasGiants.selectedId =
-    selectedGasGiantId && world.system.gasGiants.byId[selectedGasGiantId]
-      ? selectedGasGiantId
-      : world.system.gasGiants.order[0] || null;
   const next = migrateWorld(world);
   saveWorld(next);
   return next;
@@ -892,6 +948,9 @@ export function applySelectedGasGiantPatch(patch) {
 export function selectBodyType(type) {
   const world = loadWorld();
   world.selectedBodyType = type === "gasGiant" ? "gasGiant" : "planet";
+  const legacyKind = world.selectedBodyType === "gasGiant" ? "gasGiant" : "rocky";
+  const selectedLegacyId = getSelectedPlanetaryBodyLegacyId(world, legacyKind);
+  if (selectedLegacyId) selectPlanetaryBodyByLegacyId(world, legacyKind, selectedLegacyId);
   saveWorld(world);
   return world;
 }

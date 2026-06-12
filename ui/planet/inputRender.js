@@ -260,6 +260,92 @@ function createColorRow(id, label, value) {
   ]);
 }
 
+function prefixedId(prefix, id) {
+  if (!prefix) return id;
+  return `${prefix}${id.charAt(0).toUpperCase()}${id.slice(1)}`;
+}
+
+function createOptionalNumberRow({ id, label, unit = "", value = "", step = 0.001, hint = "" }) {
+  return createFormRow(
+    createLabelBlock({ label, unit, hint }),
+    createNumberInput({
+      id,
+      label,
+      step,
+      value: value ?? "",
+      placeholder: "auto",
+    }),
+    { className: "exotic-traits-panel__row" },
+  );
+}
+
+function createCheckboxControl({ id, label, checked = false }) {
+  return createElement("label", { className: "exotic-traits-panel__check" }, [
+    createElement("input", {
+      attrs: { id, type: "checkbox" },
+      checked: !!checked,
+    }),
+    createElement("span", { text: label }),
+  ]);
+}
+
+function createExoticTraitsPanel({ values = {}, idPrefix = "" } = {}) {
+  const carbonRichness = String(values.carbonRichness || "").trim();
+  const carbonOptions = [
+    { value: "", label: "Auto", selected: !carbonRichness },
+    { value: "carbonRich", label: "Carbon-rich", selected: carbonRichness === "carbonRich" },
+    { value: "enhanced", label: "Enhanced", selected: carbonRichness === "enhanced" },
+    { value: "high", label: "High", selected: carbonRichness === "high" },
+  ];
+
+  return createElement("details", { className: "exotic-traits-panel" }, [
+    createElement("summary", { text: "Exotic traits" }),
+    createElement("div", { className: "exotic-traits-panel__body" }, [
+      createSelectRow({
+        id: prefixedId(idPrefix, "carbonRichness"),
+        label: "Carbon richness",
+        hint: "Blank = inferred from composition.",
+        options: carbonOptions,
+      }),
+      createOptionalNumberRow({
+        id: prefixedId(idPrefix, "bulkDensityGcm3"),
+        label: "Known bulk density",
+        unit: "g/cm3",
+        value: values.bulkDensityGcm3,
+      }),
+      createOptionalNumberRow({
+        id: prefixedId(idPrefix, "internalHeatFluxWm2"),
+        label: "Internal heat flux",
+        unit: "W/m2",
+        value: values.internalHeatFluxWm2,
+      }),
+      createOptionalNumberRow({
+        id: prefixedId(idPrefix, "tidalHeatFluxWm2"),
+        label: "Tidal heat flux",
+        unit: "W/m2",
+        value: values.tidalHeatFluxWm2,
+      }),
+      createElement("div", { className: "exotic-traits-panel__toggles" }, [
+        createCheckboxControl({
+          id: prefixedId(idPrefix, "strippedEnvelopeCandidate"),
+          label: "Stripped envelope",
+          checked: values.strippedEnvelopeCandidate,
+        }),
+        createCheckboxControl({
+          id: prefixedId(idPrefix, "migratedCloseIn"),
+          label: "Migrated close-in",
+          checked: values.migratedCloseIn,
+        }),
+        createCheckboxControl({
+          id: prefixedId(idPrefix, "rogueCandidate"),
+          label: "Rogue candidate",
+          checked: values.rogueCandidate,
+        }),
+      ]),
+    ]),
+  ]);
+}
+
 function createRockyFieldRows(fields, tipLabels) {
   return fields.map((field) =>
     createSliderRow({
@@ -305,6 +391,17 @@ export function renderRockyInputForm(
       min: 0,
       max: 10000,
       step: 0.05,
+    },
+  ];
+  const volatileEnvelopeFields = [
+    {
+      id: "hhe",
+      label: "H/He Envelope",
+      unit: "% mass",
+      min: 0,
+      max: 20,
+      step: 0.01,
+      value: p.hHeEnvelopeMassPct ?? "",
     },
   ];
   const orbitFields = [
@@ -430,6 +527,7 @@ export function renderRockyInputForm(
     !p.tectonicRegime || p.tectonicRegime === "auto" ? "mobile" : p.tectonicRegime;
 
   replaceChildren(container, [
+    createSectionLabel("Orbit and identity"),
     createSelectRow({
       id: "hostFrameSelect",
       label: "Host frame",
@@ -454,7 +552,7 @@ export function renderRockyInputForm(
       value: planet?.name || "New Planet",
     }),
     createSpacer(8),
-    createSectionLabel("Rings", tipLabels.Rings || ""),
+    createSectionLabel("Rings and moons", tipLabels.Rings || ""),
     createToggle({
       className: "physics-trio-toggle",
       id: "ringModePills",
@@ -488,7 +586,7 @@ export function renderRockyInputForm(
     }),
     createHintNode("ringStyleHint", "", "margin-top:5px"),
     createSpacer(8),
-    createSectionLabel("Physical", tipLabels.Physical || ""),
+    createSectionLabel("Core and bulk composition", tipLabels.Physical || ""),
     ...createRockyFieldRows([primaryPhysicalField], tipLabels),
     createFormRow(
       createLabelBlock({
@@ -515,7 +613,26 @@ export function renderRockyInputForm(
     ),
     ...createRockyFieldRows(secondaryPhysicalFields, tipLabels),
     createSpacer(8),
-    createSectionLabel("Orbit & Rotation", tipLabels["Orbit & Rotation"] || ""),
+    createSectionLabel("Volatile envelope", tipLabels["H/He Envelope"] || ""),
+    ...createRockyFieldRows(volatileEnvelopeFields, tipLabels),
+    createFormRow(
+      createLabelBlock({
+        label: "Observed Radius",
+        unit: "R\u2295",
+        tip: tipLabels["Observed Radius"] || "",
+        hint: "Blank = modelled radius.",
+      }),
+      createNumberInput({
+        id: "observedRadius",
+        label: "Observed Radius",
+        step: 0.001,
+        value: p.radiusEarth ?? "",
+        placeholder: "modelled",
+      }),
+    ),
+    createExoticTraitsPanel({ values: p }),
+    createSpacer(8),
+    createSectionLabel("Orbit and rotation", tipLabels["Orbit & Rotation"] || ""),
     ...createRockyFieldRows(orbitFields.slice(0, 1), tipLabels),
     createOrbitSliderRow({
       id: "a",
@@ -526,7 +643,7 @@ export function renderRockyInputForm(
     }),
     ...createRockyFieldRows(orbitFields.slice(1), tipLabels),
     createSpacer(8),
-    createSectionLabel("Atmosphere", tipLabels.Atmosphere || ""),
+    createSectionLabel("Surface atmosphere", tipLabels.Atmosphere || ""),
     ...createRockyFieldRows(atmosphereFields.slice(0, 1), tipLabels),
     createSectionLabel("Greenhouse Mode", tipLabels["Greenhouse Mode"] || "", "margin:8px 0 6px"),
     createToggle({
@@ -753,6 +870,7 @@ export function renderGasGiantInputForm(
     selected: option.value === (ringModeValue === "force-on" ? ringStyleValue : RING_STYLE_AUTO),
   }));
   replaceChildren(container, [
+    createSectionLabel("Orbit and identity"),
     createSelectRow({
       id: "ggHostFrame",
       label: "Host frame",
@@ -797,6 +915,8 @@ export function renderGasGiantInputForm(
           style: "margin-top:8px",
         })
       : null,
+    createSpacer(10),
+    createSectionLabel("Core and bulk composition"),
     createSliderRow({
       id: "ggRadius",
       label: "Radius",
@@ -835,6 +955,9 @@ export function renderGasGiantInputForm(
       placeholder: "10",
       style: "margin-top:8px",
     }),
+    createExoticTraitsPanel({ values: giant, idPrefix: "gg" }),
+    createSpacer(10),
+    createSectionLabel("Giant atmosphere and clouds"),
     createSliderRow({
       id: "ggMetallicity",
       label: "Metallicity",
@@ -849,7 +972,7 @@ export function renderGasGiantInputForm(
       style: "margin-top:8px",
     }),
     createSpacer(10),
-    createSectionLabel("Rings", tipLabels["GG Rings"] || ""),
+    createSectionLabel("Rings and moons", tipLabels["GG Rings"] || ""),
     createToggle({
       className: "physics-trio-toggle",
       id: "ggRingModePills",
@@ -888,7 +1011,7 @@ export function renderGasGiantInputForm(
     }),
     createHintNode("ggRingStyleHint", "", "margin-top:5px"),
     createSpacer(10),
-    createSectionLabel("Orbit & Orientation"),
+    createSectionLabel("Detection geometry"),
     createSliderRow({
       id: "ggEcc",
       label: "Eccentricity",

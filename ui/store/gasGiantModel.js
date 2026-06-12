@@ -52,6 +52,63 @@ function seededUnit(seed) {
   return (h >>> 0) / 4294967295;
 }
 
+function finiteOrNull(value) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function hasOwnField(value, key) {
+  return !!value && Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function normalizeOptionalScalar(value) {
+  if (value == null || value === "") return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const normalized = String(value).trim();
+  return normalized || null;
+}
+
+function normalizeOptionalFlag(value) {
+  if (value == null || value === "") return null;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value > 0 : null;
+  const normalized = String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]/g, "");
+  if (["true", "yes", "y", "1", "on"].includes(normalized)) return true;
+  if (["false", "no", "n", "0", "off"].includes(normalized)) return false;
+  return null;
+}
+
+function optionalSubtypeEvidence(raw) {
+  const evidence = {};
+  if (hasOwnField(raw, "carbonRichness")) {
+    evidence.carbonRichness = normalizeOptionalScalar(raw.carbonRichness);
+  }
+  if (hasOwnField(raw, "bulkDensityGcm3")) {
+    evidence.bulkDensityGcm3 = finiteOrNull(raw.bulkDensityGcm3);
+  }
+  if (hasOwnField(raw, "internalHeatFluxWm2")) {
+    evidence.internalHeatFluxWm2 = finiteOrNull(raw.internalHeatFluxWm2);
+  }
+  if (hasOwnField(raw, "tidalHeatFluxWm2")) {
+    evidence.tidalHeatFluxWm2 = finiteOrNull(raw.tidalHeatFluxWm2);
+  }
+  if (hasOwnField(raw, "strippedEnvelopeCandidate")) {
+    evidence.strippedEnvelopeCandidate = normalizeOptionalFlag(raw.strippedEnvelopeCandidate);
+  }
+  if (hasOwnField(raw, "migratedCloseIn")) {
+    evidence.migratedCloseIn = normalizeOptionalFlag(raw.migratedCloseIn);
+  }
+  if (hasOwnField(raw, "rogueCandidate")) {
+    evidence.rogueCandidate = normalizeOptionalFlag(raw.rogueCandidate);
+  }
+  return evidence;
+}
+
 export function clampGasGiantRadiusRj(value) {
   return roundToStep(
     clamp(Number(value), GAS_GIANT_RADIUS_MIN_RJ, GAS_GIANT_RADIUS_MAX_RJ),
@@ -96,6 +153,20 @@ export function clampGiantCompanionMassMjup(value, companionClass) {
 export function normalizeGasGiantStyle(style) {
   const normalized = String(style || "jupiter").toLowerCase();
   return GAS_GIANT_STYLE_ALIASES[normalized] || normalized;
+}
+
+function normalizeAuthoringIntent(value, companionClass) {
+  const fallback = companionClass === GIANT_COMPANION_CLASS_BROWN_DWARF ? "substellar" : "gasGiant";
+  const normalized = String(value || "").trim();
+  switch (normalized) {
+    case "gasGiant":
+    case "iceGiant":
+    case "substellar":
+    case "auto":
+      return normalized;
+    default:
+      return fallback;
+  }
 }
 
 export function normalizeGasGiant(raw, idx = 1) {
@@ -164,6 +235,7 @@ export function normalizeGasGiant(raw, idx = 1) {
         ? `Brown dwarf ${idx}`
         : `Gas giant ${idx}`),
     hostFrameId: String(raw?.hostFrameId || "").trim() || null,
+    authoringIntent: normalizeAuthoringIntent(raw?.authoringIntent, companionClass),
     au: fixedAu,
     slotIndex,
     companionClass,
@@ -180,5 +252,6 @@ export function normalizeGasGiant(raw, idx = 1) {
     longitudeOfPeriapsisDeg,
     axialTiltDeg,
     appearanceRecipeId: appearanceRecipeId || "",
+    ...optionalSubtypeEvidence(raw || {}),
   };
 }

@@ -5,9 +5,20 @@ import { attachTooltips, tipIcon } from "./tooltip.js";
 import { escapeHtml } from "./uiHelpers.js";
 import { statRowsHTML } from "./statRows.js";
 import { enableKpiInteractions } from "./planet/outputRender.js";
-import { solvePlanetExactForWorld } from "./bodySolveHelpers.js";
-import { getSelectedPlanet, listPlanets, loadWorld, selectPlanet, updateWorld } from "./store.js";
+import { solvePlanetExactForWorld, solvePlanetaryBodyForWorld } from "./bodySolveHelpers.js";
+import {
+  findPlanetaryBody,
+  getSelectedPlanet,
+  listPlanets,
+  loadWorld,
+  selectPlanet,
+  updateWorld,
+} from "./store.js";
 import { createTutorial } from "./tutorial.js";
+import {
+  buildSubtypeUnsupportedMessage,
+  getSubtypePageApplicability,
+} from "./planet/bodyClassificationSummary.js";
 
 // ── Tooltips ────────────────────────────────────────────────
 
@@ -123,6 +134,20 @@ function getPopulationContext(world) {
   };
   const planet = getSelectedPlanet(world);
   if (!planet) return fallback;
+  const body =
+    findPlanetaryBody(world, `planet:${planet.id}`) || findPlanetaryBody(world, planet.id);
+  const pageBody = body ? solvePlanetaryBodyForWorld(world, body).model || body : null;
+  const pageApplicability = pageBody ? getSubtypePageApplicability(pageBody, "population") : null;
+  const subtypeMessage =
+    pageApplicability && pageApplicability.status !== "full"
+      ? buildSubtypeUnsupportedMessage(pageBody, "population")
+      : "";
+  if (pageApplicability?.status === "none") {
+    return {
+      ...fallback,
+      unsupportedSurfaceMessage: subtypeMessage,
+    };
+  }
 
   const { model } = solvePlanetExactForWorld(world, planet);
 
@@ -148,6 +173,7 @@ function getPopulationContext(world) {
     waterRegime: model.derived.waterRegime || "Extensive oceans",
     hydrosphere: model.derived.hydrosphere || null,
     climateZones: climate.zones || [],
+    limitedSurfaceMessage: pageApplicability?.status === "limited" ? subtypeMessage : "",
   };
 }
 
@@ -447,7 +473,9 @@ export function initPopulationPage(containerEl) {
     const pList = listPlanets(w);
     const selected = getSelectedPlanet(w);
     const pCtx = getPopulationContext(w);
-    const model = calcPopulation({ ...pCtx, ...state });
+    const unsupportedMessage = pCtx.unsupportedSurfaceMessage || "";
+    const limitedMessage = pCtx.limitedSurfaceMessage || "";
+    const model = unsupportedMessage ? null : calcPopulation({ ...pCtx, ...state });
 
     // Planet selector
     const planetOptions = pList
@@ -457,6 +485,34 @@ export function initPopulationPage(containerEl) {
         return `<option value="${escapeHtml(p.id)}"${sel}>${name}</option>`;
       })
       .join("");
+
+    if (unsupportedMessage) {
+      containerEl.innerHTML = `
+      <div class="page">
+        <div class="panel">
+          <div class="panel__header">
+            <h1 class="panel__title">Population ${tipIcon(TIP_LABEL["Population"])}</h1>
+            <button id="popTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
+          </div>
+          <div class="panel__body">
+            <div class="form-row">
+              <label for="popPlanetSelect">Planet</label>
+              <select id="popPlanetSelect">${planetOptions}</select>
+            </div>
+            <div class="derived-readout">${escapeHtml(unsupportedMessage)}</div>
+          </div>
+        </div>
+      </div>`;
+      attachTooltips(containerEl);
+      const planetSel = containerEl.querySelector("#popPlanetSelect");
+      if (planetSel) {
+        planetSel.addEventListener("change", () => {
+          selectPlanet(planetSel.value);
+          render();
+        });
+      }
+      return;
+    }
 
     // Tech era options
     const eraOptions = TECH_ERAS.map(
@@ -480,6 +536,8 @@ export function initPopulationPage(containerEl) {
               <label for="popPlanetSelect">Planet</label>
               <select id="popPlanetSelect">${planetOptions}</select>
             </div>
+
+            ${limitedMessage ? `<div class="derived-readout">${escapeHtml(limitedMessage)}</div>` : ""}
 
             <div class="kpi-grid">
               <div class="kpi-wrap"><div class="kpi">

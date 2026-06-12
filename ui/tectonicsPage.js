@@ -11,8 +11,19 @@ import { replaceSelectOptions } from "./domHelpers.js";
 import { escapeHtml } from "./uiHelpers.js";
 import { statRowsHTML } from "./statRows.js";
 import { enableKpiInteractions } from "./planet/outputRender.js";
-import { solvePlanetExactForWorld } from "./bodySolveHelpers.js";
-import { getSelectedPlanet, listPlanets, loadWorld, selectPlanet, updateWorld } from "./store.js";
+import { solvePlanetExactForWorld, solvePlanetaryBodyForWorld } from "./bodySolveHelpers.js";
+import {
+  findPlanetaryBody,
+  getSelectedPlanet,
+  listPlanets,
+  loadWorld,
+  selectPlanet,
+  updateWorld,
+} from "./store.js";
+import {
+  buildSubtypeUnsupportedMessage,
+  getSubtypePageApplicability,
+} from "./planet/bodyClassificationSummary.js";
 
 const TIP_LABEL = {
   "Max Peak Height":
@@ -236,6 +247,20 @@ export function getPlanetTectonicContext(world) {
   };
   const planet = getSelectedPlanet(world);
   if (!planet) return fallback;
+  const body =
+    findPlanetaryBody(world, `planet:${planet.id}`) || findPlanetaryBody(world, planet.id);
+  const pageBody = body ? solvePlanetaryBodyForWorld(world, body).model || body : null;
+  const pageApplicability = pageBody ? getSubtypePageApplicability(pageBody, "tectonics") : null;
+  const subtypeMessage =
+    pageApplicability && pageApplicability.status !== "full"
+      ? buildSubtypeUnsupportedMessage(pageBody, "tectonics")
+      : "";
+  if (pageApplicability?.status === "none") {
+    return {
+      ...fallback,
+      unsupportedSurfaceMessage: subtypeMessage,
+    };
+  }
   const { model, starConfig } = solvePlanetExactForWorld(world, planet);
   if (!model?.derived) return fallback;
   return {
@@ -247,6 +272,7 @@ export function getPlanetTectonicContext(world) {
     compositionClass: model.derived.compositionClass || "Earth-like",
     tidalHeatingWm2: model.derived.planetTidalHeatingWm2 || 0,
     radioisotopeAbundance: model.derived.radioisotopeAbundance ?? 1,
+    limitedSurfaceMessage: pageApplicability?.status === "limited" ? subtypeMessage : "",
   };
 }
 
@@ -1167,6 +1193,13 @@ export function initTectonicsPage(containerEl) {
   function update() {
     const w = loadWorld();
     const pCtx = getPlanetTectonicContext(w);
+    if (pCtx.unsupportedSurfaceMessage) {
+      const el = containerEl.querySelector("#tecOutputs");
+      if (el) {
+        el.innerHTML = `<div class="derived-readout">${escapeHtml(pCtx.unsupportedSurfaceMessage)}</div>`;
+      }
+      return;
+    }
     const regime = getSelectedPlanet(w)?.inputs?.tectonicRegime || "mobile";
     const model = calcTectonics({
       gravityG: pCtx.gravityG,
@@ -1198,7 +1231,7 @@ export function initTectonicsPage(containerEl) {
 
     const el = containerEl.querySelector("#tecOutputs");
     if (!el) return;
-    el.innerHTML = outputsHTML(model, activeProfile, selIdx, arcDist);
+    el.innerHTML = `${pCtx.limitedSurfaceMessage ? `<div class="derived-readout">${escapeHtml(pCtx.limitedSurfaceMessage)}</div>` : ""}${outputsHTML(model, activeProfile, selIdx, arcDist)}`;
     attachTooltips(el);
     enableKpiInteractions(containerEl);
     drawOutputCanvases(el, model, activeProfile, arcDist);
@@ -1225,6 +1258,38 @@ export function initTectonicsPage(containerEl) {
   function render() {
     const w = loadWorld();
     const ctx = getPlanetTectonicContext(w);
+    const selectedPlanet = getSelectedPlanet(w);
+    if (ctx.unsupportedSurfaceMessage) {
+      containerEl.innerHTML = `
+      <div class="page">
+        <div class="panel">
+          <div class="panel__header">
+            <h1 class="panel__title">Tectonics</h1>
+            <button id="tecTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
+          </div>
+          <div class="panel__body">
+            <div class="form-row">
+              <div><div class="label">Planet</div></div>
+              <select id="tecPlanetSelect"></select>
+            </div>
+            <div class="derived-readout">${escapeHtml(ctx.unsupportedSurfaceMessage)}</div>
+          </div>
+        </div>
+      </div>`;
+      attachTooltips(containerEl);
+      const planetSelect = containerEl.querySelector("#tecPlanetSelect");
+      if (planetSelect) {
+        replaceSelectOptions(
+          planetSelect,
+          planets.map((planet) => ({
+            value: planet.id,
+            label: planet.name || planet.inputs?.name || planet.id,
+            selected: planet.id === selectedPlanet?.id,
+          })),
+        );
+      }
+      return;
+    }
     const gravityG = ctx.gravityG;
     const regime = getSelectedPlanet(w)?.inputs?.tectonicRegime || "mobile";
     const model = calcTectonics({
@@ -1246,7 +1311,6 @@ export function initTectonicsPage(containerEl) {
       radioisotopeAbundance: ctx.radioisotopeAbundance,
     });
 
-    const selectedPlanet = getSelectedPlanet(w);
     const selIdx = Math.min(state.selectedRangeIdx, model.tectonics.mountainProfiles.length - 1);
     const activeProfile = model.tectonics.mountainProfiles[Math.max(0, selIdx)] || null;
 
@@ -1529,6 +1593,11 @@ export function initTectonicsPage(containerEl) {
           <div class="panel">
             <div class="panel__header"><h2>Outputs</h2></div>
             <div class="panel__body" id="tecOutputs">
+              ${
+                ctx.limitedSurfaceMessage
+                  ? `<div class="derived-readout">${escapeHtml(ctx.limitedSurfaceMessage)}</div>`
+                  : ""
+              }
               ${outputsHTML(model, activeProfile, selIdx, arcDist)}
             </div>
           </div>

@@ -22,7 +22,12 @@ import {
   normWorkCycleRules,
   uniqIds,
 } from "./stateModel.js";
-import { getSelectedPlanet, listMoons, listPlanets } from "../store.js";
+import { solvePlanetaryBodyForWorld } from "../bodySolveHelpers.js";
+import { findPlanetaryBody, getSelectedPlanet, listMoons, listPlanets } from "../store.js";
+import {
+  buildSubtypeUnsupportedMessage,
+  getSubtypePageApplicability,
+} from "../planet/bodyClassificationSummary.js";
 
 const { deriveMoonSynodicDays, derivePlanetPeriodDays } = createCalendarStateStoreBindings({
   getSelectedPlanet,
@@ -41,6 +46,11 @@ const I = (v, f = 0) => {
 const clampI = (v, min, max) => Math.max(min, Math.min(max, I(v, min)));
 const mod = (v, b) => (b > 0 ? ((v % b) + b) % b : 0);
 
+function findSourcePlanetaryBody(world, planet) {
+  if (!planet?.id) return null;
+  return findPlanetaryBody(world, `planet:${planet.id}`) || findPlanetaryBody(world, planet.id);
+}
+
 export function createCalendarContextBuilder({ buildMonthModel }) {
   function buildContext(world, state) {
     const planets = listPlanets(world);
@@ -52,6 +62,21 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
       null;
     const sourcePlanetId = planet?.id || "";
     const planetMoons = moonsForPlanet(allMoons, sourcePlanetId);
+    const sourceBody = findSourcePlanetaryBody(world, planet);
+    const pageSourceBody = sourceBody
+      ? solvePlanetaryBodyForWorld(world, sourceBody).model || sourceBody
+      : null;
+    const sourceApplicability = pageSourceBody
+      ? getSubtypePageApplicability(pageSourceBody, "calendar")
+      : null;
+    const sourceSubtypeMessage =
+      sourceApplicability && sourceApplicability.status !== "full"
+        ? buildSubtypeUnsupportedMessage(pageSourceBody, "calendar")
+        : "";
+    const unsupportedSourceMessage =
+      sourceApplicability?.status === "none" ? sourceSubtypeMessage : "";
+    const limitedSourceMessage =
+      sourceApplicability?.status === "limited" ? sourceSubtypeMessage : "";
 
     let primaryMoon = findById(planetMoons, state.inputs.primaryMoonId);
     if (!primaryMoon) primaryMoon = planetMoons[0] || null;
@@ -70,8 +95,12 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
     state.inputs.primaryMoonId = primaryMoon?.id || "";
     state.inputs.extraMoonIds = extraMoonIds;
 
-    const planetOrbitalPeriodDays = derivePlanetPeriodDays(world, planet);
-    const planetRotationPeriodHours = Math.max(0.1, N(planet?.inputs?.rotationPeriodHours, 24));
+    const planetOrbitalPeriodDays = unsupportedSourceMessage
+      ? 365.2422
+      : derivePlanetPeriodDays(world, planet);
+    const planetRotationPeriodHours = unsupportedSourceMessage
+      ? 24
+      : Math.max(0.1, N(planet?.inputs?.rotationPeriodHours, 24));
 
     const moonDefs = [];
     if (primaryMoon) {
@@ -223,6 +252,8 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
       planets,
       planetMoons,
       sourcePlanetId,
+      unsupportedSourceMessage,
+      limitedSourceMessage,
       moonDefs,
       planetOrbitalPeriodDays: planetOrbitalPeriodDaysClamped,
       planetRotationPeriodHours: planetRotationPeriodHoursClamped,

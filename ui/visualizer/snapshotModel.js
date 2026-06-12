@@ -1,6 +1,13 @@
 import { calcSystem } from "../../engine/system.js";
 import { calcStar, starColourHexFromTempK } from "../../engine/star.js";
 import { calcPlanetExact } from "../../engine/planet.js";
+import { calcPlanetaryBody } from "../../engine/planetaryBody.js";
+import { classifyPlanetaryBody } from "../../engine/planetaryClassification.js";
+import {
+  classifyPlanetarySubtypes,
+  derivePlanetaryDescriptors,
+  selectPrimaryPlanetarySubtype,
+} from "../../engine/planetarySubtypes.js";
 import { calcMoonExact } from "../../engine/moon.js";
 import { calcComet } from "../../engine/comet.js";
 import { calcGasGiant } from "../../engine/gasGiant.js";
@@ -22,7 +29,7 @@ import {
   GAS_GIANT_RADIUS_MAX_RJ,
   GAS_GIANT_RADIUS_MIN_RJ,
   listMoons,
-  listPlanets,
+  listPlanetaryBodies,
   listSystemComets,
   listSystemDebrisDisks,
   listSystemGasGiants,
@@ -33,6 +40,11 @@ import {
 import { suggestStyles } from "../gasGiantStyles.js";
 import { computeRockyVisualProfile } from "../rockyPlanetStyles.js";
 import { resolveRingAppearance } from "../ringAppearanceProfiles.js";
+import {
+  applySubtypeVisualHintsToRockyProfile,
+  buildSubtypeVisualDescriptor,
+  resolveSubtypeEnvelopeStyle,
+} from "../planet/subtypeVisualHints.js";
 import {
   MOON_RADIUS_KM,
   SOL_RADIUS_KM,
@@ -67,11 +79,100 @@ function formatHostFrameOptionLabel(hostFrame) {
 function createEmptyOverviewBodyCounts() {
   return {
     rockyPlanets: 0,
+    volatilePlanets: 0,
     gasGiants: 0,
     brownDwarfs: 0,
     debrisDisks: 0,
     total: 0,
   };
+}
+
+function isVolatilePlanetClassification(classification) {
+  return (
+    classification?.solverFamily === "volatile" &&
+    ["miniNeptune", "volatileCandidate"].includes(classification?.family)
+  );
+}
+
+function titleCaseSubtype(value) {
+  return String(value || "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function buildSubtypeSummaryFromClassification(classification, primarySubtype = null) {
+  const rawSubtypes = Array.isArray(classification?.subtypes) ? classification.subtypes : [];
+  const subtypes = rawSubtypes
+    .map((subtype) => {
+      const id = String(subtype?.id || "").trim();
+      if (!id) return null;
+      return {
+        id,
+        label: String(subtype?.label || "").trim() || titleCaseSubtype(id),
+        confidence: subtype?.confidence || "unknown",
+        applicability: subtype?.applicability || "",
+      };
+    })
+    .filter(Boolean);
+  if (!subtypes.length) return null;
+  const primarySubtypeId =
+    String(classification?.primarySubtypeId || primarySubtype?.id || "").trim() || subtypes[0].id;
+  const selectedSubtype =
+    subtypes.find((subtype) => subtype.id === primarySubtypeId) || subtypes[0];
+  return {
+    primarySubtypeId: selectedSubtype.id,
+    primarySubtypeLabel: selectedSubtype.label,
+    subtypes,
+  };
+}
+
+function buildSolvedSubtypeModel(body, broadClassification, solvedModel, context) {
+  const descriptors = derivePlanetaryDescriptors({
+    body,
+    classification: broadClassification,
+    solvedModel,
+    context,
+  });
+  const subtypes = classifyPlanetarySubtypes({
+    body,
+    classification: broadClassification,
+    solvedModel,
+    context,
+  });
+  const primarySubtype = selectPrimaryPlanetarySubtype(subtypes, broadClassification);
+  const classification = {
+    ...broadClassification,
+    scale: descriptors.scale,
+    boundaryTraits: descriptors.boundaryTraits,
+    durableFamily: descriptors.durableFamily,
+    legacyFamily: descriptors.legacyFamily,
+    descriptorModelVersion: descriptors.modelVersion,
+    subtypes,
+    primarySubtypeId: primarySubtype?.id || null,
+  };
+  return {
+    id: body?.id ?? null,
+    name: body?.name || body?.id || "Planetary body",
+    classification,
+    descriptors,
+    subtypes,
+    primarySubtype,
+    legacy: {
+      rockyModel: solvedModel,
+      gasGiantModel: null,
+      volatileModel: null,
+    },
+  };
+}
+
+function normalizeHexColour(value) {
+  let hex = String(value ?? "").trim();
+  if (!/^#?[0-9a-fA-F]{6}$/.test(hex)) return null;
+  if (!hex.startsWith("#")) hex = `#${hex}`;
+  return hex;
 }
 
 function ensureOverviewBodyCounts(countsByHostFrameId, hostFrameId) {
@@ -113,20 +214,20 @@ function resolveGiantCompanionStyle(rawStyle, gasCalc, companionClass) {
 function buildOverviewBodyCounts(world, fallbackHostFrameId) {
   const countsByHostFrameId = Object.create(null);
 
-  for (const planet of listPlanets(world)) {
-    const hostFrameId = normalizeHostFrameId(planet?.hostFrameId, fallbackHostFrameId);
+  for (const body of listPlanetaryBodies(world)) {
+    const hostFrameId = normalizeHostFrameId(body?.hostFrameId, fallbackHostFrameId);
     if (!hostFrameId) continue;
     const counts = ensureOverviewBodyCounts(countsByHostFrameId, hostFrameId);
-    counts.rockyPlanets += 1;
-    counts.total += 1;
-  }
-
-  for (const gasGiant of listSystemGasGiants(world)) {
-    const hostFrameId = normalizeHostFrameId(gasGiant?.hostFrameId, fallbackHostFrameId);
-    if (!hostFrameId) continue;
-    const counts = ensureOverviewBodyCounts(countsByHostFrameId, hostFrameId);
-    if (classifyGiantCompanionValue(gasGiant) === "brownDwarf") counts.brownDwarfs += 1;
-    else counts.gasGiants += 1;
+    const classification = body?.classification || classifyPlanetaryBody(body);
+    if (classification?.family === "brownDwarf") {
+      counts.brownDwarfs += 1;
+    } else if (["gasGiant", "iceGiant"].includes(classification?.family)) {
+      counts.gasGiants += 1;
+    } else if (isVolatilePlanetClassification(classification)) {
+      counts.volatilePlanets += 1;
+    } else {
+      counts.rockyPlanets += 1;
+    }
     counts.total += 1;
   }
 
@@ -417,7 +518,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
   log(enabled, "calcSystem.orbitsAu[0..5]", (system.orbitsAu || []).slice(0, 6));
 
   const planets = filterBodiesForHostFrame(
-    listPlanets(world),
+    listPlanetaryBodies(world).filter((body) => body?.legacyKind !== "gasGiant"),
     activeHostFrameId,
     fallbackHostFrameId,
   );
@@ -429,12 +530,29 @@ export function buildVisualizerSnapshot(world, options = {}) {
   );
   const orbitAuBySlot = system.orbitsAu || [];
   const planetNodes = planets
-    .filter((planet) => planet.slotIndex != null || Number(planet.inputs?.semiMajorAxisAu) > 0)
+    .filter((planet) => {
+      const inputAu = Number(
+        planet.inputs?.semiMajorAxisAu ??
+          planet.orbit?.semiMajorAxisAu ??
+          planet.legacy?.source?.inputs?.semiMajorAxisAu,
+      );
+      return planet.slotIndex != null || (Number.isFinite(inputAu) && inputAu > 0);
+    })
     .map((planet) => {
       const slot = Number(planet.slotIndex);
       const slotAuRaw = orbitAuBySlot[slot - 1];
       const slotAu = Number(slotAuRaw);
-      const inputAu = Number(planet.inputs?.semiMajorAxisAu);
+      const legacySource =
+        planet.legacy?.source && typeof planet.legacy.source === "object"
+          ? planet.legacy.source
+          : planet;
+      const legacyInputs =
+        legacySource?.inputs && typeof legacySource.inputs === "object"
+          ? legacySource.inputs
+          : planet.inputs && typeof planet.inputs === "object"
+            ? planet.inputs
+            : {};
+      const inputAu = Number(legacyInputs.semiMajorAxisAu ?? planet.orbit?.semiMajorAxisAu);
       const au =
         Number.isFinite(slotAu) && slotAu > 0
           ? slotAu
@@ -443,92 +561,238 @@ export function buildVisualizerSnapshot(world, options = {}) {
             : 1;
       let periodDays = null;
       let radiusEarth = null;
+      let radiusKm = null;
       let skyHighHex = null;
       let skyHorizonHex = null;
       let visualProfile = null;
       let ringAppearance = null;
       let planetCalc = null;
-      const planetInputs = { ...planet.inputs, semiMajorAxisAu: au };
+      let unifiedBodyCalc = null;
+      let renderFamily = "rocky";
+      let classLabel = null;
+      let style = null;
+      let gasCalc = null;
+      let envelopeState = null;
+      let surfaceTempK = null;
+      let visualSubtypeKey = "";
+      let subtypeSummary = null;
+      let primarySubtypeLabel = "";
+      let subtypeLabels = [];
+      let recipeId = "";
+      const planetInputs = { ...legacyInputs, semiMajorAxisAu: au };
       const planetMoonInputs = moons
         .filter((moon) => moon.planetId === planet.id)
         .map((moon) => ({
           id: moon.id,
           ...(moon.inputs || {}),
         }));
+      const bodyForSolve = {
+        ...planet,
+        hostFrameId: activeHostFrameId,
+        orbit: {
+          ...(planet.orbit || {}),
+          semiMajorAxisAu: au,
+          eccentricity: planet.orbit?.eccentricity ?? planetInputs.eccentricity,
+          inclinationDeg: planet.orbit?.inclinationDeg ?? planetInputs.inclinationDeg,
+          longitudeOfPeriapsisDeg:
+            planet.orbit?.longitudeOfPeriapsisDeg ?? planetInputs.longitudeOfPeriapsisDeg,
+        },
+        legacy: {
+          ...(planet.legacy || {}),
+          source: {
+            ...(legacySource || {}),
+            inputs: planetInputs,
+          },
+        },
+      };
+      let classification = planet.classification || classifyPlanetaryBody(bodyForSolve);
+      classLabel = classification?.displayLabel || null;
+      const solveContext = {
+        starMassMsol,
+        starAgeGyr,
+        starMetallicityFeH,
+        starRadiusRsolOverride: starOverrides.r,
+        starLuminosityLsolOverride: starOverrides.l,
+        starTempKOverride: starOverrides.t,
+        starEvolutionMode: starOverrides.ev,
+        starLuminosityLsol: starLuminosityLsun,
+        starRadiusRsol,
+        starModel: starCalc,
+        hostFrameId: activeHostFrameId,
+        hostFrame: activeHostFrame || null,
+        companionFluxEarth,
+        companionXuvFluxEarth,
+        fluxVariabilityFraction,
+        moons: planetMoonInputs,
+        gasGiants: systemGasGiants
+          .filter((gasGiant) => gasGiant?.id !== planet.id)
+          .map((gasGiant) => ({ id: gasGiant.id, name: gasGiant.name, au: gasGiant.au })),
+      };
       try {
-        planetCalc = calcPlanetExact({
-          starMassMsol,
-          starAgeGyr,
-          starMetallicityFeH,
-          starRadiusRsolOverride: starOverrides.r,
-          starLuminosityLsolOverride: starOverrides.l,
-          starTempKOverride: starOverrides.t,
-          starEvolutionMode: starOverrides.ev,
-          hostFrameId: activeHostFrameId,
-          hostFrame: activeHostFrame || null,
-          companionFluxEarth,
-          companionXuvFluxEarth,
-          fluxVariabilityFraction,
-          planet: planetInputs,
-          moons: planetMoonInputs,
-          gasGiants: systemGasGiants
-            .filter((gasGiant) => gasGiant?.id !== planet.id)
-            .map((gasGiant) => ({ name: gasGiant.name, au: gasGiant.au })),
-        });
-        periodDays = Number(planetCalc?.derived?.orbitalPeriodEarthDays);
-        if (!Number.isFinite(periodDays) || periodDays <= 0) periodDays = null;
-        radiusEarth = Number(planetCalc?.derived?.radiusEarth);
-        if (!Number.isFinite(radiusEarth) || radiusEarth <= 0) radiusEarth = null;
-        skyHighHex = String(planetCalc?.derived?.skyColourDayHex ?? "").trim();
-        skyHorizonHex = String(planetCalc?.derived?.skyColourHorizonHex ?? "").trim();
-        if (!/^#?[0-9a-fA-F]{6}$/.test(skyHighHex)) skyHighHex = null;
-        if (!/^#?[0-9a-fA-F]{6}$/.test(skyHorizonHex)) skyHorizonHex = null;
-        if (skyHighHex && !skyHighHex.startsWith("#")) skyHighHex = `#${skyHighHex}`;
-        if (skyHorizonHex && !skyHorizonHex.startsWith("#")) skyHorizonHex = `#${skyHorizonHex}`;
-        if (planetCalc?.derived) {
-          visualProfile = computeRockyVisualProfile(planetCalc.derived, planet.inputs);
-          ringAppearance = resolveRingAppearance({
-            bodyType: "rocky",
-            ringState: {
-              ringMode: visualProfile?.ring?.ringMode || planet.inputs?.ringMode || "auto",
-              effectiveEnabled: !!visualProfile?.ring?.enabled,
-            },
-            ringStyleId: planet.inputs?.ringStyleId,
-            derived: planetCalc.derived,
-            seed: planet.id || planet.name,
+        if (isVolatilePlanetClassification(classification)) {
+          unifiedBodyCalc = calcPlanetaryBody(bodyForSolve, solveContext);
+          planetCalc = unifiedBodyCalc.legacy?.volatileModel || unifiedBodyCalc;
+          renderFamily = "volatile";
+          classification = unifiedBodyCalc.classification || classification;
+          classLabel = classification?.displayLabel || classLabel;
+          subtypeSummary = buildSubtypeSummaryFromClassification(
+            classification,
+            unifiedBodyCalc.primarySubtype,
+          );
+          const subtypeVisual = buildSubtypeVisualDescriptor(unifiedBodyCalc);
+          visualSubtypeKey = subtypeVisual.visualSubtypeKey;
+          primarySubtypeLabel = subtypeSummary?.primarySubtypeLabel || "";
+          subtypeLabels = (subtypeSummary?.subtypes || []).map((entry) => entry.label);
+          style = resolveSubtypeEnvelopeStyle(unifiedBodyCalc, "sub-neptune");
+          gasCalc = planetCalc;
+          const physical = unifiedBodyCalc.physical || planetCalc?.physical || {};
+          const orbit = unifiedBodyCalc.orbit || planetCalc?.orbit || {};
+          periodDays = Number(orbit.orbitalPeriodDays);
+          if (!Number.isFinite(periodDays) || periodDays <= 0) periodDays = null;
+          radiusEarth = Number(physical.transitRadiusEarth ?? physical.radiusEarth);
+          if (!Number.isFinite(radiusEarth) || radiusEarth <= 0) radiusEarth = null;
+          radiusKm = Number(physical.transitRadiusKm ?? physical.radiusKm);
+          if (!Number.isFinite(radiusKm) || radiusKm <= 0) radiusKm = null;
+          surfaceTempK = Number(
+            unifiedBodyCalc.thermal?.equilibriumTempK ??
+              planetCalc?.thermal?.equilibriumTempK ??
+              planetCalc?.thermal?.eqTempK,
+          );
+          if (!Number.isFinite(surfaceTempK) || surfaceTempK <= 0) surfaceTempK = null;
+          envelopeState =
+            unifiedBodyCalc.envelope?.stateLabel ||
+            planetCalc?.display?.envelopeState ||
+            planetCalc?.envelope?.stateLabel ||
+            null;
+          skyHighHex = "#8bb9ff";
+          skyHorizonHex = "#cbe7ff";
+        } else {
+          planetCalc = calcPlanetExact({
+            starMassMsol,
+            starAgeGyr,
+            starMetallicityFeH,
+            starRadiusRsolOverride: starOverrides.r,
+            starLuminosityLsolOverride: starOverrides.l,
+            starTempKOverride: starOverrides.t,
+            starEvolutionMode: starOverrides.ev,
+            hostFrameId: activeHostFrameId,
+            hostFrame: activeHostFrame || null,
+            companionFluxEarth,
+            companionXuvFluxEarth,
+            fluxVariabilityFraction,
+            planet: planetInputs,
+            moons: planetMoonInputs,
+            gasGiants: systemGasGiants
+              .filter((gasGiant) => gasGiant?.id !== planet.id)
+              .map((gasGiant) => ({ name: gasGiant.name, au: gasGiant.au })),
           });
+          periodDays = Number(planetCalc?.derived?.orbitalPeriodEarthDays);
+          if (!Number.isFinite(periodDays) || periodDays <= 0) periodDays = null;
+          radiusEarth = Number(planetCalc?.derived?.radiusEarth);
+          if (!Number.isFinite(radiusEarth) || radiusEarth <= 0) radiusEarth = null;
+          radiusKm = Number(planetCalc?.derived?.radiusKm);
+          if (!Number.isFinite(radiusKm) || radiusKm <= 0) radiusKm = null;
+          surfaceTempK = Number(planetCalc?.derived?.surfaceTempK);
+          if (!Number.isFinite(surfaceTempK) || surfaceTempK <= 0) surfaceTempK = null;
+          skyHighHex = normalizeHexColour(planetCalc?.derived?.skyColourDayHex);
+          skyHorizonHex = normalizeHexColour(planetCalc?.derived?.skyColourHorizonHex);
+          if (planetCalc?.derived) {
+            unifiedBodyCalc = buildSolvedSubtypeModel(
+              bodyForSolve,
+              classification,
+              planetCalc,
+              solveContext,
+            );
+            classification = unifiedBodyCalc.classification || classification;
+            subtypeSummary = buildSubtypeSummaryFromClassification(
+              classification,
+              unifiedBodyCalc.primarySubtype,
+            );
+            const subtypeVisual = buildSubtypeVisualDescriptor(unifiedBodyCalc);
+            visualSubtypeKey = subtypeVisual.visualSubtypeKey;
+            primarySubtypeLabel = subtypeSummary?.primarySubtypeLabel || "";
+            subtypeLabels = (subtypeSummary?.subtypes || []).map((entry) => entry.label);
+            visualProfile = applySubtypeVisualHintsToRockyProfile(
+              computeRockyVisualProfile(planetCalc.derived, planetInputs),
+              unifiedBodyCalc,
+            );
+            recipeId = visualProfile?.recipeId || subtypeVisual.rockyRecipeId || "";
+            ringAppearance = resolveRingAppearance({
+              bodyType: "rocky",
+              ringState: {
+                ringMode: visualProfile?.ring?.ringMode || planetInputs.ringMode || "auto",
+                effectiveEnabled: !!visualProfile?.ring?.enabled,
+              },
+              ringStyleId: planetInputs.ringStyleId,
+              derived: planetCalc.derived,
+              seed: planet.id || planet.name,
+            });
+          }
         }
       } catch {
         periodDays = null;
         radiusEarth = null;
+        radiusKm = null;
+        surfaceTempK = null;
         skyHighHex = null;
         skyHorizonHex = null;
         visualProfile = null;
         ringAppearance = null;
+        gasCalc = null;
+        visualSubtypeKey = "";
+        subtypeSummary = null;
+        primarySubtypeLabel = "";
+        subtypeLabels = [];
+        recipeId = "";
       }
 
       return {
         id: planet.id,
-        name: planet.name || planet.inputs?.name || planet.id,
+        name: planet.name || planetInputs.name || planet.id,
         slot,
         au,
         periodDays,
         radiusEarth,
-        massEarth: Number(planet.inputs?.massEarth) || null,
-        radiusKm:
-          Number.isFinite(Number(planetCalc?.derived?.radiusKm)) &&
-          Number(planetCalc?.derived?.radiusKm) > 0
-            ? Number(planetCalc.derived.radiusKm)
-            : null,
-        rotationPeriodHours: Number(planet.inputs?.rotationPeriodHours) || null,
-        axialTiltDeg: clamp(Number(planet.inputs?.axialTiltDeg ?? 0), 0, 180),
+        massEarth: Number(planetInputs.massEarth ?? planet.composition?.massEarth) || null,
+        radiusKm,
+        rotationPeriodHours:
+          Number(planetInputs.rotationPeriodHours ?? planet.rotation?.rotationPeriodHours) || null,
+        axialTiltDeg: clamp(
+          Number(planetInputs.axialTiltDeg ?? planet.rotation?.axialTiltDeg ?? 0),
+          0,
+          180,
+        ),
+        surfaceTempK,
         skyHighHex,
         skyHorizonHex,
         visualProfile,
         ringAppearance,
-        eccentricity: clamp(Number(planet.inputs?.eccentricity ?? 0), 0, 0.99),
-        longitudeOfPeriapsisDeg: Number(planet.inputs?.longitudeOfPeriapsisDeg ?? 0),
-        inclinationDeg: clamp(Number(planet.inputs?.inclinationDeg ?? 0), 0, 180),
+        visualSubtypeKey,
+        subtypeSummary,
+        primarySubtypeLabel,
+        subtypeLabels,
+        recipeId,
+        classification,
+        classLabel: classLabel || "Planet",
+        renderFamily,
+        style,
+        gasCalc,
+        envelopeState,
+        unifiedBodyCalc,
+        planetCalc,
+        eccentricity: clamp(
+          Number(planetInputs.eccentricity ?? planet.orbit?.eccentricity ?? 0),
+          0,
+          0.99,
+        ),
+        longitudeOfPeriapsisDeg: Number(
+          planetInputs.longitudeOfPeriapsisDeg ?? planet.orbit?.longitudeOfPeriapsisDeg ?? 0,
+        ),
+        inclinationDeg: clamp(
+          Number(planetInputs.inclinationDeg ?? planet.orbit?.inclinationDeg ?? 0),
+          0,
+          180,
+        ),
         locked: !!planet.locked,
         hostFrameId: activeHostFrameId,
         moons: buildMoonNodes({
@@ -543,7 +807,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
           companionXuvFluxEarth,
           fluxVariabilityFraction,
           parentId: planet.id,
-          parentInputs: planetInputs,
+          parentInputs: planetCalc?.inputs || planetInputs,
           hashUnit,
         }),
       };
@@ -836,6 +1100,8 @@ function buildGasGiantNode(gasGiant, idx, context) {
     classLabel: regimeDisplayLabel(rawCompanionClass),
     renderModel: "gasGiant",
     starVisual: null,
+    subtypeSummary: null,
+    visualSubtypeKey: "",
   };
   let parentOverride = null;
   try {
@@ -874,6 +1140,56 @@ function buildGasGiantNode(gasGiant, idx, context) {
     node.name =
       gasGiant.name || defaultGiantCompanionName({ companionClass: node.companionClass }, idx);
     node.style = resolveGiantCompanionStyle(gasGiant.style, gasCalc, node.companionClass);
+    const subtypeContext = {
+      starMassMsol,
+      starAgeGyr,
+      starMetallicityFeH,
+      starLuminosityLsol: Number(starLuminosityLsun) || 1,
+      starRadiusRsol: Number(starRadiusRsol) || 1,
+      hostFrameId,
+      hostFrame,
+      companionFluxEarth,
+      companionXuvFluxEarth,
+      fluxVariabilityFraction,
+    };
+    const subtypeBody = {
+      id: node.id,
+      name: node.name,
+      legacyKind: "gasGiant",
+      legacy: { kind: "gasGiant", source: gasGiant },
+      giant: {
+        companionClass: node.companionClass,
+        massMjup: gasCalc?.inputs?.massMjup ?? gasGiant.massMjup,
+        radiusRj: gasCalc?.inputs?.radiusRj ?? gasGiant.radiusRj,
+      },
+      orbit: {
+        semiMajorAxisAu: node.au,
+        eccentricity: node.eccentricity,
+        inclinationDeg: node.inclinationDeg,
+      },
+      classificationSeed: {
+        companionClass: node.companionClass,
+        massMjup: gasCalc?.inputs?.massMjup ?? gasGiant.massMjup,
+        radiusRj: gasCalc?.inputs?.radiusRj ?? gasGiant.radiusRj,
+        densityGcm3: gasCalc?.physical?.densityGcm3,
+      },
+    };
+    const subtypeBroadClassification = classifyPlanetaryBody(subtypeBody, subtypeContext);
+    const subtypeModel = buildSolvedSubtypeModel(
+      subtypeBody,
+      subtypeBroadClassification,
+      gasCalc,
+      subtypeContext,
+    );
+    const subtypeVisual = buildSubtypeVisualDescriptor(subtypeModel);
+    node.subtypeSummary = buildSubtypeSummaryFromClassification(
+      subtypeModel.classification,
+      subtypeModel.primarySubtype,
+    );
+    node.visualSubtypeKey = subtypeVisual.visualSubtypeKey;
+    if (node.companionClass !== "brownDwarf" && subtypeVisual.envelopeStyleId) {
+      node.style = subtypeVisual.envelopeStyleId;
+    }
     node.radiusRj =
       Number(gasCalc?.physical?.radiusRj) ||
       Number(gasCalc?.physical?.radiusRjAuto) ||

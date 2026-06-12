@@ -115,6 +115,8 @@ export function resolveGasGiantRingState({ ringMode, gasCalc, legacyRings } = {}
     });
   }
 
+  // Phase 5: keep this fallback local because it only applies when ring
+  // science cannot be recalculated from a gas giant solve.
   const fallbackEnabled = legacyRings === true;
   return resolveRingMode({
     ringMode,

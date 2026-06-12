@@ -6,6 +6,99 @@ function isPlainObjectLike(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function optionalNumberIsValid(value) {
+  if (value == null || value === "") return true;
+  if (typeof value !== "number" && typeof value !== "string") return false;
+  return Number.isFinite(Number(value));
+}
+
+function optionalScalarIsValid(value) {
+  if (value == null || value === "") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  return typeof value === "string";
+}
+
+function optionalFlagIsValid(value) {
+  if (value == null || value === "") return true;
+  if (typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "string") return false;
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]/g, "");
+  return ["true", "yes", "y", "1", "on", "false", "no", "n", "0", "off"].includes(normalized);
+}
+
+function validateOptionalObjectSection(body, bodyPath, sectionName, errors) {
+  const section = body?.[sectionName];
+  if (section == null) return null;
+  if (!isPlainObjectLike(section)) {
+    errors.push(`'${bodyPath}.${sectionName}' must be an object when provided.`);
+    return null;
+  }
+  return section;
+}
+
+function validateOptionalField(section, sectionPath, fieldName, isValid, errors, expected) {
+  if (!section || !Object.prototype.hasOwnProperty.call(section, fieldName)) return;
+  if (!isValid(section[fieldName])) {
+    errors.push(`'${sectionPath}.${fieldName}' must be ${expected}.`);
+  }
+}
+
+function validatePlanetaryBodySubtypeEvidence(world, errors) {
+  const byId = world?.planetaryBodies?.byId;
+  if (!isPlainObjectLike(byId)) return;
+
+  for (const [id, body] of Object.entries(byId)) {
+    const bodyPath = `planetaryBodies.byId.${id}`;
+    if (!isPlainObjectLike(body)) continue;
+
+    const composition = validateOptionalObjectSection(body, bodyPath, "composition", errors);
+    validateOptionalField(
+      composition,
+      `${bodyPath}.composition`,
+      "carbonRichness",
+      optionalScalarIsValid,
+      errors,
+      "a string, finite number, null, or empty string",
+    );
+    validateOptionalField(
+      composition,
+      `${bodyPath}.composition`,
+      "bulkDensityGcm3",
+      optionalNumberIsValid,
+      errors,
+      "a finite number, null, or empty string",
+    );
+
+    const thermal = validateOptionalObjectSection(body, bodyPath, "thermal", errors);
+    for (const fieldName of ["internalHeatFluxWm2", "tidalHeatFluxWm2"]) {
+      validateOptionalField(
+        thermal,
+        `${bodyPath}.thermal`,
+        fieldName,
+        optionalNumberIsValid,
+        errors,
+        "a finite number, null, or empty string",
+      );
+    }
+
+    const history = validateOptionalObjectSection(body, bodyPath, "history", errors);
+    for (const fieldName of ["strippedEnvelopeCandidate", "migratedCloseIn", "rogueCandidate"]) {
+      validateOptionalField(
+        history,
+        `${bodyPath}.history`,
+        fieldName,
+        optionalFlagIsValid,
+        errors,
+        "a boolean-like value, null, or empty string",
+      );
+    }
+  }
+}
+
 export function sanitizeImportedValue(value, errors = null, path = "") {
   if (Array.isArray(value)) {
     return value.map((item, index) => sanitizeImportedValue(item, errors, `${path}[${index}]`));
@@ -37,6 +130,16 @@ export function stripLegacyKeys(world) {
   delete stripped.moon;
   delete stripped.planetsSingle;
   delete stripped.moonsSingle;
+  const hasCanonicalPlanetaryBodies =
+    stripped.planetaryBodies &&
+    typeof stripped.planetaryBodies === "object" &&
+    !Array.isArray(stripped.planetaryBodies);
+  if (hasCanonicalPlanetaryBodies) {
+    delete stripped.planets;
+    if (stripped.system && typeof stripped.system === "object" && !Array.isArray(stripped.system)) {
+      delete stripped.system.gasGiants;
+    }
+  }
   return stripped;
 }
 
@@ -63,6 +166,7 @@ export function validateEnvelope(obj) {
     (normalizedWorld.star && typeof normalizedWorld.star === "object") ||
     (normalizedWorld.stellarSystem && typeof normalizedWorld.stellarSystem === "object") ||
     (normalizedWorld.system && typeof normalizedWorld.system === "object") ||
+    (normalizedWorld.planetaryBodies && typeof normalizedWorld.planetaryBodies === "object") ||
     (normalizedWorld.planets && typeof normalizedWorld.planets === "object") ||
     (normalizedWorld.planet && typeof normalizedWorld.planet === "object") ||
     (normalizedWorld.moons && typeof normalizedWorld.moons === "object") ||
@@ -90,6 +194,13 @@ export function validateEnvelope(obj) {
     (typeof normalizedWorld.system !== "object" || Array.isArray(normalizedWorld.system))
   ) {
     errors.push("'system' must be an object.");
+  }
+  if (
+    normalizedWorld.planetaryBodies != null &&
+    (typeof normalizedWorld.planetaryBodies !== "object" ||
+      Array.isArray(normalizedWorld.planetaryBodies))
+  ) {
+    errors.push("'planetaryBodies' must be an object.");
   }
   if (
     normalizedWorld.planets != null &&
@@ -120,6 +231,14 @@ export function validateEnvelope(obj) {
   if (planetsById && (typeof planetsById !== "object" || Array.isArray(planetsById))) {
     errors.push("'planets.byId' must be an object.");
   }
+  const planetaryBodiesById = normalizedWorld.planetaryBodies?.byId;
+  if (
+    planetaryBodiesById &&
+    (typeof planetaryBodiesById !== "object" || Array.isArray(planetaryBodiesById))
+  ) {
+    errors.push("'planetaryBodies.byId' must be an object.");
+  }
+  validatePlanetaryBodySubtypeEvidence(normalizedWorld, errors);
   const moonsById = normalizedWorld.moons?.byId;
   if (moonsById && (typeof moonsById !== "object" || Array.isArray(moonsById))) {
     errors.push("'moons.byId' must be an object.");

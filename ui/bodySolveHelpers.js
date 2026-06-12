@@ -1,4 +1,5 @@
 import { calcMoon } from "../engine/moon.js";
+import { calcPlanetaryBody } from "../engine/planetaryBody.js";
 import { calcPlanetExact } from "../engine/planet.js";
 import {
   buildWorldHomeSystemContext,
@@ -162,6 +163,17 @@ export function solvePlanetExactForWorld(world = loadWorld(), planetLike = null,
   return {
     ...bundle,
     model: calcPlanetExact(bundle.args),
+  };
+}
+
+export function solvePlanetaryBodyForWorld(world = loadWorld(), bodyLike = null, options = {}) {
+  const bundle = buildPlanetSolveArgsForWorld(world, bodyLike, options);
+  return {
+    ...bundle,
+    model: calcPlanetaryBody({
+      body: bodyLike || {},
+      context: bundle.args,
+    }),
   };
 }
 

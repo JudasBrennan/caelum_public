@@ -24,9 +24,9 @@ export function initAboutPage(mountEl) {
           <b>WorldSmith Web 2.5.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
-          atmospheres, populations, and calendars. Explore your creations in an interactive 3D
-          visualiser with procedural textures, or study the underlying science through a living
-          Science &amp; Maths reference and a 20-lesson curriculum.
+          atmospheres, populations, calendars, and exotic planetary subtype evidence. Explore your
+          creations in an interactive 3D visualiser with procedural textures, or study the underlying
+          science through a living Science &amp; Maths reference and a 20-lesson curriculum.
         </p>
 
         <p>
@@ -398,6 +398,7 @@ function changelogHTML() {
       "2.5.0",
       "(from 2.4.0)",
       [
+        "<b>Exotic Planetary Subtypes</b> &mdash; Planet-class bodies can now surface conservative subtype evidence such as carbon-rich, ocean/water, lava, icy dwarf, chthonian, rogue, sub-Neptune, hycean, and inflated giant candidates across Planet outputs, import/export summaries, the Visualiser, and system posters.",
         "<b>Clearer Dense Pages</b> &mdash; Star, Moon, Planet, and Calendar now lead with compact workflow context, action-first summaries, and progressively disclosed output detail, so the densest authoring pages are easier to scan before diving into the science.",
         "<b>Result Summaries</b> &mdash; Star and Moon outputs now open with plain-language summaries and keep secondary identity, physical, environment, activity, system, and habitability details collapsed until needed.",
         "<b>Apparent Visibility Fix</b> &mdash; Apparent Size and Brightness no longer labels extremely bright night-side planets as visible day and night when their elongation places them physically outside the day-side sky.",
