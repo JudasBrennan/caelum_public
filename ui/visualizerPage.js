@@ -76,6 +76,7 @@ import {
 } from "./visualizer/bodyMeshService.js";
 import { appendWarmCandidate, createVisibleWarmupController } from "./visualizer/visibleWarmup.js";
 import { bindVisualizerInputBindings } from "./visualizer/inputBindings.js";
+import { handleVisualizerAppearanceAction } from "./visualizer/visualEditorEntry.js";
 import { loadThreeCore } from "./threeBridge2d.js";
 import {
   EARTH_PER_MSOL,
@@ -1555,6 +1556,16 @@ export function initVisualiserPage(root, options = {}) {
     renderVisualizerFocusSummary({
       focusSummaryEl,
       summary: getFocusedBodySummary(snapshot, state.focusTargetKind, state.focusTargetId),
+      onAction(actionId) {
+        handleVisualizerAppearanceAction({
+          actionId,
+          state,
+          getSnapshot,
+          invalidateSnapshot,
+          draw,
+          startCameraLoop,
+        });
+      },
       createElement,
       replaceChildren,
     });

@@ -69,10 +69,14 @@ import {
   projectPrimaryStarFromStellarSystem,
 } from "./store/stellarSystemModel.js";
 import {
+  ensureCanonicalPlanetaryBodyStorage,
+  findPlanetaryBody,
   getSelectedPlanetaryBodyLegacyId,
   listGasGiantEntries,
   listRockyPlanetEntries,
+  mergePlanetaryBodyVisualAppearance,
   replacePlanetaryBodiesByLegacyKind,
+  resetPlanetaryBodyVisualAppearance,
   selectPlanetaryBodyByLegacyId,
   syncLegacyPlanetCollections,
   syncMoonParentAliases,
@@ -109,9 +113,12 @@ export {
   listRockyLikeBodies,
   listSubstellarCompanionBodies,
   listVolatilePlanetBodies,
+  mergePlanetaryBodyVisualAppearance,
+  normalizePlanetaryBodyAppearance,
   normalizePlanetaryBody,
   planetFromGasGiantEntry,
   planetFromRockyEntry,
+  resetPlanetaryBodyVisualAppearance,
   splitPlanetaryBodiesByLegacyKind,
   syncLegacyPlanetCollections,
   syncMoonParentAliases,
@@ -376,6 +383,19 @@ function syncCompatibilityPlanetaryBodyProjections(world) {
   return world;
 }
 
+function resolveCanonicalPlanetaryBodyRecord(world, bodyId) {
+  ensureCanonicalPlanetaryBodyStorage(world);
+  const match = findPlanetaryBody(world, bodyId);
+  if (!match?.id) return null;
+  return world.planetaryBodies?.byId?.[match.id] || null;
+}
+
+function savePlanetaryVisualWorld(world) {
+  syncCompatibilityPlanetaryBodyProjections(world);
+  saveWorld(world);
+  return world;
+}
+
 export function listPlanets(world = loadWorld()) {
   return listRockyPlanetEntries(world);
 }
@@ -500,6 +520,30 @@ export function assignPlanetToSlot(planetId, slotIndexOrNull) {
   assignPlanetToSlotInWorld(world, planetId, slotIndexOrNull);
   saveWorld(world);
   return world;
+}
+
+export function applyPlanetaryBodyVisualPatch(bodyId, patch) {
+  const world = loadWorld();
+  const body = resolveCanonicalPlanetaryBodyRecord(world, bodyId);
+  if (!body) return null;
+  const appearance = mergePlanetaryBodyVisualAppearance(body.appearance, patch);
+  if (appearance) body.appearance = appearance;
+  else delete body.appearance;
+  return savePlanetaryVisualWorld(world);
+}
+
+export function resetPlanetaryBodyVisualOverrides(bodyId, scope = "all") {
+  const world = loadWorld();
+  const body = resolveCanonicalPlanetaryBodyRecord(world, bodyId);
+  if (!body) return null;
+  const appearance = resetPlanetaryBodyVisualAppearance(body.appearance, scope);
+  if (appearance) body.appearance = appearance;
+  else delete body.appearance;
+  return savePlanetaryVisualWorld(world);
+}
+
+export function selectPlanetaryBodyVisualMode(bodyId, mode) {
+  return applyPlanetaryBodyVisualPatch(bodyId, { visualMode: mode });
 }
 
 function normalizeHostFrameId(value, fallbackId = null) {

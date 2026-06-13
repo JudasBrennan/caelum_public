@@ -83,6 +83,11 @@ function normalizeOptionalFlag(value) {
   return null;
 }
 
+function normalizeAppearancePassthrough(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return { ...value };
+}
+
 function optionalSubtypeEvidence(raw) {
   const evidence = {};
   if (hasOwnField(raw, "carbonRichness")) {
@@ -221,6 +226,7 @@ export function normalizeGasGiant(raw, idx = 1) {
   const axialTiltDeg = Number.isFinite(rawTilt) && rawTilt >= 0 && rawTilt <= 180 ? rawTilt : null;
   const ringMode = normalizeRingMode(raw?.ringMode);
   const ringStyleId = normalizeRingStyleId(raw?.ringStyleId);
+  const appearance = normalizeAppearancePassthrough(raw?.appearance);
   const rings =
     ringMode === RING_MODE_FORCE_ON
       ? true
@@ -252,6 +258,7 @@ export function normalizeGasGiant(raw, idx = 1) {
     longitudeOfPeriapsisDeg,
     axialTiltDeg,
     appearanceRecipeId: appearanceRecipeId || "",
+    ...(appearance ? { appearance } : {}),
     ...optionalSubtypeEvidence(raw || {}),
   };
 }

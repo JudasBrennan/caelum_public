@@ -45,23 +45,35 @@ function visualSubtypeKeySuffix(body) {
   return key ? `:${key}` : "";
 }
 
+function visualOverrideKeySuffix(body) {
+  const key = String(body?.visualOverrideSignature || "").trim();
+  return key ? `:vo:${key}` : "";
+}
+
 export function vizBodyCacheKey(type, body) {
   const id = body?.id || "";
-  if (type === "rocky") return `rocky:${id}${visualSubtypeKeySuffix(body)}`;
-  if (type === "volatile") return `volatile:${id}${visualSubtypeKeySuffix(body)}`;
-  if (type === "gas") return `gas:${id}${visualSubtypeKeySuffix(body)}`;
+  const visualKey = `${visualSubtypeKeySuffix(body)}${visualOverrideKeySuffix(body)}`;
+  if (type === "rocky") return `rocky:${id}${visualKey}`;
+  if (type === "volatile") return `volatile:${id}${visualKey}`;
+  if (type === "gas") return `gas:${id}${visualKey}`;
   if (type === "moon") return `moon:${id}`;
   return id;
 }
 
 export function buildPlanetBodyMeshModel(planet, axialTiltDeg = planet?.axialTiltDeg) {
   if (planet?.renderFamily === "volatile") {
+    const ringAppearance = planet.ringAppearance || planet.visualDescriptor?.ringAppearance || null;
     return {
       bodyType: "gasGiant",
-      styleId: planet.style || "sub-neptune",
-      showRings: false,
+      styleId: planet.visualDescriptor?.styleId || planet.style || "sub-neptune",
+      showRings: typeof ringAppearance?.enabled === "boolean" ? ringAppearance.enabled : false,
       gasCalc: planet.gasCalc,
+      gasProfile: planet.gasProfile || planet.visualDescriptor?.gasProfile || null,
+      ringAppearance,
       visualSubtypeKey: planet.visualSubtypeKey || "",
+      visualOverrideSignature: planet.visualOverrideSignature || "",
+      visualRenderSignature: planet.visualRenderSignature || "",
+      visualDescriptor: planet.visualDescriptor || null,
       axialTiltDeg: normalizeAxialTiltDeg(axialTiltDeg),
     };
   }
@@ -71,6 +83,9 @@ export function buildPlanetBodyMeshModel(planet, axialTiltDeg = planet?.axialTil
     ringAppearance: planet.ringAppearance,
     recipeId: planet.recipeId || planet.visualProfile?.recipeId || "",
     visualSubtypeKey: planet.visualSubtypeKey || "",
+    visualOverrideSignature: planet.visualOverrideSignature || "",
+    visualRenderSignature: planet.visualRenderSignature || "",
+    visualDescriptor: planet.visualDescriptor || null,
     axialTiltDeg: normalizeAxialTiltDeg(axialTiltDeg),
   };
 }
@@ -96,13 +111,17 @@ export function collectBodyMeshWarmItems(snapshot, options = {}) {
     const key = vizBodyCacheKey("gas", gasGiant);
     const model = {
       bodyType: "gasGiant",
-      styleId: gasGiant.style || "jupiter",
+      styleId: gasGiant.visualDescriptor?.styleId || gasGiant.style || "jupiter",
       showRings: !!gasGiant.rings,
       ringMode: gasGiant.ringMode,
       ringStyleId: gasGiant.ringAppearance?.ringStyleId,
       ringAppearance: gasGiant.ringAppearance,
       gasCalc: gasGiant.gasCalc,
+      gasProfile: gasGiant.gasProfile || gasGiant.visualDescriptor?.gasProfile || null,
       visualSubtypeKey: gasGiant.visualSubtypeKey || "",
+      visualOverrideSignature: gasGiant.visualOverrideSignature || "",
+      visualRenderSignature: gasGiant.visualRenderSignature || "",
+      visualDescriptor: gasGiant.visualDescriptor || null,
       axialTiltDeg: normalizeAxialTiltDeg(gasGiant.axialTiltDeg ?? 0),
     };
     if (hasKey(key, model)) continue;
@@ -198,8 +217,11 @@ export function buildBodyStructuralSignature(model) {
     ringAppearance: model?.ringAppearance || null,
     gasCalc: model?.gasCalc || null,
     visualProfile: model?.visualProfile || null,
+    gasProfile: model?.gasProfile || null,
     recipeId: model?.recipeId || "",
     visualSubtypeKey: model?.visualSubtypeKey || "",
+    visualOverrideSignature: model?.visualOverrideSignature || "",
+    visualRenderSignature: model?.visualRenderSignature || "",
     moonCalc: model?.moonCalc || null,
   });
 }

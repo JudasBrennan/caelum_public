@@ -292,6 +292,16 @@ function mixRgb(a, b, t) {
   };
 }
 
+function continentCompositeAlpha(maskValue, requestedAlpha) {
+  const mask = clamp(Number(maskValue) || 0, 0, 1);
+  if (!(mask > 0)) return 0;
+  // Land interiors should read as solid terrain, with only coastlines feathered.
+  const minimumSolidAlpha = 0.88;
+  const solidAlpha = clamp(Math.max(Number(requestedAlpha) || 0, minimumSolidAlpha), 0, 0.98);
+  const coastFeather = smoothstep(0.02, 0.72, mask);
+  return clamp(solidAlpha * (0.14 + coastFeather * 0.86) * mask, 0, 1);
+}
+
 function buildContinentsField(fieldCache, descriptor, params) {
   const size = Math.max(1, Number(fieldCache?.size) || 1);
   const key = JSON.stringify({
@@ -450,6 +460,96 @@ function normalizeGasFamily(value, fallback = "banded") {
   return fallback;
 }
 
+function finiteNumberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function profileColour(profile, path, fallback = "") {
+  const parts = String(path || "")
+    .split(".")
+    .filter(Boolean);
+  let cursor = profile;
+  for (const part of parts) {
+    if (!cursor || typeof cursor !== "object") return fallback;
+    cursor = cursor[part];
+  }
+  const text = String(cursor || "").trim();
+  return text || fallback;
+}
+
+function paletteColour(profile, slot, fallback = "") {
+  const alias =
+    slot === "c1" ? "primary" : slot === "c2" ? "secondary" : slot === "c3" ? "accent" : "";
+  return (
+    profileColour(profile, `palette.${slot}`) ||
+    (alias ? profileColour(profile, `palette.${alias}`) : "") ||
+    fallback
+  );
+}
+
+function profileNumber(profile, path, fallback = null) {
+  const parts = String(path || "")
+    .split(".")
+    .filter(Boolean);
+  let cursor = profile;
+  for (const part of parts) {
+    if (!cursor || typeof cursor !== "object") return fallback;
+    cursor = cursor[part];
+  }
+  const n = finiteNumberOrNull(cursor);
+  return n == null ? fallback : n;
+}
+
+function mergeVisualDescriptorIntoModel(inputModel) {
+  const descriptor = inputModel?.visualDescriptor || inputModel?.planetaryVisualDescriptor || null;
+  if (!descriptor || typeof descriptor !== "object" || Array.isArray(descriptor)) {
+    return inputModel || {};
+  }
+  return {
+    ...(inputModel || {}),
+    recipeId: descriptor.baseRecipeId || inputModel?.recipeId || "",
+    styleId: descriptor.styleId || inputModel?.styleId || "",
+    visualSeed: descriptor.seed || inputModel?.visualSeed || "",
+    visualProfile: descriptor.visualProfile || inputModel?.visualProfile,
+    gasProfile: descriptor.gasProfile || inputModel?.gasProfile,
+    ringAppearance: descriptor.ringAppearance || inputModel?.ringAppearance,
+  };
+}
+
+function gasProfilePalette(style, gasProfile) {
+  const palette = { ...(style?.palette || {}) };
+  const primary = paletteColour(gasProfile, "c1");
+  const secondary = paletteColour(gasProfile, "c2");
+  const accent = paletteColour(gasProfile, "c3");
+  if (primary) palette.c1 = primary;
+  if (secondary) palette.c2 = secondary;
+  if (accent) palette.c3 = accent;
+  return palette;
+}
+
+function gasStyleWithProfileOverrides(style, gasProfile) {
+  if (!gasProfile || typeof gasProfile !== "object") return style;
+  const next = { ...(style || {}) };
+  next.palette = gasProfilePalette(style, gasProfile);
+  const bands = gasProfile.bands || {};
+  const atmosphere = gasProfile.atmosphere || {};
+  const clouds = gasProfile.clouds || {};
+  const bandCount = finiteNumberOrNull(bands.count);
+  const bandContrast = finiteNumberOrNull(bands.contrast);
+  const turbulence = finiteNumberOrNull(bands.turbulence);
+  const shear = finiteNumberOrNull(bands.shear);
+  const haze = finiteNumberOrNull(atmosphere.haze ?? atmosphere.thickness ?? clouds.opacity);
+  const polarTint = String(bands.polarTint || atmosphere.envelopeTint || "").trim();
+  if (bandCount != null) next.bandCountDefault = bandCount;
+  if (bandContrast != null) next.bandContrastDefault = bandContrast;
+  if (turbulence != null) next.turbulenceDefault = turbulence;
+  if (shear != null) next.shearDefault = shear;
+  if (haze != null) next.defaultHaze = clamp(haze, 0, 1);
+  if (polarTint) next.palette = { ...(next.palette || {}), polar: polarTint };
+  return next;
+}
+
 function inferGasVisualFamily(styleDef, styleId, recipeId, gasCalc) {
   const explicit = normalizeGasFamily(styleDef?.family, "");
   if (explicit) return explicit;
@@ -517,6 +617,7 @@ function normalizeRockyModel(model) {
     recipeId: String(model?.recipeId || model?.inputs?.appearanceRecipeId || ""),
     rotationPeriodDays: rotationHours / 24,
     axialTiltDeg: tiltDeg,
+    visualSeed: String(model?.visualSeed || ""),
     visualProfile,
     ringAppearance,
     hasRings: !!visualProfile?.ring?.enabled,
@@ -565,6 +666,7 @@ function normalizeGasModel(model) {
     recipeId: String(model?.recipeId || model?.appearanceRecipeId || ""),
     rotationPeriodDays: rotationHours / 24,
     axialTiltDeg: Number(model?.axialTiltDeg || 0) || 0,
+    visualSeed: String(model?.visualSeed || ""),
     styleId,
     styleDef,
     ringAppearance,
@@ -599,6 +701,7 @@ function normalizeMoonModel(model) {
     ),
     rotationPeriodDays: Math.max(0.1, Number.isFinite(rotationDays) ? rotationDays : 27.3),
     axialTiltDeg: Number(model?.axialTiltDeg || 0) || 0,
+    visualSeed: String(model?.visualSeed || ""),
     moonProfile,
     moonCalc: model?.moonCalc || null,
   };
@@ -774,14 +877,35 @@ function buildResolvedRingDescriptor({ enabled, ringAppearance, fallback = {} } 
 
 function rockyLayers(model, detail) {
   const p = model.visualProfile || {};
-  const oceanCoverage = clamp(Number(p?.ocean?.coverage) || 0, 0, 1);
-  const cloudCoverage = clamp(Number(p?.clouds?.coverage) || 0, 0, 1);
-  const craterDensity = clamp(Number(p?.terrain?.craterDensity) || 0, 0, 1);
-  const iceNorth = clamp(Number(p?.iceCaps?.north) || 0, 0, 1);
-  const iceSouth = clamp(Number(p?.iceCaps?.south) || 0, 0, 1);
-  const vegetationCoverage = clamp(Number(p?.vegetation?.coverage) || 0, 0, 1);
-  const atmosphereThickness = clamp(Number(p?.atmosphere?.thickness) || 0, 0, 0.22);
-  const cloudsAlpha = clamp(0.12 + cloudCoverage * 0.55, 0.08, 0.8);
+  const oceanCoverage = clamp(profileNumber(p, "ocean.coverage", 0), 0, 1);
+  const cloudCoverage = clamp(profileNumber(p, "clouds.coverage", 0), 0, 1);
+  const cloudOpacityOverride = profileNumber(p, "clouds.opacity", null);
+  const craterDensity = clamp(profileNumber(p, "terrain.craterDensity", 0), 0, 1);
+  const iceOverride = profileNumber(p, "surface.iceCoverage", null);
+  const iceNorth = clamp(
+    iceOverride == null ? profileNumber(p, "iceCaps.north", 0) : iceOverride,
+    0,
+    1,
+  );
+  const iceSouth = clamp(
+    iceOverride == null ? profileNumber(p, "iceCaps.south", 0) : iceOverride,
+    0,
+    1,
+  );
+  const vegetationCoverage = clamp(profileNumber(p, "vegetation.coverage", 0), 0, 1);
+  const terrainContrast = clamp(profileNumber(p, "surface.terrainContrast", 0.5), 0, 1);
+  const terrainRoughness = clamp(profileNumber(p, "surface.roughness", 0.5), 0, 1);
+  const lavaCoverage = clamp(profileNumber(p, "lava.coverage", 0), 0, 1);
+  const atmosphereThickness = clamp(
+    profileNumber(p, "atmosphere.thickness", 0) + profileNumber(p, "atmosphere.haze", 0) * 0.05,
+    0,
+    0.22,
+  );
+  const cloudsAlpha = clamp(
+    cloudOpacityOverride == null ? 0.12 + cloudCoverage * 0.55 : cloudOpacityOverride,
+    0.08,
+    0.8,
+  );
   const plateAlpha = clamp((1 - oceanCoverage) * 0.75, 0.08, 0.86);
   const landFraction = clamp(1 - oceanCoverage, 0.05, 0.95);
   const ringInner = clamp(Number(p?.ring?.inner) || 1.3, 1.08, 2.5);
@@ -789,7 +913,11 @@ function rockyLayers(model, detail) {
   const continentsMacroScale = clamp(0.72 + (1 - oceanCoverage) * 0.58 + detail * 0.18, 0.45, 1.8);
   const continentsWarp = clamp(0.16 + oceanCoverage * 0.22 + detail * 0.06, 0.08, 0.52);
   const coastErode = clamp(0.16 + oceanCoverage * 0.36, 0.08, 0.6);
-  const ridgeStrength = clamp(0.22 + (1 - oceanCoverage) * 0.34, 0.16, 0.72);
+  const ridgeStrength = clamp(
+    0.22 + (1 - oceanCoverage) * 0.34 + (terrainContrast - 0.5) * 0.24,
+    0.16,
+    0.82,
+  );
   const cloudParams = {
     coverage: clamp(cloudCoverage, 0, 0.98),
     macroScale: clamp(3.2 + (1 - oceanCoverage) * 1.8 + detail * 0.7, 2.2, 7.8),
@@ -805,9 +933,9 @@ function rockyLayers(model, detail) {
     {
       id: "base-gradient",
       params: {
-        c1: normalizeHex(p?.palette?.c1 || "#c4a882"),
-        c2: normalizeHex(p?.palette?.c2 || "#8b6e4e"),
-        c3: normalizeHex(p?.palette?.c3 || "#4a3726"),
+        c1: normalizeHex(paletteColour(p, "c1", "#c4a882")),
+        c2: normalizeHex(paletteColour(p, "c2", "#8b6e4e")),
+        c3: normalizeHex(paletteColour(p, "c3", "#4a3726")),
       },
     },
     {
@@ -832,15 +960,15 @@ function rockyLayers(model, detail) {
     params: {
       mode: "heightfield",
       landFraction,
-      macroScale: continentsMacroScale,
-      warp: continentsWarp,
+      macroScale: clamp(continentsMacroScale + (terrainRoughness - 0.5) * 0.22, 0.45, 1.9),
+      warp: clamp(continentsWarp + (terrainRoughness - 0.5) * 0.12, 0.08, 0.58),
       coastErode,
       ridgeStrength,
       edgeSoftness: 0.028,
       count: Math.round((3 + detail * 8) * Math.max(0.15, 1 - oceanCoverage * 0.9)),
       alpha: plateAlpha,
-      c1: normalizeHex(p?.landPalette?.c1 || p?.palette?.c1 || "#b98f64"),
-      c2: normalizeHex(p?.landPalette?.c2 || p?.palette?.c2 || "#7f6446"),
+      c1: normalizeHex(profileColour(p, "landPalette.c1", paletteColour(p, "c1", "#b98f64"))),
+      c2: normalizeHex(profileColour(p, "landPalette.c2", paletteColour(p, "c2", "#7f6446"))),
     },
   });
 
@@ -888,14 +1016,14 @@ function rockyLayers(model, detail) {
     });
   }
 
-  if (p?.special === "lava") {
+  if (p?.special === "lava" || lavaCoverage > 0.03) {
     layers.push({
       id: "volcanic-system",
       params: {
-        hotspots: Math.round(4 + detail * 8),
-        glowAlpha: 0.38,
-        flowAlpha: 0.26,
-        depositAlpha: 0.18,
+        hotspots: Math.round(4 + detail * 8 + lavaCoverage * 10),
+        glowAlpha: clamp(0.28 + lavaCoverage * 0.32, 0.2, 0.7),
+        flowAlpha: clamp(0.18 + lavaCoverage * 0.28, 0.12, 0.58),
+        depositAlpha: clamp(0.12 + lavaCoverage * 0.18, 0.08, 0.38),
       },
     });
   }
@@ -905,8 +1033,12 @@ function rockyLayers(model, detail) {
     atmosphere: {
       enabled: atmosphereThickness > 0.002,
       colour: normalizeHex(p?.atmosphere?.colour || "#7ea2d8"),
-      opacity: clamp(0.08 + atmosphereThickness * 2.8, 0.06, 0.38),
-      scale: 1 + atmosphereThickness * 1.8,
+      opacity: clamp(
+        0.08 + atmosphereThickness * 2.8 + profileNumber(p, "atmosphere.limbGlow", 0) * 0.08,
+        0.06,
+        0.46,
+      ),
+      scale: 1 + atmosphereThickness * 1.8 + profileNumber(p, "atmosphere.limbGlow", 0) * 0.08,
     },
     clouds: {
       enabled: cloudCoverage > 0.02,
@@ -935,7 +1067,11 @@ function rockyLayers(model, detail) {
 }
 
 function gasLayers(model, detail) {
-  const style = model.styleDef || getStyleById(model.styleId);
+  const gasProfile = model.gasProfile || {};
+  const style = gasStyleWithProfileOverrides(
+    model.styleDef || getStyleById(model.styleId),
+    gasProfile,
+  );
   const gasCalc = model.gasCalc || {};
   const eqTemp = Number(gasCalc?.thermal?.equilibriumTempK) || 200;
   const hasAurora = (Number(gasCalc?.magnetic?.surfaceFieldGauss) || 0) > 20;
@@ -1053,40 +1189,53 @@ function gasLayers(model, detail) {
               : styleId.includes("hot")
                 ? "extreme"
                 : "jovian";
+  const bandCountOverride = finiteNumberOrNull(gasProfile?.bands?.count);
+  const bandContrastOverride = finiteNumberOrNull(gasProfile?.bands?.contrast);
+  const turbulenceOverride = finiteNumberOrNull(gasProfile?.bands?.turbulence);
+  const shearOverride = finiteNumberOrNull(gasProfile?.bands?.shear);
+  const stormCountOverride = finiteNumberOrNull(gasProfile?.storms?.count);
+  const stormIntensityOverride = finiteNumberOrNull(gasProfile?.storms?.intensity);
+  const cloudCoverageOverride = finiteNumberOrNull(gasProfile?.clouds?.coverage);
+  const cloudOpacityOverride = finiteNumberOrNull(gasProfile?.clouds?.opacity);
+  const atmosphereThicknessOverride = finiteNumberOrNull(gasProfile?.atmosphere?.thickness);
+  const limbGlowOverride = finiteNumberOrNull(gasProfile?.atmosphere?.limbGlow);
   const bandCount = clamp(
-    Math.round(bandCountBase + detail * (family === "banded" ? 2.2 : 1.1)),
+    Math.round(bandCountOverride ?? bandCountBase + detail * (family === "banded" ? 2.2 : 1.1)),
     1,
     18,
   );
   const bandContrast = clamp(
-    bandContrastBase +
-      detail *
-        (family === "banded"
-          ? 0.04
-          : family === "patchy"
-            ? 0.07
-            : family === "solid"
-              ? -0.02
-              : 0.02),
+    bandContrastOverride ??
+      bandContrastBase +
+        detail *
+          (family === "banded"
+            ? 0.04
+            : family === "patchy"
+              ? 0.07
+              : family === "solid"
+                ? -0.02
+                : 0.02),
     0.05,
     1.25,
   );
   const turbulence = clamp(
-    turbulenceBase +
-      detail *
-        (family === "patchy"
-          ? 0.12
-          : family === "banded"
-            ? 0.08
-            : family === "hazy"
-              ? 0.03
-              : 0.06) +
-      (eqTemp > 900 ? 0.1 : 0),
+    turbulenceOverride ??
+      turbulenceBase +
+        detail *
+          (family === "patchy"
+            ? 0.12
+            : family === "banded"
+              ? 0.08
+              : family === "hazy"
+                ? 0.03
+                : 0.06) +
+        (eqTemp > 900 ? 0.1 : 0),
     0.08,
     0.92,
   );
   const shearStrength = clamp(
-    shearBase + detail * (family === "banded" ? 0.08 : family === "patchy" ? 0.1 : 0.04),
+    shearOverride ??
+      shearBase + detail * (family === "banded" ? 0.08 : family === "patchy" ? 0.1 : 0.04),
     0.05,
     0.78,
   );
@@ -1108,7 +1257,10 @@ function gasLayers(model, detail) {
     1,
   );
   const hazeStrength = clamp(
-    hazeBase + (family === "hazy" ? 0.08 : 0) + detail * (family === "solid" ? 0.02 : 0.01),
+    cloudCoverageOverride ??
+      cloudOpacityOverride ??
+      atmosphereThicknessOverride ??
+      hazeBase + (family === "hazy" ? 0.08 : 0) + detail * (family === "solid" ? 0.02 : 0.01),
     0,
     0.62,
   );
@@ -1214,20 +1366,26 @@ function gasLayers(model, detail) {
     id: "storms",
     params: {
       count: Math.round(
-        (family === "patchy" ? 5 : family === "solid" ? 1 : family === "hazy" ? 2 : 3) +
-          (family === "patchy" ? 10 : 7) * detail +
-          (eqTemp > 900 ? 4 : 0),
+        clamp(
+          stormCountOverride ??
+            (family === "patchy" ? 5 : family === "solid" ? 1 : family === "hazy" ? 2 : 3) +
+              (family === "patchy" ? 10 : 7) * detail +
+              (eqTemp > 900 ? 4 : 0),
+          0,
+          32,
+        ),
       ),
       alpha: clamp(
-        family === "patchy"
-          ? 0.18 + detail * 0.08
-          : family === "solid"
-            ? 0.08 + detail * 0.04
-            : family === "hazy"
-              ? 0.1 + detail * 0.04
-              : 0.14 + detail * 0.06,
+        stormIntensityOverride ??
+          (family === "patchy"
+            ? 0.18 + detail * 0.08
+            : family === "solid"
+              ? 0.08 + detail * 0.04
+              : family === "hazy"
+                ? 0.1 + detail * 0.04
+                : 0.14 + detail * 0.06),
         0.04,
-        0.3,
+        0.5,
       ),
       colour: normalizeHex(mixHex(style?.palette?.c1 || "#ffffff", "#ffffff", 0.6)),
     },
@@ -1275,8 +1433,12 @@ function gasLayers(model, detail) {
     atmosphere: {
       enabled: hazeEnabled,
       colour: hazeColour,
-      opacity: hazeEnabled ? clamp(0.06 + hazeStrength * 0.68, 0.06, 0.42) : 0,
-      scale: hazeEnabled ? clamp(1.04 + hazeStrength * 0.32, 1.04, 1.22) : 1,
+      opacity: hazeEnabled
+        ? clamp(0.06 + hazeStrength * 0.68 + (limbGlowOverride || 0) * 0.08, 0.06, 0.52)
+        : 0,
+      scale: hazeEnabled
+        ? clamp(1.04 + hazeStrength * 0.32 + (limbGlowOverride || 0) * 0.08, 1.04, 1.3)
+        : 1,
     },
     clouds: {
       enabled: false,
@@ -1487,7 +1649,7 @@ function moonLayers(model, detail) {
 }
 
 export function composeCelestialDescriptor(inputModel, opts = {}) {
-  const model = normalizeBodyModel(inputModel || {});
+  const model = normalizeBodyModel(mergeVisualDescriptorIntoModel(inputModel || {}));
   const lod = normalizeLod(opts?.lod);
   const preset = LOD_PRESETS[lod];
   const detail = preset.detail;
@@ -1503,7 +1665,7 @@ export function composeCelestialDescriptor(inputModel, opts = {}) {
     model.recipeId ||
     (model.bodyType === "gasGiant" ? model.styleId : "") ||
     "";
-  const seed = `${model.bodyType}:${model.name}:${seedDiscriminator}`;
+  const seed = model.visualSeed || `${model.bodyType}:${model.name}:${seedDiscriminator}`;
 
   return {
     bodyType: model.bodyType,
@@ -1609,7 +1771,7 @@ const LAYER_MODULES = {
             1,
           );
           const tint = mixRgb(c1, c2, tone);
-          const alpha = clamp(alphaBase * (0.62 + m * 0.38) * m, 0, 1);
+          const alpha = continentCompositeAlpha(m, alphaBase);
           data[di] = Math.round(lerp(data[di], tint.r, alpha));
           data[di + 1] = Math.round(lerp(data[di + 1], tint.g, alpha));
           data[di + 2] = Math.round(lerp(data[di + 2], tint.b, alpha));

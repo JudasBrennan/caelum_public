@@ -21,7 +21,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.5.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.6.0 Beta</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, calendars, and exotic planetary subtype evidence. Explore your
@@ -356,6 +356,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Astrophysicist and science communicator who has helped make complex cosmic ideas approachable for broad audiences.",
   },
+  "2.6.0 BETA": {
+    name: "John Archibald Wheeler",
+    born: 1911,
+    died: 2008,
+    country: "United States",
+    summary:
+      "Coined the term black hole and helped shape modern gravitational physics, turning extreme cosmic structure into language and models people could reason about.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -395,6 +403,18 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.6.0 BETA",
+      "(from 2.5.0)",
+      [
+        "<b>Planetary Visual Editor</b> &mdash; Planet-class bodies can now open a draft-safe appearance editor from the Planet page or Visualiser, with Auto/Draft comparison, compatible presets, seeded procedural variation, sparse overrides, per-field locks, and reset/randomize controls.",
+        "<b>Custom Visual Persistence</b> &mdash; Visual-only overrides now save on canonical planetary bodies and survive browser storage, JSON import/export, snapshots, the Visualiser, Apparent Size, and system poster rendering without changing the underlying physical model.",
+        "<b>Color Editing Polish</b> &mdash; Native color picker changes now wait for Apply, while swatches and hex fields remain quick to use. Compact color rows keep the planet preview static during scrolling and keep lock controls visible in dense editor layouts.",
+        "<b>Exotic Subtype Visuals</b> &mdash; Conservative exotic subtype evidence now feeds visual hints and downstream summaries for carbon-rich, ocean/water, lava, icy dwarf, chthonian, rogue, sub-Neptune, hycean, super-puff, inflated giant, and related planet-class bodies.",
+        "<b>Safer Old Save Support</b> &mdash; Older saves, split rocky/gas-giant collections, workbook imports, and runtime projections remain supported while new guardrails keep historical data handling contained.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.5.0",
       "(from 2.4.0)",
       [
@@ -404,7 +424,7 @@ function changelogHTML() {
         "<b>Apparent Visibility Fix</b> &mdash; Apparent Size and Brightness no longer labels extremely bright night-side planets as visible day and night when their elongation places them physically outside the day-side sky.",
         "<b>Dev Workflow Polish</b> &mdash; The dev server now falls forward to an available local port when the requested one is busy, targeted test runs can filter by filename, and the release checklist now matches the manual-upload workflow.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.4.0",

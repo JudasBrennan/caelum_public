@@ -136,6 +136,65 @@ async function maybeWarnLargeImport(statusEl, bytes, label) {
   await nextImportTurn();
 }
 
+function cloneImportWorld(world) {
+  return JSON.parse(JSON.stringify(world || {}));
+}
+
+function normaliseImportVisualMode(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
+function hasImportedCustomVisuals(appearance) {
+  if (!appearance || typeof appearance !== "object" || Array.isArray(appearance)) return false;
+  const mode = normaliseImportVisualMode(appearance.visualMode);
+  return (
+    mode === "mixed" ||
+    mode === "custom" ||
+    (appearance.visualOverrides &&
+      typeof appearance.visualOverrides === "object" &&
+      !Array.isArray(appearance.visualOverrides))
+  );
+}
+
+function resetImportedVisualRecord(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  if (!hasImportedCustomVisuals(body.appearance)) return false;
+  body.appearance = {
+    ...(body.appearance || {}),
+    visualMode: "auto",
+  };
+  delete body.appearance.visualOverrides;
+  return true;
+}
+
+function resetImportedCustomVisualsInCollection(collection, seen) {
+  if (!collection || typeof collection !== "object" || Array.isArray(collection)) return 0;
+  const byId =
+    collection.byId && typeof collection.byId === "object" && !Array.isArray(collection.byId)
+      ? collection.byId
+      : {};
+  let resetCount = 0;
+  for (const [id, body] of Object.entries(byId)) {
+    if (resetImportedVisualRecord(body) && !seen.has(id)) {
+      seen.add(id);
+      resetCount += 1;
+    }
+  }
+  return resetCount;
+}
+
+function resetAllImportedCustomVisuals(world) {
+  const seen = new Set();
+  return (
+    resetImportedCustomVisualsInCollection(world?.planetaryBodies, seen) +
+    resetImportedCustomVisualsInCollection(world?.planets, seen) +
+    resetImportedCustomVisualsInCollection(world?.system?.gasGiants, seen)
+  );
+}
+
 function resolveImportExportCompatibilityValue(key, fallbackValue) {
   if (
     importExportCompatibilityOverrides &&
@@ -554,6 +613,15 @@ export function initImportExportPage(root) {
           .map((entry) => `${entry.label || entry.id} x${entry.count}`)
           .join(", ")
       : "";
+    const customVisualBodies = Number(m.customVisualBodies) || 0;
+    const customVisualOverrides = Number(m.customVisualOverrides) || 0;
+    const customVisualText = customVisualBodies
+      ? `${customVisualBodies} custom ${customVisualBodies === 1 ? "body" : "bodies"}${
+          customVisualOverrides
+            ? ` | ${customVisualOverrides} active override${customVisualOverrides === 1 ? "" : "s"}`
+            : ""
+        }`
+      : "-";
 
     const grid = createElement("div", { className: "io-preview-grid" });
     const addRow = (label, value) => {
@@ -585,6 +653,7 @@ export function initImportExportPage(root) {
       addRow("Planetary bodies", `${m.planetaryBodies} total (${buckets.join(", ")})`);
       addRow("Exotic subtypes", subtypeText || "-");
     }
+    addRow("Custom visuals", customVisualText);
     addRow("Planets", `${m.planets} total (${m.assigned} assigned, ${m.unassigned} unassigned)`);
     addRow("Moons", `${m.moons} total`);
     addRow("Moon worlds", moonWorldText);
@@ -603,14 +672,53 @@ export function initImportExportPage(root) {
     );
     addRow("Calendar", m.hasCalendar ? "included" : "-");
 
-    replaceChildren(importPreviewEl, [
-      grid,
+    const previewChildren = [grid];
+    const visualWarnings = Array.isArray(m.visualImportWarnings)
+      ? m.visualImportWarnings.filter(Boolean)
+      : [];
+    if (visualWarnings.length) {
+      previewChildren.push(
+        createElement("div", {
+          className: "hint",
+          attrs: { style: "margin-top:8px" },
+          text: `Visual import warning: ${visualWarnings.join(" ")}`,
+        }),
+      );
+    }
+    if (customVisualBodies > 0) {
+      const resetVisualsButton = createElement("button", {
+        className: "small",
+        attrs: { type: "button" },
+        dataset: { resetImportedVisuals: "true" },
+        text: "Reset all imported custom visuals",
+      });
+      resetVisualsButton.addEventListener("click", () => {
+        if (!pendingImport?.world) return;
+        const resetWorld = cloneImportWorld(pendingImport.world);
+        const resetCount = resetAllImportedCustomVisuals(resetWorld);
+        if (!showImportPreview(resetWorld)) return;
+        setStatus(
+          statusImport,
+          resetCount
+            ? `Reset custom visuals for ${resetCount} imported ${resetCount === 1 ? "body" : "bodies"}.`
+            : "No imported custom visuals needed resetting.",
+          "ok",
+        );
+      });
+      previewChildren.push(
+        createElement("div", { className: "io-actions", attrs: { style: "margin-top:8px" } }, [
+          resetVisualsButton,
+        ]),
+      );
+    }
+    previewChildren.push(
       createElement("div", {
         className: "hint",
         attrs: { style: "margin-top:8px" },
         text: "Import will replace your current saved world. A backup will be created automatically first. Moon-world atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs are rebuilt from the imported inputs after load.",
       }),
-    ]);
+    );
+    replaceChildren(importPreviewEl, previewChildren);
     return true;
   }
 

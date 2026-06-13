@@ -17,7 +17,7 @@ import { loadGuidedSession } from "./guidedCreation/sessionState.js";
 import { buildGasGiantRecipeApplyInputs } from "./guidedCreation/adapters/gasGiant.js";
 import { getGuidedEntryModeTooltip } from "./guidedCreation/tooltips.js";
 import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
-import { styleLabel, GAS_GIANT_RECIPES } from "./gasGiantStyles.js";
+import { computeGasGiantVisualProfile, styleLabel, GAS_GIANT_RECIPES } from "./gasGiantStyles.js";
 import { ROCKY_RECIPES } from "./rockyPlanetStyles.js";
 import {
   getInsolationZoneLabelForRegime,
@@ -27,6 +27,9 @@ import {
 import { createCelestialVisualPreviewController } from "./lazyCelestialVisualPreview.js";
 import { createTutorial } from "./tutorial.js";
 import { launchGuidedMoonForParent } from "./moonGuidedLaunch.js";
+import { buildPlanetaryVisualControlManifest } from "./planetaryVisual/controlManifest.js";
+import { resolvePlanetaryVisualDescriptor } from "./planetaryVisual/descriptor.js";
+import { openPlanetaryVisualEditor } from "./planetaryVisual/editorDom.js";
 import { buildPageIntroHtml } from "./pageIntro.js";
 import { buildBodySelectorEntries, filterBodySelectorEntries } from "./planet/bodySelector.js";
 import {
@@ -42,7 +45,11 @@ import {
   getRockyGuidedSessionTarget,
 } from "./planet/presetActions.js";
 import { createPlanetGuidedFlows } from "./planet/guidedFlows.js";
-import { normalizeRingStyleId, RING_STYLE_AUTO } from "./ringAppearanceProfiles.js";
+import {
+  normalizeRingStyleId,
+  resolveRingAppearance,
+  RING_STYLE_AUTO,
+} from "./ringAppearanceProfiles.js";
 import {
   clampGasGiantRadiusRj,
   getGiantCompanionClass,
@@ -126,6 +133,7 @@ import {
   deletePlanet,
   updatePlanet,
   assignPlanetToSlot,
+  applyPlanetaryBodyVisualPatch,
   listMoons,
   createMoonFromInputs,
   selectMoon,
@@ -663,6 +671,12 @@ export function initPlanetPage(mountEl, options = {}) {
   });
 
   bodyOutputsEl.addEventListener("click", (event) => {
+    const visualEditorBtn = event.target.closest?.("#editPlanetaryVisual");
+    if (visualEditorBtn) {
+      openSelectedPlanetaryVisualEditor();
+      return;
+    }
+
     const emptyActionBtn = event.target.closest?.("button[data-planet-empty-action]");
     if (!emptyActionBtn) return;
     const action = emptyActionBtn.dataset.planetEmptyAction || "";
@@ -1117,6 +1131,281 @@ export function initPlanetPage(mountEl, options = {}) {
       moons,
       gasGiants,
     };
+  }
+
+  function volatilePreviewStyleId(model) {
+    const family = model?.classification?.family;
+    if (family === "iceGiant") return "neptune";
+    if (family === "miniNeptune") return "sub-neptune";
+    return "hazy";
+  }
+
+  function buildSelectedPlanetaryVisualEditorContext(world, sysModel) {
+    const selectedBody = getSelectedPlanetaryBodyModel(world);
+    if (!selectedBody) return null;
+    const homeSystemContext = buildPlanetHomeSystemContext(world);
+    const bodyType = world.selectedBodyType || "planet";
+
+    if (bodyType === "gasGiant") {
+      const giant = getSelectedGasGiant(world);
+      if (!giant) return null;
+      const solveContext = resolvePlanetPageHostFrameContext(
+        world,
+        giant,
+        sysModel,
+        homeSystemContext,
+      );
+      const hostSystem = solveContext?.hostFrame?.system || sysModel;
+      const allGiants = listSystemGasGiants(world);
+      const {
+        gasCalc,
+        derivedStyle,
+        ringState,
+        ringAppearance,
+        gasProfile,
+        visualDescriptor,
+        visualOverrideSignature,
+        visualRenderSignature,
+      } = deriveGasGiantAppearanceState(world, giant, hostSystem, allGiants);
+      const classification = selectedBody.classification || { family: "gasGiant" };
+      const manifest = buildPlanetaryVisualControlManifest({
+        body: selectedBody,
+        classification,
+        renderFamily: "gas",
+        ringCapable: classification.family !== "brownDwarf",
+      });
+      return {
+        body: selectedBody,
+        bodyId: selectedBody.id,
+        bodyName: selectedBody.name || giant.name || selectedBody.id,
+        classification,
+        classificationLabel:
+          classification.displayLabel ||
+          (classification.family === "brownDwarf" ? "Brown dwarf" : "Gas giant"),
+        manifest,
+        ringState,
+        ringWarning: formatGasGiantRingHint(ringState),
+        previewContext: {
+          body: selectedBody,
+          manifest,
+          previewModel: {
+            bodyType: "gasGiant",
+            name: giant.name || selectedBody.name || "Gas giant",
+            recipeId: String(giant.appearanceRecipeId || ""),
+            gasCalc,
+            gasProfile,
+            styleId: derivedStyle,
+            ringAppearance,
+            ringStyleId: ringAppearance?.ringStyleId,
+            ringMode: ringState.ringMode,
+            showRings: ringState.effectiveEnabled,
+            rotationPeriodHours: Number(gasCalc?.inputs?.rotationPeriodHours) || 10,
+            visualDescriptor,
+            visualOverrideSignature,
+            visualRenderSignature,
+          },
+          baseDescriptorInput: {
+            body: selectedBody,
+            solvedBody: gasCalc,
+            renderFamily: "gas",
+            renderModel: classification.family === "brownDwarf" ? "brownDwarfStar" : "gasGiant",
+            gasProfile,
+            ringAppearance,
+            styleId: derivedStyle,
+            manifest,
+          },
+        },
+      };
+    }
+
+    const classification = selectedBody.classification || {};
+    const isVolatile =
+      classification.solverFamily === "volatile" &&
+      ["miniNeptune", "volatileCandidate", "iceGiant"].includes(classification.family);
+
+    if (isVolatile) {
+      const solvedBody = calcPlanetaryBody({
+        body: selectedBody,
+        context: buildUnifiedBodyCalcContext(world, selectedBody, sysModel, homeSystemContext),
+      });
+      const styleId = volatilePreviewStyleId(solvedBody);
+      const gasProfile = {
+        ...computeGasGiantVisualProfile(solvedBody),
+        styleId,
+      };
+      const ringState = { ringMode: "auto", effectiveEnabled: false };
+      const ringAppearance = resolveRingAppearance({
+        bodyType: "gasGiant",
+        ringState,
+        ringStyleId: "auto",
+        gasCalc: solvedBody,
+        bodyStyleId: styleId,
+        seed: selectedBody.id || selectedBody.name || styleId,
+      });
+      const manifest = buildPlanetaryVisualControlManifest({
+        body: selectedBody,
+        classification: solvedBody.classification || classification,
+        renderFamily: "volatile",
+      });
+      const visualAppearance =
+        selectedBody.appearance && typeof selectedBody.appearance === "object"
+          ? selectedBody.appearance
+          : null;
+      const visualDescriptor = resolvePlanetaryVisualDescriptor({
+        body: selectedBody,
+        solvedBody,
+        visualMode: visualAppearance?.visualMode,
+        visualOverrides: visualAppearance?.visualOverrides,
+        renderFamily: "volatile",
+        renderModel: "",
+        gasProfile,
+        ringAppearance,
+        styleId,
+        manifest,
+      });
+      const previewRingAppearance = visualDescriptor.ringAppearance || ringAppearance;
+      const previewShowRings =
+        typeof previewRingAppearance?.enabled === "boolean" ? previewRingAppearance.enabled : false;
+      return {
+        body: selectedBody,
+        bodyId: selectedBody.id,
+        bodyName: selectedBody.name || selectedBody.id,
+        classification: solvedBody.classification || classification,
+        classificationLabel: solvedBody.classification?.displayLabel || "Volatile body",
+        manifest,
+        ringWarning: "Ring controls are visual overrides; auto science remains the baseline.",
+        previewContext: {
+          body: selectedBody,
+          solvedBody,
+          manifest,
+          previewModel: {
+            bodyType: "gasGiant",
+            name: selectedBody.name || "Volatile body",
+            styleId: visualDescriptor.styleId || styleId,
+            gasCalc: solvedBody,
+            gasProfile: visualDescriptor.gasProfile || gasProfile,
+            ringAppearance: previewRingAppearance,
+            ringStyleId: previewRingAppearance?.ringStyleId,
+            ringMode: "auto",
+            showRings: previewShowRings,
+            rotationPeriodHours: Number(selectedBody.rotation?.rotationPeriodHours) || 12,
+            visualDescriptor,
+            visualOverrideSignature: visualDescriptor.overrideSignature || "",
+            visualRenderSignature: visualDescriptor.renderSignature || "",
+          },
+          baseDescriptorInput: {
+            body: selectedBody,
+            solvedBody,
+            renderFamily: "volatile",
+            renderModel: "",
+            gasProfile,
+            ringAppearance,
+            styleId,
+            manifest,
+          },
+        },
+      };
+    }
+
+    const planet = getSelectedPlanet(world);
+    if (!planet) return null;
+    const {
+      model,
+      visualProfile,
+      ringState,
+      ringAppearance,
+      visualDescriptor,
+      visualOverrideSignature,
+      visualRenderSignature,
+    } = deriveRockyPlanetAppearanceState(world, planet);
+    const solvedBody = model?.unifiedModel || selectedBody;
+    const manifest = buildPlanetaryVisualControlManifest({
+      body: selectedBody,
+      classification: solvedBody?.classification || classification,
+      renderFamily: "rocky",
+    });
+    return {
+      body: selectedBody,
+      bodyId: selectedBody.id,
+      bodyName: selectedBody.name || planet.name || selectedBody.id,
+      classification: solvedBody?.classification || classification,
+      classificationLabel: solvedBody?.classification?.displayLabel || "Rocky planet",
+      subtypeSummary: model?.unifiedModel
+        ? buildPlanetaryBodyClassificationSummary(model.unifiedModel)
+        : null,
+      manifest,
+      ringState,
+      ringWarning: formatRockyRingHint(ringState),
+      previewContext: {
+        body: selectedBody,
+        solvedBody,
+        manifest,
+        previewModel: {
+          bodyType: "rocky",
+          name: planet.inputs?.name || planet.name || "Rocky world",
+          recipeId: visualProfile?.recipeId || String(planet.inputs?.appearanceRecipeId || ""),
+          inputs: planet.inputs || {},
+          derived: model?.derived || {},
+          visualProfile,
+          ringAppearance,
+          rotationPeriodHours: Number(planet.inputs?.rotationPeriodHours) || 24,
+          axialTiltDeg: Number(planet.inputs?.axialTiltDeg) || 0,
+          visualDescriptor,
+          visualOverrideSignature,
+          visualRenderSignature,
+        },
+        baseDescriptorInput: {
+          body: selectedBody,
+          solvedBody,
+          renderFamily: "rocky",
+          renderModel: "",
+          visualProfile,
+          ringAppearance,
+          baseRecipeId: visualProfile?.recipeId || String(planet.inputs?.appearanceRecipeId || ""),
+          manifest,
+        },
+      },
+    };
+  }
+
+  function buildCurrentSystemModel(world) {
+    const primaryStar = getProjectedPrimaryStar(world);
+    const pSov = getStarOverrides(primaryStar);
+    const pStarCalc = calcStar({
+      massMsol: Number(primaryStar.massMsol),
+      ageGyr: Number(primaryStar.ageGyr) || 4.6,
+      radiusRsolOverride: pSov.r,
+      luminosityLsolOverride: pSov.l,
+      tempKOverride: pSov.t,
+      evolutionMode: pSov.ev,
+    });
+    return calcSystem({
+      starMassMsol: Number(primaryStar.massMsol),
+      spacingFactor: Number(world.system.spacingFactor),
+      orbit1Au: Number(world.system.orbit1Au),
+      luminosityLsolOverride: pStarCalc.luminosityLsol,
+      radiusRsolOverride: pStarCalc.radiusRsol,
+    });
+  }
+
+  function openSelectedPlanetaryVisualEditor() {
+    const world = loadWorld();
+    const context = buildSelectedPlanetaryVisualEditorContext(
+      world,
+      buildCurrentSystemModel(world),
+    );
+    if (!context) {
+      showPlanetNotice("Select a planetary body before opening the visual editor.");
+      return;
+    }
+    openPlanetaryVisualEditor({
+      ...context,
+      onSave(patch) {
+        applyPlanetaryBodyVisualPatch(context.bodyId, patch);
+        showPlanetNotice("Visual appearance saved.");
+        scheduleRender(true);
+      },
+    });
   }
 
   function readOptionalSelectValue(selectEl) {
@@ -1702,10 +1991,15 @@ export function initPlanetPage(mountEl, options = {}) {
       });
       return;
     }
-    const { model, visualProfile, ringState, ringAppearance } = deriveRockyPlanetAppearanceState(
-      world,
-      planet,
-    );
+    const {
+      model,
+      visualProfile,
+      ringState,
+      ringAppearance,
+      visualDescriptor,
+      visualOverrideSignature,
+      visualRenderSignature,
+    } = deriveRockyPlanetAppearanceState(world, planet);
     const d = model.derived;
     const p = planet.inputs || {};
     const ringDisplay = buildRockyRingDisplay(ringState, d);
@@ -1760,6 +2054,13 @@ export function initPlanetPage(mountEl, options = {}) {
         tip: TIP_LABEL.Appearance || "",
         canvasClass: "rocky-preview-canvas",
         meta: `${d.compositionClass} - ${d.waterRegime}`,
+        actions: [
+          {
+            id: "editPlanetaryVisual",
+            className: "small planetary-visual-edit-trigger",
+            text: "Edit visual",
+          },
+        ],
       },
       {
         label: "Body Class",
@@ -2539,6 +2840,9 @@ export function initPlanetPage(mountEl, options = {}) {
         ringAppearance,
         rotationPeriodHours: Number(p.rotationPeriodHours) || 24,
         axialTiltDeg: Number(p.axialTiltDeg) || 0,
+        visualDescriptor,
+        visualOverrideSignature,
+        visualRenderSignature,
       });
     } else {
       celestialPreviewController.detach();
@@ -2589,7 +2893,46 @@ export function initPlanetPage(mountEl, options = {}) {
       body,
       context: buildUnifiedBodyCalcContext(world, body, sysModel, homeSystemContext),
     });
-    celestialPreviewController.detach();
+    const prevVolatileCanvas = bodyOutputsEl.querySelector(".volatile-preview-canvas");
+    let volatileStyleId = volatilePreviewStyleId(model);
+    let gasProfile = {
+      ...computeGasGiantVisualProfile(model),
+      styleId: volatileStyleId,
+    };
+    const ringState = { ringMode: "auto", effectiveEnabled: false };
+    let ringAppearance = resolveRingAppearance({
+      bodyType: "gasGiant",
+      ringState,
+      ringStyleId: "auto",
+      gasCalc: model,
+      bodyStyleId: volatileStyleId,
+      seed: body.id || body.name || volatileStyleId,
+    });
+    const volatileManifest = buildPlanetaryVisualControlManifest({
+      body,
+      classification: model.classification,
+      renderFamily: "volatile",
+    });
+    const visualAppearance =
+      body.appearance && typeof body.appearance === "object" ? body.appearance : null;
+    const visualDescriptor = resolvePlanetaryVisualDescriptor({
+      body,
+      solvedBody: model,
+      visualMode: visualAppearance?.visualMode,
+      visualOverrides: visualAppearance?.visualOverrides,
+      renderFamily: "volatile",
+      renderModel: "",
+      gasProfile,
+      ringAppearance,
+      styleId: volatileStyleId,
+      manifest: volatileManifest,
+    });
+    if (visualDescriptor.overrideSignature) {
+      volatileStyleId = visualDescriptor.styleId || volatileStyleId;
+      gasProfile = visualDescriptor.gasProfile || gasProfile;
+      ringAppearance = visualDescriptor.ringAppearance || ringAppearance;
+    }
+    const showRings = typeof ringAppearance?.enabled === "boolean" ? ringAppearance.enabled : false;
     const display = model.legacy?.volatileModel?.display || model.visuals?.display || {};
     const physical = model.physical || {};
     const envelope = model.envelope || model.atmosphere?.envelope || {};
@@ -2607,6 +2950,21 @@ export function initPlanetPage(mountEl, options = {}) {
     });
 
     const summaryItems = [
+      {
+        kind: "preview",
+        label: "Appearance",
+        tip: TIP_LABEL.Appearance || "",
+        canvasClass: "volatile-preview-canvas",
+        canvasDataset: { style: volatileStyleId },
+        meta: `${classificationLabel} - ${styleLabel(volatileStyleId)}`,
+        actions: [
+          {
+            id: "editPlanetaryVisual",
+            className: "small planetary-visual-edit-trigger",
+            text: "Edit visual",
+          },
+        ],
+      },
       {
         label: "Classification",
         value: classificationLabel,
@@ -2719,6 +3077,31 @@ export function initPlanetPage(mountEl, options = {}) {
       },
       { id: "volatile-detection", title: "Detection", density: "compact", items: detectionItems },
     ]);
+    let volatileCanvas = bodyOutputsEl.querySelector(".volatile-preview-canvas");
+    if (prevVolatileCanvas && volatileCanvas && prevVolatileCanvas !== volatileCanvas) {
+      prevVolatileCanvas.dataset.style = volatileStyleId;
+      volatileCanvas.replaceWith(prevVolatileCanvas);
+      volatileCanvas = prevVolatileCanvas;
+    }
+    if (volatileCanvas) {
+      celestialPreviewController.attach(volatileCanvas, {
+        bodyType: "gasGiant",
+        name: body.name || "Volatile body",
+        styleId: volatileStyleId,
+        gasCalc: model,
+        gasProfile,
+        ringAppearance,
+        ringStyleId: ringAppearance?.ringStyleId,
+        ringMode: "auto",
+        showRings,
+        rotationPeriodHours: Number(body.rotation?.rotationPeriodHours) || 12,
+        visualDescriptor,
+        visualOverrideSignature: visualDescriptor.overrideSignature || "",
+        visualRenderSignature: visualDescriptor.renderSignature || "",
+      });
+    } else {
+      celestialPreviewController.detach();
+    }
   }
 
   /* ── Vegetation info dialog ─────────────────────────────────────── */
@@ -3086,14 +3469,10 @@ export function initPlanetPage(mountEl, options = {}) {
       } else {
         g.ringStyleId = normalizeRingStyleId(g.ringStyleId);
       }
-      const { derivedStyle, ringState, ringAppearance } = deriveGasGiantAppearanceState(
-        w,
-        g,
-        currentHostSystem,
-        now,
-      );
-      g.style = derivedStyle;
-      g.rings = ringState.effectiveEnabled;
+      const { derivedStyle, generatedStyle, ringState, generatedRingState, ringAppearance } =
+        deriveGasGiantAppearanceState(w, g, currentHostSystem, now);
+      g.style = generatedStyle || derivedStyle;
+      g.rings = generatedRingState?.effectiveEnabled ?? ringState.effectiveEnabled;
       syncGasGiantRingUi({ ringState, ringAppearance });
 
       saveSystemGasGiants(now);
@@ -3747,8 +4126,14 @@ export function initPlanetPage(mountEl, options = {}) {
     const {
       gasCalc: m,
       derivedStyle,
+      generatedStyle,
       ringState,
+      generatedRingState,
       ringAppearance,
+      gasProfile,
+      visualDescriptor,
+      visualOverrideSignature,
+      visualRenderSignature,
     } = deriveGasGiantAppearanceState(world, giant, sysModel, allGiants);
     const clouds = m.clouds.map((c) => c.name).join(", ") || "None";
     const massNote =
@@ -3765,21 +4150,24 @@ export function initPlanetPage(mountEl, options = {}) {
           : "";
     const metNote = m.inputs.metallicitySource === "derived" ? "Derived from mass" : "";
     const showRings = ringState.effectiveEnabled;
+    const generatedShowRings = generatedRingState?.effectiveEnabled ?? showRings;
+    const generatedRingMode = generatedRingState?.ringMode || ringState.ringMode;
+    const persistedStyle = generatedStyle || derivedStyle;
     if (
-      giant.rings !== showRings ||
-      giant.style !== derivedStyle ||
-      normalizeRingMode(giant.ringMode) !== ringState.ringMode
+      giant.rings !== generatedShowRings ||
+      giant.style !== persistedStyle ||
+      normalizeRingMode(giant.ringMode) !== generatedRingMode
     ) {
-      giant.rings = showRings;
-      giant.style = derivedStyle;
-      giant.ringMode = ringState.ringMode;
+      giant.rings = generatedShowRings;
+      giant.style = persistedStyle;
+      giant.ringMode = generatedRingMode;
       const w = loadWorld();
       const all = listSystemGasGiants(w);
       const g = all.find((x) => x.id === giant.id);
       if (g) {
-        g.rings = showRings;
-        g.style = derivedStyle;
-        g.ringMode = ringState.ringMode;
+        g.rings = generatedShowRings;
+        g.style = persistedStyle;
+        g.ringMode = generatedRingMode;
         saveSystemGasGiants(all);
       }
     }
@@ -3824,6 +4212,13 @@ export function initPlanetPage(mountEl, options = {}) {
       meta: isBrownDwarf
         ? `${styleLabel(derivedStyle)} - ${classValue}`
         : `${styleLabel(derivedStyle)} - Class ${m.classification.sudarsky}`,
+      actions: [
+        {
+          id: "editPlanetaryVisual",
+          className: "small planetary-visual-edit-trigger",
+          text: "Edit visual",
+        },
+      ],
     };
     const classItem = {
       label: isBrownDwarf ? "Brown Dwarf Class" : "Class",
@@ -4237,12 +4632,16 @@ export function initPlanetPage(mountEl, options = {}) {
         name: giant.name || "Gas giant",
         recipeId: String(giant.appearanceRecipeId || ""),
         gasCalc: m,
+        gasProfile,
         styleId: derivedStyle,
         ringAppearance,
         ringStyleId: ringAppearance.ringStyleId,
         ringMode: ringState.ringMode,
         showRings,
         rotationPeriodHours: Number(m.inputs?.rotationPeriodHours) || 10,
+        visualDescriptor,
+        visualOverrideSignature,
+        visualRenderSignature,
       });
     } else {
       celestialPreviewController.detach();

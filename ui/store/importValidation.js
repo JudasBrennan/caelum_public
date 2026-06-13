@@ -1,6 +1,29 @@
 export const RESERVED_IMPORT_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 import { validateStellarSystemDefinition } from "./stellarSystemModel.js";
+import { normalizeVisualMode } from "../planetaryVisual/overrides.js";
+
+const VISUAL_OVERRIDE_ROOT_KEYS = new Set([
+  "schemaVersion",
+  "presetId",
+  "seed",
+  "lockedFields",
+  "palette",
+  "surface",
+  "atmosphere",
+  "clouds",
+  "bands",
+  "storms",
+  "rings",
+  "subtype",
+  "material",
+]);
+const VISUAL_OVERRIDE_MAX_DEPTH = 8;
+const VISUAL_OVERRIDE_MAX_ARRAY_ITEMS = 64;
+const VISUAL_OVERRIDE_MAX_STRING_LENGTH = 160;
+const VISUAL_OVERRIDE_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
+const STRICT_COLOR_KEY_PATTERN = /(^|\.)(c[1-3]|color|colour|primary|secondary|accent)$/i;
+const HEX_COLOR_PATTERN = /^#?[0-9a-fA-F]{6}$/;
 
 function isPlainObjectLike(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -28,6 +51,71 @@ function optionalFlagIsValid(value) {
     .toLowerCase()
     .replace(/[\s_-]/g, "");
   return ["true", "yes", "y", "1", "on", "false", "no", "n", "0", "off"].includes(normalized);
+}
+
+function visualOverridePath(path, key) {
+  return path ? `${path}.${key}` : key;
+}
+
+function isStrictColorPath(path) {
+  return STRICT_COLOR_KEY_PATTERN.test(String(path || ""));
+}
+
+function validateVisualOverrideValue(value, path, errors, depth = 0) {
+  if (depth > VISUAL_OVERRIDE_MAX_DEPTH) {
+    errors.push(`'${path}' exceeds the maximum visual override depth.`);
+    return;
+  }
+  if (value == null) return;
+  if (Array.isArray(value)) {
+    if (!path.endsWith(".lockedFields") && path !== "lockedFields") {
+      errors.push(`'${path}' must not be an array.`);
+      return;
+    }
+    if (value.length > VISUAL_OVERRIDE_MAX_ARRAY_ITEMS) {
+      errors.push(`'${path}' has too many entries.`);
+      return;
+    }
+    for (const [index, item] of value.entries()) {
+      if (typeof item !== "string" || item.length > VISUAL_OVERRIDE_MAX_STRING_LENGTH) {
+        errors.push(`'${path}[${index}]' must be a short string.`);
+      }
+    }
+    return;
+  }
+  if (isPlainObjectLike(value)) {
+    for (const [key, child] of Object.entries(value)) {
+      if (RESERVED_IMPORT_KEYS.has(key)) {
+        errors.push(`'${visualOverridePath(path, key)}' uses a reserved key.`);
+        continue;
+      }
+      if (!VISUAL_OVERRIDE_KEY_PATTERN.test(key)) {
+        errors.push(`'${visualOverridePath(path, key)}' has an invalid visual override key.`);
+        continue;
+      }
+      if (depth === 0 && !VISUAL_OVERRIDE_ROOT_KEYS.has(key)) {
+        errors.push(`'visualOverrides.${key}' is not an allowed visual override section.`);
+        continue;
+      }
+      validateVisualOverrideValue(child, visualOverridePath(path, key), errors, depth + 1);
+    }
+    return;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) errors.push(`'${path}' must be a finite number.`);
+    return;
+  }
+  if (typeof value === "string") {
+    if (value.length > VISUAL_OVERRIDE_MAX_STRING_LENGTH) {
+      errors.push(`'${path}' must be ${VISUAL_OVERRIDE_MAX_STRING_LENGTH} characters or fewer.`);
+    }
+    if (isStrictColorPath(path) && value && !HEX_COLOR_PATTERN.test(value.trim())) {
+      errors.push(`'${path}' must be a 6-digit hex color.`);
+    }
+    return;
+  }
+  if (typeof value === "boolean") return;
+  errors.push(`'${path}' must be a string, finite number, boolean, null, or object.`);
 }
 
 function validateOptionalObjectSection(body, bodyPath, sectionName, errors) {
@@ -97,6 +185,62 @@ function validatePlanetaryBodySubtypeEvidence(world, errors) {
       );
     }
   }
+}
+
+function validatePlanetaryBodyVisualAppearanceRecord(body, bodyPath, errors) {
+  if (!isPlainObjectLike(body)) return;
+  const appearance = body.appearance;
+  if (appearance == null) return;
+  if (!isPlainObjectLike(appearance)) {
+    errors.push(`'${bodyPath}.appearance' must be an object when provided.`);
+    return;
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(appearance, "visualMode") &&
+    (typeof appearance.visualMode !== "string" ||
+      normalizeVisualMode(appearance.visualMode) !==
+        String(appearance.visualMode)
+          .trim()
+          .toLowerCase()
+          .replace(/[\s_-]+/g, ""))
+  ) {
+    errors.push(`'${bodyPath}.appearance.visualMode' must be auto, mixed, or custom.`);
+  }
+  if (Object.prototype.hasOwnProperty.call(appearance, "visualOverrides")) {
+    if (!isPlainObjectLike(appearance.visualOverrides)) {
+      errors.push(`'${bodyPath}.appearance.visualOverrides' must be an object.`);
+    } else {
+      validateVisualOverrideValue(
+        appearance.visualOverrides,
+        `${bodyPath}.appearance.visualOverrides`,
+        errors,
+      );
+    }
+  }
+}
+
+function validatePlanetaryBodyVisualAppearanceCollection(collection, collectionPath, errors) {
+  const byId = collection?.byId;
+  if (!isPlainObjectLike(byId)) return;
+
+  for (const [id, body] of Object.entries(byId)) {
+    validatePlanetaryBodyVisualAppearanceRecord(body, `${collectionPath}.byId.${id}`, errors);
+  }
+}
+
+function validatePlanetaryBodyVisualAppearance(world, errors) {
+  validatePlanetaryBodyVisualAppearanceCollection(
+    world?.planetaryBodies,
+    "planetaryBodies",
+    errors,
+  );
+  validatePlanetaryBodyVisualAppearanceCollection(world?.planets, "planets", errors);
+  validatePlanetaryBodyVisualAppearanceCollection(
+    world?.system?.gasGiants,
+    "system.gasGiants",
+    errors,
+  );
+  validatePlanetaryBodyVisualAppearanceRecord(world?.planet, "planet", errors);
 }
 
 export function sanitizeImportedValue(value, errors = null, path = "") {
@@ -239,6 +383,7 @@ export function validateEnvelope(obj) {
     errors.push("'planetaryBodies.byId' must be an object.");
   }
   validatePlanetaryBodySubtypeEvidence(normalizedWorld, errors);
+  validatePlanetaryBodyVisualAppearance(normalizedWorld, errors);
   const moonsById = normalizedWorld.moons?.byId;
   if (moonsById && (typeof moonsById !== "object" || Array.isArray(moonsById))) {
     errors.push("'moons.byId' must be an object.");

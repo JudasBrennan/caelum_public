@@ -37,7 +37,7 @@ import {
   getProjectedPrimaryStar,
   resolveWorldHostFrameContext,
 } from "../store.js";
-import { suggestStyles } from "../gasGiantStyles.js";
+import { computeGasGiantVisualProfile, suggestStyles } from "../gasGiantStyles.js";
 import { computeRockyVisualProfile } from "../rockyPlanetStyles.js";
 import { resolveRingAppearance } from "../ringAppearanceProfiles.js";
 import {
@@ -45,6 +45,7 @@ import {
   buildSubtypeVisualDescriptor,
   resolveSubtypeEnvelopeStyle,
 } from "../planet/subtypeVisualHints.js";
+import { resolvePlanetaryVisualDescriptor } from "../planetaryVisual/descriptor.js";
 import {
   MOON_RADIUS_KM,
   SOL_RADIUS_KM,
@@ -572,6 +573,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
       let classLabel = null;
       let style = null;
       let gasCalc = null;
+      let gasProfile = null;
       let envelopeState = null;
       let surfaceTempK = null;
       let visualSubtypeKey = "";
@@ -645,6 +647,10 @@ export function buildVisualizerSnapshot(world, options = {}) {
           subtypeLabels = (subtypeSummary?.subtypes || []).map((entry) => entry.label);
           style = resolveSubtypeEnvelopeStyle(unifiedBodyCalc, "sub-neptune");
           gasCalc = planetCalc;
+          gasProfile = {
+            ...computeGasGiantVisualProfile(planetCalc),
+            styleId: style,
+          };
           const physical = unifiedBodyCalc.physical || planetCalc?.physical || {};
           const orbit = unifiedBodyCalc.orbit || planetCalc?.orbit || {};
           periodDays = Number(orbit.orbitalPeriodDays);
@@ -739,11 +745,38 @@ export function buildVisualizerSnapshot(world, options = {}) {
         visualProfile = null;
         ringAppearance = null;
         gasCalc = null;
+        gasProfile = null;
         visualSubtypeKey = "";
         subtypeSummary = null;
         primarySubtypeLabel = "";
         subtypeLabels = [];
         recipeId = "";
+      }
+
+      const visualAppearance =
+        planet.appearance && typeof planet.appearance === "object" ? planet.appearance : null;
+      const planetaryVisualDescriptor = resolvePlanetaryVisualDescriptor({
+        body: {
+          ...bodyForSolve,
+          visualSubtypeKey,
+        },
+        solvedBody: unifiedBodyCalc,
+        visualMode: visualAppearance?.visualMode,
+        visualOverrides: visualAppearance?.visualOverrides,
+        renderFamily,
+        renderModel: "",
+        visualProfile,
+        gasProfile,
+        ringAppearance,
+        styleId: style,
+        baseRecipeId: recipeId,
+      });
+      if (planetaryVisualDescriptor.overrideSignature) {
+        visualProfile = planetaryVisualDescriptor.visualProfile;
+        gasProfile = planetaryVisualDescriptor.gasProfile || gasProfile;
+        ringAppearance = planetaryVisualDescriptor.ringAppearance;
+        recipeId = planetaryVisualDescriptor.baseRecipeId || recipeId;
+        style = planetaryVisualDescriptor.styleId || style;
       }
 
       return {
@@ -777,9 +810,18 @@ export function buildVisualizerSnapshot(world, options = {}) {
         renderFamily,
         style,
         gasCalc,
+        gasProfile,
         envelopeState,
         unifiedBodyCalc,
         planetCalc,
+        visualDescriptor: planetaryVisualDescriptor,
+        ...(planetaryVisualDescriptor.overrideSignature
+          ? {
+              visualOverrideSignature: planetaryVisualDescriptor.overrideSignature,
+              visualOverrideCount: planetaryVisualDescriptor.visualOverrideCount,
+              visualRenderSignature: planetaryVisualDescriptor.renderSignature,
+            }
+          : {}),
         eccentricity: clamp(
           Number(planetInputs.eccentricity ?? planet.orbit?.eccentricity ?? 0),
           0,
@@ -1104,6 +1146,7 @@ function buildGasGiantNode(gasGiant, idx, context) {
     visualSubtypeKey: "",
   };
   let parentOverride = null;
+  let subtypeModel = null;
   try {
     const gasCalc = calcGasGiant({
       companionClass: rawCompanionClass,
@@ -1175,7 +1218,7 @@ function buildGasGiantNode(gasGiant, idx, context) {
       },
     };
     const subtypeBroadClassification = classifyPlanetaryBody(subtypeBody, subtypeContext);
-    const subtypeModel = buildSolvedSubtypeModel(
+    subtypeModel = buildSolvedSubtypeModel(
       subtypeBody,
       subtypeBroadClassification,
       gasCalc,
@@ -1190,6 +1233,10 @@ function buildGasGiantNode(gasGiant, idx, context) {
     if (node.companionClass !== "brownDwarf" && subtypeVisual.envelopeStyleId) {
       node.style = subtypeVisual.envelopeStyleId;
     }
+    node.gasProfile = {
+      ...computeGasGiantVisualProfile(gasCalc),
+      styleId: node.style,
+    };
     node.radiusRj =
       Number(gasCalc?.physical?.radiusRj) ||
       Number(gasCalc?.physical?.radiusRjAuto) ||
@@ -1268,7 +1315,37 @@ function buildGasGiantNode(gasGiant, idx, context) {
       { ageGyr: starAgeGyr },
     );
     node.renderModel = node.starVisual ? "brownDwarfStar" : "gasGiant";
+    node.gasProfile = null;
     parentOverride = null;
+  }
+  const visualAppearance =
+    gasGiant.appearance && typeof gasGiant.appearance === "object" ? gasGiant.appearance : null;
+  const planetaryVisualDescriptor = resolvePlanetaryVisualDescriptor({
+    body: {
+      ...gasGiant,
+      id: node.id,
+      visualSubtypeKey: node.visualSubtypeKey,
+    },
+    solvedBody: subtypeModel,
+    visualMode: visualAppearance?.visualMode,
+    visualOverrides: visualAppearance?.visualOverrides,
+    renderFamily: "gas",
+    renderModel: node.renderModel,
+    gasProfile: node.gasProfile,
+    ringAppearance: node.ringAppearance,
+    styleId: node.style,
+  });
+  node.visualDescriptor = planetaryVisualDescriptor;
+  if (planetaryVisualDescriptor.overrideSignature) {
+    node.gasProfile = planetaryVisualDescriptor.gasProfile || node.gasProfile;
+    node.ringAppearance = planetaryVisualDescriptor.ringAppearance;
+    node.style = planetaryVisualDescriptor.styleId || node.style;
+    if (typeof node.ringAppearance?.enabled === "boolean") {
+      node.rings = node.ringAppearance.enabled;
+    }
+    node.visualOverrideSignature = planetaryVisualDescriptor.overrideSignature;
+    node.visualOverrideCount = planetaryVisualDescriptor.visualOverrideCount;
+    node.visualRenderSignature = planetaryVisualDescriptor.renderSignature;
   }
   node.moons = moons
     .filter((moon) => moon.planetId === node.id)

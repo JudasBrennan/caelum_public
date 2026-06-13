@@ -18,6 +18,11 @@ import {
   syncMoonParentAliases,
   syncUnifiedPlanetaryBodies,
 } from "./compat/planetaryBodyCompatibility.js";
+import {
+  normalizeVisualMode,
+  normalizeVisualOverrides,
+  stripEmptyVisualOverrides,
+} from "../planetaryVisual/overrides.js";
 
 export {
   ensureCanonicalPlanetaryBodyStorage,
@@ -93,6 +98,10 @@ function normalizeOptionalScalar(value) {
   return normalized || null;
 }
 
+function normalizeAppearanceString(value) {
+  return String(value ?? "").trim();
+}
+
 function normalizeOptionalFlag(value) {
   if (value == null || value === "") return null;
   if (typeof value === "boolean") return value;
@@ -158,6 +167,116 @@ function isPlanetaryBodyLike(value) {
   );
 }
 
+export function normalizePlanetaryBodyAppearance(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const out = {};
+  for (const field of ["rockyRecipeId", "giantRecipeId", "styleId"]) {
+    if (hasOwnField(raw, field)) out[field] = normalizeAppearanceString(raw[field]);
+  }
+  if (hasOwnField(raw, "visualMode")) out.visualMode = normalizeVisualMode(raw.visualMode);
+  if (hasOwnField(raw, "visualOverrides")) {
+    const visualOverrides = stripEmptyVisualOverrides(
+      normalizeVisualOverrides(raw.visualOverrides),
+    );
+    if (visualOverrides) out.visualOverrides = visualOverrides;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function mergeVisualOverridePatch(baseOverrides, patchOverrides) {
+  if (patchOverrides == null) return null;
+  if (
+    !baseOverrides ||
+    typeof baseOverrides !== "object" ||
+    Array.isArray(baseOverrides) ||
+    typeof patchOverrides !== "object" ||
+    Array.isArray(patchOverrides)
+  ) {
+    return patchOverrides;
+  }
+  const out = { ...baseOverrides };
+  for (const [key, value] of Object.entries(patchOverrides)) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      out[key] = mergeVisualOverridePatch(baseOverrides[key], value);
+    } else if (value == null) {
+      delete out[key];
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+export function mergePlanetaryBodyVisualAppearance(appearance, patch) {
+  const current = normalizePlanetaryBodyAppearance(appearance) || {};
+  const source =
+    patch?.appearance && typeof patch.appearance === "object" && !Array.isArray(patch.appearance)
+      ? patch.appearance
+      : patch && typeof patch === "object" && !Array.isArray(patch)
+        ? patch
+        : {};
+  const next = { ...current };
+  for (const field of ["rockyRecipeId", "giantRecipeId", "styleId"]) {
+    if (hasOwnField(source, field)) next[field] = normalizeAppearanceString(source[field]);
+  }
+  if (hasOwnField(source, "visualMode")) next.visualMode = normalizeVisualMode(source.visualMode);
+  if (hasOwnField(source, "visualOverrides")) {
+    const merged = mergeVisualOverridePatch(current.visualOverrides, source.visualOverrides);
+    const visualOverrides = stripEmptyVisualOverrides(normalizeVisualOverrides(merged));
+    if (visualOverrides) next.visualOverrides = visualOverrides;
+    else delete next.visualOverrides;
+  }
+  return normalizePlanetaryBodyAppearance(next);
+}
+
+function deleteVisualOverridePath(overrides, path) {
+  const parts = String(path || "")
+    .split(".")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.length || !overrides || typeof overrides !== "object" || Array.isArray(overrides)) {
+    return overrides;
+  }
+  const out = JSON.parse(JSON.stringify(overrides));
+  let cursor = out;
+  for (let idx = 0; idx < parts.length - 1; idx += 1) {
+    cursor = cursor?.[parts[idx]];
+    if (!cursor || typeof cursor !== "object" || Array.isArray(cursor)) return out;
+  }
+  delete cursor[parts[parts.length - 1]];
+  return out;
+}
+
+export function resetPlanetaryBodyVisualAppearance(appearance, scope = "all") {
+  const current = normalizePlanetaryBodyAppearance(appearance) || {};
+  const normalizedScope = String(scope || "all").trim() || "all";
+  const next = { ...current };
+  if (["all", "visual", "appearance"].includes(normalizedScope)) {
+    delete next.visualOverrides;
+    next.visualMode = "auto";
+    return normalizePlanetaryBodyAppearance(next);
+  }
+  if (normalizedScope === "mode") {
+    next.visualMode = "auto";
+    return normalizePlanetaryBodyAppearance(next);
+  }
+  if (normalizedScope === "overrides") {
+    delete next.visualOverrides;
+    if (next.visualMode === "custom" || next.visualMode === "mixed") next.visualMode = "auto";
+    return normalizePlanetaryBodyAppearance(next);
+  }
+  const visualOverrides = stripEmptyVisualOverrides(
+    normalizeVisualOverrides(deleteVisualOverridePath(next.visualOverrides, normalizedScope)),
+  );
+  if (visualOverrides) {
+    next.visualOverrides = visualOverrides;
+  } else {
+    delete next.visualOverrides;
+    if (next.visualMode === "custom" || next.visualMode === "mixed") next.visualMode = "auto";
+  }
+  return normalizePlanetaryBodyAppearance(next);
+}
+
 function bodyOrbitAu(body) {
   return finiteOrDefault(body?.orbit?.semiMajorAxisAu, 0);
 }
@@ -200,14 +319,16 @@ function moonParentKindForBody(body) {
 
 export function normalizePlanetaryBody(raw, idx = 1, options = {}) {
   if (isPlanetaryBodyLike(raw)) {
+    const { appearance: _appearance, ...rawBody } = raw;
     const id = normalizeId(raw.id, `body${idx}`);
     const legacyKind = raw.legacyKind === "gasGiant" ? "gasGiant" : "rocky";
     const companionClass =
       raw.giant?.companionClass || raw.classificationSeed?.companionClass || "gasGiant";
     const isSubstellar = legacyKind === "gasGiant" && companionClass === "brownDwarf";
     const selectorType = legacyKind === "gasGiant" ? "gasGiant" : "planet";
+    const appearance = normalizePlanetaryBodyAppearance(_appearance);
     return {
-      ...raw,
+      ...rawBody,
       id,
       bodyType: "planetaryBody",
       legacyKind,
@@ -259,6 +380,7 @@ export function normalizePlanetaryBody(raw, idx = 1, options = {}) {
         legacyKind,
         ...(raw.classificationSeed || {}),
       },
+      ...(appearance ? { appearance } : {}),
       legacyInputs: clonePlainObject(raw.legacyInputs),
     };
   }

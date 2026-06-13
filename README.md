@@ -1,4 +1,4 @@
-# WorldSmith Web 2.5.0
+# WorldSmith Web 2.6.0 Beta
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -6,6 +6,9 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Planet visuals can now be customized from the Planet page or Visualizer with draft-safe previews, presets, sparse overrides, seeded procedural variation, locks, and reset/randomize controls.
+- The visual editor keeps science-derived auto visuals as the default while letting custom appearances persist through save, import/export, snapshots, the Visualizer, Apparent Size, and system posters.
+- Visual editor color controls now stage native color-picker changes until Apply, keep compact swatches and hex fields aligned, and keep lock controls visible in dense rows.
 - Star, Moon, Planet, and Calendar authoring now use compact workflow summaries, clearer first-screen context, and progressively disclosed output sections so dense pages are easier to scan.
 - Star and Moon outputs now lead with plain-language Result Summaries before deeper KPI detail.
 - Apparent Size and Brightness now prevents very bright night-side planets from being mislabeled as visible "Day and night" when their elongation makes daytime viewing impossible.

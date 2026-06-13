@@ -471,13 +471,16 @@ function arcLabelPos(cx, cy, radius, targetY) {
 
 function bodyKey(body) {
   const subtypeKey = String(body?.visualSubtypeKey || "").trim();
+  const overrideKey = String(body?.visualOverrideSignature || "").trim();
+  const renderKey = String(body?.visualRenderSignature || "").trim();
+  const visualKey = `${subtypeKey}:${overrideKey}:${renderKey}`;
   if (isBrownDwarfRenderBody(body)) {
-    return `brown-dwarf:${body.id || ""}:${subtypeKey}:${starKey(body.starVisual)}`;
+    return `brown-dwarf:${body.id || ""}:${visualKey}:${starKey(body.starVisual)}`;
   }
   if (body.type === "gas" || body.renderFamily === "volatile") {
-    return `gas:${body.id || ""}:${body.style || "jupiter"}:${subtypeKey}:${body.rings ? 1 : 0}:${ringAppearanceKey(body.ringAppearance)}`;
+    return `gas:${body.id || ""}:${body.style || "jupiter"}:${visualKey}:${body.rings ? 1 : 0}:${JSON.stringify(body.gasProfile || {})}:${ringAppearanceKey(body.ringAppearance)}`;
   }
-  return `rocky:${subtypeKey}:${JSON.stringify(body.visualProfile || {})}:${ringAppearanceKey(body.ringAppearance)}`;
+  return `rocky:${visualKey}:${JSON.stringify(body.visualProfile || {})}:${ringAppearanceKey(body.ringAppearance)}`;
 }
 
 function moonKey(m) {
@@ -526,7 +529,11 @@ function posterBodyTextureModel(body) {
       ringStyleId: body.ringAppearance?.ringStyleId,
       ringAppearance: body.ringAppearance,
       gasCalc: body.gasCalc,
+      gasProfile: body.gasProfile || body.visualDescriptor?.gasProfile || null,
       visualSubtypeKey: body.visualSubtypeKey || "",
+      visualOverrideSignature: body.visualOverrideSignature || "",
+      visualRenderSignature: body.visualRenderSignature || "",
+      visualDescriptor: body.visualDescriptor || null,
     };
   }
   return {
@@ -535,6 +542,9 @@ function posterBodyTextureModel(body) {
     ringAppearance: body.ringAppearance,
     recipeId: body.recipeId || body.visualProfile?.recipeId || "",
     visualSubtypeKey: body.visualSubtypeKey || "",
+    visualOverrideSignature: body.visualOverrideSignature || "",
+    visualRenderSignature: body.visualRenderSignature || "",
+    visualDescriptor: body.visualDescriptor || null,
   };
 }
 

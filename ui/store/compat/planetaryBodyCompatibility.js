@@ -1,6 +1,10 @@
 import { classifyPlanetaryBody } from "../../../engine/planetaryClassification.js";
 import { normalizeGasGiant } from "../gasGiantModel.js";
-import { PLANETARY_BODY_STORAGE_VERSION, normalizePlanetaryBody } from "../planetaryBodyModel.js";
+import {
+  PLANETARY_BODY_STORAGE_VERSION,
+  normalizePlanetaryBody,
+  normalizePlanetaryBodyAppearance,
+} from "../planetaryBodyModel.js";
 
 const EARTH_MASS_PER_MJUP = 317.83;
 const JUPITER_RADIUS_KM = 69911;
@@ -10,6 +14,12 @@ const RJ_PER_RE = JUPITER_RADIUS_KM / EARTH_RADIUS_KM;
 function clonePlainObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return { ...value };
+}
+
+function normalizeProjectedVisualState(appearance) {
+  const normalized = normalizePlanetaryBodyAppearance(appearance);
+  if (!normalized?.visualMode && !normalized?.visualOverrides) return null;
+  return normalized;
 }
 
 function hasOwnField(value, key) {
@@ -442,9 +452,10 @@ export function planetFromRockyEntry(planet, idx = 1, options = {}) {
       k40Abundance: finiteOrNull(inputs.k40Abundance),
     },
     appearance: {
-      rockyRecipeId: String(inputs.appearanceRecipeId || ""),
-      giantRecipeId: "",
-      styleId: String(inputs.appearanceRecipeId || ""),
+      ...(normalizePlanetaryBodyAppearance(raw.appearance) || {}),
+      rockyRecipeId: String(inputs.appearanceRecipeId || raw.appearance?.rockyRecipeId || ""),
+      giantRecipeId: String(raw.appearance?.giantRecipeId || ""),
+      styleId: String(inputs.appearanceRecipeId || raw.appearance?.styleId || ""),
     },
     rings: {
       mode: inputs.ringMode || "auto",
@@ -525,9 +536,10 @@ export function planetFromGasGiantEntry(giant, idx = 1, options = {}) {
       companionClass,
     },
     appearance: {
-      rockyRecipeId: "",
-      giantRecipeId: normalized.appearanceRecipeId || "",
-      styleId: normalized.style || "",
+      ...(normalizePlanetaryBodyAppearance(giant?.appearance) || {}),
+      rockyRecipeId: String(giant?.appearance?.rockyRecipeId || ""),
+      giantRecipeId: normalized.appearanceRecipeId || giant?.appearance?.giantRecipeId || "",
+      styleId: normalized.style || giant?.appearance?.styleId || "",
     },
     rings: {
       mode: normalized.ringMode || "auto",
@@ -749,6 +761,8 @@ export function rockyEntryFromPlanetaryBody(body, idx = 1) {
     slotIndex: normalizeSlotIndex(normalized.slotIndex),
     inputs,
   };
+  const appearance = normalizeProjectedVisualState(normalized.appearance);
+  if (appearance) entry.appearance = appearance;
   const source = normalized.legacy?.source || {};
   if (Object.prototype.hasOwnProperty.call(source, "locked") || normalized.locked) {
     entry.locked = Boolean(normalized.locked);
@@ -825,6 +839,8 @@ export function gasGiantEntryFromPlanetaryBody(body, idx = 1) {
       normalized.orbit?.longitudeOfPeriapsisDeg ?? legacyInputs.longitudeOfPeriapsisDeg,
     axialTiltDeg: normalized.rotation?.axialTiltDeg ?? legacyInputs.axialTiltDeg,
   });
+  const appearance = normalizeProjectedVisualState(normalized.appearance);
+  if (appearance) entry.appearance = appearance;
   const source = normalized.legacy?.source || {};
   if (Object.prototype.hasOwnProperty.call(source, "locked") || normalized.locked) {
     entry.locked = Boolean(normalized.locked);

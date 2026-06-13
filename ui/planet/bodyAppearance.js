@@ -12,7 +12,7 @@ import {
 } from "../../engine/planetaryRings.js";
 import { fmt } from "../../engine/utils.js";
 import { normalizeGiantCompanionClass, regimeDisplayLabel } from "../../engine/substellarRegime.js";
-import { suggestStyles } from "../gasGiantStyles.js";
+import { computeGasGiantVisualProfile, suggestStyles } from "../gasGiantStyles.js";
 import { computeRockyVisualProfile } from "../rockyPlanetStyles.js";
 import {
   normalizeRingStyleId,
@@ -20,6 +20,8 @@ import {
   RING_STYLE_AUTO,
 } from "../ringAppearanceProfiles.js";
 import { applySubtypeVisualHintsToRockyProfile } from "./subtypeVisualHints.js";
+import { buildPlanetaryVisualControlManifest } from "../planetaryVisual/controlManifest.js";
+import { resolvePlanetaryVisualDescriptor } from "../planetaryVisual/descriptor.js";
 import {
   BROWN_DWARF_MASS_MAX_MJUP,
   BROWN_DWARF_MASS_MIN_MJUP,
@@ -30,6 +32,7 @@ import {
   GIANT_COMPANION_CLASS_GAS_GIANT,
   getProjectedPrimaryStar,
   getStarOverrides,
+  listPlanetaryBodies,
   listMoons,
   listSystemGasGiants,
   planetFromGasGiantEntry,
@@ -232,6 +235,36 @@ export function buildGasGiantCalc(
   return unified.legacy.gasGiantModel;
 }
 
+function findAppearanceBody(world, selectorType, entry) {
+  const id = String(entry?.id || "").trim();
+  if (!id) return entry || null;
+  return (
+    listPlanetaryBodies(world).find(
+      (body) =>
+        body?.selector?.type === selectorType &&
+        (String(body?.id || "") === id ||
+          String(body?.selector?.value || "") === id ||
+          String(body?.selector?.value || "").endsWith(`:${id}`)),
+    ) ||
+    entry ||
+    null
+  );
+}
+
+function visualAppearanceFrom(body, fallback) {
+  if (body?.appearance && typeof body.appearance === "object") return body.appearance;
+  if (fallback?.appearance && typeof fallback.appearance === "object") return fallback.appearance;
+  return null;
+}
+
+function ringStateWithVisualDescriptor(ringState, descriptor) {
+  if (typeof descriptor?.ringAppearance?.enabled !== "boolean") return ringState;
+  return {
+    ...(ringState || {}),
+    effectiveEnabled: descriptor.ringAppearance.enabled,
+  };
+}
+
 export function deriveGasGiantAppearanceState(
   world,
   giant,
@@ -239,14 +272,14 @@ export function deriveGasGiantAppearanceState(
   gasGiants = listSystemGasGiants(world),
 ) {
   const gasCalc = buildGasGiantCalc(world, giant, sysModel, gasGiants);
-  const derivedStyle = suggestStyles(gasCalc).primary;
+  let derivedStyle = suggestStyles(gasCalc).primary;
   const science = gasGiantRingScienceFromCalc(gasCalc);
-  const ringState = resolveRingMode({
+  let ringState = resolveRingMode({
     ringMode: giant?.ringMode,
     scienceEnabled: science.scienceEnabled,
     scienceReason: science.scienceReason,
   });
-  const ringAppearance = resolveRingAppearance({
+  let ringAppearance = resolveRingAppearance({
     bodyType: "gasGiant",
     ringState,
     ringStyleId: giant?.ringStyleId,
@@ -254,7 +287,54 @@ export function deriveGasGiantAppearanceState(
     bodyStyleId: derivedStyle,
     seed: giant?.id || giant?.name || derivedStyle,
   });
-  return { gasCalc, derivedStyle, ringState, ringAppearance };
+  let gasProfile = {
+    ...computeGasGiantVisualProfile(gasCalc),
+    styleId: derivedStyle,
+  };
+  const generatedStyle = derivedStyle;
+  const generatedRingState = ringState;
+  const appearanceBody = findAppearanceBody(world, "gasGiant", giant);
+  const visualAppearance = visualAppearanceFrom(appearanceBody, giant);
+  const manifest = buildPlanetaryVisualControlManifest({
+    body: {
+      ...(appearanceBody || giant || {}),
+      renderFamily: "gas",
+      ringAppearance,
+    },
+    classification: gasCalc?.classification || appearanceBody?.classification || null,
+    renderFamily: "gas",
+  });
+  const visualDescriptor = resolvePlanetaryVisualDescriptor({
+    body: appearanceBody || giant,
+    solvedBody: gasCalc,
+    visualMode: visualAppearance?.visualMode,
+    visualOverrides: visualAppearance?.visualOverrides,
+    renderFamily: "gas",
+    renderModel: isBrownDwarfCompanion(gasCalc) ? "brownDwarfStar" : "gasGiant",
+    gasProfile,
+    ringAppearance,
+    styleId: derivedStyle,
+    manifest,
+  });
+  if (visualDescriptor.overrideSignature) {
+    ringAppearance = visualDescriptor.ringAppearance;
+    gasProfile = visualDescriptor.gasProfile || gasProfile;
+    derivedStyle = visualDescriptor.styleId || derivedStyle;
+    ringState = ringStateWithVisualDescriptor(ringState, visualDescriptor);
+  }
+  return {
+    gasCalc,
+    derivedStyle,
+    generatedStyle,
+    ringState,
+    generatedRingState,
+    ringAppearance,
+    gasProfile,
+    visualDescriptor,
+    visualOverrideSignature: visualDescriptor.overrideSignature || "",
+    visualOverrideCount: visualDescriptor.visualOverrideCount || 0,
+    visualRenderSignature: visualDescriptor.renderSignature || "",
+  };
 }
 
 export function buildBrownDwarfCompanionPresentation(world, giant, sysModel, gasCalc) {
@@ -499,23 +579,60 @@ export function buildRockyPlanetModel(world, planet, options = {}) {
 export function deriveRockyPlanetAppearanceState(world, planet) {
   const model = buildRockyPlanetModel(world, planet);
   const ringScience = rockyRingScienceFromDerived(model?.derived);
-  const ringState = resolveRingMode({
+  let ringState = resolveRingMode({
     ringMode: planet?.inputs?.ringMode,
     scienceEnabled: ringScience.scienceEnabled,
     scienceReason: ringScience.scienceReason,
   });
-  const visualProfile = applySubtypeVisualHintsToRockyProfile(
+  let visualProfile = applySubtypeVisualHintsToRockyProfile(
     computeRockyVisualProfile(model?.derived || {}, planet?.inputs || {}),
     model?.unifiedModel,
   );
-  const ringAppearance = resolveRingAppearance({
+  let ringAppearance = resolveRingAppearance({
     bodyType: "rocky",
     ringState,
     ringStyleId: planet?.inputs?.ringStyleId,
     derived: model?.derived,
     seed: planet?.id || planet?.name || model?.inputs?.name || "rocky-ring",
   });
-  return { model, visualProfile, ringState, ringAppearance };
+  const appearanceBody = findAppearanceBody(world, "planet", planet);
+  const visualAppearance = visualAppearanceFrom(appearanceBody, planet);
+  const manifest = buildPlanetaryVisualControlManifest({
+    body: {
+      ...(appearanceBody || planet || {}),
+      renderFamily: "rocky",
+      ringAppearance,
+    },
+    classification: model?.unifiedModel?.classification || appearanceBody?.classification || null,
+    renderFamily: "rocky",
+  });
+  const visualDescriptor = resolvePlanetaryVisualDescriptor({
+    body: appearanceBody || planet,
+    solvedBody: model?.unifiedModel,
+    visualMode: visualAppearance?.visualMode,
+    visualOverrides: visualAppearance?.visualOverrides,
+    renderFamily: "rocky",
+    renderModel: "",
+    visualProfile,
+    ringAppearance,
+    baseRecipeId: visualProfile?.recipeId || String(planet?.inputs?.appearanceRecipeId || ""),
+    manifest,
+  });
+  if (visualDescriptor.overrideSignature) {
+    visualProfile = visualDescriptor.visualProfile || visualProfile;
+    ringAppearance = visualDescriptor.ringAppearance || ringAppearance;
+    ringState = ringStateWithVisualDescriptor(ringState, visualDescriptor);
+  }
+  return {
+    model,
+    visualProfile,
+    ringState,
+    ringAppearance,
+    visualDescriptor,
+    visualOverrideSignature: visualDescriptor.overrideSignature || "",
+    visualOverrideCount: visualDescriptor.visualOverrideCount || 0,
+    visualRenderSignature: visualDescriptor.renderSignature || "",
+  };
 }
 
 export function formatRockyRingHint(ringState) {

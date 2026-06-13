@@ -38,8 +38,25 @@ export function renderVisualizerFocusSummary({
       className: "viz-focus-summary__subtitle",
       text: summary.subtitle || "",
     }),
-    rows,
   ];
+
+  if (Array.isArray(summary.badges) && summary.badges.length > 0) {
+    children.push(
+      createElement(
+        "div",
+        { className: "viz-focus-summary__badges" },
+        summary.badges.map((badge) =>
+          createElement("span", {
+            className: "viz-focus-summary__badge",
+            attrs: { "data-summary-badge": badge.id || "" },
+            text: badge.label || badge.id || "",
+          }),
+        ),
+      ),
+    );
+  }
+
+  children.push(rows);
 
   if (summary.note) {
     children.push(
@@ -54,7 +71,7 @@ export function renderVisualizerFocusSummary({
     const actionsWrap = createElement("div", { className: "viz-focus-summary__actions" });
     for (const action of summary.actions) {
       const button = createElement("button", {
-        className: "small",
+        className: action.tone === "danger" ? "small danger" : "small",
         attrs: {
           type: "button",
           "data-summary-action": action.id,

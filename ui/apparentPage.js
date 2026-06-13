@@ -449,6 +449,13 @@ export function initApparentPage(mountEl) {
       if (src._derived) b._derived = src._derived;
       if (src._planetInputs) b._planetInputs = src._planetInputs;
       if (src._styleId) b._styleId = src._styleId;
+      if (src._visualProfile) b._visualProfile = src._visualProfile;
+      if (src._gasProfile) b._gasProfile = src._gasProfile;
+      if (src._visualDescriptor) b._visualDescriptor = src._visualDescriptor;
+      if (src._visualSubtypeKey) b._visualSubtypeKey = src._visualSubtypeKey;
+      if (src._visualOverrideSignature) b._visualOverrideSignature = src._visualOverrideSignature;
+      if (src._visualRenderSignature) b._visualRenderSignature = src._visualRenderSignature;
+      if (src.renderFamily) b.renderFamily = src.renderFamily;
       if (src.classLabel) b.classLabel = src.classLabel;
     });
 

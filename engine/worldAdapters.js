@@ -17,10 +17,13 @@ import {
   normalizeGiantCompanionClass,
   regimeDisplayLabel,
 } from "./substellarRegime.js";
-import { suggestStyles } from "../ui/gasGiantStyles.js";
+import { computeGasGiantVisualProfile, suggestStyles } from "../ui/gasGiantStyles.js";
 import { getOortCloudConfig } from "../ui/store/oortCloudModel.js";
 import { computeRockyVisualProfile } from "../ui/rockyPlanetStyles.js";
 import { resolveRingAppearance } from "../ui/ringAppearanceProfiles.js";
+import { buildPlanetaryVisualControlManifest } from "../ui/planetaryVisual/controlManifest.js";
+import { resolvePlanetaryVisualDescriptor } from "../ui/planetaryVisual/descriptor.js";
+import { countActiveVisualOverrides } from "../ui/planetaryVisual/overrides.js";
 import {
   applySubtypeVisualHintsToRockyProfile,
   buildSubtypeVisualDescriptor,
@@ -164,6 +167,10 @@ function orderedCollectionValues(section) {
   const byId = section.byId && typeof section.byId === "object" ? section.byId : {};
   const order = Array.isArray(section.order) ? section.order : Object.keys(byId);
   return order.map((id) => byId[id]).filter(Boolean);
+}
+
+function isObjectRecord(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function toFiniteOrNull(value) {
@@ -404,6 +411,163 @@ function buildDebrisRanges(world, rawWorld, { hostFramesById = null } = {}) {
   ];
 }
 
+function resolveAdapterVisualDescriptor({
+  entry,
+  solvedBody,
+  classification,
+  renderFamily,
+  renderModel = "",
+  visualProfile = null,
+  gasProfile = null,
+  ringAppearance = null,
+  styleId = "",
+  baseRecipeId = "",
+} = {}) {
+  const source = entry?.source || entry || {};
+  const visualAppearance =
+    source?.appearance && typeof source.appearance === "object" ? source.appearance : null;
+  const body = {
+    ...(source || {}),
+    id: entry?.id || source?.id,
+    renderFamily,
+    renderModel,
+    visualSubtypeKey: entry?.visualSubtypeKey || "",
+    ringAppearance,
+  };
+  const manifest = buildPlanetaryVisualControlManifest({
+    body,
+    classification: classification || solvedBody?.classification || entry?.classification || null,
+    renderFamily,
+  });
+  return resolvePlanetaryVisualDescriptor({
+    body,
+    solvedBody,
+    visualMode: visualAppearance?.visualMode,
+    visualOverrides: visualAppearance?.visualOverrides,
+    renderFamily,
+    renderModel,
+    visualProfile,
+    gasProfile,
+    ringAppearance,
+    styleId,
+    baseRecipeId,
+    manifest,
+  });
+}
+
+function visualDescriptorMetadata(descriptor) {
+  return {
+    visualDescriptor: descriptor,
+    ...(descriptor?.overrideSignature
+      ? {
+          visualOverrideSignature: descriptor.overrideSignature,
+          visualOverrideCount: descriptor.visualOverrideCount,
+          visualRenderSignature: descriptor.renderSignature,
+        }
+      : {}),
+  };
+}
+
+function normalizedVisualMode(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
+function collectBodyRecords(collection) {
+  if (!isObjectRecord(collection)) return [];
+  const byId = isObjectRecord(collection.byId) ? collection.byId : {};
+  const orderedIds = Array.isArray(collection.order) ? collection.order : [];
+  const seen = new Set();
+  const records = [];
+  for (const rawId of orderedIds) {
+    const id = String(rawId ?? "");
+    const body = byId[id];
+    if (!isObjectRecord(body)) continue;
+    seen.add(id);
+    records.push(body);
+  }
+  for (const [id, body] of Object.entries(byId)) {
+    if (seen.has(id) || !isObjectRecord(body)) continue;
+    records.push(body);
+  }
+  return records;
+}
+
+function collectVisualAppearanceRecords(world) {
+  const recordsByKey = new Map();
+  const orderedKeys = [];
+  const addRecords = (collection, source) => {
+    for (const body of collectBodyRecords(collection)) {
+      const id = String(body?.id || "");
+      const dedupeKey = id || `${source}:${orderedKeys.length}`;
+      const record = { id, source, appearance: body.appearance };
+      const existing = recordsByKey.get(dedupeKey);
+      if (!existing) {
+        recordsByKey.set(dedupeKey, record);
+        orderedKeys.push(dedupeKey);
+      } else if (
+        !appearanceHasCustomVisuals(existing.appearance) &&
+        appearanceHasCustomVisuals(record.appearance)
+      ) {
+        recordsByKey.set(dedupeKey, record);
+      }
+    }
+  };
+
+  addRecords(world?.planetaryBodies, "planetaryBodies");
+  addRecords(world?.planets, "planets");
+  addRecords(world?.system?.gasGiants, "gasGiants");
+  return orderedKeys.map((key) => recordsByKey.get(key)).filter(Boolean);
+}
+
+function appearanceHasCustomVisuals(appearance) {
+  if (!isObjectRecord(appearance)) return false;
+  const mode = normalizedVisualMode(appearance.visualMode);
+  return (
+    mode === "mixed" ||
+    mode === "custom" ||
+    countActiveVisualOverrides(appearance.visualOverrides) > 0
+  );
+}
+
+function summarizeVisualAppearances(world) {
+  const summary = {
+    customVisualBodies: 0,
+    customVisualOverrides: 0,
+  };
+  for (const record of collectVisualAppearanceRecords(world)) {
+    const appearance = record.appearance;
+    if (!appearanceHasCustomVisuals(appearance)) continue;
+    summary.customVisualBodies += 1;
+    summary.customVisualOverrides += countActiveVisualOverrides(appearance.visualOverrides);
+  }
+  return summary;
+}
+
+function buildVisualImportSummary(world, rawWorld) {
+  const normalized = summarizeVisualAppearances(world);
+  const raw = summarizeVisualAppearances(rawWorld || world);
+  const visualImportWarnings = [];
+  if (
+    raw.customVisualBodies > normalized.customVisualBodies ||
+    raw.customVisualOverrides > normalized.customVisualOverrides
+  ) {
+    visualImportWarnings.push(
+      "Some imported custom visual settings were unsupported and were stripped during migration.",
+    );
+  }
+
+  return {
+    customVisualBodies: normalized.customVisualBodies,
+    customVisualOverrides: normalized.customVisualOverrides,
+    rawCustomVisualBodies: raw.customVisualBodies,
+    rawCustomVisualOverrides: raw.customVisualOverrides,
+    visualImportWarnings,
+  };
+}
+
 /**
  * Build the Import/Export preview summary from a normalized world using the
  * engine snapshot layer. `rawWorld` can be provided to preserve legacy preview
@@ -419,6 +583,7 @@ export function buildImportPreviewSummary(world, { rawWorld = world } = {}) {
   const planets = orderedCollectionValues(world?.planets);
   const gasGiants = Object.values(snapshot.gasGiantsById || {});
   const planetaryBodies = Object.values(snapshot.planetaryBodiesById || {});
+  const visualImportSummary = buildVisualImportSummary(world, rawWorld);
   const planetaryBodyCounts = planetaryBodies.reduce(
     (counts, entry) => {
       const family = String(entry?.classification?.family || "");
@@ -509,6 +674,7 @@ export function buildImportPreviewSummary(world, { rawWorld = world } = {}) {
     volatileBodies: planetaryBodyCounts.volatile,
     giantBodies: planetaryBodyCounts.giant,
     substellarBodies: planetaryBodyCounts.substellar,
+    ...visualImportSummary,
     planetarySubtypeSummary: buildPlanetarySubtypeSummary(planetaryBodies),
     planets: snapshot.meta?.counts?.planets ?? planets.length,
     moons: snapshot.meta?.counts?.moons ?? Object.keys(snapshot.moonsById || {}).length,
@@ -600,16 +766,22 @@ export function buildSystemPosterSnapshotInputs(
       const subtypeSource = entry.unifiedModel || entry;
       const subtypeSummary = buildBodySubtypeSummary(subtypeSource);
       const subtypeVisual = buildSubtypeVisualDescriptor(subtypeSource);
-      const volatileStyle = volatileEntry
+      let volatileStyle = volatileEntry
         ? resolveSubtypeEnvelopeStyle(subtypeSource, "sub-neptune")
         : "";
-      const visualProfile = volatileEntry
+      let visualProfile = volatileEntry
         ? null
         : applySubtypeVisualHintsToRockyProfile(
             computeRockyVisualProfile(entry.model?.derived, entry.source?.inputs),
             subtypeSource,
           );
-      const ringAppearance = resolveRingAppearance({
+      let gasProfile = volatileEntry
+        ? {
+            ...computeGasGiantVisualProfile(entry.model),
+            styleId: volatileStyle,
+          }
+        : null;
+      let ringAppearance = resolveRingAppearance({
         bodyType: volatileEntry ? "gasGiant" : "rocky",
         ringState: {
           ringMode: volatileEntry
@@ -623,6 +795,23 @@ export function buildSystemPosterSnapshotInputs(
         bodyStyleId: volatileEntry ? volatileStyle : undefined,
         seed: entry.id || entry.name,
       });
+      const visualDescriptor = resolveAdapterVisualDescriptor({
+        entry: { ...entry, visualSubtypeKey: subtypeVisual.visualSubtypeKey },
+        solvedBody: subtypeSource,
+        classification: subtypeSource?.classification || entry?.classification || null,
+        renderFamily: volatileEntry ? "volatile" : "rocky",
+        visualProfile,
+        gasProfile,
+        ringAppearance,
+        styleId: volatileStyle,
+        baseRecipeId: visualProfile?.recipeId || subtypeVisual.rockyRecipeId || "",
+      });
+      if (visualDescriptor.overrideSignature) {
+        visualProfile = visualDescriptor.visualProfile || visualProfile;
+        gasProfile = visualDescriptor.gasProfile || gasProfile;
+        ringAppearance = visualDescriptor.ringAppearance || ringAppearance;
+        volatileStyle = visualDescriptor.styleId || volatileStyle;
+      }
       const volatilePhysical = volatileEntry ? entry.model?.physical || {} : {};
       const volatileOrbit = volatileEntry ? entry.model?.orbit || {} : {};
       return {
@@ -645,10 +834,16 @@ export function buildSystemPosterSnapshotInputs(
         subtypeSummary,
         style: volatileStyle,
         visualSubtypeKey: subtypeVisual.visualSubtypeKey,
-        recipeId: visualProfile?.recipeId || subtypeVisual.rockyRecipeId || "",
+        recipeId:
+          visualDescriptor.baseRecipeId ||
+          visualProfile?.recipeId ||
+          subtypeVisual.rockyRecipeId ||
+          "",
         gasCalc: volatileEntry ? entry.model : null,
+        gasProfile,
         visualProfile,
         ringAppearance,
+        ...visualDescriptorMetadata(visualDescriptor),
         source: entry.source,
         model: entry.model,
         unifiedModel: entry.unifiedModel || null,
@@ -668,7 +863,7 @@ export function buildSystemPosterSnapshotInputs(
       const companionClass = resolveGiantCompanionClass(entry.source, entry.model);
       const classLabel = resolveGiantCompanionLabel(entry.source, entry.model);
       const baseStyleId = resolveGiantCompanionStyle(entry.source, entry.model);
-      const styleId =
+      let styleId =
         companionClass === "brownDwarf"
           ? baseStyleId
           : subtypeVisual.envelopeStyleId || baseStyleId;
@@ -678,7 +873,7 @@ export function buildSystemPosterSnapshotInputs(
         gasCalc: entry.model,
         legacyRings: entry.source?.rings,
       });
-      const ringAppearance = resolveRingAppearance({
+      let ringAppearance = resolveRingAppearance({
         bodyType: "gasGiant",
         ringState,
         ringStyleId: entry.source?.ringStyleId,
@@ -686,6 +881,28 @@ export function buildSystemPosterSnapshotInputs(
         bodyStyleId: styleId,
         seed: entry.id || entry.name,
       });
+      let gasProfile = {
+        ...computeGasGiantVisualProfile(entry.model),
+        styleId,
+      };
+      const visualDescriptor = resolveAdapterVisualDescriptor({
+        entry: { ...entry, visualSubtypeKey: subtypeVisual.visualSubtypeKey },
+        solvedBody: entry.unifiedModel || entry.model,
+        classification: entry.unifiedModel?.classification || entry.classification || null,
+        renderFamily: "gas",
+        renderModel: companionClass === "brownDwarf" ? "brownDwarfStar" : "gasGiant",
+        gasProfile,
+        ringAppearance,
+        styleId,
+      });
+      if (visualDescriptor.overrideSignature) {
+        gasProfile = visualDescriptor.gasProfile || gasProfile;
+        ringAppearance = visualDescriptor.ringAppearance || ringAppearance;
+        styleId = visualDescriptor.styleId || styleId;
+        if (typeof ringAppearance?.enabled === "boolean") {
+          ringState.effectiveEnabled = ringAppearance.enabled;
+        }
+      }
       const starVisual = buildBrownDwarfStarVisual(
         {
           name,
@@ -713,6 +930,8 @@ export function buildSystemPosterSnapshotInputs(
         rings: ringState.effectiveEnabled,
         ringAppearance,
         gasCalc: entry.model,
+        gasProfile,
+        ...visualDescriptorMetadata(visualDescriptor),
         source: entry.source,
         unifiedModel: entry.unifiedModel || null,
         subtypeSummary,
@@ -843,6 +1062,36 @@ export function buildApparentSnapshotInputs(
       const hasAtmosphere = volatileEntry ? true : Number(raw.pressureAtm ?? 0) > 0.01;
       const bodyType = classifyBodyType(radiusKm, hasAtmosphere);
       const bondAlbedo = Number(raw.albedoBond ?? 0.3);
+      const subtypeSource = entry.unifiedModel || entry;
+      const subtypeVisual = buildSubtypeVisualDescriptor(subtypeSource);
+      let styleId = volatileEntry ? resolveSubtypeEnvelopeStyle(subtypeSource, "sub-neptune") : "";
+      let visualProfile = volatileEntry
+        ? null
+        : applySubtypeVisualHintsToRockyProfile(
+            computeRockyVisualProfile(entry.model?.derived, raw),
+            subtypeSource,
+          );
+      let gasProfile = volatileEntry
+        ? {
+            ...computeGasGiantVisualProfile(entry.model),
+            styleId,
+          }
+        : null;
+      const visualDescriptor = resolveAdapterVisualDescriptor({
+        entry: { ...entry, visualSubtypeKey: subtypeVisual.visualSubtypeKey },
+        solvedBody: subtypeSource,
+        classification: subtypeSource?.classification || entry?.classification || null,
+        renderFamily: volatileEntry ? "volatile" : "rocky",
+        visualProfile,
+        gasProfile,
+        styleId,
+        baseRecipeId: visualProfile?.recipeId || subtypeVisual.rockyRecipeId || "",
+      });
+      if (visualDescriptor.overrideSignature) {
+        styleId = visualDescriptor.styleId || styleId;
+        visualProfile = visualDescriptor.visualProfile || visualProfile;
+        gasProfile = visualDescriptor.gasProfile || gasProfile;
+      }
 
       return {
         id: `planet:${entry.id}`,
@@ -865,7 +1114,17 @@ export function buildApparentSnapshotInputs(
         skyHorizonHex: volatileEntry ? null : derived.skyColourHorizonHex || null,
         _derived: derived,
         _planetInputs: raw,
-        _styleId: volatileEntry ? "sub-neptune" : undefined,
+        _styleId: volatileEntry ? styleId || "sub-neptune" : undefined,
+        _visualProfile: visualProfile,
+        _gasProfile: gasProfile,
+        _visualSubtypeKey: subtypeVisual.visualSubtypeKey,
+        _visualDescriptor: visualDescriptor,
+        ...(visualDescriptor.overrideSignature
+          ? {
+              _visualOverrideSignature: visualDescriptor.overrideSignature,
+              _visualRenderSignature: visualDescriptor.renderSignature,
+            }
+          : {}),
       };
     })
     .filter((entry) => Number.isFinite(entry.orbitAu) && entry.orbitAu > 0);
@@ -875,8 +1134,25 @@ export function buildApparentSnapshotInputs(
       const raw = entry.source || {};
       const companionClass = resolveGiantCompanionClass(raw, entry.model);
       const classLabel = resolveGiantCompanionLabel(raw, entry.model);
-      const styleId = resolveGiantCompanionStyle(raw, entry.model);
+      let styleId = resolveGiantCompanionStyle(raw, entry.model);
       const name = resolveGiantCompanionName(raw, entry.model);
+      let gasProfile = {
+        ...computeGasGiantVisualProfile(entry.model),
+        styleId,
+      };
+      const visualDescriptor = resolveAdapterVisualDescriptor({
+        entry,
+        solvedBody: entry.unifiedModel || entry.model,
+        classification: entry.unifiedModel?.classification || entry.classification || null,
+        renderFamily: "gas",
+        renderModel: companionClass === "brownDwarf" ? "brownDwarfStar" : "gasGiant",
+        gasProfile,
+        styleId,
+      });
+      if (visualDescriptor.overrideSignature) {
+        styleId = visualDescriptor.styleId || styleId;
+        gasProfile = visualDescriptor.gasProfile || gasProfile;
+      }
       const starVisual = buildBrownDwarfStarVisual(
         {
           name,
@@ -902,6 +1178,14 @@ export function buildApparentSnapshotInputs(
         renderModel: starVisual ? "brownDwarfStar" : "gasGiant",
         starVisual,
         _styleId: styleId,
+        _gasProfile: gasProfile,
+        _visualDescriptor: visualDescriptor,
+        ...(visualDescriptor.overrideSignature
+          ? {
+              _visualOverrideSignature: visualDescriptor.overrideSignature,
+              _visualRenderSignature: visualDescriptor.renderSignature,
+            }
+          : {}),
         _companionClass: companionClass,
       };
     })

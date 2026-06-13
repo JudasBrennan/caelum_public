@@ -4,6 +4,69 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.6.0 Beta - 2026-06-13
+
+### Planetary Visual Editor
+
+**Added canonical custom planetary appearance editing with draft-safe previews,
+visual presets, sparse overrides, and Visualizer integration**
+(ui/planetaryVisual/\*, ui/planet/bodyAppearance.js, ui/planetPage.js,
+ui/visualizer/visualEditorEntry.js, ui/visualizer/focusSummary.js,
+ui/visualizer/focusSummaryPanel.js, ui/visualizer/snapshotModel.js,
+ui/visualizer/bodyMeshService.js, ui/visualizerPage.js,
+ui/celestialComposer.js, ui/apparentPage.js, ui/apparentSkyNativeThree.js,
+ui/systemPosterNativeThree.js, ui/store/planetaryBodyModel.js,
+ui/store/importValidation.js, ui/store/compat/planetaryBodyCompatibility.js,
+engine/worldAdapters.js, styles.css, tests/planetaryVisual\*.test.js,
+tests/visualizerVisualEditorEntry.test.js,
+tests/visualizerSnapshotModel.test.js,
+tests/visualizerBodyMeshService.test.js, tests/browser/smoke.spec.js)
+
+Planetary bodies now support visual-only appearance customization through
+canonical `appearance.visualMode` and sparse `appearance.visualOverrides`
+fields. Auto remains the default, while custom and mixed modes layer user
+choices on top of the generated science-derived appearance without mutating the
+underlying physical model.
+
+The Planet page and Visualizer focus panel can open a draft-safe visual editor
+with a sticky live preview, Auto/Draft comparison, compatible presets,
+section-level reset/randomize actions, per-field locks, and a custom generation
+seed. Supported controls cover rocky/volatile surface palettes, land/ocean/ice
+coverage, atmosphere and cloud styling, giant/brown-dwarf bands and storms,
+ring appearance, and material glow/emissive treatments where applicable.
+
+The editor color controls were tightened after usability review: native color
+picker changes now stage locally until the user chooses Apply, swatches remain
+quick-select actions, hex fields stay editable, the planet preview remains
+static while controls scroll, and color rows now keep their lock checkboxes
+visible and aligned in the compact action group.
+
+Custom visual data now survives save, import, export, browser storage
+migration, snapshots, Visualizer rendering, apparent-size rendering, and system
+poster rendering through the same canonical planetary body model. Invalid or
+oversized visual override payloads are stripped or rejected during import
+validation.
+
+**Tests and checks** (tests/planetaryVisualControlManifest.test.js,
+tests/planetaryVisualEditor.ui.test.js,
+tests/planetaryVisualEditorControls.ui.test.js,
+tests/planetaryVisualEditorState.test.js,
+tests/planetaryVisualOverrides.test.js,
+tests/planetaryVisualPhase0.test.js,
+tests/planetaryVisualPresets.test.js,
+tests/visualizerVisualEditorEntry.test.js,
+tests/visualizerSnapshotModel.test.js,
+tests/visualizerBodyMeshService.test.js, tests/importExport.test.js,
+tests/importSafety.test.js, tests/worldStorage.test.js,
+tests/browser/smoke.spec.js)
+
+- Added auto-visual stability fixtures, override resolver coverage, editor
+  draft/save/cancel tests, preset/randomize/lock regressions, import/export
+  persistence coverage, and Visualizer entry/rendering coverage.
+- Added browser smoke coverage for opening the visual editor from the
+  Visualizer focus panel, preventing control overflow, keeping color rows
+  compact, and ensuring color action locks remain visible and aligned.
+
 ### Exotic Planetary Subtypes
 
 **Added conservative subtype classification, authoring evidence, downstream page

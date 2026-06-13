@@ -1,3 +1,8 @@
+import { countActiveVisualOverrides, normalizeVisualMode } from "../planetaryVisual/overrides.js";
+
+export const VISUALIZER_APPEARANCE_ACTION_EDIT = "edit-appearance";
+export const VISUALIZER_APPEARANCE_ACTION_RESET = "reset-appearance";
+
 function fmtNumber(value, digits = 2) {
   const num = Number(value);
   if (!Number.isFinite(num)) return "-";
@@ -37,6 +42,56 @@ function subtypeSummaryLine(body) {
     "";
   const value = labels.length ? labels.join(", ") : primaryLabel;
   return value ? { label: labels.length > 1 ? "Subtypes" : "Subtype", value } : null;
+}
+
+function pluralizeOverrideCount(count) {
+  return `${count} active override${count === 1 ? "" : "s"}`;
+}
+
+function getVisualOverrideCount(body) {
+  const explicit = Number(body?.visualOverrideCount ?? body?.visualDescriptor?.visualOverrideCount);
+  if (Number.isFinite(explicit) && explicit >= 0) return explicit;
+  return countActiveVisualOverrides(
+    body?.visualDescriptor?.normalizedVisualOverrides ||
+      body?.visualDescriptor?.appliedVisualOverrides ||
+      body?.appearance?.visualOverrides,
+  );
+}
+
+function getVisualMode(body) {
+  return normalizeVisualMode(body?.visualDescriptor?.sourceMode || body?.appearance?.visualMode);
+}
+
+function withVisualAppearanceSummary(summary, body, kind) {
+  const overrideCount = getVisualOverrideCount(body);
+  const visualMode = getVisualMode(body);
+  const custom =
+    overrideCount > 0 ||
+    !!body?.visualOverrideSignature ||
+    visualMode === "custom" ||
+    visualMode === "mixed";
+  const badges = custom
+    ? [
+        { id: "custom-appearance", label: "Custom appearance" },
+        { id: "visual-override-count", label: pluralizeOverrideCount(overrideCount) },
+      ]
+    : [];
+  const actions = [
+    { id: VISUALIZER_APPEARANCE_ACTION_EDIT, label: "Edit appearance" },
+    ...(custom
+      ? [{ id: VISUALIZER_APPEARANCE_ACTION_RESET, label: "Reset to auto", tone: "danger" }]
+      : []),
+  ];
+  return {
+    ...summary,
+    bodyId: body?.id || "",
+    bodyKind: kind,
+    hasCustomAppearance: custom,
+    visualMode,
+    visualOverrideCount: overrideCount,
+    badges,
+    actions,
+  };
 }
 
 function summarizeMoon(parent, moon) {
@@ -361,11 +416,13 @@ export function getFocusedBodySummary(snapshot, kind, id) {
   if (kind === "star") return summarizeStar(snapshot);
   if (kind === "planet") {
     const planet = (snapshot.planetNodes || []).find((entry) => entry?.id === id);
-    return planet ? summarizePlanet(planet) : null;
+    return planet ? withVisualAppearanceSummary(summarizePlanet(planet), planet, kind) : null;
   }
   if (kind === "gasGiant") {
     const gasGiant = (snapshot.gasGiants || []).find((entry) => entry?.id === id);
-    return gasGiant ? summarizeGasGiant(gasGiant) : null;
+    return gasGiant
+      ? withVisualAppearanceSummary(summarizeGasGiant(gasGiant), gasGiant, kind)
+      : null;
   }
   if (kind === "moon") {
     const result = findMoon(snapshot, id);

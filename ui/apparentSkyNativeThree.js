@@ -23,6 +23,13 @@ function isBrownDwarfBodyEntry(entry) {
   return entry?.renderModel === "brownDwarfStar" && !!entry?.starVisual;
 }
 
+function isGasLikeBodyEntry(entry) {
+  if (entry?.renderFamily === "volatile" || entry?.kind === "gas") return true;
+  return String(entry?.classLabel || "")
+    .toLowerCase()
+    .includes("gas");
+}
+
 function clampDpr(dpr) {
   const n = Number(dpr);
   if (!Number.isFinite(n) || n <= 0) return 1;
@@ -131,16 +138,14 @@ function snapKey(obj) {
       Math.round(Number(b.starVisual?.starAgeGyr) * 100 || 0),
     ].join(":");
   }
-  if (
-    String(b.classLabel || "")
-      .toLowerCase()
-      .includes("gas")
-  ) {
-    return `gas:${b._styleId || "jupiter"}`;
+  if (isGasLikeBodyEntry(b)) {
+    return `gas:${b._styleId || "jupiter"}:${b._visualOverrideSignature || ""}:${b._visualRenderSignature || ""}:${JSON.stringify(b._gasProfile || {})}`;
   }
-  const vp = b._derived
-    ? JSON.stringify(computeRockyVisualProfile(b._derived, b._planetInputs || {}))
-    : "";
+  const vp = JSON.stringify(
+    b._visualProfile ||
+      (b._derived ? computeRockyVisualProfile(b._derived, b._planetInputs || {}) : null) ||
+      {},
+  );
   return `rocky:${b.id || ""}:${vp}`;
 }
 
@@ -158,16 +163,23 @@ async function ensureBodySnap(obj) {
     const starCanvas = ensureStarSnap(b.starVisual?.starColourHex, b.starVisual);
     SNAP_CACHE.set(key, starCanvas);
     return starCanvas;
-  } else if (
-    String(b.classLabel || "")
-      .toLowerCase()
-      .includes("gas")
-  ) {
-    model = { bodyType: "gasGiant", styleId: b._styleId || "jupiter" };
+  } else if (isGasLikeBodyEntry(b)) {
+    model = {
+      bodyType: "gasGiant",
+      styleId: b._styleId || "jupiter",
+      gasProfile: b._gasProfile || null,
+      visualDescriptor: b._visualDescriptor || null,
+      visualOverrideSignature: b._visualOverrideSignature || "",
+      visualRenderSignature: b._visualRenderSignature || "",
+    };
   } else {
     model = {
       bodyType: "rocky",
-      visualProfile: computeRockyVisualProfile(b._derived || {}, b._planetInputs || {}),
+      visualProfile:
+        b._visualProfile || computeRockyVisualProfile(b._derived || {}, b._planetInputs || {}),
+      visualDescriptor: b._visualDescriptor || null,
+      visualOverrideSignature: b._visualOverrideSignature || "",
+      visualRenderSignature: b._visualRenderSignature || "",
     };
   }
   await renderCelestialRecipeSnapshot(canvas, model);
