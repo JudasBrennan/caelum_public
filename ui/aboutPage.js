@@ -21,7 +21,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.7.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.7.1</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, calendars, and exotic planetary subtype evidence. Explore your
@@ -411,6 +411,14 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.7.1",
+      "(from 2.7.0)",
+      [
+        "<b>Splash Startup Resilience</b> &mdash; The splash screen now shows Enter WorldSmith immediately, starts the main app behind the overlay, and falls back cleanly if the decorative 3D planet preview hangs in a browser-specific way.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.7.0",
       "(from 2.6.0 Beta)",
       [
@@ -420,7 +428,7 @@ function changelogHTML() {
         "<b>Mean Ocean Depth</b> &mdash; Rocky planets with substantial accessible surface liquid now show mean ocean depth and seafloor pressure context even when they are not classified as exotic ocean worlds.",
         "<b>Science Reference</b> &mdash; The Science and Maths page now includes a WorldSmith-tailored ocean-floor water phase guide with the model boundary, example cases, and uncertainty notes.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.6.0 BETA",

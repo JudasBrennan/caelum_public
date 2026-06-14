@@ -1,4 +1,4 @@
-# WorldSmith Web 2.7.0
+# WorldSmith Web 2.7.1
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -7,6 +7,7 @@ This project is based on WorldSmith 8.0 by Artifexian.
 ## Current Highlights
 
 - Import/export now separates current-world actions, backup management, import validation, starter worlds, and danger-zone resets, with clearer preview, restore, backup-only import, and destructive cleanup flows.
+- The splash screen now lets users enter immediately and no longer blocks app startup if the decorative 3D planet preview hangs in a browser-specific way.
 - Backup previews now explain why a preview cannot be built, and Sol, Realmspace, and Arrakis starter worlds are normalized through the current import engine before use.
 - Ocean-world high-pressure ice warnings now compare local seafloor pressure and estimated bottom-ocean temperature against the water liquidus boundary, with pressure-band fallback only when temperature is unconstrained.
 - Rocky planets with substantial surface liquid now surface mean ocean depth and seafloor pressure context even when they are not exotic ocean worlds.

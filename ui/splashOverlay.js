@@ -259,7 +259,7 @@ export function showSplashOverlay(options = {}) {
         <canvas class="splash__canvas"></canvas>
         <h1 class="splash__title">WorldSmith</h1>
         <div class="splash__loading">Loading planet\u2026</div>
-        <button class="splash__enter primary" hidden>Enter WorldSmith</button>
+        <button class="splash__enter primary">Enter WorldSmith</button>
       </div>
     `;
 
