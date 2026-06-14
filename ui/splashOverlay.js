@@ -5,6 +5,15 @@
 import { getDracoDecoderPath, loadThreeSplashDeps } from "./threeBridge2d.js";
 
 const SEA_LEVEL = 5.0;
+const SPLASH_ENTER_REVEAL_MS = 1500;
+const SPLASH_LOAD_TIMEOUT_MS = 8000;
+const SPLASH_DISMISS_FALLBACK_MS = 600;
+
+let splashDepsLoader = loadThreeSplashDeps;
+
+export function __setSplashDepsLoaderForTests(loader = null) {
+  splashDepsLoader = typeof loader === "function" ? loader : loadThreeSplashDeps;
+}
 
 /* ── Biome colouring from vertex position ──────────────── */
 
@@ -228,7 +237,17 @@ function buildScene(canvas, THREE, GLTFLoader, DRACOLoader, OrbitControls) {
   return { loadPromise, resize, animate, dispose };
 }
 
-export function showSplashOverlay() {
+export function showSplashOverlay(options = {}) {
+  const revealEnterAfterMs = Number.isFinite(options.revealEnterAfterMs)
+    ? Math.max(0, options.revealEnterAfterMs)
+    : SPLASH_ENTER_REVEAL_MS;
+  const loadTimeoutMs = Number.isFinite(options.loadTimeoutMs)
+    ? Math.max(0, options.loadTimeoutMs)
+    : SPLASH_LOAD_TIMEOUT_MS;
+  const dismissFallbackMs = Number.isFinite(options.dismissFallbackMs)
+    ? Math.max(0, options.dismissFallbackMs)
+    : SPLASH_DISMISS_FALLBACK_MS;
+
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "splash-overlay";
@@ -252,6 +271,39 @@ export function showSplashOverlay() {
 
     let sceneHandle = null;
     let cleaned = false;
+    let previewSettled = false;
+
+    function revealEnter() {
+      if (cleaned) return;
+      enterBtn.hidden = false;
+    }
+
+    function clearFallbackTimers() {
+      window.clearTimeout(revealTimer);
+      window.clearTimeout(timeoutTimer);
+    }
+
+    function markPreviewUnavailable(err) {
+      if (cleaned || previewSettled) return;
+      previewSettled = true;
+      if (err) console.error("[WorldSmith] Splash 3D load failed:", err);
+      loadingEl.textContent = "3D preview unavailable";
+      revealEnter();
+      window.clearTimeout(timeoutTimer);
+    }
+
+    function markPreviewReady() {
+      if (cleaned || previewSettled) return;
+      previewSettled = true;
+      loadingEl.style.display = "none";
+      revealEnter();
+      clearFallbackTimers();
+    }
+
+    const revealTimer = window.setTimeout(revealEnter, revealEnterAfterMs);
+    const timeoutTimer = window.setTimeout(() => {
+      markPreviewUnavailable(new Error("Splash 3D preview timed out."));
+    }, loadTimeoutMs);
 
     function dismiss() {
       if (cleaned) return;
@@ -259,13 +311,14 @@ export function showSplashOverlay() {
       const cleanup = () => {
         if (cleaned) return;
         cleaned = true;
+        clearFallbackTimers();
         if (sceneHandle) sceneHandle.dispose();
         window.removeEventListener("resize", onResize);
         overlay.remove();
         resolve();
       };
       overlay.addEventListener("transitionend", cleanup, { once: true });
-      setTimeout(cleanup, 600);
+      window.setTimeout(cleanup, dismissFallbackMs);
     }
 
     function onResize() {
@@ -275,9 +328,10 @@ export function showSplashOverlay() {
     enterBtn.addEventListener("click", dismiss);
     window.addEventListener("resize", onResize);
 
-    loadThreeSplashDeps()
+    Promise.resolve()
+      .then(() => splashDepsLoader())
       .then(([THREE, gltfMod, dracoMod, orbitMod]) => {
-        if (cleaned) return;
+        if (cleaned || previewSettled) return;
         sceneHandle = buildScene(
           canvas,
           THREE,
@@ -289,15 +343,7 @@ export function showSplashOverlay() {
         sceneHandle.animate();
         return sceneHandle.loadPromise;
       })
-      .then(() => {
-        if (cleaned) return;
-        loadingEl.style.display = "none";
-        enterBtn.hidden = false;
-      })
-      .catch((err) => {
-        console.error("[WorldSmith] Splash 3D load failed:", err);
-        loadingEl.textContent = "3D preview unavailable";
-        enterBtn.hidden = false;
-      });
+      .then(markPreviewReady)
+      .catch(markPreviewUnavailable);
   });
 }
