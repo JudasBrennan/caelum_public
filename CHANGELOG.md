@@ -4,6 +4,8 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.7.0 - 2026-06-14
+
 ### Splash Screen Resilience
 
 **Prevented the 3D splash preview from trapping users on browser-specific loader failures**
@@ -13,8 +15,6 @@ The splash screen now reveals the Enter button after a short delay and falls
 back to "3D preview unavailable" if the decorative planet preview hangs. This
 keeps WorldSmith usable in browsers where the GLTF/Draco preview path or an
 injected script fails without affecting the main app startup path.
-
-## 2.7.0 - 2026-06-14
 
 ### Import/Export Storage UX
 
