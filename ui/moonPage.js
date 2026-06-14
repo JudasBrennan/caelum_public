@@ -368,11 +368,11 @@ const TIP_LABEL = {
     "Estimated thickness of the frozen surface shell above the liquid layer.\n\n" +
     "This is only shown for frozen-surface cases and is intended as a first-pass structural estimate.",
   "High-pressure Ice Barrier":
-    "Flags when the modeled ocean is deep enough that high-pressure ice is likely to form beneath it.\n\n" +
-    "If present, the ocean may be partially separated from deeper rocky material by dense ice phases.",
+    "Flags when the modeled ocean reaches pressure bands where dense ice phases become possible or likely.\n\n" +
+    "The threshold is gravity-aware, so lower-gravity moons need deeper oceans to reach the same pressure.",
   "High-Pressure Ice":
-    "Flags when the modeled ocean is deep enough that high-pressure ice is likely to form beneath it.\n\n" +
-    "If present, the ocean may be partially separated from deeper rocky material by dense ice phases.",
+    "Flags when the modeled ocean reaches pressure bands where dense ice phases become possible or likely.\n\n" +
+    "The threshold is gravity-aware, so lower-gravity moons need deeper oceans to reach the same pressure.",
   "Interior Structure":
     "Compact readout of the current solved moon interior: ocean depth plus the inferred ice-shell convection regime.",
   "Ocean Chemistry":
@@ -1725,7 +1725,11 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Subsurface Ocean", model.display.subsurfaceOcean),
           buildMoonKpi("Ocean Depth", model.display.oceanDepth),
           buildMoonKpi("Ice Shell", model.display.iceShell),
-          buildMoonKpi("High-Pressure Ice", model.display.highPressureIce),
+          buildMoonKpi(
+            "High-Pressure Ice",
+            model.display.highPressureIce,
+            model.display.oceanPhaseDiagnostics,
+          ),
           buildMoonKpi("Interior Structure", model.display.interiorStructure),
           buildMoonKpi("Ocean Chemistry", model.display.oceanChemistry),
           buildMoonKpi("Equilibrium Temp", model.display.equilibriumTemp),
@@ -1954,7 +1958,11 @@ export function initMoonPage(mountEl, options = {}) {
             { label: "Subsurface Ocean", value: model.display.subsurfaceOcean },
             { label: "Ocean Depth", value: model.display.oceanDepth },
             { label: "Ice Shell", value: model.display.iceShell },
-            { label: "High-Pressure Ice", value: model.display.highPressureIce },
+            {
+              label: "High-Pressure Ice",
+              value: model.display.highPressureIce,
+              meta: model.display.oceanPhaseDiagnostics,
+            },
             { label: "Interior Structure", value: model.display.interiorStructure },
             { label: "Ocean Chemistry", value: model.display.oceanChemistry },
             { label: "Climate State", value: model.display.climateState },

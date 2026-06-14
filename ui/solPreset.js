@@ -1,6 +1,7 @@
 import { makeCollection } from "./store/systemCollections.js";
 import { createSingleStarStellarSystem } from "./store/stellarSystemModel.js";
 import { SCHEMA_VERSION, defaultWorld } from "./store/worldSchema.js";
+import { createStarterPresetEnvelope } from "./starterPresetEnvelope.js";
 import {
   SOL_COMETS,
   SOL_DEBRIS_DISKS,
@@ -425,7 +426,7 @@ const UK_HOLIDAY_RULES = [
 ];
 
 const SOL_PRESET_WORLD = {
-  version: 51,
+  version: SCHEMA_VERSION,
   selectedBodyType: "planet",
   star: {
     name: "Sol",
@@ -1347,5 +1348,5 @@ function deepClone(value) {
 }
 
 export function createSolPresetEnvelope() {
-  return { world: deepClone(COMPLETE_SOL_PRESET_WORLD) };
+  return createStarterPresetEnvelope(COMPLETE_SOL_PRESET_WORLD);
 }

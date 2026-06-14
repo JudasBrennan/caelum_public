@@ -15,8 +15,11 @@
 // The Canopus system contains six worlds (DE): Seban, Menaris, Arrakis,
 // Ven (rocky), plus gas giants Extaris and Revona.
 
+import { SCHEMA_VERSION } from "./store/worldSchema.js";
+import { createStarterPresetEnvelope } from "./starterPresetEnvelope.js";
+
 const ARRAKIS_PRESET_WORLD = {
-  version: 51,
+  version: SCHEMA_VERSION,
   selectedBodyType: "planet",
 
   // ── Star: Canopus ──────────────────────────────────────────────────
@@ -502,10 +505,6 @@ const ARRAKIS_PRESET_WORLD = {
   },
 };
 
-function deepClone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
 export function createArrakisPresetEnvelope() {
-  return { world: deepClone(ARRAKIS_PRESET_WORLD) };
+  return createStarterPresetEnvelope(ARRAKIS_PRESET_WORLD);
 }

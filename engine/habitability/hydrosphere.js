@@ -5,10 +5,13 @@
 // intentionally heuristic, but deterministic and internally consistent.
 
 import { clamp, round, toFinite } from "../utils.js";
+import { OCEAN_PRESSURE_MODELS, classifyHighPressureIce } from "./highPressureIce.js";
+import { estimateBottomOceanTemperature } from "./oceanThermalProfile.js";
 import { waterBoilingK } from "../planet/composition.js";
 export { hydrosphereStateFromMoon } from "../moon/hydrosphere.js";
 
 const EARTH_MASS_KG = 5.972e24;
+const EARTH_RADIUS_KM = 6371;
 const WATER_DENSITY_KG_M3 = 1000;
 const MIN_LIQUID_PRESSURE_ATM = 0.006;
 
@@ -133,14 +136,71 @@ export function estimateEquivalentWaterDepthM({ massEarth, wmfPct, radiusKm } = 
   return waterMassKg / (surfaceAreaM2 * WATER_DENSITY_KG_M3);
 }
 
+function gravityGFromMassRadius({ massEarth, radiusKm, gravityG } = {}) {
+  const explicitGravity = toFinite(gravityG, NaN);
+  if (Number.isFinite(explicitGravity) && explicitGravity > 0) return explicitGravity;
+  const mass = Math.max(toFinite(massEarth, 0), 0);
+  const radiusEarth = Math.max(toFinite(radiusKm, 0), 0) / EARTH_RADIUS_KM;
+  if (mass <= 0 || radiusEarth <= 0) return null;
+  return mass / radiusEarth ** 2;
+}
+
+function meanOceanDepthKmFromEquivalentLayer(equivalentWaterDepthM, liquidOceanFraction) {
+  const equivalentKm = Math.max(toFinite(equivalentWaterDepthM, 0), 0) / 1000;
+  const liquidFraction = clamp(toFinite(liquidOceanFraction, 0), 0, 1);
+  if (equivalentKm <= 0 || liquidFraction <= 0) return 0;
+  return equivalentKm / liquidFraction;
+}
+
+function finiteOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function bottomOceanTempRangeK(profile) {
+  const min = finiteOrNull(profile?.minBottomTempK);
+  const max = finiteOrNull(profile?.maxBottomTempK);
+  return min == null || max == null ? null : [round(min, 1), round(max, 1)];
+}
+
+function phaseDiagramHydrosphereFields(highPressureIce, bottomOceanProfile = null) {
+  return {
+    bottomOceanTempK: finiteOrNull(bottomOceanProfile?.bottomTempK),
+    bottomOceanTempRangeK: bottomOceanTempRangeK(bottomOceanProfile),
+    bottomOceanTempMethod: bottomOceanProfile?.method ?? null,
+    bottomOceanTempConfidence: bottomOceanProfile?.confidence ?? null,
+    bottomOceanTempAssumptions: Array.isArray(bottomOceanProfile?.assumptions)
+      ? [...bottomOceanProfile.assumptions]
+      : [],
+    highPressureIceClassificationMode: highPressureIce.classificationMode,
+    pressureModel: highPressureIce.pressureModel,
+    constantDensitySeafloorPressureGPa: highPressureIce.constantDensityPressureGPa,
+    oceanEffectiveDensityKgM3: highPressureIce.effectiveDensityKgM3,
+    oceanDensityMultiplier: highPressureIce.densityMultiplier,
+    liquidusPressureGPa: highPressureIce.liquidusPressureGPa,
+    liquidusBoundaryPhase: highPressureIce.liquidusBoundaryPhase,
+    seafloorPhase: highPressureIce.seafloorPhase,
+    highPressureIceStable: highPressureIce.highPressureIceStable,
+    highPressureIcePhase: highPressureIce.highPressureIcePhase,
+    rockOceanBarrier: highPressureIce.rockOceanBarrier,
+    phaseDiagramConfidence: highPressureIce.phaseDiagramConfidence,
+    phaseDiagramExplanation: highPressureIce.explanation,
+  };
+}
+
 export function hydrosphereStateFromPlanet({
   waterRegime,
   wmfPct,
   massEarth,
   radiusKm,
+  gravityG,
   surfaceTempK,
   pressureAtm,
   climateState,
+  geothermalFluxWm2,
+  tidalHeatFluxWm2,
+  salinityPct,
+  ammoniaPct,
 } = {}) {
   const baseline = baselineHydrosphereFractionsForRegime(waterRegime);
   const notes = [...baseline.notes];
@@ -157,6 +217,12 @@ export function hydrosphereStateFromPlanet({
   const pressure = Math.max(toFinite(pressureAtm, 0), 0);
   const regime = baseline.regime;
   const stateClimate = String(climateState || "Stable");
+  const resolvedGravityG = gravityGFromMassRadius({ massEarth, radiusKm, gravityG });
+  const emptyHighPressureIce = classifyHighPressureIce({
+    gravityG: resolvedGravityG,
+    surfaceTempK: tempK,
+    climateState: stateClimate,
+  });
 
   if (!waterInventoryPresent) {
     notes.push("no-water-inventory");
@@ -170,6 +236,13 @@ export function hydrosphereStateFromPlanet({
       steamFraction: 0,
       waterCoverageFraction: 0,
       surfaceAccessibleLiquidFraction: 0,
+      estimatedMeanOceanDepthKm: 0,
+      seafloorPressureGPa: 0,
+      highPressureIceBand: emptyHighPressureIce.band,
+      highPressureIceRisk: false,
+      highPressureIceLikely: false,
+      highPressureIceThresholdDepthsKm: emptyHighPressureIce.thresholdDepthsKm,
+      ...phaseDiagramHydrosphereFields(emptyHighPressureIce),
       notes,
     };
   }
@@ -219,6 +292,49 @@ export function hydrosphereStateFromPlanet({
   }
 
   const normalized = normalizeFractions(state);
+  const estimatedMeanOceanDepthKm = meanOceanDepthKmFromEquivalentLayer(
+    equivalentWaterDepthM,
+    normalized.liquidOceanFraction,
+  );
+  const surfaceAccessibleLiquidFraction = computeAccessibleLiquidFraction(
+    normalized,
+    regime,
+    stateClimate,
+  );
+  const bottomOceanProfile =
+    normalized.liquidOceanFraction > 0 && estimatedMeanOceanDepthKm > 0
+      ? estimateBottomOceanTemperature({
+          surfaceTempK: tempK,
+          climateState: stateClimate,
+          pressureAtm: pressure,
+          oceanDepthKm: estimatedMeanOceanDepthKm,
+          geothermalFluxWm2,
+          tidalHeatFluxWm2,
+          salinityPct,
+          ammoniaPct,
+          hydrosphere: {
+            ...normalized,
+            surfaceAccessibleLiquidFraction,
+          },
+        })
+      : null;
+  const highPressureIce = classifyHighPressureIce({
+    depthKm: estimatedMeanOceanDepthKm,
+    gravityG: resolvedGravityG,
+    pressureModel: OCEAN_PRESSURE_MODELS.effectiveDensity,
+    surfaceTempK: tempK,
+    bottomTempK: bottomOceanProfile?.bottomTempK,
+    bottomTempRangeK: bottomOceanProfile
+      ? {
+          minBottomTempK: bottomOceanProfile.minBottomTempK,
+          maxBottomTempK: bottomOceanProfile.maxBottomTempK,
+        }
+      : undefined,
+    salinityPct,
+    climateState: stateClimate,
+    steamFraction: normalized.steamFraction,
+    permanentIceFraction: normalized.permanentIceFraction,
+  });
   return {
     regime,
     modelVersion: "hydrosphere-v2",
@@ -231,10 +347,14 @@ export function hydrosphereStateFromPlanet({
       normalized.liquidOceanFraction + normalized.permanentIceFraction,
       3,
     ),
-    surfaceAccessibleLiquidFraction: round(
-      computeAccessibleLiquidFraction(normalized, regime, stateClimate),
-      3,
-    ),
+    surfaceAccessibleLiquidFraction: round(surfaceAccessibleLiquidFraction, 3),
+    estimatedMeanOceanDepthKm: round(estimatedMeanOceanDepthKm, 2),
+    seafloorPressureGPa: highPressureIce.pressureGPa,
+    highPressureIceBand: highPressureIce.band,
+    highPressureIceRisk: highPressureIce.highPressureIceRisk,
+    highPressureIceLikely: highPressureIce.highPressureIceLikely,
+    highPressureIceThresholdDepthsKm: highPressureIce.thresholdDepthsKm,
+    ...phaseDiagramHydrosphereFields(highPressureIce, bottomOceanProfile),
     notes,
   };
 }

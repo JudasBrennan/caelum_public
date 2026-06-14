@@ -30,6 +30,7 @@ const STORAGE_MIGRATED_KEY = "worldsmith.storage.migrated.v1";
 const STORAGE_LAST_SAVED_KEY = "worldsmith.storage.lastSavedUtc";
 
 const SAVE_DEBOUNCE_MS = 180;
+const BACKUP_METADATA_STRING_FIELDS = new Set(["label", "source", "worldName"]);
 
 let storageReadyPromise = null;
 let persistenceQueue = Promise.resolve();
@@ -102,16 +103,49 @@ function requestLifecycleFlush() {
   return lastLifecycleFlushPromise;
 }
 
+function sanitizeBackupMetadata(metadata = null) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const clean = {};
+  for (const field of BACKUP_METADATA_STRING_FIELDS) {
+    const value = String(metadata[field] ?? "").trim();
+    if (value) clean[field] = value.slice(0, 160);
+  }
+  if (
+    metadata.bodyCounts &&
+    typeof metadata.bodyCounts === "object" &&
+    !Array.isArray(metadata.bodyCounts)
+  ) {
+    const bodyCounts = {};
+    for (const [key, value] of Object.entries(metadata.bodyCounts)) {
+      const count = Number(value);
+      if (!Number.isFinite(count) || count < 0) continue;
+      bodyCounts[String(key).slice(0, 48)] = Math.trunc(count);
+    }
+    if (Object.keys(bodyCounts).length) clean.bodyCounts = bodyCounts;
+  }
+  const byteSize = Number(metadata.byteSize);
+  if (Number.isFinite(byteSize) && byteSize >= 0) clean.byteSize = Math.trunc(byteSize);
+  if (metadata.pinned === true) clean.pinned = true;
+  return Object.keys(clean).length ? clean : null;
+}
+
+function normalizeBackupIndexEntry(backup = {}) {
+  const id = String(backup?.id || "").trim();
+  if (!id) return null;
+  const createdUtc = String(backup?.createdUtc || "").trim() || new Date().toISOString();
+  const metadata = sanitizeBackupMetadata(backup?.metadata);
+  return metadata ? { id, createdUtc, metadata } : { id, createdUtc };
+}
+
 function setBackupCaches(backups) {
-  backupsIndexCache = backups.map(({ id, createdUtc }) => ({ id, createdUtc }));
+  backupsIndexCache = backups.map(normalizeBackupIndexEntry).filter(Boolean);
   backupRawByIdCache = new Map(backups.map(({ id, raw }) => [id, raw]));
 }
 
 function buildBackupRecordsFromCache() {
   return backupsIndexCache
     .map((backup) => ({
-      id: backup.id,
-      createdUtc: backup.createdUtc,
+      ...backup,
       raw: backupRawByIdCache.get(backup.id) || null,
     }))
     .filter((backup) => backup.id && backup.raw);
@@ -281,8 +315,10 @@ function scheduleBackupPersist(change = null) {
       }
     }
 
-    const legacyIndex = buildLegacyBackupIndex();
-    const wroteIndex = safeLocalStorageSet(LEGACY_BACKUPS_INDEX_KEY, JSON.stringify(legacyIndex));
+    const legacyIndex = buildLegacyBackupIndex(backupsIndexCache);
+    const wroteIndex = legacyIndex.length
+      ? safeLocalStorageSet(LEGACY_BACKUPS_INDEX_KEY, JSON.stringify(legacyIndex))
+      : safeLocalStorageRemove(LEGACY_BACKUPS_INDEX_KEY);
     let wroteBackups = false;
     if (change?.replaceAll || !hasDelta) {
       for (const backup of backupRecords) {
@@ -484,29 +520,70 @@ export async function __waitForLastStorageLifecycleFlushForTests() {
   await lastLifecycleFlushPromise;
 }
 
-export function createStoredBackup(maxKeep = 5) {
-  const raw = pendingWorldRaw || currentRawCache || readLegacyCurrentWorld().raw;
-  if (!raw) return null;
-
+function createStoredBackupFromRaw(raw, maxKeep = 5, metadata = {}) {
+  if (!(typeof raw === "string" && raw)) return null;
   const id = `b${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const createdUtc = new Date().toISOString();
   const removedIds = [];
-  backupsIndexCache.unshift({ id, createdUtc });
+  const metadataWithSize = sanitizeBackupMetadata({
+    ...metadata,
+    byteSize: metadata?.byteSize ?? new Blob([raw]).size,
+  });
+  const backupIndexEntry = metadataWithSize
+    ? { id, createdUtc, metadata: metadataWithSize }
+    : { id, createdUtc };
+  backupsIndexCache.unshift(backupIndexEntry);
   backupRawByIdCache.set(id, raw);
 
   const keepCount = Math.max(1, Math.trunc(Number(maxKeep) || 1));
-  for (const extra of backupsIndexCache.slice(keepCount)) {
+  const pinned = backupsIndexCache.filter((backup) => backup.metadata?.pinned === true);
+  const unpinned = backupsIndexCache.filter((backup) => backup.metadata?.pinned !== true);
+  const retainedUnpinned = unpinned.slice(0, keepCount);
+  const retainedIds = new Set([...pinned, ...retainedUnpinned].map((backup) => backup.id));
+  for (const extra of backupsIndexCache.filter((backup) => !retainedIds.has(backup.id))) {
     removedIds.push(extra.id);
     backupRawByIdCache.delete(extra.id);
     safeLocalStorageRemove(`${LEGACY_BACKUP_PREFIX}${extra.id}`);
   }
-  backupsIndexCache = backupsIndexCache.slice(0, keepCount);
+  backupsIndexCache = backupsIndexCache.filter((backup) => retainedIds.has(backup.id));
 
   scheduleBackupPersist({
-    upserts: [{ id, createdUtc, raw }],
+    upserts: [{ ...backupIndexEntry, raw }],
     removedIds,
   });
   return backupsIndexCache[0];
+}
+
+export function createStoredBackup(maxKeep = 5, metadata = {}) {
+  const raw = pendingWorldRaw || currentRawCache || readLegacyCurrentWorld().raw;
+  return createStoredBackupFromRaw(raw, maxKeep, metadata);
+}
+
+export function createStoredBackupSnapshot(raw, maxKeep = 5, metadata = {}) {
+  return createStoredBackupFromRaw(raw, maxKeep, metadata);
+}
+
+export function deleteStoredBackup(id) {
+  const backupId = String(id || "").trim();
+  if (!backupId || !backupRawByIdCache.has(backupId)) return false;
+  backupsIndexCache = backupsIndexCache.filter((backup) => backup.id !== backupId);
+  backupRawByIdCache.delete(backupId);
+  safeLocalStorageRemove(`${LEGACY_BACKUP_PREFIX}${backupId}`);
+  scheduleBackupPersist({ removedIds: [backupId] });
+  return true;
+}
+
+export function clearStoredBackups() {
+  const removedIds = backupsIndexCache.map((backup) => backup.id).filter(Boolean);
+  const removedCount = removedIds.length;
+  backupsIndexCache = [];
+  backupRawByIdCache = new Map();
+  for (const id of removedIds) {
+    safeLocalStorageRemove(`${LEGACY_BACKUP_PREFIX}${id}`);
+  }
+  safeLocalStorageSet(LEGACY_BACKUPS_INDEX_KEY, JSON.stringify([]));
+  scheduleBackupPersist({ replaceAll: true, removedIds });
+  return { ok: true, removedCount, driver: storageDriver };
 }
 
 export function restoreStoredBackup(id) {

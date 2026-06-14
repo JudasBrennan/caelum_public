@@ -10,6 +10,10 @@ import { computeMoonTemperature } from "./moon/temperature.js";
 import { computeMoonTidalState, formatOrbitalFate, formatRecession } from "./moon/tides.js";
 import { buildMoonHabitabilityContext } from "./habitability/context.js";
 import { hydrosphereStateFromMoon } from "./habitability/hydrosphere.js";
+import {
+  formatHighPressureIceDisplay,
+  formatOceanPhaseDiagnostics,
+} from "./habitability/oceanPhaseDisplay.js";
 import { computeMoonClimate } from "./moon/climate.js";
 import { normalizeMoonInputs, resolveMoonRadioisotopeAbundance } from "./moon/config.js";
 import { computeMoonIllumination } from "./moon/illumination.js";
@@ -1069,6 +1073,7 @@ export function calcMoonExact({
     surfaceTempK: temperature.surfaceK,
     surfacePressurePa,
     tidalHeatingEarth: tides.tidalHeatingEarth,
+    tidalHeatFluxWm2: tides.tidalHeatingWm2,
     internalHeatFluxWm2: temperature.radiogenicWm2 + tides.tidalHeatingWm2,
     gravityG: gMoonG,
     densityGcm3: rhoMoonGcm3,
@@ -1082,6 +1087,7 @@ export function calcMoonExact({
     ammoniaPct: moonInputs.ammoniaPct,
     differentiatedInterior: moonInputs.differentiatedInterior,
   });
+  const oceanPhaseDiagnostics = formatOceanPhaseDiagnostics(hydrosphere);
   const climate = computeMoonClimate({
     surfaceTempK: temperature.surfaceK,
     pressurePa: surfacePressurePa,
@@ -1714,9 +1720,9 @@ export function calcMoonExact({
         hydrosphere.estimatedIceShellThicknessKm > 0
           ? `${fmt(hydrosphere.estimatedIceShellThicknessKm, 1)} km`
           : "None",
-      highPressureIce: hydrosphere.highPressureIceBarrier
-        ? `Likely (>${fmt(hydrosphere.highPressureIceThresholdKm, 0)} km)`
-        : "No",
+      highPressureIce: formatHighPressureIceDisplay(hydrosphere),
+      oceanPhaseDiagnostics: oceanPhaseDiagnostics?.text ?? null,
+      oceanPhaseDiagnosticLines: oceanPhaseDiagnostics?.lines ?? [],
       interiorStructure:
         interior.oceanDepthKm > 0
           ? `${fmt(interior.oceanDepthKm, 1)} km ocean | ${interior.convectionRegime}`

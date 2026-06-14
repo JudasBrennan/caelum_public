@@ -173,7 +173,7 @@ const TIP_LABEL = {
   Physical: "Core physical inputs that control the planet's bulk properties.",
   Mass: "Planet mass in Earth masses.\n\nTerrestrial planets: 0.1\u201310 MEarth.\nHabitable Earth-like planets: 0.1\u20133.5 MEarth.\n\nEarth = 1 MEarth = 5.972E24 kg",
   CMF: "Core Mass Fraction (CMF) \u2014 percentage of planetary mass in the iron core.\n\nBy default, auto-derived from the host star\u2019s metallicity [Fe/H] (Schulze et al. 2021, PSJ 2, 113). Use the \u2018auto\u2019 button to reset, or enter a manual value.\n\nMercury \u2248 70%\nVenus \u2248 32%\nEarth \u2248 32.5%\nMars \u2248 22%\nMoon \u2248 2%",
-  WMF: "Water Mass Fraction (WMF) \u2014 percentage of planetary mass that is water or ice.\n\nHigher WMF inflates the radius, reduces bulk density, and deepens oceans.\n\nDry: < 0.01%\nShallow oceans: 0.01\u20130.1% (Earth ~0.02%)\nExtensive oceans: 0.1\u20131%\nGlobal ocean: 1\u201310% (no exposed land)\nDeep ocean: 10\u201330% (high-pressure ice at seafloor)\nIce world: > 30%\n\nReference: Zeng & Sasselov (2016, ApJ 819, 127) three-layer interior model.",
+  WMF: "Water Mass Fraction (WMF) \u2014 percentage of planetary mass that is water or ice.\n\nHigher WMF inflates the radius, reduces bulk density, and deepens oceans.\n\nDry: < 0.01%\nShallow oceans: 0.01\u20130.1% (Earth ~0.02%)\nExtensive oceans: 0.1\u20131%\nGlobal ocean: 1\u201310% (no exposed land)\nDeep ocean: 10\u201330% (pressure-aware high-pressure ice caution depends on gravity, depth, and temperature)\nIce world: > 30%\n\nReference: Zeng & Sasselov (2016, ApJ 819, 127) three-layer interior model.",
   "H/He Envelope":
     "Hydrogen/helium envelope mass fraction. Values above about 0.1% move low-mass bodies toward mini-Neptune or ice-giant classification and route them through the volatile-envelope radius and escape model.",
   "Observed Radius":
@@ -251,7 +251,9 @@ const TIP_LABEL = {
   "Core Radius":
     "Core radius as a fraction of the total planetary radius. Estimated via CRF \u2248 CMF^0.5 (Zeng & Jacobsen 2017).\n\nEarth: CRF \u2248 0.55 (core radius ~3,485 km).",
   "Water Regime":
-    "Surface water state derived from water mass fraction (WMF).\n\nDry: < 0.01% WMF\nShallow oceans: 0.01\u20130.1% WMF (Earth ~0.02%\u2014thin but widespread oceans)\nExtensive oceans: 0.1\u20131% WMF (deeper oceans, less exposed land)\nGlobal ocean: 1\u201310% WMF (no exposed land)\nDeep ocean: 10\u201330% WMF (high-pressure ice at seafloor)\nIce world: > 30% WMF",
+    "Surface water state derived from water mass fraction (WMF).\n\nDry: < 0.01% WMF\nShallow oceans: 0.01\u20130.1% WMF (Earth ~0.02%\u2014thin but widespread oceans)\nExtensive oceans: 0.1\u20131% WMF (deeper oceans, less exposed land)\nGlobal ocean: 1\u201310% WMF (no exposed land)\nDeep ocean: 10\u201330% WMF (high-pressure ice caution is pressure-first and gravity-aware)\nIce world: > 30% WMF",
+  "Mean Ocean Depth":
+    "Estimated average depth of the liquid surface ocean where substantial surface water is present.\n\nThis divides the planet's water inventory by the modeled liquid-ocean coverage, so it is a global estimate rather than a detailed bathymetry map.",
   "Climate State":
     "Global climate stability classification based on surface temperature and absorbed stellar flux.\n\nStable: normal climate regime.\nSnowball: global glaciation from ice-albedo feedback (T < 240 K with surface water).\nMoist greenhouse: stratospheric water vapour enables hydrogen escape, risking long-term ocean loss (T > 340 K).\nRunaway greenhouse: absorbed flux exceeds the outgoing radiation limit; surface water boils off (flux > 282 W/m\u00b2).\n\nDry worlds are always classified as Stable.\n\nReference: Goldblatt et al. (2013); Kasting (1988); Budyko (1969).",
   "Surface State":
@@ -2046,6 +2048,28 @@ export function initPlanetPage(mountEl, options = {}) {
         : habitabilityPolicyVersion === "surface-plus-subsurface-water-v1"
           ? "surface + subsurface water"
           : "surface water only";
+    const surfaceLiquidCoverage = Number(d.surfaceAccessibleLiquidFraction);
+    const meanOceanDepthKm = Number(d.hydrosphere?.estimatedMeanOceanDepthKm);
+    const seafloorPressureGPa = Number(d.hydrosphere?.seafloorPressureGPa);
+    const oceanPhaseDiagnostics = String(model.display.oceanPhaseDiagnostics || "").trim();
+    const showMeanOceanDepth =
+      Number.isFinite(surfaceLiquidCoverage) &&
+      surfaceLiquidCoverage >= 0.05 &&
+      Number.isFinite(meanOceanDepthKm) &&
+      meanOceanDepthKm > 0 &&
+      model.display.meanOceanDepth;
+    const waterRegimeMeta = showMeanOceanDepth
+      ? `~${fmt(model.inputs.wmfPct, 2)}% water by mass | Mean depth ${model.display.meanOceanDepth}`
+      : `~${fmt(model.inputs.wmfPct, 2)}% water by mass`;
+    const meanOceanDepthMeta = [
+      `Surface liquid coverage ${fmt(surfaceLiquidCoverage * 100, 0)}%`,
+      oceanPhaseDiagnostics,
+      !oceanPhaseDiagnostics && Number.isFinite(seafloorPressureGPa) && seafloorPressureGPa > 0
+        ? `Seafloor pressure ${fmt(seafloorPressureGPa, seafloorPressureGPa >= 1 ? 2 : 3)} GPa`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" | ");
 
     const allRockyItems = [
       {
@@ -2190,7 +2214,12 @@ export function initPlanetPage(mountEl, options = {}) {
       {
         label: "Water Regime",
         value: model.display.waterRegime,
-        meta: `~${fmt(model.inputs.wmfPct, 2)}% water by mass`,
+        meta: waterRegimeMeta,
+      },
+      showMeanOceanDepth && {
+        label: "Mean Ocean Depth",
+        value: model.display.meanOceanDepth,
+        meta: meanOceanDepthMeta,
       },
       {
         label: "Rings",
@@ -2354,6 +2383,7 @@ export function initPlanetPage(mountEl, options = {}) {
       "Atmospheric Collapse",
       "Surface State",
       "Water Regime",
+      "Mean Ocean Depth",
       "Rings",
       "Sky Colour (Sun High)",
       "Sky Colour (Low Sun)",
@@ -2611,6 +2641,13 @@ export function initPlanetPage(mountEl, options = {}) {
               value: model.display.waterRegime,
               meta: `~${fmt(model.inputs.wmfPct, 2)}% water by mass`,
             },
+            showMeanOceanDepth
+              ? {
+                  label: "Mean Ocean Depth",
+                  value: model.display.meanOceanDepth,
+                  meta: meanOceanDepthMeta,
+                }
+              : null,
             { label: "Rings", value: ringDisplay.value, meta: ringDisplay.meta },
             { label: "Ring science", value: ringState.scienceReason, meta: ringOverrideMeta },
             { label: "Ring style", value: ringStyleDisplay.value, meta: ringStyleDisplay.meta },

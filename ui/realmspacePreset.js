@@ -6,6 +6,7 @@
 // Many values are best-fit estimates for a fantasy system.
 
 import { SCHEMA_VERSION } from "./store/worldSchema.js";
+import { createStarterPresetEnvelope } from "./starterPresetEnvelope.js";
 
 const HARPTOS_DAY_NAMES = [
   "First-day",
@@ -787,10 +788,6 @@ const REALMSPACE_PRESET_WORLD = {
   },
 };
 
-function deepClone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
 export function createRealmspacePresetEnvelope() {
-  return { world: deepClone(REALMSPACE_PRESET_WORLD) };
+  return createStarterPresetEnvelope(REALMSPACE_PRESET_WORLD);
 }

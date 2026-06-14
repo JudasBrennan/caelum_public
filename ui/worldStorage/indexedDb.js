@@ -63,6 +63,10 @@ export async function readWorldStorageIndexedDbState(db) {
     .map((record) => ({
       id: String(record?.id || "").trim(),
       createdUtc: String(record?.createdUtc || "").trim() || new Date().toISOString(),
+      metadata:
+        record?.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata)
+          ? { ...record.metadata }
+          : null,
       raw: typeof record?.raw === "string" ? record.raw : null,
     }))
     .filter((record) => record.id && record.raw);
@@ -96,6 +100,7 @@ export async function writeWorldStorageIndexedDbState(db, currentRaw, backups) {
       backupsStore.put({
         id: backup.id,
         createdUtc: backup.createdUtc,
+        metadata: backup.metadata || undefined,
         raw: backup.raw,
       });
     }
@@ -133,6 +138,7 @@ export async function writeWorldStorageIndexedDbBackups(db, backups) {
       backupsStore.put({
         id: backup.id,
         createdUtc: backup.createdUtc,
+        metadata: backup.metadata || undefined,
         raw: backup.raw,
       });
     }
@@ -162,6 +168,10 @@ export async function applyWorldStorageIndexedDbBackupDelta(db, change = {}) {
       backupsStore.put({
         id,
         createdUtc: createdUtc || new Date().toISOString(),
+        metadata:
+          backup?.metadata && typeof backup.metadata === "object" && !Array.isArray(backup.metadata)
+            ? { ...backup.metadata }
+            : undefined,
         raw: backup.raw,
       });
     }

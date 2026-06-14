@@ -21,7 +21,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.6.0 Beta</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.7.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, calendars, and exotic planetary subtype evidence. Explore your
@@ -364,6 +364,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Coined the term black hole and helped shape modern gravitational physics, turning extreme cosmic structure into language and models people could reason about.",
   },
+  "2.7.0": {
+    name: "Satyendra Nath Bose",
+    born: 1894,
+    died: 1974,
+    country: "India",
+    summary:
+      "Developed Bose-Einstein statistics, helping reveal how matter can behave differently when its underlying physical state changes.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -403,6 +411,18 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.7.0",
+      "(from 2.6.0 Beta)",
+      [
+        "<b>Import/Export Control</b> &mdash; Current-world export, manual backups, backup-library management, import validation, starter worlds, and danger-zone resets now live in clearer separate workflows with stronger confirmation copy.",
+        "<b>Backup Library Previews</b> &mdash; Backup previews now explain the specific reason a preview cannot be built, and restores create a pre-restore backup by default so recovery paths are easier to understand.",
+        "<b>Ocean-World Phase Science</b> &mdash; Deep-ocean dense-ice warnings now compare seafloor pressure and estimated bottom-ocean temperature against the implemented water liquidus boundary instead of relying on fixed depth thresholds.",
+        "<b>Mean Ocean Depth</b> &mdash; Rocky planets with substantial accessible surface liquid now show mean ocean depth and seafloor pressure context even when they are not classified as exotic ocean worlds.",
+        "<b>Science Reference</b> &mdash; The Science and Maths page now includes a WorldSmith-tailored ocean-floor water phase guide with the model boundary, example cases, and uncertainty notes.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.6.0 BETA",
       "(from 2.5.0)",
       [
@@ -412,7 +432,7 @@ function changelogHTML() {
         "<b>Exotic Subtype Visuals</b> &mdash; Conservative exotic subtype evidence now feeds visual hints and downstream summaries for carbon-rich, ocean/water, lava, icy dwarf, chthonian, rogue, sub-Neptune, hycean, super-puff, inflated giant, and related planet-class bodies.",
         "<b>Safer Old Save Support</b> &mdash; Older saves, split rocky/gas-giant collections, workbook imports, and runtime projections remain supported while new guardrails keep historical data handling contained.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.5.0",

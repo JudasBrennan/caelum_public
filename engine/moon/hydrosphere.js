@@ -1,12 +1,20 @@
 import { clamp, round, toFinite } from "../utils.js";
 import { waterBoilingK } from "../planet/composition.js";
+import { EARTH_INTERNAL_HEAT_FLUX_WM2 } from "../habitability/constants.js";
+import { estimateBottomOceanTemperature } from "../habitability/oceanThermalProfile.js";
 import { normalizeHabitabilityInventory } from "../habitability/species.js";
+import {
+  HIGH_PRESSURE_ICE_BANDS,
+  OCEAN_PRESSURE_MODELS,
+  classifyHighPressureIce,
+  depthKmForPressurePa,
+  estimateOceanColumnPressurePa,
+} from "../habitability/highPressureIce.js";
 
 const LUNAR_MASS_KG = 7.342e22;
 const LUNAR_RADIUS_M = 1737.4e3;
 const WATER_DENSITY_KG_M3 = 1000;
 const MIN_LIQUID_PRESSURE_ATM = 0.006;
-const HIGH_PRESSURE_ICE_THRESHOLD_PA = 300e6;
 
 const WATER_FRACTION_BY_CLASS = {
   "Very icy": 0.08,
@@ -176,9 +184,53 @@ function estimateSubsurfaceOceanScore({
 }
 
 function highPressureIceThresholdKm(gravityG) {
-  const gravityMs2 = Math.max(toFinite(gravityG, 0), 0) * 9.80665;
-  if (gravityMs2 <= 0) return Infinity;
-  return HIGH_PRESSURE_ICE_THRESHOLD_PA / (WATER_DENSITY_KG_M3 * gravityMs2) / 1000;
+  return depthKmForPressurePa({
+    pressurePa: HIGH_PRESSURE_ICE_BANDS.cautionPa,
+    gravityG,
+    densityKgM3: WATER_DENSITY_KG_M3,
+  });
+}
+
+function roundedThresholdKm(gravityG) {
+  const threshold = highPressureIceThresholdKm(gravityG);
+  return Number.isFinite(threshold) ? round(threshold, 1) : null;
+}
+
+function finiteOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function bottomOceanTempRangeK(profile) {
+  const min = finiteOrNull(profile?.minBottomTempK);
+  const max = finiteOrNull(profile?.maxBottomTempK);
+  return min == null || max == null ? null : [round(min, 1), round(max, 1)];
+}
+
+function phaseDiagramMoonFields(highPressureIce, bottomOceanProfile = null) {
+  return {
+    bottomOceanTempK: finiteOrNull(bottomOceanProfile?.bottomTempK),
+    bottomOceanTempRangeK: bottomOceanTempRangeK(bottomOceanProfile),
+    bottomOceanTempMethod: bottomOceanProfile?.method ?? null,
+    bottomOceanTempConfidence: bottomOceanProfile?.confidence ?? null,
+    bottomOceanTempAssumptions: Array.isArray(bottomOceanProfile?.assumptions)
+      ? [...bottomOceanProfile.assumptions]
+      : [],
+    highPressureIceClassificationMode: highPressureIce.classificationMode,
+    pressureModel: highPressureIce.pressureModel,
+    constantDensitySeafloorPressureGPa: highPressureIce.constantDensityPressureGPa,
+    oceanEffectiveDensityKgM3: highPressureIce.effectiveDensityKgM3,
+    oceanDensityMultiplier: highPressureIce.densityMultiplier,
+    highPressureIceRisk: highPressureIce.highPressureIceRisk,
+    liquidusPressureGPa: highPressureIce.liquidusPressureGPa,
+    liquidusBoundaryPhase: highPressureIce.liquidusBoundaryPhase,
+    seafloorPhase: highPressureIce.seafloorPhase,
+    highPressureIceStable: highPressureIce.highPressureIceStable,
+    highPressureIcePhase: highPressureIce.highPressureIcePhase,
+    rockOceanBarrier: highPressureIce.rockOceanBarrier,
+    phaseDiagramConfidence: highPressureIce.phaseDiagramConfidence,
+    phaseDiagramExplanation: highPressureIce.explanation,
+  };
 }
 
 export function hydrosphereStateFromMoon({
@@ -186,6 +238,7 @@ export function hydrosphereStateFromMoon({
   surfaceTempK,
   surfacePressurePa,
   tidalHeatingEarth,
+  tidalHeatFluxWm2,
   internalHeatFluxWm2,
   gravityG,
   densityGcm3,
@@ -205,6 +258,12 @@ export function hydrosphereStateFromMoon({
   const pressureAtm = Math.max(toFinite(surfacePressurePa, 0), 0) / 101325;
   const tidalHeating = Math.max(toFinite(tidalHeatingEarth, 0), 0);
   const internalHeat = Math.max(toFinite(internalHeatFluxWm2, 0), 0);
+  const explicitTidalHeatFlux = toFinite(tidalHeatFluxWm2, NaN);
+  const resolvedTidalHeatFluxWm2 =
+    Number.isFinite(explicitTidalHeatFlux) && explicitTidalHeatFlux >= 0
+      ? explicitTidalHeatFlux
+      : tidalHeating * EARTH_INTERNAL_HEAT_FLUX_WM2;
+  const resolvedGeothermalFluxWm2 = Math.max(0, internalHeat - resolvedTidalHeatFluxWm2);
   const resolvedSalinityPct = clamp(toFinite(salinityPct, 0), 0, 35);
   const resolvedAmmoniaPct = clamp(toFinite(ammoniaPct, 0), 0, 30);
   const compositionKey = classifyMoonComposition({
@@ -264,6 +323,7 @@ export function hydrosphereStateFromMoon({
   const subsurfaceOceanPresent = subsurfaceOceanScore >= 0.55;
 
   if (!waterPresent) {
+    const emptyHighPressureIce = classifyHighPressureIce({ gravityG });
     notes.push("no-water-inventory");
     return {
       regime: "Dry",
@@ -285,13 +345,18 @@ export function hydrosphereStateFromMoon({
       subsurfaceOceanPresent: false,
       subsurfaceOceanScore: 0,
       highPressureIceBarrier: false,
-      highPressureIceThresholdKm: round(highPressureIceThresholdKm(gravityG), 1),
+      highPressureIceThresholdKm: roundedThresholdKm(gravityG),
+      highPressureIceBand: "none",
+      highPressureIceLikely: false,
+      highPressureIceThresholdDepthsKm: emptyHighPressureIce.thresholdDepthsKm,
       iceShellThicknessKm: 0,
       subsurfaceOceanDepthKm: 0,
       salinityPct: 0,
       ammoniaPct: 0,
       freezingPointK: round(freezingPointK, 1),
       seafloorPressureMPa: 0,
+      seafloorPressureGPa: 0,
+      ...phaseDiagramMoonFields(emptyHighPressureIce),
       differentiatedInterior,
       convectionRegime: "None",
       estimatedSurfaceOceanDepthKm: 0,
@@ -377,11 +442,60 @@ export function hydrosphereStateFromMoon({
     estimatedSubsurfaceOceanDepthKm,
   );
   const highPressureThresholdKm = highPressureIceThresholdKm(gravityG);
-  const highPressureIceBarrier =
-    oceanDepthForBarrier > 0 && oceanDepthForBarrier >= highPressureThresholdKm;
-  const gravityMs2 = Math.max(toFinite(gravityG, 0), 0) * 9.80665;
-  const seafloorPressureMPa =
-    oceanDepthForBarrier > 0 ? (gravityMs2 * oceanDepthForBarrier * 1000) / 1e6 : 0;
+  const oceanPressureEstimate = estimateOceanColumnPressurePa({
+    depthKm: oceanDepthForBarrier,
+    gravityG,
+    densityKgM3: WATER_DENSITY_KG_M3,
+    pressureModel: OCEAN_PRESSURE_MODELS.effectiveDensity,
+  });
+  const seafloorPressurePa =
+    oceanDepthForBarrier > 0 && oceanPressureEstimate.pressurePa != null
+      ? oceanPressureEstimate.pressurePa
+      : 0;
+  const seafloorPressureMPa = seafloorPressurePa == null ? 0 : seafloorPressurePa / 1e6;
+  const bottomOceanProfile =
+    oceanDepthForBarrier > 0 && (supportsSurfaceLiquid || subsurfaceOceanPresent)
+      ? estimateBottomOceanTemperature({
+          surfaceTempK: tempK,
+          climateState: supportsSteam ? "Runaway greenhouse" : frozenSurface ? "Snowball" : "",
+          pressureAtm,
+          oceanDepthKm: oceanDepthForBarrier,
+          geothermalFluxWm2: resolvedGeothermalFluxWm2,
+          tidalHeatFluxWm2: resolvedTidalHeatFluxWm2,
+          iceShellThicknessKm: estimatedIceShellThicknessKm,
+          salinityPct: resolvedSalinityPct,
+          ammoniaPct: resolvedAmmoniaPct,
+          hydrosphere: {
+            ...normalized,
+            surfaceAccessibleLiquidFraction,
+            subsurfaceOceanPresent,
+            frozenSurface,
+            estimatedSurfaceOceanDepthKm,
+            estimatedSubsurfaceOceanDepthKm,
+            subsurfaceOceanDepthKm: estimatedSubsurfaceOceanDepthKm,
+          },
+        })
+      : null;
+  const highPressureIce = classifyHighPressureIce({
+    seafloorPressurePa,
+    depthKm: oceanDepthForBarrier,
+    gravityG,
+    densityKgM3: WATER_DENSITY_KG_M3,
+    pressureModel: oceanPressureEstimate.pressureModel,
+    surfaceTempK: tempK,
+    bottomTempK: bottomOceanProfile?.bottomTempK,
+    bottomTempRangeK: bottomOceanProfile
+      ? {
+          minBottomTempK: bottomOceanProfile.minBottomTempK,
+          maxBottomTempK: bottomOceanProfile.maxBottomTempK,
+        }
+      : undefined,
+    salinityPct: resolvedSalinityPct,
+    climateState: supportsSteam ? "Runaway greenhouse" : frozenSurface ? "Snowball" : "",
+    steamFraction: normalized.steamFraction,
+    permanentIceFraction: normalized.permanentIceFraction,
+  });
+  const highPressureIceBarrier = highPressureIce.highPressureIceRisk;
   const convectionRegime =
     estimatedIceShellThicknessKm <= 0
       ? "None"
@@ -412,11 +526,18 @@ export function hydrosphereStateFromMoon({
     subsurfaceOceanPresent,
     subsurfaceOceanScore: round(subsurfaceOceanScore, 3),
     highPressureIceBarrier,
-    highPressureIceThresholdKm: round(highPressureThresholdKm, 1),
+    highPressureIceThresholdKm: Number.isFinite(highPressureThresholdKm)
+      ? round(highPressureThresholdKm, 1)
+      : null,
+    highPressureIceBand: highPressureIce.band,
+    highPressureIceLikely: highPressureIce.highPressureIceLikely,
+    highPressureIceThresholdDepthsKm: highPressureIce.thresholdDepthsKm,
+    ...phaseDiagramMoonFields(highPressureIce, bottomOceanProfile),
     salinityPct: round(resolvedSalinityPct, 2),
     ammoniaPct: round(resolvedAmmoniaPct, 2),
     freezingPointK: round(freezingPointK, 1),
     seafloorPressureMPa: round(seafloorPressureMPa, 1),
+    seafloorPressureGPa: round(seafloorPressureMPa / 1000, 3),
     differentiatedInterior,
     convectionRegime,
     iceShellThicknessKm: round(estimatedIceShellThicknessKm, 1),

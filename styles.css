@@ -6405,11 +6405,41 @@ button.star-topology-node:focus-visible {
 }
 
 /* Import / export page */
+.io-storage-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.io-overview-card {
+  padding: 12px;
+  border: 1px solid rgba(var(--overlay-color), 0.1);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.14);
+}
+.io-overview-label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.68;
+}
+.io-overview-value {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 750;
+}
+.io-overview-note {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.72;
+}
 .io-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   align-items: center;
+}
+.io-actions--spaced {
+  margin-top: 10px;
 }
 .io-textarea {
   width: 100%;
@@ -6425,6 +6455,9 @@ button.star-topology-node:focus-visible {
     monospace;
   font-size: 12px;
   line-height: 1.45;
+}
+.io-textarea--export {
+  margin-top: 10px;
 }
 .io-status {
   margin-top: 8px;
@@ -6457,13 +6490,24 @@ button.star-topology-node:focus-visible {
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.18);
 }
+.io-backup-meta {
+  min-width: 0;
+}
 .io-backup-title {
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 .io-backup-sub {
   font-size: 12px;
   opacity: 0.75;
   margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.io-backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 .io-backup-actions button {
   white-space: nowrap;
@@ -6474,6 +6518,12 @@ button.star-topology-node:focus-visible {
   border: 1px solid rgba(var(--overlay-color), 0.1);
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.18);
+}
+.io-preview-error {
+  color: rgba(255, 210, 210, 0.94);
+}
+.io-preview-error p {
+  margin: 8px 0 0;
 }
 .io-preview-grid {
   display: grid;
@@ -6486,6 +6536,34 @@ button.star-topology-node:focus-visible {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+.io-preset-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.io-preset-list button {
+  justify-self: start;
+}
+.io-danger-zone .panel__body {
+  border-top: 1px solid rgba(255, 120, 120, 0.12);
+}
+
+@media (max-width: 760px) {
+  .io-storage-overview {
+    grid-template-columns: 1fr;
+  }
+  .io-backup-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .io-backup-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+  .io-preview-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* System page: gas giant + debris disk editors */
@@ -8985,6 +9063,151 @@ button.star-topology-node:focus-visible {
   color: var(--muted);
   margin: 6px 0;
   line-height: 1.5;
+}
+
+.sci-phase-diagram-wrap {
+  margin: 10px 0 12px;
+}
+
+.sci-phase-diagram {
+  display: block;
+  width: 100%;
+  max-width: 760px;
+  height: auto;
+  aspect-ratio: 700 / 360;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: rgba(var(--overlay-color), 0.03);
+}
+
+.sci-phase-liquid {
+  fill: rgba(84, 190, 157, 0.2);
+}
+
+.sci-phase-ice {
+  fill: rgba(111, 150, 232, 0.24);
+}
+
+.sci-phase-unsupported {
+  fill: rgba(var(--overlay-color), 0.06);
+}
+
+.sci-phase-gridline line {
+  stroke: rgba(var(--overlay-color), 0.16);
+  stroke-width: 1;
+}
+
+.sci-phase-gridline text,
+.sci-phase-axis,
+.sci-phase-region,
+.sci-phase-triple text,
+.sci-phase-marker text {
+  fill: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.sci-phase-gridline text {
+  text-anchor: middle;
+}
+
+.sci-phase-gridline .sci-phase-y-tick {
+  text-anchor: end;
+}
+
+.sci-phase-axis {
+  fill: var(--text);
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.sci-phase-liquidus {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.sci-phase-triple circle {
+  fill: var(--accent);
+  stroke: var(--panel);
+  stroke-width: 2;
+}
+
+.sci-phase-region {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sci-phase-region--ice {
+  fill: #9fb8ff;
+}
+
+.sci-phase-region--liquid {
+  fill: #63caa9;
+}
+
+.sci-phase-marker circle {
+  stroke: var(--panel);
+  stroke-width: 2;
+}
+
+.sci-phase-marker--liquid circle {
+  fill: #50d1a7;
+}
+
+.sci-phase-marker--ice circle {
+  fill: #87a9ff;
+}
+
+.sci-phase-marker--warm circle {
+  fill: #f0c15c;
+}
+
+.sci-phase-marker text {
+  fill: var(--text);
+  font-weight: 700;
+}
+
+.sci-phase-marker__note {
+  fill: var(--muted);
+  font-weight: 500;
+}
+
+.sci-phase-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sci-phase-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sci-phase-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.sci-phase-swatch--liquid {
+  background: rgba(84, 190, 157, 0.55);
+}
+
+.sci-phase-swatch--ice {
+  background: rgba(111, 150, 232, 0.6);
+}
+
+.sci-phase-swatch--curve {
+  height: 3px;
+  background: var(--accent);
 }
 
 /* Variable tables */

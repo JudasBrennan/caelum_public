@@ -89,6 +89,7 @@ function resolveHydrosphere(derived, inputs) {
     wmfPct: explicitWmf,
     massEarth: explicitMassEarth,
     radiusKm: explicitRadiusKm,
+    gravityG: derived?.gravityG,
     surfaceTempK: derived?.surfaceTempK,
     pressureAtm: inputs?.pressureAtm ?? derived?.pressureAtm,
     climateState: derived?.climateState,

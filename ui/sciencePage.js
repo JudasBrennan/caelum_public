@@ -14,6 +14,10 @@ import {
   renderScienceLeapCycles,
   renderScienceText,
 } from "./science/domRender.js";
+import {
+  liquidusPressurePaAtTempK,
+  WATER_PHASE_TRIPLE_POINTS,
+} from "../engine/habitability/waterPhaseDiagram.js";
 import { loadKaTeX, renderAllMath } from "./katexLoader.js";
 import { scrollIntoViewRespectingMotion } from "./motion.js";
 
@@ -45,6 +49,194 @@ function formula(name, body) {
 
 function dataTable(headers, rows) {
   return `<table class="sci-data"><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
+const OCEAN_PHASE_DIAGRAM_BOUNDS = Object.freeze({
+  tempMinK: 240,
+  tempMaxK: 715,
+  pressureMinGPa: 0.05,
+  pressureMaxGPa: 10,
+  left: 104,
+  right: 664,
+  top: 44,
+  bottom: 300,
+});
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function oceanPhaseDiagramX(tempK) {
+  const { tempMinK, tempMaxK, left, right } = OCEAN_PHASE_DIAGRAM_BOUNDS;
+  const t = (Number(tempK) - tempMinK) / (tempMaxK - tempMinK);
+  return left + clampNumber(t, 0, 1) * (right - left);
+}
+
+function oceanPhaseDiagramY(pressureGPa) {
+  const { pressureMinGPa, pressureMaxGPa, top, bottom } = OCEAN_PHASE_DIAGRAM_BOUNDS;
+  const logMin = Math.log10(pressureMinGPa);
+  const logMax = Math.log10(pressureMaxGPa);
+  const p =
+    (Math.log10(Math.max(Number(pressureGPa), pressureMinGPa)) - logMin) / (logMax - logMin);
+  return bottom - clampNumber(p, 0, 1) * (bottom - top);
+}
+
+function roundedSvgPoint(x, y) {
+  return `${fmt(x, 1)},${fmt(y, 1)}`;
+}
+
+function liquidusCurvePoints(tempStartK, tempEndK, stepK = 3) {
+  const points = [];
+  for (let tempK = tempStartK; tempK <= tempEndK; tempK += stepK) {
+    const boundary = liquidusPressurePaAtTempK(tempK);
+    if (!boundary.validRange || !Number.isFinite(boundary.pressurePa)) continue;
+    points.push({
+      tempK,
+      pressureGPa: boundary.pressurePa / 1e9,
+      x: oceanPhaseDiagramX(tempK),
+      y: oceanPhaseDiagramY(boundary.pressurePa / 1e9),
+    });
+  }
+  const endBoundary = liquidusPressurePaAtTempK(tempEndK);
+  if (endBoundary.validRange && Number.isFinite(endBoundary.pressurePa)) {
+    points.push({
+      tempK: tempEndK,
+      pressureGPa: endBoundary.pressurePa / 1e9,
+      x: oceanPhaseDiagramX(tempEndK),
+      y: oceanPhaseDiagramY(endBoundary.pressurePa / 1e9),
+    });
+  }
+  return points;
+}
+
+function liquidusSvgPath(points) {
+  if (!points.length) return "";
+  return `M ${points.map((point) => roundedSvgPoint(point.x, point.y)).join(" L ")}`;
+}
+
+function renderOceanPhaseGrid() {
+  const tempTicks = [250, 300, 350, 400, 500, 600, 700];
+  const pressureTicks = [0.1, 0.3, 0.6, 1, 2.2, 5, 10];
+  const { left, right, top, bottom } = OCEAN_PHASE_DIAGRAM_BOUNDS;
+  return [
+    ...tempTicks.map((tempK) => {
+      const x = oceanPhaseDiagramX(tempK);
+      return `<g class="sci-phase-gridline"><line x1="${fmt(x, 1)}" y1="${top}" x2="${fmt(x, 1)}" y2="${bottom}" /><text x="${fmt(x, 1)}" y="${bottom + 24}">${tempK} K</text></g>`;
+    }),
+    ...pressureTicks.map((pressureGPa) => {
+      const y = oceanPhaseDiagramY(pressureGPa);
+      return `<g class="sci-phase-gridline"><line x1="${left}" y1="${fmt(y, 1)}" x2="${right}" y2="${fmt(y, 1)}" /><text class="sci-phase-y-tick" x="${left - 14}" y="${fmt(y + 4, 1)}">${pressureGPa >= 1 ? fmt(pressureGPa, 1) : fmt(pressureGPa, 1)} GPa</text></g>`;
+    }),
+  ].join("");
+}
+
+function renderOceanPhaseMarkers() {
+  const markers = [
+    {
+      tempK: 288,
+      pressureGPa: 0.52,
+      label: "0.52 GPa / 288 K",
+      note: "below liquidus",
+      className: "liquid",
+      dx: 10,
+      dy: -12,
+    },
+    {
+      tempK: 288,
+      pressureGPa: 1.2,
+      label: "1.2 GPa / 288 K",
+      note: "ice VI stable",
+      className: "ice",
+      dx: 10,
+      dy: -12,
+    },
+    {
+      tempK: 500,
+      pressureGPa: 2.3,
+      label: "2.3 GPa / 500 K",
+      note: "hot deep liquid",
+      className: "warm",
+      dx: 10,
+      dy: 18,
+    },
+  ];
+  return markers
+    .map((marker) => {
+      const x = oceanPhaseDiagramX(marker.tempK);
+      const y = oceanPhaseDiagramY(marker.pressureGPa);
+      return `<g class="sci-phase-marker sci-phase-marker--${marker.className}" transform="translate(${fmt(x, 1)} ${fmt(y, 1)})">
+        <circle r="5" />
+        <text x="${marker.dx}" y="${marker.dy}">${marker.label}</text>
+        <text x="${marker.dx}" y="${marker.dy + 14}" class="sci-phase-marker__note">${marker.note}</text>
+      </g>`;
+    })
+    .join("");
+}
+
+function renderOceanFloorPhaseDiagram() {
+  const { left, right, top, bottom } = OCEAN_PHASE_DIAGRAM_BOUNDS;
+  const plotWidth = right - left;
+  const plotHeight = bottom - top;
+  const centerX = left + plotWidth / 2;
+  const centerY = top + plotHeight / 2;
+  const curve = liquidusCurvePoints(WATER_PHASE_TRIPLE_POINTS.iceIhIceIiiLiquid.tempK, 715);
+  const curvePath = liquidusSvgPath(curve);
+  const first = curve[0];
+  const last = curve[curve.length - 1];
+  const denseIcePath = first && last ? `${curvePath} L ${right},${top} L ${left},${top} Z` : "";
+  const triplePoints = [
+    {
+      label: "III",
+      tempK: WATER_PHASE_TRIPLE_POINTS.iceIhIceIiiLiquid.tempK,
+      pressureGPa: WATER_PHASE_TRIPLE_POINTS.iceIhIceIiiLiquid.pressurePa / 1e9,
+    },
+    {
+      label: "V",
+      tempK: WATER_PHASE_TRIPLE_POINTS.iceIiiIceVLiquid.tempK,
+      pressureGPa: WATER_PHASE_TRIPLE_POINTS.iceIiiIceVLiquid.pressurePa / 1e9,
+    },
+    {
+      label: "VI",
+      tempK: WATER_PHASE_TRIPLE_POINTS.iceVIceViLiquid.tempK,
+      pressureGPa: WATER_PHASE_TRIPLE_POINTS.iceVIceViLiquid.pressurePa / 1e9,
+    },
+    {
+      label: "VII",
+      tempK: WATER_PHASE_TRIPLE_POINTS.iceViIceViiLiquid.tempK,
+      pressureGPa: WATER_PHASE_TRIPLE_POINTS.iceViIceViiLiquid.pressurePa / 1e9,
+    },
+  ];
+  const tripleMarkup = triplePoints
+    .map((point) => {
+      const x = oceanPhaseDiagramX(point.tempK);
+      const y = oceanPhaseDiagramY(point.pressureGPa);
+      return `<g class="sci-phase-triple">
+        <circle cx="${fmt(x, 1)}" cy="${fmt(y, 1)}" r="4" />
+        <text x="${fmt(x + 7, 1)}" y="${fmt(y - 7, 1)}">ice ${point.label}</text>
+      </g>`;
+    })
+    .join("");
+
+  return `<div class="sci-phase-diagram-wrap">
+    <svg class="sci-phase-diagram" viewBox="0 0 700 360" role="img" aria-label="WorldSmith ocean-floor water phase diagram">
+      <rect x="${left}" y="${top}" width="${plotWidth}" height="${plotHeight}" class="sci-phase-liquid" />
+      <path d="${denseIcePath}" class="sci-phase-ice" />
+      <rect x="${left}" y="${top}" width="${fmt(oceanPhaseDiagramX(251.165) - left, 1)}" height="${plotHeight}" class="sci-phase-unsupported" />
+      ${renderOceanPhaseGrid()}
+      <path d="${curvePath}" class="sci-phase-liquidus" />
+      ${tripleMarkup}
+      ${renderOceanPhaseMarkers()}
+      <text x="${fmt(centerX, 1)}" y="${top - 16}" class="sci-phase-axis sci-phase-axis--top">Estimated bottom-ocean temperature</text>
+      <text x="28" y="${fmt(centerY, 1)}" class="sci-phase-axis sci-phase-axis--left" transform="rotate(-90 28 ${fmt(centerY, 1)})">Seafloor pressure</text>
+      <text x="${left + 28}" y="${top + 38}" class="sci-phase-region sci-phase-region--ice">Dense ice stable above boundary</text>
+      <text x="${right - 220}" y="${bottom - 30}" class="sci-phase-region sci-phase-region--liquid">Liquid remains stable below boundary</text>
+    </svg>
+    <div class="sci-phase-legend" aria-label="Diagram legend">
+      <span><i class="sci-phase-swatch sci-phase-swatch--liquid"></i>Liquid estimate</span>
+      <span><i class="sci-phase-swatch sci-phase-swatch--ice"></i>Dense ice stable</span>
+      <span><i class="sci-phase-swatch sci-phase-swatch--curve"></i>IAPWS liquidus used by WorldSmith</span>
+    </div>
+  </div>`;
 }
 
 function normalizeSearchText(value) {
@@ -389,6 +581,30 @@ function buildPlanetaryPhysics() {
       "Clausius-Clapeyron Boiling Point",
       `<div class="sci-formula__eq">${eq("T_b = \\frac{1}{\\dfrac{1}{373.15} - \\dfrac{\\ln(p)}{L_v / R_g}}")}</div>
       <p>Pressure-dependent boiling point of water. ${iq("L_v/R_g = 40700/8.314 = 4894.4")} K. Calibrated: 1 atm &rarr; 373 K, 218 atm &rarr; 647 K (critical point).</p>`,
+    ),
+
+    formula(
+      "Ocean-Floor Water Phase Boundary",
+      `${renderOceanFloorPhaseDiagram()}
+      <div class="sci-formula__eq">${eq("P_{\\text{floor}} \\approx \\rho_{\\text{eff}}\\,g\\,d")}</div>
+      <div class="sci-formula__eq">${eq("P_{\\text{floor}} > P_{\\text{liquidus}}(T_b) \\Rightarrow \\text{dense ice stable at the ocean floor}")}</div>
+      <p>WorldSmith uses this reduced phase diagram for ocean-world and moon-ocean dense-ice warnings. The model compares local seafloor pressure against the pure-water liquidus pressure at the estimated bottom-ocean temperature ${iq("T_b")}.</p>
+      <p>That is why pressure alone is not enough: a 0.52 GPa, 288 K ocean floor is below the modeled ice VI boundary, while a colder or higher-pressure floor can cross into dense-ice stability. Hot deep oceans can remain liquid at pressures that sound enormous because the ice VI and ice VII liquidus curves rise steeply with temperature.</p>
+      ${dataTable(
+        ["Boundary used", "Temperature range", "Anchor in model"],
+        [
+          ["ice III / liquid", "251.165&ndash;256.164 K", "0.209&ndash;0.350 GPa"],
+          ["ice V / liquid", "256.164&ndash;273.31 K", "0.350&ndash;0.632 GPa"],
+          ["ice VI / liquid", "273.31&ndash;355 K", "0.632&ndash;2.216 GPa"],
+          [
+            "ice VII / liquid",
+            "355&ndash;715 K",
+            `${fmt(liquidusPressurePaAtTempK(550).pressurePa / 1e9, 2)} GPa at 550 K`,
+          ],
+        ],
+      )}
+      <p>The chart is intentionally tailored to WorldSmith&rsquo;s current model: it focuses on the high-pressure liquid/dense-ice boundary relevant to ocean floors, not the full low-pressure vapour field. Salinity, ammonia, mixing, and long-term thermal structure are represented as uncertainty, so the app may show a pressure-only caution when bottom-ocean temperature is not constrained.</p>
+      ${cite("IAPWS R14-08(2011), Revised Release on the Pressure along the Melting and Sublimation Curves of Ordinary Water Substance; Wagner, Riethmann, Feistel &amp; Harvey (2011), JPCRD 40, 043103.")}`,
     ),
 
     formula(
@@ -3120,7 +3336,7 @@ function wireCalculators(root) {
 const SECTIONS = [
   { id: "stellar", title: "Stellar Physics", count: 8, builder: buildStellarPhysics },
   { id: "evolution", title: "Stellar Evolution", count: 7, builder: buildStellarEvolution },
-  { id: "planetary", title: "Planetary Physics", count: 11, builder: buildPlanetaryPhysics },
+  { id: "planetary", title: "Planetary Physics", count: 12, builder: buildPlanetaryPhysics },
   { id: "gasgiant", title: "Gas Giant Physics", count: 13, builder: buildGasGiantPhysics },
   {
     id: "interior",

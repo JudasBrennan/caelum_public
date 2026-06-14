@@ -27,7 +27,7 @@ import { stripLegacyKeys, validateEnvelope } from "./store/importValidation.js";
 import { normalizeGasGiant as normalizeGasGiantModel } from "./store/gasGiantModel.js";
 import {
   clearAllSavedData as clearAllSavedDataFromPersistence,
-  clearCurrentSavedWorld,
+  clearCurrentSavedWorld as clearCurrentSavedWorldFromPersistence,
   clearStorageError,
   getStorageError,
   readWorldRaw,
@@ -130,8 +130,10 @@ export {
   hasAnySavedData,
   hasSavedWorldInLocalStorage,
   listBackups,
+  readBackupRaw,
   waitForStorageReady,
 } from "./store/persistenceBridge.js";
+export { clearBackups, createBackupFromRaw, deleteBackup } from "./store/persistenceBridge.js";
 export { normalizeWorld } from "./store/worldMigration.js";
 export { __getWorldSnapshotCacheStatsForTests } from "./store/worldSnapshotCache.js";
 
@@ -311,8 +313,17 @@ export async function clearAllSavedData() {
   return clearAllSavedDataFromPersistence();
 }
 
+export async function clearCurrentSavedWorld() {
+  const result = await clearCurrentSavedWorldFromPersistence();
+  if (result?.ok) {
+    invalidateWorldSnapshotCache();
+    clearWorldLoadFailure();
+  }
+  return result;
+}
+
 export async function clearUnreadableSavedWorld() {
-  const result = await clearCurrentSavedWorld();
+  const result = await clearCurrentSavedWorldFromPersistence();
   if (result?.ok) {
     invalidateWorldSnapshotCache();
     clearWorldLoadFailure();

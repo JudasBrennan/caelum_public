@@ -4,6 +4,84 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.7.0 - 2026-06-14
+
+### Import/Export Storage UX
+
+**Separated current-world, backup-library, import, starter-world, and danger-zone workflows**
+(app.js, ui/importExportPage.js, ui/store.js, ui/store/destructiveActions.js,
+ui/store/persistenceBridge.js, ui/worldStorage.js,
+ui/worldStorage/indexedDb.js, ui/worldStorage/legacyStorage.js, styles.css,
+README.md, tests/importExportPage.ui.test.js, tests/worldStorage.test.js,
+tests/browser/smoke.spec.js)
+
+The Import/Export page now shows a storage overview and separates routine
+current-world export/backup work from backup-library management, import
+validation, starter worlds, and destructive cleanup actions. Users can create
+manual backups, preview/export/restore/delete individual backups, save a
+validated import as a backup without applying it, start fresh while preserving
+backups, delete only backups, or clear all saved data from the danger zone.
+
+Backup restore now asks for confirmation and creates a pre-restore backup of
+the current saved world by default. Recovery copy for unreadable current saves
+now points users to the Import/Export Backup Library so the distinction between
+the broken current save and preserved backups is clearer.
+
+Backup preview failures now explain the specific reason, such as a missing raw
+payload, malformed JSON, an unsupported world shape, or a preview-summary
+generation error, instead of only saying the backup could not be previewed.
+Starter worlds now pass through the same current import/normalization path as
+user-created worlds before they are saved, backed up, or previewed, so Sol,
+Realmspace, and Arrakis backups no longer depend on preset-only legacy aliases.
+
+### Ocean World High-Pressure Ice
+
+**Made ocean-world high-pressure ice warnings phase-diagram-aware,
+pressure-first, and gravity-aware**
+(engine/habitability/highPressureIce.js,
+engine/habitability/hydrosphere.js,
+engine/habitability/oceanPhaseDisplay.js,
+engine/habitability/oceanThermalProfile.js,
+engine/habitability/waterPhaseDiagram.js,
+engine/planetarySubtypes/oceanWorld.js, engine/moon/hydrosphere.js,
+engine/moon.js, ui/planetPage.js, ui/moonPage.js,
+tests/highPressureIce.test.js, tests/hydrosphere.test.js,
+tests/oceanThermalProfile.test.js, tests/planet.test.js,
+tests/planetarySubtypes.test.js, tests/moon.test.js,
+tests/moonHydrosphere.test.js, tests/waterPhaseDiagram.test.js)
+
+Ocean and water-world subtype warnings now compare local seafloor pressure and
+estimated bottom-ocean temperature against IAPWS pure-water liquidus boundaries
+instead of using a fixed 60 km depth trigger, raw water-mass shortcut, or
+pressure band alone. The model still reports local threshold depths for
+pressure-only fallback cases, so lower-gravity bodies need deeper oceans before
+the same fallback warning band appears.
+
+The screenshot-like case of a roughly 0.52 GPa seafloor pressure now remains a
+caution rather than "high-pressure ice likely", and the UI shows the pressure,
+bottom-temperature range, liquidus boundary, and interpretation used for that
+decision. Hot deep oceans no longer become "Ice VII likely" solely because they
+exceed 2.2 GPa; Ice VII wording is reserved for phase-diagram-supported cases.
+
+Planet and moon hydrosphere outputs now expose bottom-ocean temperature,
+liquidus pressure, seafloor phase, dense-ice barrier interpretation, and
+phase-diagram confidence alongside the legacy high-pressure ice fields.
+
+The Science and Maths page now includes a WorldSmith-tailored ocean-floor water
+phase diagram that shows the implemented liquid/dense-ice boundary, example
+model points, and the caveats around bottom-temperature uncertainty.
+
+### Planet Ocean Depth Display
+
+**Showed mean ocean depth for ordinary surface-ocean planets**
+(engine/planet.js, ui/planetPage.js, tests/planet.test.js)
+
+The Planet page now surfaces mean ocean depth for rocky planets with substantial
+accessible surface liquid, not only for exotic ocean/water-world subtype cards.
+The Water Regime card includes the estimate in its summary line, and the
+Environment section adds a dedicated Mean Ocean Depth card with surface liquid
+coverage and seafloor pressure context where available.
+
 ## 2.6.0 Beta - 2026-06-13
 
 ### Planetary Visual Editor

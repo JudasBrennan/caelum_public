@@ -692,6 +692,85 @@ export function buildClearSavedDataPlan({ hasBackups = true } = {}) {
   };
 }
 
+export function buildClearCurrentSavedWorldPlan({ hasBackups = true } = {}) {
+  return {
+    actionKey: "clear-current-saved-world",
+    title: "Start fresh and keep backups?",
+    description: "This removes only the current saved world from this browser.",
+    confirmLabel: "Start fresh",
+    consequences: [
+      "The app will open with a blank default world next time this browser state is loaded.",
+      hasBackups
+        ? "Your backup library will remain available for restore."
+        : "No backups were found, so there will be no restore point unless you export first.",
+      "Browser settings and guided session state are not cleared.",
+    ],
+    impact: {
+      hasBackups: !!hasBackups,
+    },
+  };
+}
+
+export function buildClearBackupsPlan({ backupCount = 0 } = {}) {
+  const normalizedBackupCount = Math.max(0, Math.trunc(Number(backupCount) || 0));
+  return {
+    actionKey: "clear-backups",
+    title: "Delete all backups?",
+    description: "This clears the backup library while keeping the current saved world.",
+    confirmLabel: "Delete backups",
+    consequences: [
+      normalizedBackupCount
+        ? `${pluralize(normalizedBackupCount, "backup")} will be permanently deleted.`
+        : "No backups are currently stored.",
+      "The current saved world will not be deleted.",
+      "This cannot be undone.",
+    ],
+    impact: {
+      backupCount: normalizedBackupCount,
+    },
+  };
+}
+
+export function buildDeleteBackupPlan({ backupLabel = "this backup" } = {}) {
+  const normalizedBackupLabel = String(backupLabel || "this backup").trim() || "this backup";
+  return {
+    actionKey: "delete-backup",
+    title: `Delete ${normalizedBackupLabel}?`,
+    description: `This permanently removes ${quoteLabel(
+      normalizedBackupLabel,
+      "this backup",
+    )} from the backup library.`,
+    confirmLabel: "Delete backup",
+    consequences: [
+      "The current saved world will not be changed.",
+      "This backup cannot be restored after deletion.",
+    ],
+    impact: {
+      backupLabel: normalizedBackupLabel,
+    },
+  };
+}
+
+export function buildRestoreBackupPlan({ backupLabel = "this backup" } = {}) {
+  const normalizedBackupLabel = String(backupLabel || "this backup").trim() || "this backup";
+  return {
+    actionKey: "restore-backup",
+    title: `Restore ${normalizedBackupLabel}?`,
+    description: `This replaces the current saved world with ${quoteLabel(
+      normalizedBackupLabel,
+      "this backup",
+    )}.`,
+    confirmLabel: "Restore backup",
+    consequences: [
+      "A backup of the current world will be created automatically first.",
+      "The current saved world, active selections, and derived outputs will be replaced.",
+    ],
+    impact: {
+      backupLabel: normalizedBackupLabel,
+    },
+  };
+}
+
 export function buildReplaceCurrentWorldPlan({
   sourceLabel = "this import",
   confirmLabel = "Replace current world",
@@ -708,6 +787,30 @@ export function buildReplaceCurrentWorldPlan({
     consequences: [
       "A backup of the current world will be created automatically first.",
       "The current saved world, active selections, and derived outputs will be replaced.",
+    ],
+    impact: {
+      sourceLabel: normalizedSourceLabel,
+    },
+  };
+}
+
+export function buildReplaceCurrentWorldWithoutBackupPlan({
+  sourceLabel = "this import",
+  confirmLabel = "Replace without backup",
+} = {}) {
+  const normalizedSourceLabel = String(sourceLabel || "this import").trim() || "this import";
+  return {
+    actionKey: "replace-current-world-without-backup",
+    title: `Apply ${normalizedSourceLabel} without creating a backup?`,
+    description: `This replaces the current world with ${quoteLabel(
+      normalizedSourceLabel,
+      "this import",
+    )}.`,
+    confirmLabel,
+    consequences: [
+      "No automatic backup will be created first.",
+      "The current saved world, active selections, and derived outputs will be replaced.",
+      "Use this only when you already have an export or backup you trust.",
     ],
     impact: {
       sourceLabel: normalizedSourceLabel,

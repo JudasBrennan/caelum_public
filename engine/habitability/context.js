@@ -204,9 +204,12 @@ export function buildPlanetHabitabilityContext(model = {}) {
           wmfPct: inputs.wmfPct,
           massEarth: inputs.massEarth,
           radiusKm: derived.radiusKm,
+          gravityG: derived.gravityG,
           surfaceTempK: derived.surfaceTempK,
           pressureAtm: inputs.pressureAtm,
           climateState: derived.climateState,
+          geothermalFluxWm2: derived.radiogenicHeatingWm2,
+          tidalHeatFluxWm2: derived.planetTidalHeatingWm2,
         });
   const oceanFraction = toFinite(
     hydrosphere.liquidOceanFraction,

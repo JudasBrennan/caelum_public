@@ -1,4 +1,4 @@
-# WorldSmith Web 2.6.0 Beta
+# WorldSmith Web 2.7.0
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -6,6 +6,11 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Import/export now separates current-world actions, backup management, import validation, starter worlds, and danger-zone resets, with clearer preview, restore, backup-only import, and destructive cleanup flows.
+- Backup previews now explain why a preview cannot be built, and Sol, Realmspace, and Arrakis starter worlds are normalized through the current import engine before use.
+- Ocean-world high-pressure ice warnings now compare local seafloor pressure and estimated bottom-ocean temperature against the water liquidus boundary, with pressure-band fallback only when temperature is unconstrained.
+- Rocky planets with substantial surface liquid now surface mean ocean depth and seafloor pressure context even when they are not exotic ocean worlds.
+- The Science and Maths page now includes a WorldSmith-tailored ocean-floor water phase guide with the implemented dense-ice boundary, example model points, and uncertainty notes.
 - Planet visuals can now be customized from the Planet page or Visualizer with draft-safe previews, presets, sparse overrides, seeded procedural variation, locks, and reset/randomize controls.
 - The visual editor keeps science-derived auto visuals as the default while letting custom appearances persist through save, import/export, snapshots, the Visualizer, Apparent Size, and system posters.
 - Visual editor color controls now stage native color-picker changes until Apply, keep compact swatches and hex fields aligned, and keep lock controls visible in dense rows.
@@ -51,7 +56,7 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Desktop sidebar with an expanded-by-default collapsible rail, light/dark mode toggle, and splash-screen toggle.
 - Lessons page with 20-lesson progressive curriculum, Basic/Advanced toggle, and embedded mini-calculators.
 - Science and Maths reference page with equations and interactive calculators.
-- Import/export with JSON, legacy WorldSmith 8.x XLSX import, and built-in presets.
+- Import/export with JSON, legacy WorldSmith 8.x XLSX import, normalized starter presets, scoped current-world reset, backup-only import, and a manageable backup library.
 
 ## App Sections
 
@@ -71,6 +76,31 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - `Lessons`
 - `Science and Maths`
 - `About WorldSmith`
+
+## Ocean-World Phase Guide
+
+WorldSmith's ocean-world warnings are now pressure-and-temperature estimates,
+not fixed-depth labels. The Planet and Moon pages may show seafloor pressure,
+estimated bottom-ocean temperature, the relevant water liquidus boundary, and a
+short interpretation.
+
+- Pressure depends on both ocean depth and local gravity. A 80 km ocean on a
+  low-gravity world can sit at much lower pressure than the same depth on a
+  super-Earth.
+- Mean ocean depth is a model estimate from water inventory and surface liquid
+  coverage. It can appear for ordinary wet rocky planets as well as explicit
+  ocean-world subtype cards.
+- Bottom-ocean temperature is deliberately shown as a range. It uses a
+  conservative first-pass thermal profile with surface state, depth,
+  geothermal/tidal heating, and ice-shell context where available.
+- The liquidus pressure is the pressure where pure water crosses from liquid to
+  a dense ice phase at the estimated bottom temperature. Below that boundary,
+  high-pressure ice is not treated as stable for the current estimate.
+- Hot deep oceans can remain liquid at pressures that sound enormous because
+  the Ice VI and Ice VII melting boundaries rise strongly with temperature.
+- If the app says `Pressure-only caution`, the bottom-ocean temperature is not
+  constrained, so the warning is intentionally less certain than a
+  phase-diagram result.
 
 ## Local Development
 
@@ -168,8 +198,9 @@ npm install
 - Do not remove an old data path as cleanup. Compatibility decommissioning requires a specific product decision, a changelog entry naming the removed path, current-world round-trip coverage, and a migration or backup story for users who may still have old saves.
 - Canonical planet-class bodies may include optional subtype evidence fields when the authoring UI or import data provides them: `composition.carbonRichness`, `composition.bulkDensityGcm3`, `thermal.internalHeatFluxWm2`, `thermal.tidalHeatFluxWm2`, `history.strippedEnvelopeCandidate`, `history.migratedCloseIn`, and `history.rogueCandidate`. These fields are additive evidence for classification and visualization; old worlds that omit them still load unchanged.
 - Debounced world saves are flushed when the tab is hidden or closed, reducing the risk of losing the latest edits during shutdown.
-- If the current saved world becomes unreadable, the app now shows a recovery flow that clears only the broken current save while preserving backups.
-- Imports create in-app restore points before replacement.
+- If the current saved world becomes unreadable, the app shows a recovery flow that clears only the broken current save while preserving the Import/Export Backup Library.
+- Imports, starter worlds, and backup restores create in-app restore points before replacement by default.
+- The Import/Export page separates the current saved world, Backup Library, import validation, starter worlds, and full browser-data wipe actions. Starting fresh can preserve backups, backup deletion can preserve the current world, and full clear is isolated in the danger zone.
 - Export/import JSON is the recommended way to move worlds between browsers or devices.
 - Built-in presets are available for Sol, Realmspace, and Arrakis.
 - Clearing browser site data removes local saves.

@@ -98,6 +98,7 @@ import {
   computePlanetHabitabilityIndex,
 } from "./habitability/metrics.js";
 import { hydrosphereStateFromPlanet } from "./habitability/hydrosphere.js";
+import { formatOceanPhaseDiagnostics } from "./habitability/oceanPhaseDisplay.js";
 import { EARTH_INTERNAL_HEAT_FLUX_WM2 } from "./habitability/constants.js";
 
 export { tectonicProbabilities } from "./planet/tectonics.js";
@@ -123,6 +124,15 @@ const EARTH_INTERNAL_HEAT_W = 44e12;
 export const ISOTOPE_HEAT_FRACTIONS = { u238: 0.39, u235: 0.04, th232: 0.4, k40: 0.17 };
 
 // Spin-orbit resonance selection is imported from physics/rotation.js.
+
+function formatOceanDepthKm(depthKm) {
+  const depth = Number(depthKm);
+  if (!Number.isFinite(depth) || depth <= 0) return null;
+  if (depth < 1) return `${fmt(depth * 1000, depth * 1000 >= 100 ? 0 : 1)} m`;
+  if (depth < 10) return `${fmt(depth, 2)} km`;
+  if (depth < 100) return `${fmt(depth, 1)} km`;
+  return `${fmt(depth, 0)} km`;
+}
 
 // --- Moon tidal heating on the planet ---
 
@@ -707,10 +717,14 @@ export function calcPlanetExact({
     wmfPct,
     massEarth,
     radiusKm,
+    gravityG,
     surfaceTempK: tKel,
     pressureAtm,
     climateState,
+    geothermalFluxWm2: radiogenicHeatingWm2,
+    tidalHeatFluxWm2: planetTidalHeatingWm2,
   });
+  const oceanPhaseDiagnostics = formatOceanPhaseDiagnostics(hydrosphere);
 
   // Sky colours (after gravity + temperature are known for column-density correction)
   const sky = skyColoursFromSpectralAndPressure({
@@ -1369,6 +1383,9 @@ export function calcPlanetExact({
       surfaceState: surfaceState.label,
       compositionClass: compClass,
       waterRegime: watRegime,
+      meanOceanDepth: formatOceanDepthKm(hydrosphere.estimatedMeanOceanDepthKm),
+      oceanPhaseDiagnostics: oceanPhaseDiagnostics?.text ?? null,
+      oceanPhaseDiagnosticLines: oceanPhaseDiagnostics?.lines ?? [],
       climateState,
       absorbedFlux: fmt(absorbedFluxWm2, 1) + " W/m\u00b2",
       coreRadius: `${fmt(coreRadiusFraction, 2)} R (${fmt(coreRadiusKm, 0)} km)`,

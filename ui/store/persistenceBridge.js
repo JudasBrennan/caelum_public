@@ -3,12 +3,16 @@ import {
   clearLastStorageError,
   clearStoredCurrentWorldData,
   clearStoredWorldData,
+  clearStoredBackups,
+  createStoredBackupSnapshot,
   createStoredBackup,
+  deleteStoredBackup,
   flushWorldStorage,
   getLastStorageError,
   hasAnyStoredDataSync,
   hasStoredWorldDataSync,
   listStoredBackupsSync,
+  readStoredBackupRawSync,
   readStoredWorldRawSync,
   restoreStoredBackup,
   setStoredWorldRaw,
@@ -133,8 +137,26 @@ export function listBackups() {
   return listStoredBackupsSync();
 }
 
-export function createBackup(maxKeep = 5) {
-  return createStoredBackup(maxKeep);
+export function readBackupRaw(id) {
+  return readStoredBackupRawSync(id);
+}
+
+export function createBackup(maxKeep = 5, metadata = {}) {
+  return createStoredBackup(maxKeep, metadata);
+}
+
+export function createBackupFromRaw(raw, maxKeep = 5, metadata = {}) {
+  return createStoredBackupSnapshot(raw, maxKeep, metadata);
+}
+
+export function deleteBackup(id) {
+  return deleteStoredBackup(id);
+}
+
+export async function clearBackups() {
+  const result = clearStoredBackups();
+  await flushWorldStorage();
+  return result;
 }
 
 export function restoreBackup(id) {

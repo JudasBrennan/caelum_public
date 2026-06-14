@@ -49,11 +49,15 @@ export function readLegacyBackups() {
           const id = String(item?.id || "").trim();
           const key = String(item?.key || `${LEGACY_BACKUP_PREFIX}${id}`).trim();
           const createdUtc = String(item?.createdUtc || "").trim() || new Date().toISOString();
+          const metadata =
+            item?.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
+              ? { ...item.metadata }
+              : null;
           if (!id) return null;
           const raw = safeLocalStorageGet(key);
           if (!raw) return null;
           rawById.set(id, raw);
-          return { id, createdUtc };
+          return metadata ? { id, createdUtc, metadata } : { id, createdUtc };
         })
         .filter(Boolean);
     }
@@ -87,11 +91,17 @@ export function readLegacyBackups() {
 }
 
 export function buildLegacyBackupIndex(index = []) {
-  return index.map((backup) => ({
-    id: backup.id,
-    key: `${LEGACY_BACKUP_PREFIX}${backup.id}`,
-    createdUtc: backup.createdUtc,
-  }));
+  return index.map((backup) => {
+    const entry = {
+      id: backup.id,
+      key: `${LEGACY_BACKUP_PREFIX}${backup.id}`,
+      createdUtc: backup.createdUtc,
+    };
+    if (backup.metadata && typeof backup.metadata === "object" && !Array.isArray(backup.metadata)) {
+      entry.metadata = { ...backup.metadata };
+    }
+    return entry;
+  });
 }
 
 export function clearLegacyBackupEntries() {
