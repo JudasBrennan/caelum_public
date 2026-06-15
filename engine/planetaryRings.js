@@ -3,6 +3,8 @@ export const RING_MODE_FORCE_ON = "force-on";
 export const RING_MODE_FORCE_OFF = "force-off";
 export const ROCKY_RING_REFERENCE_MOON_DENSITY_GCM3 = 3.0;
 
+const KM_PER_RMOON = 1737.4;
+const SMALL_COHESIVE_ROCHE_BYPASS_DIAMETER_KM = 20;
 const DEFAULT_RING_SCIENCE_ON = "Current ring science supports visible rings.";
 const DEFAULT_RING_SCIENCE_OFF = "Current ring science does not support visible rings.";
 const GAS_GIANT_RING_SCIENCE_FALLBACK_ON =
@@ -33,6 +35,44 @@ function formatDistanceKm(value) {
   const rounded = Math.round(Number(value) || 0);
   if (!Number.isFinite(rounded) || rounded <= 0) return "0 km";
   return `${rounded.toLocaleString("en-US")} km`;
+}
+
+function moonNumber(moon, key) {
+  const direct = Number(moon?.[key]);
+  if (Number.isFinite(direct)) return direct;
+  const input = Number(moon?.inputs?.[key]);
+  if (Number.isFinite(input)) return input;
+  return null;
+}
+
+function moonEquivalentDiameterKm(moon) {
+  const radiusKm = moonNumber(moon, "radiusKm");
+  if (radiusKm > 0) return radiusKm * 2;
+  const radiusMoon = moonNumber(moon, "radiusMoon");
+  if (radiusMoon > 0) return radiusMoon * KM_PER_RMOON * 2;
+  const massMoon = moonNumber(moon, "massMoon");
+  const densityGcm3 = moonNumber(moon, "densityGcm3");
+  if (!(massMoon > 0) || !(densityGcm3 > 0)) return null;
+  return (massMoon / (densityGcm3 / 3.34)) ** (1 / 3) * KM_PER_RMOON * 2;
+}
+
+function isWeakMoonStructure(moon) {
+  const composition = String(
+    moon?.compositionOverride || moon?.inputs?.compositionOverride || moon?.compositionClass || "",
+  )
+    .trim()
+    .toLowerCase();
+  return composition === "subsurface ocean" || composition === "partially molten";
+}
+
+function isSmallCohesiveRocheBypassMoon(moon) {
+  const diameterKm = moonEquivalentDiameterKm(moon);
+  return (
+    Number.isFinite(diameterKm) &&
+    diameterKm > 0 &&
+    diameterKm < SMALL_COHESIVE_ROCHE_BYPASS_DIAMETER_KM &&
+    !isWeakMoonStructure(moon)
+  );
 }
 
 export function normalizeRingMode(value) {
@@ -180,8 +220,10 @@ export function deriveRockyRingScience({
     };
   }
 
-  let closestMoon = null;
   let smallestPeriapsisKm = Infinity;
+  let closestDisruptiveMoon = null;
+  let smallestDisruptivePeriapsisKm = Infinity;
+  let smallestBypassedPeriapsisKm = Infinity;
   for (const moon of moonList) {
     const semiMajorAxisKm = Number(moon?.semiMajorAxisKm);
     const eccentricity = Math.max(0, Math.min(0.99, Number(moon?.eccentricity) || 0));
@@ -190,7 +232,18 @@ export function deriveRockyRingScience({
     if (!(periapsisKm > 0)) continue;
     if (periapsisKm < smallestPeriapsisKm) {
       smallestPeriapsisKm = periapsisKm;
-      closestMoon = moon;
+    }
+    if (periapsisKm <= rocheLimitKm) {
+      if (isSmallCohesiveRocheBypassMoon(moon)) {
+        if (periapsisKm < smallestBypassedPeriapsisKm) {
+          smallestBypassedPeriapsisKm = periapsisKm;
+        }
+        continue;
+      }
+      if (periapsisKm < smallestDisruptivePeriapsisKm) {
+        smallestDisruptivePeriapsisKm = periapsisKm;
+        closestDisruptiveMoon = moon;
+      }
     }
   }
 
@@ -203,12 +256,21 @@ export function deriveRockyRingScience({
     };
   }
 
-  if (smallestPeriapsisKm <= rocheLimitKm) {
+  if (smallestDisruptivePeriapsisKm <= rocheLimitKm) {
     return {
       rocheLimitKm,
       ringScienceSupported: true,
-      ringScienceReason: `Science supports rocky rings: an assigned moon reaches periapsis inside the Roche limit (${formatDistanceKm(smallestPeriapsisKm)} <= ${formatDistanceKm(rocheLimitKm)}).`,
-      ringSourceMoonId: String(closestMoon?.id || "").trim() || null,
+      ringScienceReason: `Science supports rocky rings: an assigned moon reaches periapsis inside the Roche limit (${formatDistanceKm(smallestDisruptivePeriapsisKm)} <= ${formatDistanceKm(rocheLimitKm)}).`,
+      ringSourceMoonId: String(closestDisruptiveMoon?.id || "").trim() || null,
+    };
+  }
+
+  if (smallestBypassedPeriapsisKm <= rocheLimitKm) {
+    return {
+      rocheLimitKm,
+      ringScienceSupported: false,
+      ringScienceReason: `Science does not support rocky rings: the closest Roche-crossing moon is a sub-20 km cohesive body, so material strength can let it survive without disrupting (${formatDistanceKm(smallestBypassedPeriapsisKm)} <= ${formatDistanceKm(rocheLimitKm)}).`,
+      ringSourceMoonId: null,
     };
   }
 

@@ -1,4 +1,4 @@
-# WorldSmith Web 2.7.1
+# WorldSmith Web 2.8.0
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -6,6 +6,11 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Planet and Moon outputs now include a top-level Era Timeline that presents past, current, and future physical-history entries with confidence and driver context.
+- Planet and Moon output panels now use shared tabs, matching section names, Result Summaries, and an All view for users who prefer the original long-column scan.
+- Planet visual editor coverage controls now show the current Auto percentages with short model reasons, and text/number inputs keep focus while editing.
+- Planet selectors now show authored host-star or host-pair names instead of raw IDs, while very small cohesive moons can survive Roche-only crossings when material strength dominates.
+- Celestial previews now rotate planets and moons around their tilted local axes, so axial tilt affects both pose and visible spin direction.
 - Import/export now separates current-world actions, backup management, import validation, starter worlds, and danger-zone resets, with clearer preview, restore, backup-only import, and destructive cleanup flows.
 - The splash screen now lets users enter immediately and no longer blocks app startup if the decorative 3D planet preview hangs in a browser-specific way.
 - Backup previews now explain why a preview cannot be built, and Sol, Realmspace, and Arrakis starter worlds are normalized through the current import engine before use.

@@ -26,6 +26,7 @@ import {
 } from "./habitability/metrics.js";
 import { calcPlanetExact } from "./planet.js";
 import { calcStar, massToLuminosity, massToRadius } from "./star.js";
+import { buildPlanetaryEraTimelineForMoon } from "./planetaryEraTimeline.js";
 
 export { compositionFromDensity } from "./moon/composition.js";
 
@@ -593,6 +594,7 @@ function buildMoonSummaryResult({
   magnetosphere,
   radiation,
   spinState,
+  compositionClass,
   resonance,
   formation,
   surfaceExomoonCalibration,
@@ -636,6 +638,14 @@ function buildMoonSummaryResult({
     },
     orbit: {
       moonZoneInnerKm: orbit.zoneInnerKm,
+      classicalRocheLimitKm: orbit.classicalRocheLimitKm,
+      effectiveInnerLimitKm: orbit.effectiveInnerLimitKm,
+      effectiveInnerLimitKind: orbit.effectiveInnerLimitKind,
+      collisionInnerLimitKm: orbit.collisionInnerLimitKm,
+      smallCohesiveRocheBypass: orbit.smallCohesiveRocheBypass,
+      smallCohesiveRocheBypassReason: orbit.smallCohesiveRocheBypassReason,
+      moonEquivalentDiameterKm: orbit.moonEquivalentDiameterKm,
+      rocheLimitModel: orbit.rocheLimitModel,
       moonZoneOuterKm: orbit.zoneOuterKm,
       hillRadiusKm: orbit.hillRadiusKm,
       stableOuterLimitKm: orbit.stableOuterLimitKm,
@@ -685,6 +695,9 @@ function buildMoonSummaryResult({
     magnetosphere,
     radiation,
     spinState,
+    tides: {
+      compositionClass: compositionClass || null,
+    },
     resonance,
     formation,
     surfaceExomoonCalibration,
@@ -704,6 +717,7 @@ function buildMoonSummaryResult({
       surfaceBiosphere: biosphere.surfaceBiosphereClass,
       subsurfaceOcean: hydrosphere.subsurfaceOceanPresent ? "Yes" : "No",
       spinState: spinState?.state || "Not evaluated",
+      compositionClass: compositionClass || compositionOverride || "Not evaluated",
       habitabilityIndex: fmt(unifiedMoonHabitability.score, 3),
       lifeClass: habitabilitySummary.primaryOutcome,
       surfaceHabitability: habitabilitySummary.surfaceOutcome,
@@ -716,6 +730,24 @@ function buildMoonSummaryResult({
           : "Not targeted",
     },
   };
+}
+
+function attachMoonEraTimeline(result, { planetModel = null, systemContext = {} } = {}) {
+  const eraTimeline = buildPlanetaryEraTimelineForMoon({
+    model: result,
+    planetModel,
+    star: result?.star || null,
+    systemContext,
+  });
+  result.derived = {
+    ...(result.derived && typeof result.derived === "object" ? result.derived : {}),
+    eraTimeline,
+  };
+  result.display = {
+    ...(result.display && typeof result.display === "object" ? result.display : {}),
+    eraTimelineSummary: eraTimeline.summary,
+  };
+  return result;
 }
 
 export function calcMoonExact({
@@ -824,6 +856,9 @@ export function calcMoonExact({
   const rMoonRM = (mMoonMM / (rhoMoonGcm3 / 3.34)) ** (1 / 3);
   const gMoonG = (mMoonMM / rMoonRM ** 2) * 0.1654;
   const vEscKmS = Math.sqrt(mMoonMM / rMoonRM) * 2.38;
+  const moonComposition =
+    (moonInputs.compositionOverride && compositionFromClass(moonInputs.compositionOverride)) ||
+    compositionFromDensity(rhoMoonGcm3);
 
   const orbit = computeMoonOrbit({
     starMassMsol: mStarMsol,
@@ -834,14 +869,13 @@ export function calcMoonExact({
     planetEccentricity: ePlanet,
     moonMassMoon: mMoonMM,
     moonDensityGcm3: rhoMoonGcm3,
+    moonRadiusMoon: rMoonRM,
+    moonRigidityPa: moonComposition?.mu,
+    moonCompositionClass: moonComposition?.compositionClass || moonInputs.compositionOverride,
     moonSemiMajorAxisKmInput: aMoonKmInput,
     moonEccentricity: eMoon,
     moonInclinationDeg: inc,
   });
-
-  const moonComposition =
-    (moonInputs.compositionOverride && compositionFromClass(moonInputs.compositionOverride)) ||
-    compositionFromDensity(rhoMoonGcm3);
 
   const tides = computeMoonTidalState({
     systemAgeGyr: ageGyr,
@@ -865,6 +899,8 @@ export function calcMoonExact({
     orbitalDirection: orbit.orbitalDirection,
     composition: moonComposition,
     hasCompositionOverride: Boolean(moonInputs.compositionOverride),
+    innerFateTargetLabel:
+      orbit.effectiveInnerLimitKind === "collision" ? "parent collision boundary" : "Roche limit",
   });
 
   const baselineTemperature = computeMoonTemperature({
@@ -1305,6 +1341,7 @@ export function calcMoonExact({
       recessionCmYr: tides.recessionCmYr,
       dadtTotalMs: tides.dadtTotalMs,
       fateTimescaleMethod: tides.fateTimescaleMethod,
+      innerFateTargetLabel: tides.innerFateTargetLabel,
       timeToRocheGyr: tides.timeToRocheGyr,
       timeToEscapeGyr: tides.timeToEscapeGyr,
       moonLockedToPlanet: tides.moonLockedToPlanet,
@@ -1330,7 +1367,7 @@ export function calcMoonExact({
   });
 
   if (detailLevel === "summary") {
-    return buildMoonSummaryResult({
+    const result = buildMoonSummaryResult({
       hostFrame,
       mStarMsol,
       rStarRsol,
@@ -1363,15 +1400,20 @@ export function calcMoonExact({
       magnetosphere,
       radiation,
       spinState: tides.spinState,
+      compositionClass: tides.compositionClass,
       resonance,
       formation,
       surfaceExomoonCalibration: habitabilitySummary.surfaceExomoonCalibration,
       habitabilitySummary,
       unifiedMoonHabitability,
     });
+    return attachMoonEraTimeline(result, {
+      planetModel: result.planet,
+      systemContext: { starAgeGyr: ageGyr, starMassMsol: mStarMsol },
+    });
   }
 
-  return {
+  const result = {
     hostFrame: hostFrame
       ? {
           id: hostFrame.id,
@@ -1445,6 +1487,14 @@ export function calcMoonExact({
 
     orbit: {
       moonZoneInnerKm: orbit.zoneInnerKm,
+      classicalRocheLimitKm: orbit.classicalRocheLimitKm,
+      effectiveInnerLimitKm: orbit.effectiveInnerLimitKm,
+      effectiveInnerLimitKind: orbit.effectiveInnerLimitKind,
+      collisionInnerLimitKm: orbit.collisionInnerLimitKm,
+      smallCohesiveRocheBypass: orbit.smallCohesiveRocheBypass,
+      smallCohesiveRocheBypassReason: orbit.smallCohesiveRocheBypassReason,
+      moonEquivalentDiameterKm: orbit.moonEquivalentDiameterKm,
+      rocheLimitModel: orbit.rocheLimitModel,
       moonZoneOuterKm: orbit.zoneOuterKm,
       hillRadiusKm: orbit.hillRadiusKm,
       stableOuterLimitKm: orbit.stableOuterLimitKm,
@@ -1564,6 +1614,7 @@ export function calcMoonExact({
       recessionCmYr: tides.recessionCmYr,
       dadtTotalMs: tides.dadtTotalMs,
       fateTimescaleMethod: tides.fateTimescaleMethod,
+      innerFateTargetLabel: tides.innerFateTargetLabel,
       timeToRocheGyr: tides.timeToRocheGyr,
       timeToEscapeGyr: tides.timeToEscapeGyr,
       tidallyEvolvedMoon: tides.tidallyEvolvedMoon,
@@ -1592,6 +1643,13 @@ export function calcMoonExact({
           : "Not targeted",
       surfaceTemp: `${temperature.surfaceK} K (${temperature.surfaceC} °C)`,
       zoneInner: `${fmt(orbit.zoneInnerKm, 0)} km`,
+      classicalRocheLimit: `${fmt(orbit.classicalRocheLimitKm, 0)} km`,
+      effectiveInnerLimit: `${fmt(orbit.effectiveInnerLimitKm, 0)} km`,
+      innerLimitNote: orbit.smallCohesiveRocheBypass
+        ? "Small-body strength bypass active: assumes a cohesive/monolithic body below 20 km diameter; rubble-pile or very weak material would still be Roche-limited."
+        : orbit.effectiveInnerLimitKind === "collision"
+          ? "Effective inner limit is set by parent collision clearance."
+          : "Effective inner limit follows the rigid-body Roche guardrail.",
       zoneOuter: `${fmt(orbit.zoneOuterKm, 0)} km`,
       peri: `${fmt(orbit.periapsisKm, 0)} km`,
       apo: `${fmt(orbit.apoapsisKm, 0)} km`,
@@ -1748,6 +1806,7 @@ export function calcMoonExact({
         tides.dadtTotalMs,
         tides.timeToRocheGyr,
         tides.timeToEscapeGyr,
+        tides.innerFateTargetLabel,
       ),
       moonLocked: tides.moonLockedToPlanet,
       planetLockedMoon: tides.planetLockedToMoon || "—",
@@ -1778,6 +1837,11 @@ export function calcMoonExact({
       tPlanetStar: `${fmt(tides.lockingTimesGyr.planetToStar, 6)} Gyr`,
     },
   };
+
+  return attachMoonEraTimeline(result, {
+    planetModel: result.planet,
+    systemContext: { starAgeGyr: ageGyr, starMassMsol: mStarMsol },
+  });
 }
 
 export const calcMoon = calcMoonExact;

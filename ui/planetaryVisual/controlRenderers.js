@@ -257,6 +257,33 @@ function createValueControl(control, value, locked) {
   });
 }
 
+function createAutoCoverageReadout(path, state) {
+  const readout = state?.autoCoverageReadouts?.[path];
+  if (!readout) return null;
+  const label = readout.label || (readout.percentLabel ? `Auto ${readout.percentLabel}` : "Auto");
+  const explanation = String(readout.explanation || "").trim();
+  return createElement(
+    "div",
+    {
+      className: "planetary-visual-control__auto-readout",
+      attrs: { role: "note" },
+      dataset: { autoReadoutPath: path, confidence: readout.confidence || "medium" },
+    },
+    [
+      createElement("span", {
+        className: "planetary-visual-control__auto-value",
+        text: label,
+      }),
+      explanation
+        ? createElement("small", {
+            className: "planetary-visual-control__auto-reason",
+            text: explanation,
+          })
+        : null,
+    ],
+  );
+}
+
 function controlForState(control, state, path) {
   if (path !== "seed") return control;
   const autoSeed = String(state?.autoSeed || "").trim();
@@ -295,6 +322,7 @@ export function createPlanetaryVisualControl(control, state) {
             : "planetary-visual-control__source-pill",
           text: hasValue ? "Custom" : "Auto",
         }),
+        createAutoCoverageReadout(path, state),
       ]),
       createValueControl(displayControl, value, locked),
       isColorControl ? null : createLockControl(displayControl, path, locked),

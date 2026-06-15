@@ -183,6 +183,10 @@ export function createPlanetaryVisualEditorState(input = {}) {
     classificationLabel: String(deriveClassificationLabel(input)),
     subtypeLabels: deriveSubtypeLabels(input),
     autoSeed: String(input.autoSeed || ""),
+    autoCoverageReadouts:
+      input.autoCoverageReadouts && typeof input.autoCoverageReadouts === "object"
+        ? input.autoCoverageReadouts
+        : {},
     manifest,
     originalAppearance,
     draft,

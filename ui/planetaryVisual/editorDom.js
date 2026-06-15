@@ -3,6 +3,8 @@ import {
   applyPlanetaryVisualEditorPatch,
   buildPlanetaryVisualEditorSavePatch,
   createPlanetaryVisualEditorState,
+  getPlanetaryVisualEditorControlValue,
+  hasPlanetaryVisualEditorControlValue,
   isPlanetaryVisualEditorDirty,
   mergePlanetaryVisualEditorOverrides,
   resetPlanetaryVisualEditorDraft,
@@ -22,6 +24,8 @@ import {
   createPlanetaryVisualEditorPreview,
   resolvePlanetaryVisualEditorAutoSeed,
 } from "./editorPreview.js";
+import { resolvePlanetaryVisualDescriptor } from "./descriptor.js";
+import { buildPlanetaryVisualAutoCoverageReadouts } from "./autoCoverageReadout.js";
 import { buildPlanetaryVisualPresetPatch } from "./presets.js";
 import { randomizePlanetaryVisualOverrides, randomizePlanetaryVisualSection } from "./randomize.js";
 
@@ -95,6 +99,44 @@ function syncControls(root, state) {
   });
   const saveBtn = root.querySelector("[data-visual-editor-save]");
   if (saveBtn) saveBtn.disabled = !isPlanetaryVisualEditorDirty(state);
+
+  root.querySelectorAll(".planetary-visual-control[data-control-path]").forEach((node) => {
+    const hasValue = hasPlanetaryVisualEditorControlValue(state, node.dataset.controlPath);
+    const pill = node.querySelector(".planetary-visual-control__source-pill");
+    if (!pill) return;
+    pill.classList.toggle("is-custom", hasValue);
+    pill.textContent = hasValue ? "Custom" : "Auto";
+  });
+
+  root.querySelectorAll("[data-control-path]").forEach((node) => {
+    if (node === document.activeElement) return;
+    if (node.classList?.contains("planetary-visual-control")) return;
+    if (!["INPUT", "SELECT", "TEXTAREA"].includes(node.tagName)) return;
+    const path = node.dataset.controlPath;
+    if (!path) return;
+    if (!hasPlanetaryVisualEditorControlValue(state, path)) return;
+    const value = getPlanetaryVisualEditorControlValue(state, path);
+    if (node.type === "checkbox") {
+      node.checked = value === true;
+    } else if (node.type === "range" || node.type === "number") {
+      node.value = value ?? "";
+    } else if (node.tagName === "SELECT") {
+      node.value = value ?? node.value;
+    } else if (node.type !== "color") {
+      node.value = value ?? "";
+    }
+  });
+}
+
+function resolvePlanetaryVisualEditorAutoDescriptor(previewContext = {}) {
+  return resolvePlanetaryVisualDescriptor({
+    ...(previewContext.baseDescriptorInput || {}),
+    body: previewContext.body || previewContext.baseDescriptorInput?.body,
+    solvedBody: previewContext.solvedBody || previewContext.baseDescriptorInput?.solvedBody,
+    manifest: previewContext.manifest || previewContext.baseDescriptorInput?.manifest,
+    visualMode: "auto",
+    visualOverrides: null,
+  });
 }
 
 export function openPlanetaryVisualEditor(options = {}) {
@@ -104,8 +146,19 @@ export function openPlanetaryVisualEditor(options = {}) {
     solvedBody: options.previewContext?.solvedBody || options.solvedBody,
     manifest: options.previewContext?.manifest || options.manifest,
   };
+  const autoDescriptor =
+    options.autoDescriptor || resolvePlanetaryVisualEditorAutoDescriptor(previewContext);
+  const autoCoverageReadouts =
+    options.autoCoverageReadouts ||
+    buildPlanetaryVisualAutoCoverageReadouts({
+      autoDescriptor,
+      solvedBody: previewContext.solvedBody || previewContext.baseDescriptorInput?.solvedBody,
+      body: previewContext.body || options.body,
+      classification: options.classification,
+      manifest: previewContext.manifest || options.manifest,
+    });
   const autoSeed = options.autoSeed || resolvePlanetaryVisualEditorAutoSeed(previewContext);
-  let state = createPlanetaryVisualEditorState({ ...options, autoSeed });
+  let state = createPlanetaryVisualEditorState({ ...options, autoSeed, autoCoverageReadouts });
   let randomizeCounter = 0;
   const overlay = createElement("div", {
     className: "planetary-visual-editor-overlay",
@@ -218,10 +271,10 @@ export function openPlanetaryVisualEditor(options = {}) {
     );
   }
 
-  function renderPreview() {
+  function renderPreview({ refreshControls = true } = {}) {
     setStatus(status, state);
+    if (refreshControls) renderControls();
     syncControls(dialog, state);
-    renderControls();
     const model = preview.update?.(state) || null;
     options.onPreview?.(model, state);
     return model;
@@ -257,9 +310,13 @@ export function openPlanetaryVisualEditor(options = {}) {
     return target?.dataset?.controlType === "color";
   }
 
-  function updateState(nextState) {
+  function isLiveControlInput(target) {
+    return target?.type === "range";
+  }
+
+  function updateState(nextState, renderOptions = {}) {
     state = nextState;
-    return renderPreview();
+    return renderPreview(renderOptions);
   }
 
   function applyPreset(presetId) {
@@ -322,12 +379,14 @@ export function openPlanetaryVisualEditor(options = {}) {
     const target = event.target;
     if (!target?.dataset?.controlPath) return;
     if (isDeferredColorInput(target)) return;
+    if (!isLiveControlInput(target)) return;
     updateState(
       setPlanetaryVisualEditorControlValue(
         state,
         target.dataset.controlPath,
         readControlValue(target),
       ),
+      { refreshControls: false },
     );
   });
   controlsRoot.addEventListener("change", (event) => {
@@ -350,6 +409,7 @@ export function openPlanetaryVisualEditor(options = {}) {
         target.dataset.controlPath,
         readControlValue(target),
       ),
+      { refreshControls: false },
     );
   });
   controlsRoot.addEventListener("click", (event) => {

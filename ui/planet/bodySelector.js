@@ -18,7 +18,24 @@ function isUnifiedPlanetaryBodyList(value) {
   );
 }
 
-function selectorEntryFromPlanetaryBody(body) {
+function buildHostFrameLabelLookup(options = {}) {
+  const frames = options.hostFramesById || options.homeSystemContext?.hostFramesById || {};
+  const lookup = new Map();
+  for (const frame of Object.values(frames || {})) {
+    const id = String(frame?.id || "").trim();
+    if (!id) continue;
+    lookup.set(id, String(frame?.label || id).trim() || id);
+  }
+  return lookup;
+}
+
+function resolveHostFrameLabel(hostFrameId, hostFrameLabels) {
+  const id = String(hostFrameId || "").trim();
+  if (!id) return "Primary host frame";
+  return hostFrameLabels?.get(id) || `Host frame ${id}`;
+}
+
+function selectorEntryFromPlanetaryBody(body, hostFrameLabels) {
   const legacyKind = body?.legacyKind === "gasGiant" ? "gasGiant" : "rocky";
   const id = body?.id;
   const name = body?.name || id;
@@ -27,7 +44,7 @@ function selectorEntryFromPlanetaryBody(body) {
   const classificationLabel = getPlanetaryBodyClassificationLabel(classification);
   const authoringIntent = body?.authoringIntent || "auto";
   const hostFrameId = String(body?.hostFrameId || "").trim();
-  const hostFrameLabel = hostFrameId ? `Host frame ${hostFrameId}` : "Primary host frame";
+  const hostFrameLabel = resolveHostFrameLabel(hostFrameId, hostFrameLabels);
   const baseEntry = {
     id,
     name,
@@ -58,9 +75,12 @@ function selectorEntryFromPlanetaryBody(body) {
   };
 }
 
-export function buildBodySelectorEntries(planets, gasGiants) {
+export function buildBodySelectorEntries(planets, gasGiants, options = {}) {
+  const hostFrameLabels = buildHostFrameLabelLookup(options);
   if (gasGiants === undefined && isUnifiedPlanetaryBodyList(planets)) {
-    return planets.map(selectorEntryFromPlanetaryBody).sort((a, b) => a.au - b.au);
+    return planets
+      .map((body) => selectorEntryFromPlanetaryBody(body, hostFrameLabels))
+      .sort((a, b) => a.au - b.au);
   }
 
   const entries = [];
@@ -74,9 +94,7 @@ export function buildBodySelectorEntries(planets, gasGiants) {
       au,
       isDwarf: mass < 0.01,
       hostFrameId: planet.hostFrameId || "",
-      hostFrameLabel: planet.hostFrameId
-        ? `Host frame ${planet.hostFrameId}`
-        : "Primary host frame",
+      hostFrameLabel: resolveHostFrameLabel(planet.hostFrameId, hostFrameLabels),
       classificationFamily: mass < 0.01 ? "dwarfRocky" : "rocky",
       classificationLabel: mass < 0.01 ? "Dwarf rocky body" : "Rocky world",
       authoringIntent: planet.authoringIntent || planet.inputs?.authoringIntent || "rocky",
@@ -94,7 +112,7 @@ export function buildBodySelectorEntries(planets, gasGiants) {
       au: Number(giant.au) || 0,
       companionClass: giant.companionClass || "gasGiant",
       hostFrameId: giant.hostFrameId || "",
-      hostFrameLabel: giant.hostFrameId ? `Host frame ${giant.hostFrameId}` : "Primary host frame",
+      hostFrameLabel: resolveHostFrameLabel(giant.hostFrameId, hostFrameLabels),
       classificationFamily: giant.companionClass === "brownDwarf" ? "brownDwarf" : "gasGiant",
       classificationLabel:
         giant.companionClass === "brownDwarf" ? "Brown-dwarf companion" : "Gas giant",
@@ -118,7 +136,9 @@ export function buildBodySelectorOptions(entries) {
         : entry.companionClass === "brownDwarf"
           ? "Brown-dwarf companion"
           : "Gas giant");
-    const hostPrefix = entry.hostFrameId ? `${entry.hostFrameId} - ` : "";
+    const hostPrefix = entry.hostFrameId
+      ? `${entry.hostFrameLabel || `Host frame ${entry.hostFrameId}`} - `
+      : "";
     return {
       value: entry.value,
       label: `${hostPrefix}${classificationLabel} - ${entry.name} (${fmt(entry.au, 3)} AU)`,

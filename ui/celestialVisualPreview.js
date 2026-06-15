@@ -2897,11 +2897,25 @@ function disposeBodyRuntime(runtime) {
   } catch {}
 }
 
-function applyBodyCanvasSize(runtime, canvas) {
+function positiveCanvasDimension(...values) {
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return 180;
+}
+
+export function isBodyPreviewCanvasRenderable(canvas) {
+  if (!canvas || !canvas.isConnected) return false;
+  return !canvas.closest?.("[hidden], [aria-hidden='true']");
+}
+
+export function applyBodyCanvasSize(runtime, canvas) {
   if (!runtime || !canvas) return;
   const dpr = clampPreviewDpr(window.devicePixelRatio || 1);
-  const w = Number(canvas.clientWidth) || Number(canvas.width) || 180;
-  const h = Number(canvas.clientHeight) || Number(canvas.height) || w;
+  const rect = canvas.getBoundingClientRect?.();
+  const w = positiveCanvasDimension(canvas.clientWidth, rect?.width, canvas.width);
+  const h = positiveCanvasDimension(canvas.clientHeight, rect?.height, canvas.height, w);
   const pxW = Math.max(1, Math.round(w * dpr));
   const pxH = Math.max(1, Math.round(h * dpr));
   runtime.renderer.setSize(pxW, pxH, false);
@@ -3425,6 +3439,35 @@ function applyDescriptorToRuntime(runtime, descriptor, model) {
     });
 }
 
+function setNodeRotation(node, x, y, z) {
+  if (typeof node?.rotation?.set === "function") {
+    node.rotation.set(x, y, z);
+    return;
+  }
+  if (node?.rotation) {
+    node.rotation.x = x;
+    node.rotation.y = y;
+    node.rotation.z = z;
+  }
+}
+
+export function applyCelestialAxialSpinPose(runtime, descriptor = {}, spinRad = 0) {
+  if (!runtime?.body || !runtime?.THREE) return;
+  const tiltRad = runtime.THREE.MathUtils.degToRad(Number(descriptor.axialTiltDeg) || 0);
+  if (runtime.root) {
+    runtime.root.quaternion?.identity?.();
+    setNodeRotation(runtime.root, 0, 0, tiltRad);
+  }
+  setNodeRotation(runtime.body, 0, spinRad, 0);
+
+  if (runtime.clouds?.visible) {
+    const driftFactor = Math.max(1, Number(descriptor.clouds?.driftFactor) || 1.25);
+    setNodeRotation(runtime.clouds, 0, spinRad * driftFactor, 0);
+  }
+
+  if (runtime.haze?.visible) setNodeRotation(runtime.haze, 0, spinRad * 0.35, 0);
+}
+
 function renderBodyFrame(state, dtSec) {
   if (!state.runtime || !state.runtime.descriptor) return;
   const rt = state.runtime;
@@ -3433,16 +3476,7 @@ function renderBodyFrame(state, dtSec) {
   const rotPeriod = Math.max(0.1, Number(descriptor.rotationPeriodDays) || 1);
   const bodyTurns = days / rotPeriod;
   const bodyRot = bodyTurns * Math.PI * 2 + rt.rotationOffset;
-  rt.body.rotation.y = bodyRot;
-  rt.body.rotation.z = rt.THREE.MathUtils.degToRad(Number(descriptor.axialTiltDeg) || 0);
-
-  if (rt.clouds.visible) {
-    const driftFactor = Math.max(1, Number(descriptor.clouds?.driftFactor) || 1.25);
-    rt.clouds.rotation.y = bodyRot * driftFactor;
-    rt.clouds.rotation.z = rt.body.rotation.z;
-  }
-
-  if (rt.haze.visible) rt.haze.rotation.y = bodyRot * 0.35;
+  applyCelestialAxialSpinPose(rt, descriptor, bodyRot);
 
   refreshRingLighting(rt);
   refreshBodyRingShadow(rt);
@@ -3509,6 +3543,14 @@ function createBodyVisualPreviewController({ speedDaysPerSec = DEFAULT_SPEED_DAY
     if (!state.running) return;
     if (!state.canvas || !state.canvas.isConnected) {
       stopLoop();
+      return;
+    }
+    if (!isBodyPreviewCanvasRenderable(state.canvas)) {
+      if (typeof requestAnimationFrame !== "function") {
+        stopLoop();
+        return;
+      }
+      state.rafId = requestAnimationFrame(tick);
       return;
     }
     ensureRuntime();
@@ -3746,15 +3788,8 @@ async function doRecipeSnapshot(targetCanvas, model, { shouldContinue = null } =
     if (runtime.clouds.visible) runtime.clouds.rotation.set(0, spin * 1.25, 0);
     if (runtime.haze.visible) runtime.haze.rotation.set(0, spin * 0.35, 0);
   } else {
-    // Legacy path: identity root, Euler tilt on body.
-    runtime.root.quaternion.identity();
-    runtime.body.rotation.y = spin;
-    runtime.body.rotation.z = runtime.THREE.MathUtils.degToRad(descriptor.axialTiltDeg || 0);
-    if (runtime.clouds.visible) {
-      runtime.clouds.rotation.y = spin * 1.25;
-      runtime.clouds.rotation.z = runtime.body.rotation.z;
-    }
-    if (runtime.haze.visible) runtime.haze.rotation.y = spin * 0.35;
+    // Fallback path: fixed root tilt, then child meshes spin around that local pole.
+    applyCelestialAxialSpinPose(runtime, descriptor, spin);
   }
 
   if (!shouldContinueWork(shouldContinue)) return false;

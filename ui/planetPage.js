@@ -106,7 +106,16 @@ import {
 } from "./planet/domRender.js";
 import { createKpiGrid, renderTectonicProbabilityBar } from "./planet/outputRender.js";
 import { createDerivedDetails } from "./derivedDetails.js";
+import { createEraTimelineSection } from "./eraTimelinePanel.js";
 import { renderKpiSections } from "./kpiSections.js";
+import { enableOutputSectionTabs } from "./outputSectionTabs.js";
+import {
+  buildBrownDwarfPlanetResultSummary,
+  buildGasGiantPlanetResultSummary,
+  buildRockyPlanetResultSummary,
+  buildVolatilePlanetResultSummary,
+  renderPlanetResultSummary,
+} from "./planet/resultSummary.js";
 import { renderGasGiantInputForm, renderRockyInputForm } from "./planet/inputRender.js";
 import { PLANET_TUTORIAL_STEPS as TUTORIAL_STEPS } from "./planet/tutorials.js";
 import {
@@ -1426,7 +1435,10 @@ export function initPlanetPage(mountEl, options = {}) {
   }
 
   function populateBodySelector(world) {
-    const entries = buildBodySelectorEntries(listPlanetaryBodies(world));
+    const homeSystemContext = buildPlanetHomeSystemContext(world);
+    const entries = buildBodySelectorEntries(listPlanetaryBodies(world), undefined, {
+      homeSystemContext,
+    });
     const selectedValue = getSelectedBodySelectorValue(world);
     const filteredEntries = filterBodySelectorEntries(entries, bodySearchEl?.value || "");
     const selectedEntry = entries.find((entry) => entry.value === selectedValue);
@@ -2538,6 +2550,9 @@ export function initPlanetPage(mountEl, options = {}) {
         };
       }),
     );
+    const eraTimelineSection = createEraTimelineSection(d.eraTimeline, {
+      id: "planet-era-timeline",
+    });
     const derivedDetails = createDerivedDetails(
       [
         {
@@ -2830,7 +2845,7 @@ export function initPlanetPage(mountEl, options = {}) {
     );
     bodyOutputsEl.replaceChildren();
     renderKpiSections(bodyOutputsEl, [
-      { id: "planet-summary", title: "Summary", items: summaryItems },
+      { id: "planet-summary", title: "Key Numbers", items: summaryItems },
       {
         id: "planet-identity",
         title: "Identity & Class",
@@ -2858,7 +2873,15 @@ export function initPlanetPage(mountEl, options = {}) {
         items: habitabilityItems,
       },
     ]);
+    renderPlanetResultSummary(
+      bodyOutputsEl,
+      buildRockyPlanetResultSummary({ planet, model, classificationSummary }),
+    );
+    if (eraTimelineSection) {
+      bodyOutputsEl.insertBefore(eraTimelineSection, bodyOutputsEl.children[2] || null);
+    }
     if (derivedDetails) bodyOutputsEl.append(derivedDetails);
+    enableOutputSectionTabs(bodyOutputsEl, { label: "Planet output sections", includeAll: true });
 
     // Render rocky planet preview canvas (animated native celestial controller)
     let rockyCvs = bodyOutputsEl.querySelector(".rocky-preview-canvas");
@@ -3091,29 +3114,41 @@ export function initPlanetPage(mountEl, options = {}) {
       },
     ].map(normalizeVolatileItem);
 
+    const eraTimelineSection = createEraTimelineSection(model.derived?.eraTimeline, {
+      id: "planet-era-timeline",
+    });
+
     bodyOutputsEl.replaceChildren();
     renderKpiSections(bodyOutputsEl, [
-      { id: "volatile-summary", title: "Summary", items: summaryItems },
+      { id: "volatile-summary", title: "Key Numbers", items: summaryItems },
       {
         id: "volatile-physical",
-        title: "Core & Envelope",
+        title: "Physical State",
         density: "compact",
         items: physicalItems,
       },
       {
         id: "volatile-envelope",
-        title: "Envelope Escape",
+        title: "Activity & Radiation",
         density: "compact",
         items: envelopeItems,
       },
       {
         id: "volatile-environment",
-        title: "Thermal Context",
+        title: "Environment",
         density: "compact",
         items: environmentItems,
       },
       { id: "volatile-detection", title: "Detection", density: "compact", items: detectionItems },
     ]);
+    renderPlanetResultSummary(
+      bodyOutputsEl,
+      buildVolatilePlanetResultSummary({ body, model, classificationLabel, display, physical }),
+    );
+    if (eraTimelineSection) {
+      bodyOutputsEl.insertBefore(eraTimelineSection, bodyOutputsEl.children[2] || null);
+    }
+    enableOutputSectionTabs(bodyOutputsEl, { label: "Planet output sections", includeAll: true });
     let volatileCanvas = bodyOutputsEl.querySelector(".volatile-preview-canvas");
     if (prevVolatileCanvas && volatileCanvas && prevVolatileCanvas !== volatileCanvas) {
       prevVolatileCanvas.dataset.style = volatileStyleId;
@@ -4108,7 +4143,7 @@ export function initPlanetPage(mountEl, options = {}) {
 
     bodyOutputsEl.replaceChildren();
     renderKpiSections(bodyOutputsEl, [
-      { id: "gas-giant-summary", title: "Summary", items: summaryItems },
+      { id: "gas-giant-summary", title: "Key Numbers", items: summaryItems },
       {
         id: "gas-giant-identity",
         title: "Identity & Class",
@@ -4141,7 +4176,12 @@ export function initPlanetPage(mountEl, options = {}) {
         items: habitabilityItems,
       },
     ]);
+    renderPlanetResultSummary(
+      bodyOutputsEl,
+      buildBrownDwarfPlanetResultSummary({ giant, model, gasCalc }),
+    );
     if (derivedDetails) bodyOutputsEl.append(derivedDetails);
+    enableOutputSectionTabs(bodyOutputsEl, { label: "Planet output sections", includeAll: true });
 
     const sunCanvas = bodyOutputsEl.querySelector(".sun-preview-canvas");
     if (sunCanvas) {
@@ -4627,7 +4667,7 @@ export function initPlanetPage(mountEl, options = {}) {
 
     bodyOutputsEl.replaceChildren();
     renderKpiSections(bodyOutputsEl, [
-      { id: "gas-giant-summary", title: "Summary", items: summaryItems },
+      { id: "gas-giant-summary", title: "Key Numbers", items: summaryItems },
       {
         id: "gas-giant-identity",
         title: "Identity & Class",
@@ -4654,7 +4694,12 @@ export function initPlanetPage(mountEl, options = {}) {
         items: activityItems,
       },
     ]);
+    renderPlanetResultSummary(
+      bodyOutputsEl,
+      buildGasGiantPlanetResultSummary({ giant, model: m, classValue }),
+    );
     if (derivedDetails) bodyOutputsEl.append(derivedDetails);
+    enableOutputSectionTabs(bodyOutputsEl, { label: "Planet output sections", includeAll: true });
 
     let gasCanvas = bodyOutputsEl.querySelector(".gg-preview-canvas");
     if (prevGasCanvas && gasCanvas && prevGasCanvas !== gasCanvas) {

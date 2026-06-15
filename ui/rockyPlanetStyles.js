@@ -146,10 +146,15 @@ export function computeRockyVisualProfile(derived, inputs) {
     0,
     1,
   );
+  const exposedLandFraction = clamp(1 - oceanCoverage, 0, 1);
   const oceanColour = OCEAN_COLOURS[d.compositionClass] || DEFAULT_OCEAN_COLOUR;
   const tempK = d.surfaceTempK || 288;
   const frozen =
     oceanCoverage > 0 && (Number(hydrosphere.permanentIceFraction || 0) > 0 || tempK < 273);
+  const dryHydrosphereScore = clamp(1 - oceanCoverage * 2, 0, 1);
+  const warmDryScore = clamp((tempK - 270) / 80, 0, 1);
+  const desertCoverage = clamp(exposedLandFraction * dryHydrosphereScore * warmDryScore, 0, 0.95);
+  const lavaCoverage = tempK > 1200 ? clamp(0.12 + (tempK - 1200) / 1800, 0.12, 0.75) : 0;
 
   // Ice caps
   let iceCaps;
@@ -219,12 +224,15 @@ export function computeRockyVisualProfile(derived, inputs) {
   return {
     palette,
     landPalette,
+    surface: { landCoverage: exposedLandFraction },
     ocean: { coverage: oceanCoverage, colour: oceanColour, frozen },
     iceCaps,
     clouds: { coverage: cloudCoverage, colour: cloudColour },
     atmosphere: { thickness: atmThickness, colour: atmColour },
     terrain: { type: terrainType, craterDensity },
     vegetation: { coverage: vegCoverage, colour: vegColour },
+    desert: { coverage: desertCoverage },
+    lava: { coverage: lavaCoverage },
     special,
     ring: buildRockyRingProfile(d, inp),
     tidallyLocked: !!d.tidallyLockedToStar,

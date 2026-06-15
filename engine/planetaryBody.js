@@ -16,6 +16,7 @@ import {
   derivePlanetaryDescriptors,
   selectPrimaryPlanetarySubtype,
 } from "./planetarySubtypes.js";
+import { buildPlanetaryEraTimelineForPlanetaryBody } from "./planetaryEraTimeline.js";
 
 function isObject(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -569,7 +570,7 @@ export function calcPlanetaryBody(bodyOrRequest, context = {}) {
     primarySubtypeId: primarySubtype?.id || null,
   };
 
-  return {
+  const result = {
     id: request.body?.id ?? null,
     name: request.body?.name || request.body?.id || "Planetary body",
     role:
@@ -589,4 +590,29 @@ export function calcPlanetaryBody(bodyOrRequest, context = {}) {
       volatileModel,
     },
   };
+
+  const eraTimeline = buildPlanetaryEraTimelineForPlanetaryBody({
+    body: request.body,
+    model: {
+      ...result,
+      sourceModels: {
+        rocky: rockyModel,
+        gasGiant: gasGiantModel,
+        volatile: volatileModel,
+      },
+    },
+    star: request.context?.starModel || request.context?.star || null,
+    systemContext: request.context,
+  });
+
+  result.derived = {
+    ...(isObject(result.derived) ? result.derived : {}),
+    eraTimeline,
+  };
+  result.display = {
+    ...(isObject(result.display) ? result.display : {}),
+    eraTimelineSummary: eraTimeline.summary,
+  };
+
+  return result;
 }

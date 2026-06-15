@@ -100,6 +100,7 @@ import {
 import { hydrosphereStateFromPlanet } from "./habitability/hydrosphere.js";
 import { formatOceanPhaseDiagnostics } from "./habitability/oceanPhaseDisplay.js";
 import { EARTH_INTERNAL_HEAT_FLUX_WM2 } from "./habitability/constants.js";
+import { buildPlanetaryEraTimelineForPlanet } from "./planetaryEraTimeline.js";
 
 export { tectonicProbabilities } from "./planet/tectonics.js";
 export { computeGreenhouseTau } from "./planet/atmosphere.js";
@@ -1050,7 +1051,7 @@ export function calcPlanetExact({
     solventPolicy: habitabilityPolicy,
   });
 
-  return {
+  const result = {
     star,
     hostFrame: hostFrame
       ? {
@@ -1422,4 +1423,14 @@ export function calcPlanetExact({
           : fmt(radioisotopeAbundance, 2) + "\u00d7 Earth",
     },
   };
+
+  const eraTimeline = buildPlanetaryEraTimelineForPlanet({
+    model: result,
+    star,
+    systemContext: { starAgeGyr, starMassMsol },
+  });
+  result.derived.eraTimeline = eraTimeline;
+  result.display.eraTimelineSummary = eraTimeline.summary;
+
+  return result;
 }

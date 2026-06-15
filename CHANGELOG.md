@@ -4,6 +4,115 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.8.0 - 2026-06-15
+
+### Priority 1 Science UX Quick Wins
+
+**Completed host-frame selector labels, visual auto-coverage readouts, and small-moon Roche handling**
+(engine/moon.js, engine/moon/orbit.js, engine/moon/tides.js,
+engine/planetaryRings.js, ui/planet/bodySelector.js, ui/planetPage.js,
+ui/planetaryVisual/autoCoverageReadout.js,
+ui/planetaryVisual/controlRenderers.js, ui/planetaryVisual/editorDom.js,
+ui/planetaryVisual/editorState.js, ui/rockyPlanetStyles.js, ui/moonPage.js,
+styles.css, tests/moon.test.js, tests/planetBodySelector.test.js,
+tests/planetRockyRings.test.js, tests/planetaryVisualEditorControls.ui.test.js,
+tests/rockyPlanetStyles.test.js)
+
+Planet page body selector entries now resolve visible host-frame labels from
+the authored star or pair names while preserving raw IDs in data attributes and
+search metadata.
+
+Planetary visual coverage controls now show Auto percentages and concise model
+reasons beside land, ocean, ice, cloud, vegetation, desert, and lava controls,
+using hydrosphere, temperature, pressure, atmosphere, subtype, and visual-profile
+drivers where available.
+
+Very small cohesive moons below roughly 20 km equivalent diameter now bypass the
+classical Roche-only disruption guardrail when material strength can dominate
+self-gravity. The model still enforces parent-collision and Hill-stability
+limits, caveats weak/rubble-pile bodies, and avoids treating cohesive
+Roche-crossing mini-moons as ring-disruption sources.
+
+### Planetary Era Timeline
+
+**Added derived physical-history timelines for planets and modeled moons**
+(engine/planetaryEraTimeline.js, engine/planetaryBody.js, engine/planet.js,
+engine/moon.js, ui/eraTimelinePanel.js, ui/planetPage.js, ui/moonPage.js,
+styles.css, tests/planetaryEraTimeline.test.js,
+tests/eraTimelinePanel.ui.test.js, tests/planetaryBody.test.js,
+tests/inputDraftStability.ui.test.js)
+
+Planet and Moon outputs now include a top-level Era Timeline section that
+interprets the solved model as an evidence-based chronology. The timeline
+groups eras into Past, Current, and Future / Risks, shows confidence chips and
+driver details, and avoids claiming exact history, confirmed life, or certain
+future outcomes.
+
+The shared timeline builder covers rocky planets, super-Earths, dwarf rocky
+bodies, volatile/radius-valley candidates, mini-Neptunes, ice giants, gas
+giants, brown dwarfs, and modeled moons with family-appropriate eras rather
+than forcing every body through a rocky-planet history. Subtype overlays remain
+candidate-bounded for carbon-rich, ocean/water, lava, icy dwarf, chthonian,
+rogue, hycean, super-puff, inflated, and hot/cold giant contexts.
+
+Future predictions are now first-class timeline entries where the current model
+supports them, including surface-water window narrowing, greenhouse or water
+loss risk, frozen-world persistence, interior cooling, volatile-envelope
+cooling/loss, giant and brown-dwarf cooling transitions, moon tidal-heating
+variability, orbital migration, and radiation-weathering risks.
+
+### Planet and Moon Output Navigation
+
+**Added tabbed navigation and shared result summaries for Planet and Moon output sections**
+(ui/outputSectionTabs.js, ui/resultSummary.js, ui/planet/resultSummary.js,
+ui/planetPage.js, ui/moonPage.js, ui/moon/domRender.js,
+ui/celestialVisualPreview.js, styles.css, tests/inputDraftStability.ui.test.js,
+tests/celestialVisual.test.js)
+
+The right-hand output columns on the Planet and Moon pages now expose their KPI
+and derived-detail sections as top-level tabs. Users can switch directly to
+environment, system, habitability, timeline, or derived-detail panels without
+scrolling through the full output stack, with keyboard navigation and active-tab
+state preserved across re-renders. Desktop tab bars wrap across multiple rows
+so all sections are visible up front, while narrow mobile layouts retain a
+compact horizontal scroll. Planet and Moon tabs now include an All view that
+restores the original full-column output layout when users want to scan every
+section at once.
+
+Preview canvases now pause their WebGL resize/render work while their tab panel
+is hidden, preventing invalid viewport dimensions and context churn when users
+switch away from the Summary tab.
+
+Planet outputs now use the same top-level Result Summary treatment as Moon
+outputs, with rocky, volatile, gas-giant, and brown-dwarf summaries scoped to
+their scientifically appropriate surface or non-surface habitability context.
+Matching Planet and Moon sections now share labels such as Key Numbers,
+Physical State, Environment, and Activity & Radiation where the data roles
+align.
+
+### Planetary Visual Editor Input Stability
+
+**Stopped visual editor text and number inputs from losing focus while typing**
+(ui/planetaryVisual/editorDom.js,
+tests/planetaryVisualEditorControls.ui.test.js)
+
+The planetary visual editor no longer rebuilds the whole control tree on every
+keystroke. Text and number fields now commit on change, range sliders still
+live-preview smoothly, and Auto/Custom badges plus paired slider/number values
+sync in place without destroying the focused input.
+
+### Celestial Preview Axial Tilt
+
+**Made live body previews spin around the tilted rotation axis**
+(ui/celestialVisualPreview.js, tests/celestialVisual.test.js)
+
+The animated celestial preview now applies axial tilt to a fixed root group and
+spins the body, clouds, and haze as children around that tilted local pole. This
+prevents the old same-mesh Euler composition where a planet looked tilted but
+its visible texture rotation was not anchored to the tilted axis. One-shot
+recipe snapshots use the same pose helper so preview thumbnails and live
+previews stay consistent.
+
 ## 2.7.1 - 2026-06-14
 
 ### Splash Screen Resilience

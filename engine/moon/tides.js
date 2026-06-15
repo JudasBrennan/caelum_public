@@ -123,10 +123,15 @@ function formatLongFate(prefix, timeGyr) {
   return `${prefix} in > 1,000,000 Gyr`;
 }
 
-export function formatOrbitalFate(dadtTotalMs, toRocheGyr, toEscapeGyr) {
+export function formatOrbitalFate(
+  dadtTotalMs,
+  toRocheGyr,
+  toEscapeGyr,
+  innerFateTargetLabel = "Roche limit",
+) {
   if (!Number.isFinite(dadtTotalMs) || Math.abs(dadtTotalMs) < 1e-30) return "Stable";
   if (dadtTotalMs < 0 && Number.isFinite(toRocheGyr)) {
-    return formatLongFate("Roche limit", toRocheGyr);
+    return formatLongFate(innerFateTargetLabel || "Roche limit", toRocheGyr);
   }
   if (dadtTotalMs > 0 && Number.isFinite(toEscapeGyr)) {
     return formatLongFate("Escape", toEscapeGyr);
@@ -156,6 +161,7 @@ export function computeMoonTidalState({
   orbitalDirection,
   composition,
   hasCompositionOverride,
+  innerFateTargetLabel = "Roche limit",
 }) {
   const moonMassKg = moonMassToKg(moonMassMoon) * TIDAL_MOON_MASS_SCALE;
   const moonRadiusM = moonRadiusMoon * KM_PER_RMOON * 1000;
@@ -350,6 +356,7 @@ export function computeMoonTidalState({
     recessionCmYr,
     dadtTotalMs,
     fateTimescaleMethod: "integrated-a^-11/2-v1",
+    innerFateTargetLabel,
     timeToRocheGyr,
     timeToEscapeGyr,
     tidallyEvolvedMoon,

@@ -21,7 +21,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.7.1</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.8.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, calendars, and exotic planetary subtype evidence. Explore your
@@ -372,6 +372,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Developed Bose-Einstein statistics, helping reveal how matter can behave differently when its underlying physical state changes.",
   },
+  "2.8.0": {
+    name: "Stephen Hawking",
+    born: 1942,
+    died: 2018,
+    country: "England",
+    summary:
+      "Linked black-hole physics, cosmology, and public understanding of cosmic time, making deep physical history legible to a wide audience.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -411,12 +419,24 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.8.0",
+      "(from 2.7.1)",
+      [
+        "<b>Planetary Era Timeline</b> &mdash; Planet and Moon outputs now include a top-level physical-history timeline with past, current, and future entries, confidence badges, and model drivers for rocky planets, volatile worlds, giants, brown dwarfs, and moons.",
+        "<b>Output Navigation</b> &mdash; Planet and Moon outputs now use shared tabs, matching section names, and an All view, so dense scientific readouts are easier to scan without losing the original long-column layout.",
+        "<b>Result Summaries</b> &mdash; Planet outputs now get the same plain-language Result Summary treatment as Moon outputs, with family-aware wording for rocky, volatile, gas-giant, and brown-dwarf contexts.",
+        "<b>Visual Editor Readouts</b> &mdash; Auto coverage controls now show their current percentages and short model reasons, while text and number inputs keep focus during editing.",
+        "<b>Science Polish</b> &mdash; Small cohesive moons can now survive Roche-only crossings when material strength dominates, planet selectors show authored host-star names, and tilted body previews now rotate around their tilted axes.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.7.1",
       "(from 2.7.0)",
       [
         "<b>Splash Startup Resilience</b> &mdash; The splash screen now shows Enter WorldSmith immediately, starts the main app behind the overlay, and falls back cleanly if the decorative 3D planet preview hangs in a browser-specific way.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.7.0",

@@ -16,6 +16,8 @@ import {
 import { fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { createElement } from "./domHelpers.js";
+import { createEraTimelineSection } from "./eraTimelinePanel.js";
+import { enableOutputSectionTabs } from "./outputSectionTabs.js";
 import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import { createGuidedFlowController } from "./guidedCreation/flowController.js";
 import { createGuidedPanel } from "./guidedCreation/components/guidedPanel.js";
@@ -1884,28 +1886,12 @@ export function initMoonPage(mountEl, options = {}) {
     renderMoonKpiSections(kpisEl, sections);
     renderMoonResultSummary(kpisEl, moonResultSummary);
 
-    // Render moon preview canvas (animated native celestial controller)
-    let moonCvs = kpisEl.querySelector(".moon-preview-canvas");
-    if (prevMoonCanvas && moonCvs && prevMoonCanvas !== moonCvs) {
-      moonCvs.replaceWith(prevMoonCanvas);
-      moonCvs = prevMoonCanvas;
+    const eraTimelineSection = createEraTimelineSection(model.derived?.eraTimeline, {
+      id: "moon-era-timeline",
+    });
+    if (eraTimelineSection) {
+      kpisEl.insertBefore(eraTimelineSection, kpisEl.children[2] || null);
     }
-    if (moonCvs && moonProfile) {
-      celestialPreviewController.attach(moonCvs, {
-        bodyType: "moon",
-        name: state.moonName || state.moon.name || "Moon",
-        recipeId: String(state.moon?.appearanceRecipeId || ""),
-        moonProfile,
-        moonCalc: model,
-        rotationPeriodDays:
-          Number(model?.orbit?.rotationPeriodDays) ||
-          Number(model?.orbit?.periodSiderealDays) ||
-          27.3,
-      });
-    } else {
-      celestialPreviewController.detach();
-    }
-
     renderMoonDerivedDetails(
       detailsEl,
       [
@@ -1981,7 +1967,12 @@ export function initMoonPage(mountEl, options = {}) {
           id: "moon-details-system",
           title: "System Context",
           items: [
-            { label: "Moon Zone (Inner)", value: model.display.zoneInner },
+            { label: "Classical Roche Limit", value: model.display.classicalRocheLimit },
+            {
+              label: "Effective Inner Limit",
+              value: model.display.effectiveInnerLimit || model.display.zoneInner,
+              meta: model.display.innerLimitNote,
+            },
             { label: "Moon Zone (Outer)", value: model.display.zoneOuter },
             { label: "Periapsis", value: model.display.peri },
             { label: "Apoapsis", value: model.display.apo },
@@ -2128,6 +2119,33 @@ export function initMoonPage(mountEl, options = {}) {
       ],
       { title: "Derived Details" },
     );
+    const derivedDetailsSection = detailsEl.querySelector(".derived-details");
+    if (derivedDetailsSection) {
+      kpisEl.append(derivedDetailsSection);
+    }
+    enableOutputSectionTabs(kpisEl, { label: "Moon output sections", includeAll: true });
+
+    // Render moon preview canvas (animated native celestial controller)
+    let moonCvs = kpisEl.querySelector(".moon-preview-canvas");
+    if (prevMoonCanvas && moonCvs && prevMoonCanvas !== moonCvs) {
+      moonCvs.replaceWith(prevMoonCanvas);
+      moonCvs = prevMoonCanvas;
+    }
+    if (moonCvs && moonProfile) {
+      celestialPreviewController.attach(moonCvs, {
+        bodyType: "moon",
+        name: state.moonName || state.moon.name || "Moon",
+        recipeId: String(state.moon?.appearanceRecipeId || ""),
+        moonProfile,
+        moonCalc: model,
+        rotationPeriodDays:
+          Number(model?.orbit?.rotationPeriodDays) ||
+          Number(model?.orbit?.periodSiderealDays) ||
+          27.3,
+      });
+    } else {
+      celestialPreviewController.detach();
+    }
   }
 
   function loadIntoInputs() {
