@@ -25,8 +25,10 @@ export function buildFlareSignature(snapshot) {
   const a = Number(snapshot.starAgeGyr);
   const t = Number(snapshot.starTempK);
   const l = Number(snapshot.starLuminosityLsun);
+  const p = Number(snapshot.starRotationPeriodDays);
+  const ro = Number(snapshot.starRossbyNumber);
   const activityModelVersion = snapshot?.activityModelVersion === "v1" ? "v1" : "v2";
-  return `${seedKey}|${m.toFixed(6)}|${a.toFixed(6)}|${t.toFixed(3)}|${l.toFixed(6)}|${activityModelVersion}`;
+  return `${seedKey}|${m.toFixed(6)}|${a.toFixed(6)}|${t.toFixed(3)}|${l.toFixed(6)}|${Number.isFinite(p) ? p.toFixed(6) : "na"}|${Number.isFinite(ro) ? ro.toFixed(6) : "na"}|${activityModelVersion}`;
 }
 
 function flareVisualProfile(flareClass) {
@@ -100,6 +102,8 @@ export function createStarActivityRuntime(options = {}) {
               ageGyr: snapshot.starAgeGyr,
               teffK: snapshot.starTempK,
               luminosityLsun: snapshot.starLuminosityLsun,
+              rotationPeriodDays: snapshot.starRotationPeriodDays,
+              rossbyNumber: snapshot.starRossbyNumber,
             },
             { activityCycle: 0.5 },
           );

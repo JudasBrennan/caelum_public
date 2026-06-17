@@ -368,6 +368,7 @@ export function buildRockyMoonParentOverride(model, { includeRadiation = true } 
         ? {
             surfaceFieldEarths: model.derived?.surfaceFieldEarths ?? 0,
             magnetopauseRp: model.derived?.magnetopauseRp ?? null,
+            magnetosphereEnvironment: model.derived?.magnetosphereEnvironment ?? null,
           }
         : {}),
     },
@@ -392,6 +393,7 @@ export function buildGasGiantMoonParentOverride(model, { includeRadiation = true
         ? {
             surfaceFieldEarths: model.magnetic?.surfaceFieldEarths ?? 0,
             magnetopauseRp: model.magnetic?.magnetopauseRp ?? null,
+            magnetosphereEnvironment: model.magnetic?.magnetosphereEnvironment ?? null,
           }
         : {}),
     },
@@ -410,8 +412,12 @@ export function solveMoonSystem({
   hostFrameId = null,
   hostFrame = null,
   hostXuvFluxEarthAt1Au = null,
+  hostPrebioticUvEarthAt1Au = null,
+  hostWindPressureEarthAt1Au = null,
   companionFluxEarth = 0,
   companionXuvFluxEarth = 0,
+  companionPrebioticUvEarth = 0,
+  companionWindPressureEarth = 0,
   fluxVariabilityFraction = 0,
   parentKind,
   parentOverride,
@@ -460,8 +466,12 @@ export function solveMoonSystem({
       hostFrame,
       starHabitableZoneAu,
       hostXuvFluxEarthAt1Au,
+      hostPrebioticUvEarthAt1Au,
+      hostWindPressureEarthAt1Au,
       companionFluxEarth,
       companionXuvFluxEarth,
+      companionPrebioticUvEarth,
+      companionWindPressureEarth,
       fluxVariabilityFraction,
       moon: normalizedInputs,
       parentOverride,

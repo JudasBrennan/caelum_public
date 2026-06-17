@@ -9,12 +9,9 @@ import {
   earthMassToKg,
   orbitalDirectionFromInclination,
 } from "./physics/orbital.js";
-import {
-  evaluateJeansEscapeSpecies,
-  xuvFluxAtOrbitErgCm2S,
-  xuvFluxRatioEarth,
-} from "./physics/escape.js";
+import { evaluateJeansEscapeSpecies, xuvFluxAtOrbitErgCm2S } from "./physics/escape.js";
 import { clamp, fmt, round, toFinite } from "./utils.js";
+import { buildEnvironmentForcing, formatEnvironmentForcingSummary } from "./environment/index.js";
 
 export const VOLATILE_RADIUS_MODEL_VERSION = "volatile-radius-lopez-fortney-v1";
 
@@ -81,27 +78,6 @@ function envelopeThicknessEarth({
     ageScale ** -0.18 *
     metallicityScale ** -0.03
   );
-}
-
-function computeXuvRatio({
-  starMassMsol,
-  starLuminosityLsol,
-  starAgeGyr,
-  orbitAu,
-  hostXuvFluxEarthAt1Au,
-  companionXuvFluxEarth,
-}) {
-  const hostXuvAt1Au = positiveOrNull(hostXuvFluxEarthAt1Au);
-  const hostRatio =
-    hostXuvAt1Au != null
-      ? hostXuvAt1Au / Math.max(orbitAu, 0.01) ** 2
-      : xuvFluxRatioEarth({
-          starMassMsol,
-          starLuminosityLsol,
-          starAgeGyr,
-          orbitAu,
-        });
-  return Math.max(hostRatio + Math.max(Number(companionXuvFluxEarth) || 0, 0), 0);
 }
 
 function computeEnergyLimitedEscape({ massKg, radiusKm, envelopeMassKg, xuvFluxRatio }) {
@@ -180,7 +156,14 @@ export function calcVolatilePlanet({
   albedoBond = 0.3,
   companionFluxEarth = 0,
   companionXuvFluxEarth = 0,
+  companionPrebioticUvEarth = 0,
+  companionWindPressureEarth = 0,
   hostXuvFluxEarthAt1Au = null,
+  hostPrebioticUvEarthAt1Au = null,
+  hostWindPressureEarthAt1Au = null,
+  hostFrameId = null,
+  hostFrame = null,
+  fluxVariabilityFraction = 0,
 } = {}) {
   const resolvedMassEarth = Math.max(toFinite(massEarth, 5), 0.01);
   const envelopeFraction = clamp(toFinite(hHeEnvelopeMassPct, 0) / 100, 0, 0.8);
@@ -191,8 +174,32 @@ export function calcVolatilePlanet({
   const inclination = clamp(toFinite(inclinationDeg, 0), 0, 180);
   const albedo = clamp(toFinite(albedoBond, 0.3), 0, 0.95);
   const stellarLuminosity = Math.max(toFinite(starLuminosityLsol, 1), 1e-9);
-  const totalInsolationEarth =
-    stellarLuminosity / orbitAu ** 2 + Math.max(toFinite(companionFluxEarth, 0), 0);
+  const environmentForcing = buildEnvironmentForcing({
+    bodyType: "volatile",
+    solverFamily: "volatile",
+    starConfig: {
+      massMsol: starMassMsol,
+      ageGyr: age,
+      radiusRsolOverride: starRadiusRsol,
+      luminosityLsolOverride: stellarLuminosity,
+    },
+    orbitAu,
+    eccentricity: ecc,
+    hostFrame,
+    hostFrameId,
+    hostXuvFluxEarthAt1Au,
+    hostPrebioticUvEarthAt1Au,
+    hostWindPressureEarthAt1Au,
+    companionFluxEarth,
+    companionXuvFluxEarth,
+    companionPrebioticUvEarth,
+    companionWindPressureEarth,
+    fluxVariabilityFraction,
+  });
+  const totalInsolationEarth = Math.max(
+    toFinite(environmentForcing.flux?.bolometricEarthAtOrbit, 0),
+    0,
+  );
   const effectiveLuminosityLsol = Math.max(totalInsolationEarth * orbitAu ** 2, 1e-9);
   const equilibriumTempK = equilibriumTemperatureK(effectiveLuminosityLsol, albedo, orbitAu);
   const absorbedFluxWm2 = computeAbsorbedFluxWm2(totalInsolationEarth, albedo);
@@ -232,14 +239,7 @@ export function calcVolatilePlanet({
     semiMajorAxisAu: orbitAu,
     centralMassMsol: Math.max(toFinite(starMassMsol, 1), 0.01),
   });
-  const xuvRatio = computeXuvRatio({
-    starMassMsol,
-    starLuminosityLsol: stellarLuminosity,
-    starAgeGyr: age,
-    orbitAu,
-    hostXuvFluxEarthAt1Au,
-    companionXuvFluxEarth,
-  });
+  const xuvRatio = Math.max(toFinite(environmentForcing.flux?.xuvEarthAtOrbit, 0), 0);
   const xuvFluxErgCm2S =
     xuvRatio * EARTH_REFERENCE_XUV_FLUX_ERG_CM2_S ||
     xuvFluxAtOrbitErgCm2S({
@@ -337,6 +337,13 @@ export function calcVolatilePlanet({
       ),
       waterRegime: waterRegime(clamp(toFinite(wmfPct, 0), 0, 95) / 100),
     },
+    derived: {
+      environmentForcing,
+    },
+    environment: {
+      forcing: environmentForcing,
+    },
+    environmentForcing,
     thermal: {
       insolationEarth: round(totalInsolationEarth, 5),
       absorbedFluxWm2: round(absorbedFluxWm2, 3),
@@ -388,6 +395,7 @@ export function calcVolatilePlanet({
       escape: `${fmt(escapeVelocityKms, 2)} km/s`,
       equilibriumTemp: `${fmt(equilibriumTempK, 0)} K`,
       insolation: `${fmt(totalInsolationEarth, 3)}x Earth`,
+      environmentForcing: formatEnvironmentForcingSummary(environmentForcing),
       envelopeMass: `${fmt(envelopeMassEarth, 4)} M\u2295 (${fmt(envelopeFraction * 100, 3)}%)`,
       envelopeState: envelope.label,
       envelopeTimescale: formatTimescale(escape.envelopeSurvivalTimescaleGyr),

@@ -76,7 +76,6 @@ import {
   computeExobaseTemp,
   computeGreenhouseTau as calcGreenhouseTau,
   computeJeansEscape,
-  computeXuvFluxRatio,
 } from "./planet/atmosphere.js";
 import { computePlanetPhotochemistry } from "./planet/photochemistry.js";
 import {
@@ -101,6 +100,17 @@ import { hydrosphereStateFromPlanet } from "./habitability/hydrosphere.js";
 import { formatOceanPhaseDiagnostics } from "./habitability/oceanPhaseDisplay.js";
 import { EARTH_INTERNAL_HEAT_FLUX_WM2 } from "./habitability/constants.js";
 import { buildPlanetaryEraTimelineForPlanet } from "./planetaryEraTimeline.js";
+import {
+  buildEnvironmentForcing,
+  computeAtmosphereLedger,
+  computeBiosignatureContext,
+  computeCarbonCycleContext,
+  computeClimateChemistryForcing,
+  computeCloudCirculationContext,
+  computeOceanChemistryContext,
+  computeRockyMagnetosphereEnvironment,
+  formatEnvironmentForcingSummary,
+} from "./environment/index.js";
 
 export { tectonicProbabilities } from "./planet/tectonics.js";
 export { computeGreenhouseTau } from "./planet/atmosphere.js";
@@ -293,8 +303,12 @@ export function calcPlanetExact({
   hostFrameId = null,
   hostFrame = null,
   hostXuvFluxEarthAt1Au = null,
+  hostPrebioticUvEarthAt1Au = null,
+  hostWindPressureEarthAt1Au = null,
   companionFluxEarth = 0,
   companionXuvFluxEarth = 0,
+  companionPrebioticUvEarth = 0,
+  companionWindPressureEarth = 0,
   fluxVariabilityFraction = 0,
   planet,
   moons,
@@ -376,7 +390,8 @@ export function calcPlanetExact({
   let n2Pct = Math.max(0, rawN2PctRaw);
   const meanCompanionFluxEarth = Math.max(toFinite(companionFluxEarth, 0), 0);
   const meanCompanionXuvFluxEarth = Math.max(toFinite(companionXuvFluxEarth, 0), 0);
-  const resolvedHostXuvFluxEarthAt1Au = toFinite(hostXuvFluxEarthAt1Au, null);
+  const meanCompanionPrebioticUvEarth = Math.max(toFinite(companionPrebioticUvEarth, 0), 0);
+  const meanCompanionWindPressureEarth = Math.max(toFinite(companionWindPressureEarth, 0), 0);
   const hostFrameFluxVariabilityFraction = Math.max(toFinite(fluxVariabilityFraction, 0), 0);
 
   function effectiveLuminosityAtDistanceAu(distanceAu) {
@@ -440,11 +455,50 @@ export function calcPlanetExact({
   );
 
   // XUV flux ratio relative to present-day Earth at 1 AU (Ribas et al. 2005)
-  const hostXuvRatio =
-    Number.isFinite(resolvedHostXuvFluxEarthAt1Au) && resolvedHostXuvFluxEarthAt1Au > 0
-      ? resolvedHostXuvFluxEarthAt1Au / Math.max(semiMajorAxisAu, 0.01) ** 2
-      : computeXuvFluxRatio(star.massMsol, star.luminosityLsol, starAgeGyr, semiMajorAxisAu);
-  const fXuvRatio = hostXuvRatio + meanCompanionXuvFluxEarth;
+  const environmentForcing = buildEnvironmentForcing({
+    bodyType: "planet",
+    solverFamily: "rocky",
+    starModel: star,
+    starConfig: {
+      massMsol: starMassMsol,
+      ageGyr: starAgeGyr,
+      metallicityFeH: starMetallicityFeH,
+      radiusRsolOverride: starRadiusRsolOverride,
+      luminosityLsolOverride: starLuminosityLsolOverride,
+      tempKOverride: starTempKOverride,
+      evolutionMode: starEvolutionMode,
+    },
+    orbitAu: semiMajorAxisAu,
+    eccentricity,
+    hostFrame,
+    hostFrameId,
+    hostXuvFluxEarthAt1Au,
+    hostPrebioticUvEarthAt1Au,
+    hostWindPressureEarthAt1Au,
+    companionFluxEarth: meanCompanionFluxEarth,
+    companionXuvFluxEarth: meanCompanionXuvFluxEarth,
+    companionPrebioticUvEarth: meanCompanionPrebioticUvEarth,
+    companionWindPressureEarth: meanCompanionWindPressureEarth,
+    fluxVariabilityFraction: hostFrameFluxVariabilityFraction,
+  });
+  const fXuvRatio = Math.max(toFinite(environmentForcing.flux?.xuvEarthAtOrbit, 0), 0);
+  const prebioticUvTopOfAtmosphereEarth = Math.max(
+    toFinite(environmentForcing.flux?.prebioticUvEarthAtOrbit, 0),
+    0,
+  );
+  const prebioticUvTopOfAtmosphereErgCm2S = Math.max(
+    toFinite(environmentForcing.flux?.prebioticUvToaAtOrbitErgCm2S, 0),
+    0,
+  );
+  const stellarWind = {
+    ramPressureNPa: environmentForcing.wind?.ramPressureNPa ?? null,
+    ramPressureEarthRatio: environmentForcing.wind?.ramPressureEarthRatio ?? null,
+    hostWindPressureEarthAt1Au: environmentForcing.wind?.hostRamPressureEarthAt1Au ?? null,
+    companionWindPressureEarth: environmentForcing.wind?.companionRamPressureEarth ?? 0,
+    massLossSolar: environmentForcing.wind?.massLossSolar ?? null,
+    windSpeedKms: environmentForcing.wind?.windSpeedKms ?? null,
+    confidence: environmentForcing.wind?.confidence || "unsupported",
+  };
 
   // Exobase temperature: XUV-heated thermosphere countered by CO₂ cooling.
   const co2Frac = clamp(planet.co2Pct ?? 0, 0, 100) / 100;
@@ -680,6 +734,12 @@ export function calcPlanetExact({
     tidalFraction: planetTidalFraction,
     radioisotopeAbundance,
   });
+  const magnetosphereEnvironment = computeRockyMagnetosphereEnvironment({
+    surfaceFieldEarths: magField.surfaceFieldEarths,
+    fieldMorphology: magField.fieldMorphology,
+    windPressureEarthRatio: stellarWind.ramPressureEarthRatio,
+    radiusKm,
+  });
 
   // Mantle outgassing and tectonic advisory
   const outgassing = mantleOutgassing(planet.mantleOxidation || "earth");
@@ -851,8 +911,13 @@ export function calcPlanetExact({
     xuvFluxRatio: fXuvRatio,
     ppO2Atm,
     ppCH4Atm,
+    ppCO2Atm,
+    ppN2Atm,
     ppH2Atm,
     ppNH3Atm,
+    prebioticUvTopOfAtmosphereErgCm2S,
+    surfaceAccessibleLiquidFraction: hydrosphere.surfaceAccessibleLiquidFraction,
+    surfaceTempK: tKel,
   });
 
   // Atmospheric circulation cells (PLANET C60..C67)
@@ -910,6 +975,138 @@ export function calcPlanetExact({
     pressureAtm,
     collapsePenalty: atmosphericCollapse.collapsePenalty,
   });
+  const atmosphereLedger = computeAtmosphereLedger({
+    bodyType: "planet",
+    pressureAtm,
+    composition: {
+      o2: ppO2Atm,
+      co2: ppCO2Atm,
+      ar: ppArAtm,
+      n2: ppN2Atm,
+      h2o: ppH2OAtm,
+      ch4: ppCH4Atm,
+      h2: ppH2Atm,
+      he: ppHeAtm,
+      so2: ppSO2Atm,
+      nh3: ppNH3Atm,
+    },
+    environmentForcing,
+    magnetosphereEnvironment,
+    jeansEscape: {
+      species: jeansSpecies,
+      xuvFluxRatio: fXuvRatio,
+      escapeVelocityVEarth,
+      escapeVelocityKmS: escapeVelocityKms,
+    },
+    atmosphericEscapeEnabled: atmosphericEscape,
+    photochemistry,
+    hydrosphere,
+    climateState,
+    climate: {
+      climateState,
+      collapseState: atmosphericCollapse.collapseState,
+      surfaceTempK: tKel,
+      climateLivabilityFraction: climateLivability.climateLivabilityFraction,
+    },
+    outgassing: {
+      ...outgassing,
+      mantleOxidationKey: planet.mantleOxidation || "earth",
+    },
+    tectonics: {
+      regime: tecRegime,
+      probabilities: tecProbs,
+      radiogenicHeatingEarth,
+      tidalHeatingEarth: planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2,
+    },
+    surfaceTempK: tKel,
+    gravityG,
+    escapeVelocityKms,
+    escapeVelocityVEarth,
+    ageGyr: starAgeGyr,
+  });
+  const cloudCirculation = computeCloudCirculationContext({
+    pressureAtm,
+    surfaceWaterFraction: hydrosphere.surfaceAccessibleLiquidFraction,
+    surfaceTempK: tKel,
+    rotationPeriodHours,
+    tidallyLocked: tidallyLockedToStar,
+    stellarFluxEarth: insolationEarth,
+    hazeSurfaceLightReduction: photochemistry.haze?.surfaceLightReductionFraction,
+    atmosphericCollapseState: atmosphericCollapse.collapseState,
+    hydrosphere,
+    ppH2OAtm,
+  });
+  const carbonCycleContext = computeCarbonCycleContext({
+    surfaceTempK: tKel,
+    pressureAtm,
+    ppCO2Atm,
+    hydrosphere,
+    tectonicRegime: tecRegime,
+    outgassing: {
+      ...outgassing,
+      mantleOxidationKey: planet.mantleOxidation || "earth",
+    },
+    landFraction: hydrosphere.landFraction,
+    oceanFraction: hydrosphere.liquidOceanFraction,
+    stellarAgeGyr: starAgeGyr,
+    insolationEarth,
+    climateState,
+  });
+  const oceanChemistryContext = computeOceanChemistryContext({
+    hydrosphere,
+    pressureAtm,
+    ppCO2Atm,
+    carbonCycleContext,
+    geology: {
+      volcanicActivityScore: tecProbs.mobile * 0.45 + tecProbs.episodic * 0.3,
+      tidalHeatingEarth: planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2,
+    },
+    climateState,
+  });
+  const biosignatureContext = computeBiosignatureContext({
+    pressureAtm,
+    composition: {
+      o2: ppO2Atm,
+      co2: ppCO2Atm,
+      ar: ppArAtm,
+      n2: ppN2Atm,
+      h2o: ppH2OAtm,
+      ch4: ppCH4Atm,
+      h2: ppH2Atm,
+      he: ppHeAtm,
+      so2: ppSO2Atm,
+      nh3: ppNH3Atm,
+      co: 0,
+    },
+    photochemistry,
+    atmosphereLedger,
+    carbonCycleContext,
+    oceanChemistryContext,
+    environmentForcing,
+    hydrosphere,
+  });
+  const climateChemistryForcing = computeClimateChemistryForcing({
+    baselineSurfaceTempK: tKel,
+    pressureAtm,
+    composition: {
+      o2: ppO2Atm,
+      co2: ppCO2Atm,
+      ar: ppArAtm,
+      n2: ppN2Atm,
+      h2o: ppH2OAtm,
+      ch4: ppCH4Atm,
+      h2: ppH2Atm,
+      he: ppHeAtm,
+      so2: ppSO2Atm,
+      nh3: ppNH3Atm,
+    },
+    photochemistry,
+    atmosphereLedger,
+    hydrosphere,
+    cloudContext: cloudCirculation,
+    greenhouseTau: computedTau,
+  });
+  const coupledSurfaceTempK = climateChemistryForcing.coupledSurfaceTempK;
 
   // Apparent size of star (Calculations C146)
   const apparentStarDeg = (star.radiusRsol / semiMajorAxisAu) * 0.5332;
@@ -1030,6 +1227,7 @@ export function calcPlanetExact({
       radiogenicHeatingWm2,
       radiogenicHeatingEarth,
       surfaceFieldEarths: magField.surfaceFieldEarths,
+      magnetosphereEnvironment,
       mantleOxidationKey: planet.mantleOxidation || "earth",
       primaryOutgassedSpecies: outgassing.primarySpecies,
       ppO2Atm,
@@ -1044,6 +1242,13 @@ export function calcPlanetExact({
       ppNH3Atm,
       photochemistry,
       jeansEscape: { species: jeansSpecies, xuvFluxRatio: fXuvRatio },
+      atmosphereLedger,
+      cloudCirculation,
+      carbonCycleContext,
+      oceanChemistryContext,
+      biosignatureContext,
+      climateChemistryForcing,
+      coupledSurfaceTempK,
     },
   });
   const earthSimilarity = computeEarthSimilarityIndex(habitabilityContext);
@@ -1114,6 +1319,11 @@ export function calcPlanetExact({
       companionFluxEarth: meanCompanionFluxEarth,
       companionFluxFraction: insolationEarth > 0 ? meanCompanionFluxEarth / insolationEarth : 0,
       companionXuvFluxEarth: meanCompanionXuvFluxEarth,
+      companionPrebioticUvEarth: meanCompanionPrebioticUvEarth,
+      prebioticUvTopOfAtmosphereEarth,
+      prebioticUvTopOfAtmosphereErgCm2S,
+      stellarWind,
+      environmentForcing,
       fluxVariabilityFraction: hostFrameFluxVariabilityFraction,
       dynamicalStabilityState,
       dynamicalStabilityNotes,
@@ -1214,6 +1424,13 @@ export function calcPlanetExact({
       ppSO2Atm,
       ppNH3Atm,
       photochemistry,
+      atmosphereLedger,
+      cloudCirculation,
+      carbonCycleContext,
+      oceanChemistryContext,
+      biosignatureContext,
+      climateChemistryForcing,
+      coupledSurfaceTempK,
       ppO2Kpa,
       ppCO2Kpa,
       ppArKpa,
@@ -1271,6 +1488,11 @@ export function calcPlanetExact({
       fieldMorphology: magField.fieldMorphology,
       surfaceFieldEarths: magField.surfaceFieldEarths,
       fieldLabel: magField.fieldLabel,
+      magnetosphereEnvironment,
+      magnetopauseRp: magnetosphereEnvironment.magnetopauseRp,
+      magnetopauseKm: magnetosphereEnvironment.magnetopauseKm,
+      magnetopauseCompressionClass: magnetosphereEnvironment.compressionClass,
+      magnetosphereRadiationShieldingFactor: magnetosphereEnvironment.radiationShieldingFactor,
       planetTidalHeatingW,
       planetTidalHeatingWm2,
       planetTidalFraction,
@@ -1349,11 +1571,49 @@ export function calcPlanetExact({
       atmWeight: fmt(atmWeightKgMol, 5) + " kg/mol",
       atmDensity: fmt(atmDensityKgM3, 4) + " kg/m³",
       apparentStar: fmt(apparentStarDeg, 3) + "°",
-      earthSimilarityIndex: fmt(earthSimilarity.score, 3),
-      habitabilityIndex: fmt(planetaryHabitability.score, 3),
+      earthSimilarityIndex: earthSimilarity.score.toFixed(3),
+      habitabilityIndex: planetaryHabitability.score.toFixed(3),
       uvShielding: photochemistry.uvShieldingClass,
       ozoneColumn: `${fmt(photochemistry.ozoneColumnDobsonUnits, 0)} DU (${fmt(photochemistry.ozoneEarthRatio, 2)}x Earth)`,
       photochemicalStability: photochemistry.stabilityClass,
+      prebioticUvWindow: photochemistry.prebioticUv?.label || "Not evaluated",
+      prebioticUvFlux: photochemistry.prebioticUv
+        ? `${fmt(photochemistry.prebioticUv.surfaceFluxErgCm2S, photochemistry.prebioticUv.surfaceFluxErgCm2S >= 100 ? 0 : 2)} erg/cm^2/s surface (${fmt(photochemistry.prebioticUv.topOfAtmosphereFluxErgCm2S, photochemistry.prebioticUv.topOfAtmosphereFluxErgCm2S >= 100 ? 0 : 2)} TOA)`
+        : "Not evaluated",
+      photochemicalHaze: photochemistry.haze?.hazeClass || "None",
+      hazeCooling: photochemistry.haze
+        ? `${fmt(photochemistry.haze.antiGreenhouseCoolingK, 1)} K potential`
+        : "0.0 K potential",
+      surfaceLightReduction: photochemistry.haze
+        ? `${fmt(photochemistry.haze.surfaceLightReductionFraction * 100, 1)}% reduction`
+        : "0.0% reduction",
+      coupledClimateTendency: climateChemistryForcing.labelOnlyClimateState,
+      photochemicalForcing:
+        climateChemistryForcing.netDeltaK === 0
+          ? "0 K diagnostic"
+          : `${climateChemistryForcing.netDeltaK > 0 ? "+" : ""}${fmt(climateChemistryForcing.netDeltaK, 1)} K diagnostic`,
+      coupledSurfaceTemp: `${fmt(coupledSurfaceTempK, 0)} K (${fmt(coupledSurfaceTempK - 273.15, 0)} °C)`,
+      cloudRegime: cloudCirculation.circulationRegime,
+      heatRedistribution: `${fmt(cloudCirculation.heatRedistributionEfficiency * 100, 0)}% efficiency`,
+      cloudAlbedoEffect: `${fmt(cloudCirculation.cloudAlbedoEffect * 100, 1)}% diagnostic`,
+      carbonCycle: carbonCycleContext.tendencyClass,
+      weatheringEfficiency: fmt(carbonCycleContext.weatheringEfficiency, 2),
+      volcanicSupply: fmt(carbonCycleContext.volcanicSupply, 2),
+      carbonRecycling: fmt(carbonCycleContext.recyclingEfficiency, 2),
+      carbonThermostat: fmt(carbonCycleContext.thermostatStrength, 2),
+      oceanChemistry: oceanChemistryContext.summaryLabel,
+      oceanAcidity: oceanChemistryContext.acidityClass,
+      carbonateSaturation: oceanChemistryContext.carbonateSaturationClass,
+      nutrientSupport: oceanChemistryContext.nutrientSupportClass,
+      biosignatureContext: biosignatureContext.interpretationClass,
+      disequilibriumStrength: biosignatureContext.disequilibriumStrength,
+      oxygenFalsePositiveRisk: biosignatureContext.o2O3FalsePositiveRisk,
+      methaneContext: biosignatureContext.methaneContext,
+      coBuildupRisk: biosignatureContext.coBuildupRisk,
+      atmosphereTrend: atmosphereLedger.trendLabel,
+      atmosphereDominantSource: atmosphereLedger.dominantSource?.label || "None",
+      atmosphereDominantSink: atmosphereLedger.dominantSink?.label || "None",
+      atmosphereStabilityTimescale: atmosphereLedger.timescaleLabel,
       insolation: fmt(insolationEarth, 3) + "× Earth",
       companionFlux:
         hostFrame?.frameKind === "pair"
@@ -1361,6 +1621,11 @@ export function calcPlanetExact({
           : meanCompanionFluxEarth > 0
             ? `${fmt(meanCompanionFluxEarth, 3)}× Earth (${fmt((meanCompanionFluxEarth / Math.max(insolationEarth, 1e-9)) * 100, 1)}%)`
             : "Negligible",
+      environmentForcing: formatEnvironmentForcingSummary(environmentForcing),
+      stellarWindPressure:
+        stellarWind.ramPressureNPa != null
+          ? `${fmt(stellarWind.ramPressureNPa, stellarWind.ramPressureNPa >= 10 ? 1 : 2)} nPa (${fmt(stellarWind.ramPressureEarthRatio, 2)}× Earth)`
+          : "Unsupported",
       fluxVariability:
         hostFrameFluxVariabilityFraction > 0
           ? `${fmt(hostFrameFluxVariabilityFraction * 100, 1)}%`
@@ -1403,6 +1668,12 @@ export function calcPlanetExact({
         magField.fieldMorphology === "none"
           ? "\u2014"
           : magField.fieldMorphology.charAt(0).toUpperCase() + magField.fieldMorphology.slice(1),
+      magnetopause: magnetosphereEnvironment.supported
+        ? `${fmt(magnetosphereEnvironment.magnetopauseRp, 2)} Rp (${fmt(magnetosphereEnvironment.magnetopauseKm, 0)} km)`
+        : "Unsupported / collapsed",
+      windCompression: magnetosphereEnvironment.supported
+        ? `${magnetosphereEnvironment.compressionClass} (${fmt(magnetosphereEnvironment.windPressureEarthRatio, 2)}\u00d7 Earth wind)`
+        : magnetosphereEnvironment.compressionClass,
       outgassing: outgassing.primarySpecies,
       moonTidalHeating:
         planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2 >= 0.01

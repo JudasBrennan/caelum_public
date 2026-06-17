@@ -118,8 +118,12 @@ function normalizeHostContext(body, context = {}) {
       firstDefined(context.hostFrameId, body?.hostFrameId, body?.orbit?.hostFrameId, null) ?? null,
     hostFrame: isObject(context.hostFrame) ? context.hostFrame : null,
     hostXuvFluxEarthAt1Au: firstDefined(context.hostXuvFluxEarthAt1Au, null),
+    hostPrebioticUvEarthAt1Au: firstDefined(context.hostPrebioticUvEarthAt1Au, null),
+    hostWindPressureEarthAt1Au: firstDefined(context.hostWindPressureEarthAt1Au, null),
     companionFluxEarth: firstFinite(context.companionFluxEarth, 0),
     companionXuvFluxEarth: firstFinite(context.companionXuvFluxEarth, 0),
+    companionPrebioticUvEarth: firstFinite(context.companionPrebioticUvEarth, 0),
+    companionWindPressureEarth: firstFinite(context.companionWindPressureEarth, 0),
     fluxVariabilityFraction: firstFinite(context.fluxVariabilityFraction, 0),
   };
 }

@@ -127,6 +127,12 @@ function buildPairContexts(stellarSystem, topology, starsById) {
         }),
       0,
     );
+    const combinedWindPressureEarthAt1Au = starContexts.reduce((sum, starContext) => {
+      const ratio = Number(
+        starContext?.model?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au,
+      );
+      return sum + (Number.isFinite(ratio) && ratio > 0 ? ratio : 0);
+    }, 0);
 
     pairsById[pairId] = {
       id: pairId,
@@ -143,6 +149,7 @@ function buildPairContexts(stellarSystem, topology, starsById) {
       representativeTempK,
       representativeRadiusRsol,
       combinedXuvFluxRatioAt1Au,
+      combinedWindPressureEarthAt1Au,
       dominantStarId: dominantStarContext?.id || starIds[0] || null,
       representativeAgeGyr:
         Number(dominantStarContext?.config?.ageGyr ?? stellarSystem.shared?.ageGyr ?? 4.6) || 4.6,
@@ -325,6 +332,8 @@ export function resolveHostFrameContext(homeSystemContext, hostFrameId) {
   let starConfig = starContext?.config || null;
   let starModel = starContext?.model || null;
   let hostXuvFluxEarthAt1Au = 0;
+  let hostPrebioticUvEarthAt1Au = 0;
+  let hostWindPressureEarthAt1Au = 0;
 
   if (hostFrame.frameKind === "pair") {
     const pairContext = homeSystemContext.pairsById?.[hostFrame.id] || null;
@@ -358,6 +367,12 @@ export function resolveHostFrameContext(homeSystemContext, hostFrameId) {
     hostXuvFluxEarthAt1Au = Number(
       pairContext.combinedXuvFluxRatioAt1Au || hostFrame.fluxModel?.meanXuvFluxEarth || 0,
     );
+    hostWindPressureEarthAt1Au = Number(
+      pairContext.combinedWindPressureEarthAt1Au ||
+        hostFrame.fluxModel?.hostWindPressureEarthAt1Au ||
+        0,
+    );
+    hostPrebioticUvEarthAt1Au = Number(hostFrame.fluxModel?.hostPrebioticUvEarthAt1Au || 0);
   } else {
     if (!starContext) return null;
     hostXuvFluxEarthAt1Au = computeStarXuvFluxRatioEarth({
@@ -366,6 +381,16 @@ export function resolveHostFrameContext(homeSystemContext, hostFrameId) {
       luminosityLsol: starContext.model?.luminosityLsol,
       orbitAu: 1,
     });
+    hostWindPressureEarthAt1Au = Number(
+      hostFrame.fluxModel?.hostWindPressureEarthAt1Au ??
+        starContext.model?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au ??
+        0,
+    );
+    hostPrebioticUvEarthAt1Au = Number(
+      hostFrame.fluxModel?.hostPrebioticUvEarthAt1Au ??
+        starContext.model?.stellarEnvironment?.uv?.bandsAt1Au?.prebiotic200280?.earthRatio ??
+        0,
+    );
   }
 
   return {
@@ -376,10 +401,14 @@ export function resolveHostFrameContext(homeSystemContext, hostFrameId) {
     starConfig,
     starModel,
     hostXuvFluxEarthAt1Au,
+    hostPrebioticUvEarthAt1Au,
+    hostWindPressureEarthAt1Au,
     companionFluxEarth: Number(hostFrame.fluxModel?.meanCompanionFluxEarth || 0),
     peakCompanionFluxEarth: Number(hostFrame.fluxModel?.peakCompanionFluxEarth || 0),
     minCompanionFluxEarth: Number(hostFrame.fluxModel?.minCompanionFluxEarth || 0),
     companionXuvFluxEarth: Number(hostFrame.fluxModel?.meanCompanionXuvFluxEarth || 0),
+    companionPrebioticUvEarth: Number(hostFrame.fluxModel?.meanCompanionPrebioticUvEarth || 0),
+    companionWindPressureEarth: Number(hostFrame.fluxModel?.meanCompanionWindPressureEarth || 0),
     fluxVariabilityFraction: Number(hostFrame.fluxModel?.fluxVariabilityFraction || 0),
     dominantContributorId: hostFrame.fluxModel?.dominantContributorId || starContext.id,
   };

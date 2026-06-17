@@ -1,11 +1,11 @@
+import { calcInsolationEarthRatio } from "../physics/radiative.js";
 import {
-  calcEquilibriumTemperatureAtDistanceK,
-  calcInsolationEarthRatio,
-} from "../physics/radiative.js";
+  calcEffectiveTemperatureFromIntrinsicHeat,
+  calcGiantEquilibriumTemperatureK,
+  calcGiantIntrinsicHeatDiagnostics,
+} from "./intrinsicHeat.js";
 
-const SIGMA = 5.6704e-8;
 const ICE_GIANT_MASS_MJUP = 0.15;
-const ZERO_ALBEDO_EQ_COEFF = 279;
 
 const SUDARSKY = [
   {
@@ -165,78 +165,93 @@ export function internalHeatRatio(massMjup) {
 
 export function computeThermalProfile({
   massMjup,
+  radiusRj,
+  densityGcm3,
   orbitAu,
   starLuminosityLsol,
   eccentricity,
+  ageGyr,
+  metallicitySolar,
+  interiorHeatTransportMode = "auto",
   extraFluxEarth = 0,
 }) {
   const companionFluxEarth = Math.max(extraFluxEarth, 0);
-  const effectiveLuminosityAtDistance = (distanceAu) => {
-    const orbitalDistanceAu = Math.max(distanceAu, 0.01);
-    const hostInsolationEarth = calcInsolationEarthRatio({
-      starLuminosityLsol,
-      orbitalDistanceAu,
-    });
-    return Math.max((hostInsolationEarth + companionFluxEarth) * orbitalDistanceAu ** 2, 1e-9);
-  };
-  const teqFirst = calcEquilibriumTemperatureAtDistanceK({
-    starLuminosityLsol: effectiveLuminosityAtDistance(orbitAu),
-    albedoBond: 0,
+  const teqFirst = calcGiantEquilibriumTemperatureK({
+    starLuminosityLsol,
     orbitalDistanceAu: orbitAu,
-    coefficientK: ZERO_ALBEDO_EQ_COEFF,
-    luminosityExponent: 0.5,
+    albedoBond: 0,
+    extraFluxEarth: companionFluxEarth,
   });
   const sudarsky = classifySudarsky(teqFirst, massMjup);
   const bondAlbedo = sudarsky.bondAlbedo;
-  const equilibriumTempK = calcEquilibriumTemperatureAtDistanceK({
-    starLuminosityLsol: effectiveLuminosityAtDistance(orbitAu),
-    albedoBond: bondAlbedo,
+  const equilibriumTempK = calcGiantEquilibriumTemperatureK({
+    starLuminosityLsol,
     orbitalDistanceAu: orbitAu,
-    coefficientK: ZERO_ALBEDO_EQ_COEFF,
-    luminosityExponent: 0.5,
+    albedoBond: bondAlbedo,
+    extraFluxEarth: companionFluxEarth,
   });
-  const heatRatio = internalHeatRatio(massMjup);
-  const effectiveTempK = (equilibriumTempK ** 4 * heatRatio) ** 0.25;
-  const internalFluxWm2 = Math.max(0, SIGMA * (effectiveTempK ** 4 - equilibriumTempK ** 4));
+  const insolationEarth =
+    calcInsolationEarthRatio({
+      starLuminosityLsol,
+      orbitalDistanceAu: orbitAu,
+    }) + companionFluxEarth;
+  const intrinsicHeat = calcGiantIntrinsicHeatDiagnostics({
+    massMjup,
+    radiusRj,
+    densityGcm3,
+    ageGyr,
+    metallicitySolar,
+    equilibriumTempK,
+    insolationEarth,
+    interiorHeatTransportMode,
+  });
+  const intrinsicTempK = intrinsicHeat.intrinsicTempK;
+  const effectiveTempK = intrinsicHeat.effectiveTempK;
+  const internalFluxWm2 = intrinsicHeat.internalFluxWm2;
+  const heatRatio =
+    equilibriumTempK > 0 ? Math.max(1, effectiveTempK ** 4 / equilibriumTempK ** 4) : 1;
   const periapsisAu = orbitAu * (1 - eccentricity);
   const apoapsisAu = orbitAu * (1 + eccentricity);
   const equilibriumTempPeriK =
     periapsisAu > 0
-      ? calcEquilibriumTemperatureAtDistanceK({
-          starLuminosityLsol: effectiveLuminosityAtDistance(periapsisAu),
-          albedoBond: bondAlbedo,
+      ? calcGiantEquilibriumTemperatureK({
+          starLuminosityLsol,
           orbitalDistanceAu: periapsisAu,
-          coefficientK: ZERO_ALBEDO_EQ_COEFF,
-          luminosityExponent: 0.5,
+          albedoBond: bondAlbedo,
+          extraFluxEarth: companionFluxEarth,
         })
       : equilibriumTempK;
   const equilibriumTempApoK =
     apoapsisAu > 0
-      ? calcEquilibriumTemperatureAtDistanceK({
-          starLuminosityLsol: effectiveLuminosityAtDistance(apoapsisAu),
-          albedoBond: bondAlbedo,
+      ? calcGiantEquilibriumTemperatureK({
+          starLuminosityLsol,
           orbitalDistanceAu: apoapsisAu,
-          coefficientK: ZERO_ALBEDO_EQ_COEFF,
-          luminosityExponent: 0.5,
+          albedoBond: bondAlbedo,
+          extraFluxEarth: companionFluxEarth,
         })
       : equilibriumTempK;
   return {
     sudarsky,
     bondAlbedo,
+    sudarskyTempK: teqFirst,
     equilibriumTempK,
     effectiveTempK,
+    intrinsicTempK,
+    intrinsicHeat,
     internalHeatRatio: heatRatio,
     internalFluxWm2,
     periapsisAu,
     apoapsisAu,
     equilibriumTempPeriK,
     equilibriumTempApoK,
-    effectiveTempPeriK: (equilibriumTempPeriK ** 4 * heatRatio) ** 0.25,
-    effectiveTempApoK: (equilibriumTempApoK ** 4 * heatRatio) ** 0.25,
-    insolationEarth:
-      calcInsolationEarthRatio({
-        starLuminosityLsol,
-        orbitalDistanceAu: orbitAu,
-      }) + companionFluxEarth,
+    effectiveTempPeriK: calcEffectiveTemperatureFromIntrinsicHeat({
+      equilibriumTempK: equilibriumTempPeriK,
+      intrinsicTempK,
+    }),
+    effectiveTempApoK: calcEffectiveTemperatureFromIntrinsicHeat({
+      equilibriumTempK: equilibriumTempApoK,
+      intrinsicTempK,
+    }),
+    insolationEarth,
   };
 }

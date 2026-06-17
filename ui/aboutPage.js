@@ -21,7 +21,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.8.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.9.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, calendars, and exotic planetary subtype evidence. Explore your
@@ -65,6 +65,7 @@ export function initAboutPage(mountEl) {
         </ul>
 
         <div class="about-actions">
+          <a class="validation-action validation-action--accent" href="#/validation">View Validation Report</a>
           <button class="btn btn--accent" id="openChangelog" type="button">View Changelog</button>
           <button class="btn" id="openLicense" type="button">View License</button>
         </div>
@@ -380,6 +381,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Linked black-hole physics, cosmology, and public understanding of cosmic time, making deep physical history legible to a wide audience.",
   },
+  "2.9.0": {
+    name: "Werner Heisenberg",
+    born: 1901,
+    died: 1976,
+    country: "Germany",
+    summary:
+      "Formulated the uncertainty principle and helped make uncertainty a measurable part of physical theory rather than a flaw to hide.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -419,6 +428,18 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.9.0",
+      "(from 2.8.0)",
+      [
+        "<b>Validation Report</b> &mdash; WorldSmith now has a top-level Validation page with searchable calibration tables, Solar System and non-Solar anchor coverage, and prebuilt report artifacts shipped with each release.",
+        "<b>Stellar Environment</b> &mdash; Stars now expose differential rotation, Rossby-linked activity, wind pressure, UV bands, prebiotic UV context, and clearer confidence labels for regimes where the science is less certain.",
+        "<b>Coupled Planet And Moon Environments</b> &mdash; Planets and moons now share forcing, magnetosphere, radiation, atmosphere ledger, climate chemistry, cloud, carbon-cycle, ocean-chemistry, and biosignature-context diagnostics instead of isolated one-off summaries.",
+        "<b>Calibration Realism</b> &mdash; Airless moon thermophysics, tiny-moon tides, gas and ice giant intrinsic heat, and non-Solar exoplanet benchmarks now keep the generic model better calibrated without tuning specifically for Sol.",
+        "<b>Timeline And Visual Integration</b> &mdash; Era timelines, auto visual coverage, snapshots, and visualizer summaries now consume the shared coupled-environment context while keeping life claims and exact climate histories explicitly bounded.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.8.0",
       "(from 2.7.1)",
       [
@@ -428,7 +449,7 @@ function changelogHTML() {
         "<b>Visual Editor Readouts</b> &mdash; Auto coverage controls now show their current percentages and short model reasons, while text and number inputs keep focus during editing.",
         "<b>Science Polish</b> &mdash; Small cohesive moons can now survive Roche-only crossings when material strength dominates, planet selectors show authored host-star names, and tilted body previews now rotate around their tilted axes.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.7.1",

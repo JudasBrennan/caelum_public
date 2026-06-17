@@ -234,6 +234,9 @@ function cloudExplanation(signals, cloudCoverage) {
   if (gasLike || signals.styleId) {
     return "Gas or volatile envelope style sets this visual cloud-deck estimate.";
   }
+  if (firstString(getPath(signals.profile, "clouds.source")) === "cloud-circulation") {
+    return "Climate-facing cloud circulation sets the auto cloud estimate.";
+  }
   if (signals.pressureAtm != null && signals.pressureAtm <= 0) {
     return "No modeled atmosphere leaves the auto cloud layer at zero.";
   }

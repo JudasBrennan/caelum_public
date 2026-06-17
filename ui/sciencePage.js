@@ -432,6 +432,19 @@ function buildStellarPhysics() {
         ],
       )}`,
     ),
+
+    formula(
+      "Stellar Environment Diagnostics",
+      `<div class="sci-formula__eq">${eq("Ro = P_{\\text{rot}} / \\tau_c")}</div>
+      <div class="sci-formula__eq">${eq("P_{\\text{wind}}(r) = P_{\\text{wind},1\\text{AU}} / r^2")}</div>
+      <div class="sci-formula__eq">${eq("F_{200-280}(r) = F_{200-280,1\\text{AU}} / r^2")}</div>
+      <p>WorldSmith groups rotation, wind, and UV into a shared stellar-environment layer so Star, Planet, Moon, and visualiser views use the same host diagnostics.</p>
+      <p><b>Gyrochronology limits:</b> the rotation estimate is a differentially rotating surface model. The representative gyrochronology period is best calibrated for FGK main-sequence stars; young stars, evolved stars, hot stars, M dwarfs, and brown dwarfs carry lower confidence or unsupported labels.</p>
+      <p><b>Wind scaling:</b> stellar-wind mass loss, speed, and ram pressure are order-of-magnitude environment diagnostics. Planet pages dilute host wind by orbital distance and add wide companion wind from the selected host frame, but this is not yet a full magnetopause or atmospheric-erosion solver.</p>
+      <p><b>Prebiotic UV window:</b> the 200&ndash;280 nm band is a photospheric blackbody estimate. It supports a bounded starter-chemistry diagnostic after atmospheric shielding, haze attenuation, surface-liquid, and temperature checks; it does not imply abiogenesis, life, or biosignatures, and it does not explicitly solve flare-driven UV bursts from active cool stars.</p>
+      <p><b>Organic haze interpretation:</b> the planet photochemistry model uses CH<sub>4</sub>/CO<sub>2</sub>, oxygen suppression, pressure, and UV supply to report Titan/Archean-style organic haze likelihood, optical-depth proxies, surface-light reduction, and anti-greenhouse cooling potential. Phase 4 feeds that cooling into a bounded coupled-climate diagnostic, but it is not fed back into the climate temperature and leaves the baseline surface-temperature solve unchanged.</p>
+      ${cite("Barnes (2007) ApJ 669, 1167; Mamajek &amp; Hillenbrand (2008) ApJ 687, 1264; Wood et al. (2005) ApJ 628, L143; Ranjan &amp; Sasselov (2017) Astrobiology 17, 169; Arney et al. (2016) Astrobiology 16, 873")}`,
+    ),
   ].join("");
 }
 
@@ -722,18 +735,21 @@ function buildGasGiantPhysics() {
     ),
 
     formula(
-      "Internal Heat Ratio",
-      `<p>Ratio of total emitted flux to absorbed flux, interpolated by mass:</p>
-      ${dataTable(
-        ["Mass range", "Ratio", "Analogue"],
+      "Intrinsic And Effective Temperature",
+      `<div class="sci-formula__eq">${eq("T_{\\text{eq}} = 279\\,K \\left(\\frac{L_\\star}{a^2}\\right)^{1/4}(1-A_B)^{1/4}")}</div>
+      <div class="sci-formula__eq">${eq("T_{\\text{eff}} = \\left(T_{\\text{eq}}^4 + T_{\\text{int}}^4\\right)^{1/4}")}</div>
+      <div class="sci-formula__eq">${eq("F_{\\text{int}} = \\sigma T_{\\text{int}}^4")}</div>
+      <p>Gas and ice giants emit absorbed starlight plus retained internal heat from Kelvin-Helmholtz cooling and interior transport. WorldSmith reports equilibrium temperature (${iq("T_{\\text{eq}}")}) and effective temperature (${iq("T_{\\text{eff}}")}) separately so cold, self-luminous giants are not treated like rocky surfaces.</p>
+      ${vars([
+        ["A_B", "Bond albedo from Sudarsky/cloud class or ice-giant haze class"],
         [
-          ["&lt; 0.05 M<sub>J</sub>", "1.06", "Uranus"],
-          ["0.1&ndash;0.2 M<sub>J</sub>", "2.6", "Neptune"],
-          ["0.2&ndash;0.5 M<sub>J</sub>", "2.6 &rarr; 1.67", "Saturn &rarr; Jupiter"],
-          ["0.5&ndash;1.5 M<sub>J</sub>", "1.67", "Jupiter"],
+          "T_{\\text{int}}",
+          "Intrinsic temperature from mass, density, age, enrichment, irradiation, and heat transport",
         ],
-      )}
-      <p>Effective temperature: ${iq("T_{\\text{eff}} = (T_{\\text{eq}}^4 \\cdot \\text{IHR})^{1/4}")}.</p>`,
+        ["F_{\\text{int}}", "Internal flux per square metre"],
+      ])}
+      <p>Auto heat transport is efficient for dense convective ice giants and metallic-H gas giants, layered for low-density ice giants with likely compositional stratification, and irradiation-suppressed for highly heated close-in giants. Manual transport modes can override this when the user is intentionally modelling a suppressed or layered interior.</p>
+      <p><b>Calibration stance:</b> Solar System giants are used as benchmark anchors for a generic model, not as object-specific weights. The same equations are also checked against non-Solar transiting-giant observables so Sol-system agreement does not hide overfitting.</p>`,
     ),
 
     formula(
@@ -920,7 +936,8 @@ function buildOrbitalMechanics() {
     formula(
       "Roche Limit",
       `<div class="sci-formula__eq">${eq("d_{\\text{Roche}} = 2.44 \\, R_p \\left(\\frac{\\rho_p}{\\rho_m}\\right)^{1/3}")}</div>
-      <p>Orbital distance inside which tidal forces exceed the satellite&rsquo;s self-gravity, causing disruption. The classical fluid-body result.</p>`,
+      <p>Orbital distance inside which tidal forces exceed the satellite&rsquo;s self-gravity, causing disruption. The classical fluid-body result is appropriate for gravity-dominated, weak aggregate bodies.</p>
+      <p>Very small moons below roughly 20 km across can be strength-dominated rather than self-gravity-dominated. For those bodies, material cohesion, porosity, fracture history, and rubble-pile structure can let the moon survive inside the classical fluid Roche limit, so WorldSmith treats the Roche boundary as a caveated warning rather than an automatic disruption rule.</p>`,
     ),
 
     formula(
@@ -1107,10 +1124,12 @@ function buildOrbitalMechanics() {
     formula(
       "Moon Surface Temperature",
       `<div class="sci-formula__eq">${eq("T_{\\text{eq}} = \\left(\\frac{L_\\star\\,(1 - a)}{16\\,\\pi\\,\\sigma\\,d^2}\\right)^{1/4}")}</div>
-      <p>Equilibrium temperature for an airless body (no greenhouse). The moon&rsquo;s distance from the star is approximated as the parent planet&rsquo;s semi-major axis.</p>
+      <p>Global equilibrium temperature for an airless body before greenhouse warming. It is a radiative baseline, not a prediction of the hottest or coldest measured surface pixels. The moon&rsquo;s distance from the star is approximated as the parent planet&rsquo;s semi-major axis.</p>
       <div class="sci-formula__eq">${eq("T_{\\text{surf}} = \\left(T_{\\text{eq}}^4 + \\frac{F_{\\text{tidal}}}{\\sigma} + \\frac{F_{\\text{radio}}}{\\sigma}\\right)^{1/4}")}</div>
       <p>Total surface temperature adds tidal heating flux and radiogenic heating flux as additional energy inputs. Radiogenic flux:</p>
       <div class="sci-formula__eq">${eq("F_{\\text{radio}} = \\frac{44\\;\\text{TW} \\times (M_m / M_\\oplus) \\times A}{4\\,\\pi\\,R_m^2}")}</div>
+      <div class="sci-formula__eq">${eq("T_{\\text{observable}} \\in [T_{\\text{cold}},\\,T_{\\text{warm}}]")}</div>
+      <p>Airless moons also report an observable thermal envelope for brightness-style or local-temperature comparisons. That range broadens with low thermal inertia, slow rotation, roughness, eclipses, and inferred albedo. If only geometric or visual albedo is available, WorldSmith estimates Bond albedo through a phase-integral proxy and lowers confidence instead of tuning the object.</p>
       ${vars([
         ["L_\\star", "Star luminosity (W)"],
         ["a", "Moon Bond albedo"],
@@ -1624,6 +1643,32 @@ function buildClimateClassification() {
       <div class="sci-formula__eq">${eq("T_{\\text{anti}} = T_g\\,(0.5 + 0.3\\,\\min(P/2,\\,1))")}</div>
       <p>Higher surface pressure (${iq("P")} in atm) increases heat redistribution, warming the terminator
       and antistellar point while cooling the substellar point.</p>`,
+    ),
+
+    formula(
+      "Cloud, Circulation, And Carbon-Cycle Context",
+      `<div class="sci-formula__eq">${eq("\\Delta T_{\\text{cloud}} = -\\mathrm{clamp}(4.2A_c + 3.2S_c,\\,0,\\,8)")}</div>
+      <div class="sci-formula__eq">${eq("\\Theta_{\\text{carb}} = \\min(W,\\,V,\\,R)\\,(0.55 + 0.45B)\\,C")}</div>
+      <div class="sci-formula__eq">${eq("T_f = 273.15\\text{ K} - \\min(45,\\,0.55S + 1.35A)")}</div>
+      <p>WorldSmith treats clouds and carbonate-silicate cycling as bounded context layers. Cloud/circulation uses pressure, exposed water, temperature, rotation, tidal lock state, stellar flux, haze opacity, and collapse risk to estimate cloud fraction, substellar-cloud likelihood, heat redistribution, and a small diagnostic albedo-cooling term.</p>
+      <p>The carbon-cycle context is a tendency model, not a solved atmospheric CO<sub>2</sub> history. It combines exposed-rock weathering, limited seafloor weathering, CO<sub>2</sub> availability, volcanic supply, tectonic recycling, climate state, and high-pressure-ice caveats into a thermostat-strength diagnostic.</p>
+      <p>The ocean-chemistry context adds salinity/ammonia freezing-point depression, carbonate buffering, acidity class, rock-ocean access, and hydrothermal/nutrient support. Salinity is consumed from explicit moon inputs when available; otherwise it is inferred only as a low-confidence class from water inventory and ocean depth.</p>
+      <p>Biosignature context is deliberately non-diagnostic of life. O<sub>2</sub>/O<sub>3</sub>, CH<sub>4</sub>, CO, organic haze, redox state, atmosphere source-sink balance, ocean sinks, and stellar UV/XUV are combined into false-positive risk, disequilibrium strength, and source-demand language. O<sub>2</sub>+CH<sub>4</sub> means a replenishing source is required; it does not identify biology.</p>
+      <p>The era timeline consumes these source contexts as chronology evidence: high-XUV and wind-compression intervals, atmosphere source-sink trends, haze-rich anoxic chemistry, bounded climate forcing, carbon-cycle limits, ocean-chemistry constraints, and biosignature-context cautions. Timeline rows are confidence-labelled context summaries, not independent climate histories or life claims.</p>
+      <p>World snapshots and the visualizer reuse the same solved source contexts for star forcing, planet forcing, gas-giant magnetospheres, moon radiation, and era timelines, so read-only views remain aligned with the engine instead of rebuilding separate science summaries.</p>
+      <p>Dry, airless, deep-ocean, or high-pressure-ice worlds are deliberately limited. Stagnant-lid planets can still outgas, but they do not receive an Earth-like mobile-lid recycling bonus. Icy ocean moons can report rock-ocean chemistry potential without being treated as exposed-land weathering worlds.</p>
+      ${vars([
+        ["A_c", "Cloud-albedo effect"],
+        ["S_c", "Substellar cloud-deck likelihood"],
+        ["S", "Ocean salinity percent by mass"],
+        ["A", "Ocean ammonia percent by mass"],
+        ["W", "Weathering efficiency"],
+        ["V", "Volcanic/outgassing supply"],
+        ["R", "Tectonic recycling efficiency"],
+        ["B", "Weathering/outgassing balance term"],
+        ["C", "Extreme-climate penalty"],
+      ])}
+      ${cite("Yang, Cowan &amp; Abbot (2013), ApJ 771, L45; Walker, Hays &amp; Kasting (1981), JGR 86, 9776; Berner (2004), The Phanerozoic Carbon Cycle; Foley (2015), ApJ 812, 36; Cullum, Stevens &amp; Joshi (2016), Astrobiology 16, 763; Meadows et al. (2018), Astrobiology 18, 630; Luger &amp; Barnes (2015), Astrobiology 15, 119; Krissansen-Totton et al. (2018), Science Advances 4, eaao5747; Thompson et al. (2022), PNAS 119, e2117933119")}`,
     ),
 
     formula(
@@ -2909,14 +2954,16 @@ function buildDivergences() {
     ),
 
     item(
-      "Gas Giant Internal Heat Ratio Ramps (WS-derived)",
-      `<p>The mass-dependent ramp for internal heat ratio (1.0 at Uranus-mass to 1.67 at
-      Jupiter-mass) is a WorldSmith interpolation. Published values exist only for individual
-      Solar System giants (Jupiter 1.67, Saturn 1.78, Uranus &lt; 1.06, Neptune 2.6).</p>
-      <p><b>Why diverge?</b> No published model provides a continuous function of internal heat
-      ratio vs. mass for arbitrary gas giants. The ramp captures the qualitative trend that more
-      massive giants retain more primordial heat. Neptune&rsquo;s anomalously high value is not
-      well explained and is treated as an outlier.</p>`,
+      "Gas Giant Intrinsic Heat Transport Proxy (WS-derived)",
+      `<p>The intrinsic heat model estimates ${iq("T_{\\text{int}}")} from mass, density,
+      age, irradiation, atmospheric enrichment, and an inferred heat-transport class. It then
+      combines internal and absorbed stellar flux as
+      ${iq("T_{\\text{eff}}^4 = T_{\\text{eq}}^4 + T_{\\text{int}}^4")}.</p>
+      <p><b>Why diverge?</b> Full gas-giant cooling tracks require detailed interior composition,
+      helium rain, layered convection, equations of state, and initial entropy. WorldSmith uses a
+      disclosed proxy so arbitrary giants can be compared consistently. Solar System giants are
+      benchmark anchors, not object-specific weights, and non-Solar transiting giants are kept in
+      the calibration suite to guard against Sol-system overfitting.</p>`,
     ),
 
     item(
@@ -3334,7 +3381,7 @@ function wireCalculators(root) {
 /* ── Main init ───────────────────────────────────────────────── */
 
 const SECTIONS = [
-  { id: "stellar", title: "Stellar Physics", count: 8, builder: buildStellarPhysics },
+  { id: "stellar", title: "Stellar Physics", count: 9, builder: buildStellarPhysics },
   { id: "evolution", title: "Stellar Evolution", count: 7, builder: buildStellarEvolution },
   { id: "planetary", title: "Planetary Physics", count: 12, builder: buildPlanetaryPhysics },
   { id: "gasgiant", title: "Gas Giant Physics", count: 13, builder: buildGasGiantPhysics },
@@ -3354,7 +3401,7 @@ const SECTIONS = [
   { id: "lagrange", title: "Lagrange Points", count: 4, builder: buildLagrangePoints },
   { id: "photometry", title: "Photometry &amp; Magnitudes", count: 8, builder: buildPhotometry },
   { id: "atmosphere", title: "Atmosphere &amp; Colour", count: 9, builder: buildAtmosphereColour },
-  { id: "climate", title: "Climate Classification", count: 7, builder: buildClimateClassification },
+  { id: "climate", title: "Climate Classification", count: 8, builder: buildClimateClassification },
   { id: "activity", title: "Stellar Activity", count: 7, builder: buildStellarActivity },
   { id: "calendar", title: "Calendar Systems", count: 5, builder: buildCalendarSystems },
   { id: "cluster", title: "Local Cluster", count: 7, builder: buildLocalCluster },
@@ -3403,6 +3450,10 @@ export function initSciencePage(mountEl) {
         by the engine, with citations to the original papers. The final section,
         <em>Divergences from Published Science</em>, documents every place where
         WorldSmith uses its own empirical fits or simplifications.</p>
+        <div class="science-validation-link">
+          <a class="validation-action validation-action--accent" href="#/validation">Open Validation Report</a>
+          <span>Compare the current engine against NASA/JPL, benchmark-star, and non-Solar calibration anchors.</span>
+        </div>
         <div class="sci-search">
           <label class="sci-search__field" for="sciencePageSearch">
             <span>Find a formula or topic</span>

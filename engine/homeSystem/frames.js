@@ -83,6 +83,8 @@ function buildCompanionBranches(fluxModel) {
         eccentricity: Number(layer.eccentricity || 0),
         meanVisibleFluxEarth: Number(layer.meanVisibleFluxEarth || 0),
         meanXuvFluxEarth: Number(layer.meanXuvFluxEarth || 0),
+        meanPrebioticUvEarth: Number(layer.meanPrebioticUvEarth || 0),
+        meanWindPressureEarth: Number(layer.meanWindPressureEarth || 0),
       }))
     : [];
 }

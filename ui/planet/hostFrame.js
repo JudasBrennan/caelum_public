@@ -82,6 +82,20 @@ function buildFallbackHostFrameSolveContext(world, homeSystemContext, sysModel =
         meanCompanionFluxEarth: 0,
         fluxVariabilityFraction: 0,
         meanCompanionXuvFluxEarth: 0,
+        hostPrebioticUvEarthAt1Au: Number(
+          fallbackStarModel?.stellarEnvironment?.uv?.bandsAt1Au?.prebiotic200280?.earthRatio || 0,
+        ),
+        meanPrebioticUvEarthAt1Au: Number(
+          fallbackStarModel?.stellarEnvironment?.uv?.bandsAt1Au?.prebiotic200280?.earthRatio || 0,
+        ),
+        meanCompanionPrebioticUvEarth: 0,
+        hostWindPressureEarthAt1Au: Number(
+          fallbackStarModel?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au || 0,
+        ),
+        meanWindPressureEarthAt1Au: Number(
+          fallbackStarModel?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au || 0,
+        ),
+        meanCompanionWindPressureEarth: 0,
       },
       stability: {
         criticalOuterAu: null,
@@ -93,8 +107,14 @@ function buildFallbackHostFrameSolveContext(world, homeSystemContext, sysModel =
     starConfig: fallbackStarConfig,
     starModel: fallbackStarModel,
     hostXuvFluxEarthAt1Au: null,
+    hostPrebioticUvEarthAt1Au:
+      fallbackStarModel?.stellarEnvironment?.uv?.bandsAt1Au?.prebiotic200280?.earthRatio ?? null,
+    hostWindPressureEarthAt1Au:
+      fallbackStarModel?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au ?? null,
     companionFluxEarth: 0,
     companionXuvFluxEarth: 0,
+    companionPrebioticUvEarth: 0,
+    companionWindPressureEarth: 0,
     fluxVariabilityFraction: 0,
     dominantContributorId: homeSystemContext?.primaryStarId || defaultHostFrameId,
   };

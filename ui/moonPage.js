@@ -143,6 +143,8 @@ const TIP_LABEL = {
     'Checks whether the planet is expected to be tidally locked to its star.\n\nWorldSmith Web uses a user-friendly rule: this shows "Yes" when the computed Planet\u2192Star lock time is less than or equal to the current star age.\n\nFor an Earth-like setup, this should usually remain "No".',
   "Derived Data":
     "Read-only parent and host-frame context used for moon calculations. In binary systems this includes which star-centered frame the parent world belongs to, plus any extra companion heating or stability pressure inherited from that frame.",
+  "Environment Forcing":
+    "Canonical host-frame forcing inherited by the moon solver: bolometric light at the parent planet orbit, XUV, prebiotic UV, stellar wind, companion contributions, and flux variability.",
   "Moon selection": "Saved moon currently being edited.",
   "Editing moon": "Moon selector with create and delete controls.",
   "Belongs to planet": "Parent planet this moon orbits. May be left unassigned.",
@@ -259,9 +261,29 @@ const TIP_LABEL = {
     "\n\nFor airless bodies, this stays close to the radiative equilibrium. Tidal heating " +
     "dominates for close-orbit moons like Io; greenhouse warming matters most for " +
     "volatile-rich moons such as Titan-like cases.",
+  "Global Equilibrium":
+    "Global radiative equilibrium temperature for the moon after albedo, planetshine, and eclipse cooling are applied. This is not the same as a local measured surface temperature on an airless body.",
+  "Observable Surface Range":
+    "Modeled airless-body observable temperature envelope spanning nightside floor through dayside/subsolar-like temperatures. The range is widened or narrowed by rotation state and thermal inertia class.",
   "Climate State":
     "High-level moon climate regime derived from the moon-specific climate model.\n\n" +
     "Stable, Snowball, Moist greenhouse, and Runaway greenhouse states reflect the modeled surface-water and temperature outcomes after planetshine, eclipses, and internal heating are considered.",
+  "Coupled Climate Tendency":
+    "Phase 4 diagnostic showing how bounded chemistry forcing would tend to shift the moon climate label if opted in. The baseline moon surface temperature remains unchanged.",
+  "Photochemical Forcing":
+    "Bounded diagnostic temperature delta from climate-chemistry coupling. For moons this is conservative because there is not yet a dedicated moon photochemistry solver.",
+  "Cloud Regime":
+    "Cloud and circulation context inferred from pressure, exposed water, temperature, rotation, host flux, haze, and atmospheric-collapse risk. Airless moons and subsurface-only oceans do not receive exposed-cloud benefits.",
+  "Heat Redistribution":
+    "How effectively the modeled moon atmosphere and cloud context move heat around the surface. Higher values reduce day-night extremes and collapse risk when there is enough pressure.",
+  "Cloud Albedo Effect":
+    "Diagnostic cooling leverage from cloud reflectivity. This is bounded and does not directly rewrite the baseline moon temperature solve.",
+  "Carbon Cycle":
+    "Long-term carbon-cycle tendency from exposed water/rock, CO2, volcanism or cryovolcanism, and recycling context. For icy ocean moons this is a rock-ocean chemistry cue, not Earth-like exposed-land weathering.",
+  "Weathering Efficiency":
+    "Relative strength of CO2 drawdown by exposed-rock weathering plus limited seafloor weathering. Airless, dry, high-pressure-ice, and subsurface-only cases are deliberately limited.",
+  "Volcanic Supply":
+    "Relative source-side carbon supply from silicate volcanism, cryovolcanism, or other outgassing context. Cryovolcanic supply is treated conservatively.",
   "Surface Temp Range":
     "Estimated climate envelope for the moon's modeled surface temperature.\n\n" +
     "This Stage M3 output combines seasonal forcing, synchronous parentshine contrast, and eclipse cooling into a first-pass min/max surface-temperature range.",
@@ -305,6 +327,14 @@ const TIP_LABEL = {
     "Source-loss balance for the current moon atmosphere. Stable means the current atmosphere is plausibly long-lived; transient means it likely needs active replenishment.",
   "Atmosphere Lifetime":
     "Estimated order-of-magnitude lifetime of the modeled atmosphere under the current source and loss assumptions.",
+  "Atmosphere Trend":
+    "Long-term atmosphere source-sink ledger. Stable/replenished moons have source terms that plausibly balance loss terms; declining/transient moons are dominated by escape, cold trapping, or sputtering.",
+  "Dominant Source":
+    "Largest current atmosphere source term in the Phase 3 ledger, such as retained volatiles, cryovolcanism, volcanic supply, or ocean buffering.",
+  "Dominant Sink":
+    "Largest current atmosphere sink term in the Phase 3 ledger, such as Jeans escape, XUV escape, wind sputtering, condensation collapse, or surface adsorption.",
+  "Stability Timescale":
+    "Qualitative atmospheric persistence timescale from the source-sink ledger. This is an order-of-magnitude class, not a precise lifetime calculation.",
   "Atmosphere Haze":
     "First-pass haze class inferred from the dominant atmospheric chemistry and pressure.",
   "Atmosphere Clouds":
@@ -378,7 +408,21 @@ const TIP_LABEL = {
   "Interior Structure":
     "Compact readout of the current solved moon interior: ocean depth plus the inferred ice-shell convection regime.",
   "Ocean Chemistry":
-    "Surface or subsurface ocean chemistry inputs used in Full and Manual hydrosphere modes.",
+    "Qualitative surface or subsurface ocean-chemistry context from salinity/ammonia, CO2 pressure, carbonate buffering, rock-ocean access, and hydrothermal support. It is not an exact pH or ocean-circulation model.",
+  "Carbonate Saturation":
+    "Whether the current water, CO2, weathering, and rock-ocean context can plausibly support carbonate buffering. High-pressure ice can limit this even on ocean worlds.",
+  "Nutrient Support":
+    "Qualitative nutrient and hydrothermal access for moon oceans. Subsurface oceans can be promising, but high-pressure ice or isolated shells reduce rock-ocean exchange.",
+  "Biosignature Context":
+    "Context-dependent interpretation of atmospheric O2/O3, methane, CO, haze, replenishment demand, and false-positive risk. This never claims that life is detected.",
+  Disequilibrium:
+    "How strongly reactive gases such as O2 plus CH4 coexist at levels that require ongoing replenishment. A high value means source required, not biology proven.",
+  "O2/O3 False Positive":
+    "Abiotic oxygen or ozone risk from water loss, strong UV/XUV, dry surfaces, weak sinks, and redox context.",
+  "Methane Context":
+    "Methane interpretation using oxygen level, haze likelihood, outgassing, hydrothermal context, and replenishment demand. Methane can be geologic or photochemical.",
+  "CO Buildup Risk":
+    "Carbon-monoxide buildup risk in low-UV or high-CO2 atmospheres. CO can create false-positive or false-negative biosignature context.",
   "Radiogenic Heating":
     "Internal heat from radioactive decay (U, Th, K) on the moon\u2019s surface." +
     "\n\nScales from Earth\u2019s 44 TW by moon mass and the system\u2019s radioisotope " +
@@ -387,13 +431,13 @@ const TIP_LABEL = {
     "Charged-particle radiation dose from the host planet\u2019s magnetosphere." +
     "\n\nScales as B\u00B3 at the moon\u2019s orbit (dipole field), calibrated to " +
     "Jupiter\u2013Europa (~540 rem/day). Zero if the moon orbits outside the " +
-    "magnetopause. Upper estimate \u2014 actual doses may be lower due to ring " +
+    "magnetopause. Compressed parent magnetospheres can raise the exposed-surface context near the boundary. Upper estimate \u2014 actual doses may be lower due to ring " +
     "absorption and loss processes.",
   "Magnetosphere Dose":
     "Charged-particle radiation dose from the host planet\u2019s magnetosphere." +
     "\n\nScales as B\u00B3 at the moon\u2019s orbit (dipole field), calibrated to " +
     "Jupiter\u2013Europa (~540 rem/day). Zero if the moon orbits outside the " +
-    "magnetopause. Upper estimate \u2014 actual doses may be lower due to ring " +
+    "magnetopause. Compressed parent magnetospheres can raise the exposed-surface context near the boundary. Upper estimate \u2014 actual doses may be lower due to ring " +
     "absorption and loss processes.",
   "Earth Similarity Index":
     "Compares this moon to Earth using radius, density, escape velocity, and surface temperature." +
@@ -507,6 +551,11 @@ function buildFallbackMoonHostFrameContext(world, homeSystemContext) {
         meanCompanionFluxEarth: 0,
         fluxVariabilityFraction: 0,
         meanCompanionXuvFluxEarth: 0,
+        hostWindPressureEarthAt1Au:
+          starModel?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au ?? null,
+        meanWindPressureEarthAt1Au:
+          starModel?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au ?? null,
+        meanCompanionWindPressureEarth: 0,
       },
       stability: {
         criticalOuterAu: null,
@@ -517,8 +566,11 @@ function buildFallbackMoonHostFrameContext(world, homeSystemContext) {
     starId: homeSystemContext?.primaryStarId || defaultHostFrameId,
     starConfig,
     starModel,
+    hostWindPressureEarthAt1Au:
+      starModel?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au ?? null,
     companionFluxEarth: 0,
     companionXuvFluxEarth: 0,
+    companionWindPressureEarth: 0,
     fluxVariabilityFraction: 0,
     dominantContributorId: homeSystemContext?.primaryStarId || defaultHostFrameId,
   };
@@ -1351,6 +1403,11 @@ export function initMoonPage(mountEl, options = {}) {
     );
     const companionFluxEarth = Number(hostFrameContext?.companionFluxEarth || 0);
     const companionXuvFluxEarth = Number(hostFrameContext?.companionXuvFluxEarth || 0);
+    const hostXuvFluxEarthAt1Au = hostFrameContext?.hostXuvFluxEarthAt1Au ?? null;
+    const hostPrebioticUvEarthAt1Au = hostFrameContext?.hostPrebioticUvEarthAt1Au ?? null;
+    const companionPrebioticUvEarth = Number(hostFrameContext?.companionPrebioticUvEarth || 0);
+    const hostWindPressureEarthAt1Au = hostFrameContext?.hostWindPressureEarthAt1Au ?? null;
+    const companionWindPressureEarth = Number(hostFrameContext?.companionWindPressureEarth || 0);
     const fluxVariabilityFraction = Number(hostFrameContext?.fluxVariabilityFraction || 0);
 
     if (resolved.type === "gasGiant" && resolved.gasGiant) {
@@ -1363,8 +1420,13 @@ export function initMoonPage(mountEl, options = {}) {
         starRadiusRsol: Number(starModel?.radiusRsol) || 1,
         hostFrameId,
         hostFrame: hostFrameContext?.hostFrame || null,
+        hostXuvFluxEarthAt1Au,
+        hostPrebioticUvEarthAt1Au,
+        hostWindPressureEarthAt1Au,
         companionFluxEarth,
         companionXuvFluxEarth,
+        companionPrebioticUvEarth,
+        companionWindPressureEarth,
         fluxVariabilityFraction,
         stellarMetallicityFeH: Number(starConfig.metallicityFeH) || 0,
         otherGiants: listSystemGasGiants(world).filter(
@@ -1387,8 +1449,13 @@ export function initMoonPage(mountEl, options = {}) {
         starHabitableZoneAu,
         hostFrameId,
         hostFrame: hostFrameContext?.hostFrame || null,
+        hostXuvFluxEarthAt1Au,
+        hostPrebioticUvEarthAt1Au,
+        hostWindPressureEarthAt1Au,
         companionFluxEarth,
         companionXuvFluxEarth,
+        companionPrebioticUvEarth,
+        companionWindPressureEarth,
         fluxVariabilityFraction,
         parentKind: "gasGiant",
         parentOverride,
@@ -1438,8 +1505,10 @@ export function initMoonPage(mountEl, options = {}) {
             starEvolutionMode: starConfig.evolutionMode || "zams",
             hostFrameId,
             hostFrame: hostFrameContext?.hostFrame || null,
+            hostWindPressureEarthAt1Au,
             companionFluxEarth,
             companionXuvFluxEarth,
+            companionWindPressureEarth,
             fluxVariabilityFraction,
             moon: moonInputs,
             parentOverride,
@@ -1458,8 +1527,13 @@ export function initMoonPage(mountEl, options = {}) {
       starEvolutionMode: starConfig.evolutionMode || "zams",
       hostFrameId,
       hostFrame: hostFrameContext?.hostFrame || null,
+      hostXuvFluxEarthAt1Au,
+      hostPrebioticUvEarthAt1Au,
+      hostWindPressureEarthAt1Au,
       companionFluxEarth,
       companionXuvFluxEarth,
+      companionPrebioticUvEarth,
+      companionWindPressureEarth,
       fluxVariabilityFraction,
       planet: parentInputs,
       moons: patchedSiblingEntries.map((entry) => entry.inputs || {}),
@@ -1483,8 +1557,13 @@ export function initMoonPage(mountEl, options = {}) {
       starHabitableZoneAu,
       hostFrameId,
       hostFrame: hostFrameContext?.hostFrame || null,
+      hostXuvFluxEarthAt1Au,
+      hostPrebioticUvEarthAt1Au,
+      hostWindPressureEarthAt1Au,
       companionFluxEarth,
       companionXuvFluxEarth,
+      companionPrebioticUvEarth,
+      companionWindPressureEarth,
       fluxVariabilityFraction,
       parentKind: "planet",
       parentOverride,
@@ -1535,8 +1614,10 @@ export function initMoonPage(mountEl, options = {}) {
           starEvolutionMode: starConfig.evolutionMode || "zams",
           hostFrameId,
           hostFrame: hostFrameContext?.hostFrame || null,
+          hostWindPressureEarthAt1Au,
           companionFluxEarth,
           companionXuvFluxEarth,
+          companionWindPressureEarth,
           fluxVariabilityFraction,
           planet: parentInputs,
           moon: moonInputs,
@@ -1658,6 +1739,21 @@ export function initMoonPage(mountEl, options = {}) {
       compactLifeLimits,
       compactOrbitalFate,
     });
+    const globalEquilibriumMeta =
+      "Radiative global equilibrium; excludes local time, roughness, and thermal inertia.";
+    const observableSurfaceMeta = [
+      `${String(model.display.thermalEnvelopeConfidence || "medium").toUpperCase()} confidence`,
+      "Compare measured or brightness-style local temperatures with this range; global equilibrium is the radiative baseline.",
+      model.display.thermalEnvelopeCaveats,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+    const tidalRegimeMeta = [
+      model.display.tidalResponseModel,
+      model.display.tidalUncertaintyCaveats,
+    ]
+      .filter(Boolean)
+      .join(" | ");
     const sections = [
       {
         id: "moon-summary",
@@ -1677,8 +1773,19 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Composition", model.display.compositionClass),
           buildMoonKpi("Radius", model.display.radius, "derived"),
           buildMoonKpi("Surface Temp", model.display.surfaceTemp),
+          buildMoonKpi(
+            "Global Equilibrium",
+            model.display.globalEquilibriumTemp || model.display.equilibriumTemp,
+            globalEquilibriumMeta,
+          ),
+          buildMoonKpi(
+            "Observable Surface Range",
+            model.display.observableSurfaceRange,
+            observableSurfaceMeta,
+          ),
           buildMoonKpi("Hydrosphere", model.display.hydrosphereState),
           buildMoonKpi("Atmosphere", model.display.atmosphereClass, model.display.atmosphereSource),
+          buildMoonKpi("Tidal Regime", model.display.tidalRegime, tidalRegimeMeta),
           buildMoonKpi("Life Class", model.display.lifeClass, model.display.habitabilityGates),
           buildMoonKpi("Habitability Index", model.display.habitabilityIndex, habitabilityMeta),
         ],
@@ -1710,6 +1817,14 @@ export function initMoonPage(mountEl, options = {}) {
         density: "compact",
         items: [
           buildMoonKpi("Atmosphere", model.display.atmosphereClass, model.display.atmosphereSource),
+          buildMoonKpi(
+            "Environment Forcing",
+            model.display.environmentForcing,
+            Array.isArray(model.environment?.forcing?.caveats) &&
+              model.environment.forcing.caveats.length
+              ? model.environment.forcing.caveats.join(" | ")
+              : "Canonical host-frame UV, XUV, wind, and light context",
+          ),
           buildMoonKpi("Surface Pressure", model.display.surfacePressure),
           buildMoonKpi("Atmosphere Mix", compactAtmosphereMix, model.display.atmosphereComposition),
           buildMoonKpi("Greenhouse Warming", model.display.greenhouseWarming),
@@ -1717,6 +1832,56 @@ export function initMoonPage(mountEl, options = {}) {
             "Atmosphere Stability",
             model.display.atmosphereStability,
             model.display.atmosphereLoss,
+          ),
+          buildMoonKpi(
+            "Atmosphere Trend",
+            model.display.atmosphereTrend,
+            model.atmosphere?.ledger?.confidence
+              ? `${String(model.atmosphere.ledger.confidence).toUpperCase()} confidence`
+              : "",
+          ),
+          buildMoonKpi(
+            "Dominant Source",
+            model.display.atmosphereDominantSource,
+            model.atmosphere?.ledger?.dominantSource?.reason || "",
+          ),
+          buildMoonKpi(
+            "Dominant Sink",
+            model.display.atmosphereDominantSink,
+            model.atmosphere?.ledger?.dominantSink?.reason || "",
+          ),
+          buildMoonKpi(
+            "Stability Timescale",
+            model.display.atmosphereStabilityTimescale,
+            model.atmosphere?.ledger?.netBalance != null
+              ? `net ${fmt(model.atmosphere.ledger.netBalance, 2)}`
+              : "",
+          ),
+          buildMoonKpi(
+            "Coupled Climate Tendency",
+            model.display.coupledClimateTendency,
+            `${model.display.photochemicalForcing} | baseline temperature unchanged`,
+          ),
+          buildMoonKpi(
+            "Photochemical Forcing",
+            model.display.photochemicalForcing,
+            model.climateChemistryForcing?.confidence
+              ? `${String(model.climateChemistryForcing.confidence).toUpperCase()} confidence`
+              : "",
+          ),
+          buildMoonKpi(
+            "Cloud Regime",
+            model.display.cloudRegime,
+            model.cloudCirculation?.confidence
+              ? `${String(model.cloudCirculation.confidence).toUpperCase()} confidence`
+              : "",
+          ),
+          buildMoonKpi(
+            "Heat Redistribution",
+            model.display.heatRedistribution,
+            model.cloudCirculation?.substellarCloudDeckLikelihood != null
+              ? `Substellar deck ${fmt(model.cloudCirculation.substellarCloudDeckLikelihood * 100, 0)}%`
+              : "",
           ),
           buildMoonKpi("Atmosphere Lifetime", model.display.atmosphereLifetime),
           buildMoonKpi("Atmosphere Haze", model.display.atmosphereHaze),
@@ -1733,7 +1898,23 @@ export function initMoonPage(mountEl, options = {}) {
             model.display.oceanPhaseDiagnostics,
           ),
           buildMoonKpi("Interior Structure", model.display.interiorStructure),
-          buildMoonKpi("Ocean Chemistry", model.display.oceanChemistry),
+          buildMoonKpi(
+            "Ocean Chemistry",
+            model.display.oceanChemistry,
+            model.oceanChemistryContext?.confidence
+              ? `${String(model.oceanChemistryContext.confidence).toUpperCase()} confidence`
+              : "",
+          ),
+          buildMoonKpi(
+            "Global Equilibrium",
+            model.display.globalEquilibriumTemp || model.display.equilibriumTemp,
+            globalEquilibriumMeta,
+          ),
+          buildMoonKpi(
+            "Observable Surface Range",
+            model.display.observableSurfaceRange,
+            observableSurfaceMeta,
+          ),
           buildMoonKpi("Equilibrium Temp", model.display.equilibriumTemp),
           buildMoonKpi("Climate State", model.display.climateState),
           buildMoonKpi("Collapse State", model.display.collapseState),
@@ -1782,6 +1963,7 @@ export function initMoonPage(mountEl, options = {}) {
         density: "compact",
         items: [
           buildMoonKpi("Total Tidal Force", model.display.tides),
+          buildMoonKpi("Tidal Regime", model.display.tidalRegime, tidalRegimeMeta),
           buildMoonKpi("Moon Contribution", model.display.moonPct),
           buildMoonKpi("Star Contribution", model.display.starPct),
           buildMoonKpi(
@@ -1810,6 +1992,13 @@ export function initMoonPage(mountEl, options = {}) {
             }`,
           ),
           buildMoonKpi(
+            "Carbon Cycle",
+            model.display.carbonCycle,
+            model.carbonCycleContext?.confidence
+              ? `${String(model.carbonCycleContext.confidence).toUpperCase()} confidence`
+              : "",
+          ),
+          buildMoonKpi(
             "Volatile Supply",
             model.display.volatileReplenishment,
             `score ${fmt(geology.volatileReplenishmentScore ?? 0, 2)}`,
@@ -1823,7 +2012,10 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi(
             "Magnetosphere Dose",
             model.display.magnetosphericRad,
-            model.display.magnetosphericLabel,
+            model.display.parentMagnetosphereCompression &&
+              model.display.parentMagnetosphereCompression !== "Not evaluated"
+              ? `${model.display.magnetosphericLabel}\n${model.display.parentMagnetosphereCompression}`
+              : model.display.magnetosphericLabel,
           ),
           buildMoonKpi("Surface Radiation", model.display.surfaceRadiation),
           buildMoonKpi("Magnetic Shielding", model.display.magneticShielding),
@@ -1856,6 +2048,42 @@ export function initMoonPage(mountEl, options = {}) {
           ),
           buildMoonKpi("Subsurface Habitability", model.display.subsurfaceHabitability),
           buildMoonKpi("Habitability Gates", model.display.habitabilityGates, habitabilityGateMeta),
+          ...(model.oceanChemistryContext?.applicable
+            ? [
+                buildMoonKpi(
+                  "Ocean Chemistry",
+                  model.display.oceanChemistry,
+                  [
+                    model.display.carbonateSaturation,
+                    model.display.nutrientSupport,
+                    model.oceanChemistryContext?.confidence
+                      ? `${String(model.oceanChemistryContext.confidence).toUpperCase()} confidence`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" | "),
+                ),
+              ]
+            : []),
+          buildMoonKpi(
+            "Biosignature Context",
+            model.display.biosignatureContext,
+            model.biosignatureContext?.confidence
+              ? `${String(model.biosignatureContext.confidence).toUpperCase()} confidence`
+              : "Context only; not a life detection",
+          ),
+          buildMoonKpi(
+            "Disequilibrium",
+            model.display.disequilibriumStrength,
+            model.biosignatureContext?.replenishmentDemandClass
+              ? `Source demand ${model.biosignatureContext.replenishmentDemandClass}`
+              : "",
+          ),
+          buildMoonKpi(
+            "O2/O3 False Positive",
+            model.display.oxygenFalsePositiveRisk,
+            `Methane: ${model.display.methaneContext} | CO buildup ${model.display.coBuildupRisk}`,
+          ),
           buildMoonKpi(
             "Biosphere",
             compactBiosphereValue,
@@ -1936,6 +2164,79 @@ export function initMoonPage(mountEl, options = {}) {
               value: model.display.atmosphereStability,
               meta: model.display.atmosphereLoss,
             },
+            {
+              label: "Atmosphere Trend",
+              value: model.display.atmosphereTrend,
+              meta: model.atmosphere?.ledger?.summary || "",
+            },
+            {
+              label: "Dominant Source",
+              value: model.display.atmosphereDominantSource,
+              meta: model.atmosphere?.ledger?.dominantSource?.reason || "",
+            },
+            {
+              label: "Dominant Sink",
+              value: model.display.atmosphereDominantSink,
+              meta: model.atmosphere?.ledger?.dominantSink?.reason || "",
+            },
+            {
+              label: "Stability Timescale",
+              value: model.display.atmosphereStabilityTimescale,
+              meta:
+                Array.isArray(model.atmosphere?.ledger?.caveats) &&
+                model.atmosphere.ledger.caveats.length
+                  ? model.atmosphere.ledger.caveats.join(" | ")
+                  : "",
+            },
+            {
+              label: "Coupled Climate Tendency",
+              value: model.display.coupledClimateTendency,
+              meta:
+                model.climateChemistryForcing?.optInClimateState ||
+                "Derived-only diagnostic; baseline climate state retained",
+            },
+            {
+              label: "Photochemical Forcing",
+              value: model.display.photochemicalForcing,
+              meta: model.climateChemistryForcing
+                ? [
+                    `Haze ${fmt(model.climateChemistryForcing.hazeDeltaK || 0, 1)} K`,
+                    `CH4 ${fmt(model.climateChemistryForcing.methaneGreenhouseDeltaK || 0, 1)} K`,
+                    `SO2 ${fmt(model.climateChemistryForcing.sulfurAerosolDeltaK || 0, 1)} K`,
+                    `Cloud ${fmt(model.climateChemistryForcing.cloudAlbedoDeltaK || 0, 1)} K`,
+                    `H2O feedback ${fmt(
+                      model.climateChemistryForcing.waterVaporFeedbackDeltaK || 0,
+                      1,
+                    )} K`,
+                  ].join(" | ")
+                : "",
+            },
+            {
+              label: "Cloud Regime",
+              value: model.display.cloudRegime,
+              meta:
+                Array.isArray(model.cloudCirculation?.notes) && model.cloudCirculation.notes.length
+                  ? model.cloudCirculation.notes.join(" | ")
+                  : model.cloudCirculation?.confidence
+                    ? `${String(model.cloudCirculation.confidence).toUpperCase()} confidence`
+                    : "",
+            },
+            {
+              label: "Heat Redistribution",
+              value: model.display.heatRedistribution,
+              meta:
+                model.cloudCirculation?.collapseRiskModifier != null
+                  ? `Collapse risk modifier ${fmt(model.cloudCirculation.collapseRiskModifier, 2)}`
+                  : "",
+            },
+            {
+              label: "Cloud Albedo Effect",
+              value: model.display.cloudAlbedoEffect,
+              meta:
+                model.cloudCirculation?.cloudFraction != null
+                  ? `Cloud fraction ${fmt(model.cloudCirculation.cloudFraction * 100, 0)}% | deck likelihood ${fmt((model.cloudCirculation.substellarCloudDeckLikelihood || 0) * 100, 0)}%`
+                  : "",
+            },
             { label: "Atmosphere Lifetime", value: model.display.atmosphereLifetime },
             { label: "Atmosphere Haze", value: model.display.atmosphereHaze },
             { label: "Atmosphere Clouds", value: model.display.atmosphereClouds },
@@ -1950,7 +2251,25 @@ export function initMoonPage(mountEl, options = {}) {
               meta: model.display.oceanPhaseDiagnostics,
             },
             { label: "Interior Structure", value: model.display.interiorStructure },
-            { label: "Ocean Chemistry", value: model.display.oceanChemistry },
+            {
+              label: "Ocean Chemistry",
+              value: model.display.oceanChemistry,
+              meta:
+                Array.isArray(model.oceanChemistryContext?.notes) &&
+                model.oceanChemistryContext.notes.length
+                  ? model.oceanChemistryContext.notes.join(" | ")
+                  : "",
+            },
+            {
+              label: "Global Equilibrium",
+              value: model.display.globalEquilibriumTemp || model.display.equilibriumTemp,
+              meta: globalEquilibriumMeta,
+            },
+            {
+              label: "Observable Surface Range",
+              value: model.display.observableSurfaceRange,
+              meta: observableSurfaceMeta,
+            },
             { label: "Climate State", value: model.display.climateState },
             { label: "Collapse State", value: model.display.collapseState },
             { label: "Day/Night Contrast", value: model.display.dayNightContrast },
@@ -2005,6 +2324,12 @@ export function initMoonPage(mountEl, options = {}) {
           title: "Activity & Radiation",
           items: [
             { label: "Total Tidal Force", value: model.display.tides },
+            {
+              label: "Tidal Regime",
+              value: model.display.tidalRegime,
+              meta: tidalRegimeMeta,
+            },
+            { label: "Host Tidal Q", value: model.display.tidalHostQ },
             { label: "Moon Contribution", value: model.display.moonPct },
             { label: "Star Contribution", value: model.display.starPct },
             {
@@ -2032,6 +2357,32 @@ export function initMoonPage(mountEl, options = {}) {
                   : `${geology.resurfacingDominantProcess || "mixed"}-driven`,
             },
             {
+              label: "Carbon Cycle",
+              value: model.display.carbonCycle,
+              meta:
+                Array.isArray(model.carbonCycleContext?.notes) &&
+                model.carbonCycleContext.notes.length
+                  ? model.carbonCycleContext.notes.join(" | ")
+                  : model.carbonCycleContext?.confidence
+                    ? `${String(model.carbonCycleContext.confidence).toUpperCase()} confidence`
+                    : "",
+            },
+            {
+              label: "Weathering Efficiency",
+              value: model.display.weatheringEfficiency,
+              meta: `Limiter: ${model.carbonCycleContext?.weatheringLimiter || "not evaluated"}`,
+            },
+            {
+              label: "Volcanic Supply",
+              value: model.display.volcanicSupply,
+              meta: `Recycling limiter: ${model.carbonCycleContext?.recyclingLimiter || "not evaluated"}`,
+            },
+            {
+              label: "Carbon Recycling",
+              value: model.display.carbonRecycling,
+              meta: `Thermostat strength ${model.display.carbonThermostat}`,
+            },
+            {
               label: "Volatile Supply",
               value: model.display.volatileReplenishment,
               meta: `score ${fmt(geology.volatileReplenishmentScore ?? 0, 2)}`,
@@ -2045,7 +2396,11 @@ export function initMoonPage(mountEl, options = {}) {
             {
               label: "Magnetosphere Dose",
               value: model.display.magnetosphericRad,
-              meta: model.display.magnetosphericLabel,
+              meta:
+                model.display.parentMagnetosphereCompression &&
+                model.display.parentMagnetosphereCompression !== "Not evaluated"
+                  ? `${model.display.magnetosphericLabel} | ${model.display.parentMagnetosphereCompression}`
+                  : model.display.magnetosphericLabel,
             },
             { label: "Surface Radiation", value: model.display.surfaceRadiation },
             { label: "Magnetic Shielding", value: model.display.magneticShielding },
@@ -2092,6 +2447,50 @@ export function initMoonPage(mountEl, options = {}) {
               label: "Habitability Gates",
               value: model.display.habitabilityGates,
               meta: habitabilityGateMeta.replace(/\n/g, " | "),
+            },
+            model.oceanChemistryContext?.applicable
+              ? {
+                  label: "Ocean Chemistry",
+                  value: model.display.oceanChemistry,
+                  meta:
+                    Array.isArray(model.oceanChemistryContext?.notes) &&
+                    model.oceanChemistryContext.notes.length
+                      ? model.oceanChemistryContext.notes.join(" | ")
+                      : "",
+                }
+              : null,
+            model.oceanChemistryContext?.applicable
+              ? {
+                  label: "Carbonate Saturation",
+                  value: model.display.carbonateSaturation,
+                  meta: `Acidity: ${model.display.oceanAcidity} | Freezing point ${fmt(model.oceanChemistryContext.freezingPointK, 1)} K`,
+                }
+              : null,
+            model.oceanChemistryContext?.applicable
+              ? {
+                  label: "Nutrient Support",
+                  value: model.display.nutrientSupport,
+                  meta: `Rock-ocean access ${fmt(model.oceanChemistryContext.rockOceanAccess ?? 0, 2)} | Hydrothermal: ${model.oceanChemistryContext.hydrothermalSupportClass || "not evaluated"}`,
+                }
+              : null,
+            {
+              label: "Biosignature Context",
+              value: model.display.biosignatureContext,
+              meta:
+                Array.isArray(model.biosignatureContext?.notes) &&
+                model.biosignatureContext.notes.length
+                  ? model.biosignatureContext.notes.join(" | ")
+                  : "Context only; not a life detection",
+            },
+            {
+              label: "Disequilibrium",
+              value: model.display.disequilibriumStrength,
+              meta: `Source demand ${model.biosignatureContext?.replenishmentDemandClass || "Low"}`,
+            },
+            {
+              label: "O2/O3 False Positive",
+              value: model.display.oxygenFalsePositiveRisk,
+              meta: `CO buildup risk ${model.display.coBuildupRisk} | Methane: ${model.display.methaneContext}`,
             },
             {
               label: "Biosphere",

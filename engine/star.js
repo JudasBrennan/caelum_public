@@ -16,6 +16,7 @@
 
 import { calcBrownDwarf, computeBrownDwarfXuvModel } from "./brownDwarf.js";
 import { classifyMainSequenceSpectralClassFromTempK } from "./starClassification.js";
+import { computeStellarEnvironmentModel } from "./stellarEnvironment.js";
 import { clamp, fmt, toFinite } from "./utils.js";
 import { BROWN_DWARF_MIN_MSOL, classifyHostRegimeByMass } from "./substellarRegime.js";
 
@@ -782,6 +783,23 @@ export function calcStar({
     ageGyr: age,
     luminosityLsol,
   });
+  const stellarEnvironment = computeStellarEnvironmentModel({
+    massMsol: m,
+    ageGyr: age,
+    radiusRsol,
+    luminosityLsol,
+    tempK,
+    evolutionMode: evolved ? "evolved" : "mainSequence",
+    hostRegime: "star",
+  });
+  const rotation = stellarEnvironment.rotation;
+  const wind = stellarEnvironment.wind;
+  const uv = stellarEnvironment.uv;
+  const prebioticUv = uv?.bandsAt1Au?.prebiotic200280 || {};
+  const rotationConfidence =
+    rotation.confidence === "unsupported"
+      ? "Unsupported"
+      : `${rotation.confidence.charAt(0).toUpperCase()}${rotation.confidence.slice(1)} confidence`;
 
   return {
     inputs: { massMsol: m, ageGyr: age, metallicityFeH: toFinite(metallicityFeH, 0) },
@@ -826,6 +844,7 @@ export function calcStar({
       xuvLuminosityErgS: xuvModel.xuvLuminosityErgS,
     },
     xuvModel,
+    stellarEnvironment,
 
     // handy pre-formatted strings for UI
     display: {
@@ -844,10 +863,57 @@ export function calcStar({
           : `${fmt(xuvModel.fluxAt1AuErgCm2S, 2)} erg/cm²/s`,
       xuvFluxRatioEarth:
         xuvModel.fluxRatioEarth < 0.01
-          ? `${xuvModel.fluxRatioEarth.toExponential(2)}× Earth`
-          : `${fmt(xuvModel.fluxRatioEarth, 2)}× Earth`,
+          ? `${xuvModel.fluxRatioEarth.toExponential(2)}x Earth`
+          : `${fmt(xuvModel.fluxRatioEarth, 2)}x Earth`,
       xuvRegime: xuvModel.regime === "saturated" ? "Saturated" : "Unsaturated",
       xuvSaturationAge: `${fmt(xuvModel.saturationAgeGyr, 3)} Gyr`,
+      rotationPeriod:
+        rotation.periodRangeDays && Number.isFinite(rotation.periodRangeDays.min)
+          ? `${fmt(rotation.periodRangeDays.min, 1)} - ${fmt(rotation.periodRangeDays.max, 1)} days`
+          : "Unsupported",
+      rotationRepresentativePeriod: Number.isFinite(rotation.periodDays)
+        ? `${fmt(rotation.periodDays, rotation.periodDays >= 10 ? 1 : 2)} days at ~${fmt(
+            rotation.differentialRotation.referenceLatitudeDeg,
+            0,
+          )} deg latitude`
+        : "Unsupported",
+      rotationVelocity: Number.isFinite(rotation.equatorialVelocityKms)
+        ? `${fmt(rotation.equatorialVelocityKms, 2)} km/s equatorial`
+        : "Unsupported",
+      differentialShear: Number.isFinite(rotation.differentialRotation.deltaOmegaRadPerDay)
+        ? `${fmt(rotation.differentialRotation.deltaOmegaRadPerDay, 3)} rad/day`
+        : "Unsupported",
+      rossbyNumber: Number.isFinite(rotation.rossbyNumber) ? fmt(rotation.rossbyNumber, 2) : "n/a",
+      gyrochronology:
+        rotation.confidence === "unsupported"
+          ? "Unsupported"
+          : `${rotationConfidence} (${rotation.regime})`,
+      windMassLoss: Number.isFinite(wind.massLossSolar)
+        ? `${fmt(wind.massLossSolar, wind.massLossSolar >= 10 ? 1 : 2)}x solar`
+        : "Unsupported",
+      windPressureAt1Au: Number.isFinite(wind.ramPressureAt1AuNPa)
+        ? `${fmt(wind.ramPressureAt1AuNPa, 2)} nPa (${fmt(wind.ramPressureEarthRatioAt1Au, 2)}x Earth)`
+        : "Unsupported",
+      windSpeed: Number.isFinite(wind.windSpeedKms)
+        ? `${fmt(wind.windSpeedKms, 0)} km/s`
+        : "Unsupported",
+      windConfidence:
+        wind.confidence === "unsupported"
+          ? "Unsupported"
+          : `${wind.confidence.charAt(0).toUpperCase()}${wind.confidence.slice(1)} confidence`,
+      prebioticUvAt1Au: Number.isFinite(prebioticUv.fluxErgCm2S)
+        ? `${prebioticUv.fluxErgCm2S < 0.01 ? prebioticUv.fluxErgCm2S.toExponential(2) : fmt(prebioticUv.fluxErgCm2S, prebioticUv.fluxErgCm2S >= 100 ? 0 : 2)} erg/cm^2/s`
+        : "Unsupported",
+      prebioticUvRatioEarth:
+        Number.isFinite(prebioticUv.earthRatio) && prebioticUv.earthRatio > 0
+          ? prebioticUv.earthRatio < 0.01
+            ? `${prebioticUv.earthRatio.toExponential(2)}x Earth`
+            : `${fmt(prebioticUv.earthRatio, 2)}x Earth`
+          : "0x Earth",
+      prebioticUvConfidence:
+        uv?.confidence && uv.confidence !== "unsupported"
+          ? `${uv.confidence.charAt(0).toUpperCase()}${uv.confidence.slice(1)} confidence`
+          : "Unsupported",
     },
     starColourHex: starColourHexFromTempK(tempK),
   };

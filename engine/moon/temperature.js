@@ -4,6 +4,7 @@ import {
   calcStellarFluxWm2,
 } from "../physics/radiative.js";
 import { earthMassToKg } from "../physics/orbital.js";
+import { calcAirlessMoonThermalEnvelope } from "./thermophysics.js";
 
 const STEFAN_BOLTZ = 5.6704e-8;
 const EARTH_INTERNAL_HEAT_W = 44e12;
@@ -11,6 +12,11 @@ const KG_PER_MEARTH = earthMassToKg(1);
 
 export function computeMoonTemperature({
   albedo,
+  bondAlbedo,
+  geometricAlbedo,
+  phaseIntegral,
+  albedoKind,
+  emissivity = 0.95,
   planetSemiMajorAxisAu,
   starLuminosityLsol,
   extraFluxEarth = 0,
@@ -23,6 +29,13 @@ export function computeMoonTemperature({
   eclipseCoolingPenalty = 0,
   greenhouseTauEquivalent = 0,
   antiGreenhouseFraction = 0,
+  rotationPeriodDays = null,
+  moonLockedToPlanet = false,
+  spinState = null,
+  surfaceClass = null,
+  thermalInertiaClass = null,
+  surfacePressurePa = 0,
+  hasVolatileAtmosphere = false,
 }) {
   const stellarFluxAtDistanceWm2 =
     calcStellarFluxWm2({
@@ -64,12 +77,36 @@ export function computeMoonTemperature({
     adjustedRadiativeFourthPower + tidalHeatingWm2 / STEFAN_BOLTZ + radiogenicWm2 / STEFAN_BOLTZ;
   const surfaceK =
     surfaceFourthPower > 0 ? Math.round(Math.sqrt(Math.sqrt(surfaceFourthPower))) : 0;
+  const thermalEnvelope = calcAirlessMoonThermalEnvelope({
+    albedo,
+    bondAlbedo,
+    geometricAlbedo,
+    phaseIntegral,
+    albedoKind,
+    emissivity,
+    planetSemiMajorAxisAu,
+    starLuminosityLsol,
+    extraFluxEarth,
+    parentReflectedFluxWm2,
+    parentThermalFluxWm2,
+    eclipseCoolingPenalty: eclipsePenalty,
+    rotationPeriodDays,
+    moonLockedToPlanet,
+    spinState,
+    surfaceClass,
+    thermalInertiaClass,
+    tidalHeatFluxWm2: tidalHeatingWm2,
+    radiogenicHeatFluxWm2: radiogenicWm2,
+    surfacePressurePa,
+    hasVolatileAtmosphere,
+  });
 
   return {
     equilibriumK,
     surfaceK,
     surfaceC: surfaceK - 273,
     radiogenicWm2,
+    thermalEnvelope,
     greenhouseTauEquivalent: greenhouseTau,
     antiGreenhouseFraction: antiGreenhouse,
     parentReflectedFluxWm2: Math.max(0, parentReflectedFluxWm2),

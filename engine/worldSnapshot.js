@@ -65,6 +65,9 @@ function buildFallbackHostFrameSolveContext(context, fallbackHostFrameId) {
     starModel: context.star,
     companionFluxEarth: 0,
     companionXuvFluxEarth: 0,
+    hostWindPressureEarthAt1Au:
+      context.star?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au ?? null,
+    companionWindPressureEarth: 0,
     fluxVariabilityFraction: 0,
     dominantContributorId: context.homeSystemContext.primaryStarId,
   };
@@ -533,8 +536,12 @@ export function buildWorldSnapshot(world, options = {}) {
         hostFrameId: solveContext?.hostFrameId || hostFrameId,
         hostFrame: solveContext?.hostFrame || null,
         hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
+        hostPrebioticUvEarthAt1Au: solveContext?.hostPrebioticUvEarthAt1Au ?? null,
+        hostWindPressureEarthAt1Au: solveContext?.hostWindPressureEarthAt1Au ?? null,
         companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
         companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
+        companionPrebioticUvEarth: solveContext?.companionPrebioticUvEarth ?? 0,
+        companionWindPressureEarth: solveContext?.companionWindPressureEarth ?? 0,
         fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
         stellarMetallicityFeH:
           solveContext?.starConfig?.metallicityFeH ?? starConfig.metallicityFeH,
@@ -570,8 +577,12 @@ export function buildWorldSnapshot(world, options = {}) {
         hostFrameId: solveContext?.hostFrameId || hostFrameId,
         hostFrame: solveContext?.hostFrame || null,
         hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
+        hostPrebioticUvEarthAt1Au: solveContext?.hostPrebioticUvEarthAt1Au ?? null,
+        hostWindPressureEarthAt1Au: solveContext?.hostWindPressureEarthAt1Au ?? null,
         companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
         companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
+        companionPrebioticUvEarth: solveContext?.companionPrebioticUvEarth ?? 0,
+        companionWindPressureEarth: solveContext?.companionWindPressureEarth ?? 0,
         fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
         planet: raw.inputs || {},
         moons: moonInputsByParentId.get(raw.id) || [],
@@ -607,8 +618,12 @@ export function buildWorldSnapshot(world, options = {}) {
           hostFrameId: solveContext?.hostFrameId || hostFrameId,
           hostFrame: solveContext?.hostFrame || null,
           hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
+          hostPrebioticUvEarthAt1Au: solveContext?.hostPrebioticUvEarthAt1Au ?? null,
+          hostWindPressureEarthAt1Au: solveContext?.hostWindPressureEarthAt1Au ?? null,
           companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
           companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
+          companionPrebioticUvEarth: solveContext?.companionPrebioticUvEarth ?? 0,
+          companionWindPressureEarth: solveContext?.companionWindPressureEarth ?? 0,
           fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
           moons: moonInputsByParentId.get(raw.id) || [],
           gasGiants: gasGiantEntries.filter(
@@ -636,8 +651,12 @@ export function buildWorldSnapshot(world, options = {}) {
           hostFrameId: solveContext?.hostFrameId || hostFrameId,
           hostFrame: solveContext?.hostFrame || null,
           hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
+          hostPrebioticUvEarthAt1Au: solveContext?.hostPrebioticUvEarthAt1Au ?? null,
+          hostWindPressureEarthAt1Au: solveContext?.hostWindPressureEarthAt1Au ?? null,
           companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
           companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
+          companionPrebioticUvEarth: solveContext?.companionPrebioticUvEarth ?? 0,
+          companionWindPressureEarth: solveContext?.companionWindPressureEarth ?? 0,
           fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
           otherGiants: (otherGiantsById.get(raw.id) || []).filter(
             (other) =>
@@ -692,8 +711,16 @@ export function buildWorldSnapshot(world, options = {}) {
           hostFrame: planetSolveContextById.get(parentId)?.hostFrame || null,
           hostXuvFluxEarthAt1Au:
             planetSolveContextById.get(parentId)?.hostXuvFluxEarthAt1Au ?? null,
+          hostPrebioticUvEarthAt1Au:
+            planetSolveContextById.get(parentId)?.hostPrebioticUvEarthAt1Au ?? null,
+          hostWindPressureEarthAt1Au:
+            planetSolveContextById.get(parentId)?.hostWindPressureEarthAt1Au ?? null,
           companionFluxEarth: planetSolveContextById.get(parentId)?.companionFluxEarth ?? 0,
           companionXuvFluxEarth: planetSolveContextById.get(parentId)?.companionXuvFluxEarth ?? 0,
+          companionPrebioticUvEarth:
+            planetSolveContextById.get(parentId)?.companionPrebioticUvEarth ?? 0,
+          companionWindPressureEarth:
+            planetSolveContextById.get(parentId)?.companionWindPressureEarth ?? 0,
           fluxVariabilityFraction:
             planetSolveContextById.get(parentId)?.fluxVariabilityFraction ?? 0,
           parentKind: "planet",
@@ -748,8 +775,16 @@ export function buildWorldSnapshot(world, options = {}) {
           hostFrame: gasGiantSolveContextById.get(parentId)?.hostFrame || null,
           hostXuvFluxEarthAt1Au:
             gasGiantSolveContextById.get(parentId)?.hostXuvFluxEarthAt1Au ?? null,
+          hostPrebioticUvEarthAt1Au:
+            gasGiantSolveContextById.get(parentId)?.hostPrebioticUvEarthAt1Au ?? null,
+          hostWindPressureEarthAt1Au:
+            gasGiantSolveContextById.get(parentId)?.hostWindPressureEarthAt1Au ?? null,
           companionFluxEarth: gasGiantSolveContextById.get(parentId)?.companionFluxEarth ?? 0,
           companionXuvFluxEarth: gasGiantSolveContextById.get(parentId)?.companionXuvFluxEarth ?? 0,
+          companionPrebioticUvEarth:
+            gasGiantSolveContextById.get(parentId)?.companionPrebioticUvEarth ?? 0,
+          companionWindPressureEarth:
+            gasGiantSolveContextById.get(parentId)?.companionWindPressureEarth ?? 0,
           fluxVariabilityFraction:
             gasGiantSolveContextById.get(parentId)?.fluxVariabilityFraction ?? 0,
           parentKind: "gasGiant",

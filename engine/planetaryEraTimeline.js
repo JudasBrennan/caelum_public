@@ -403,6 +403,495 @@ function hydrosphereOf(model = {}) {
   );
 }
 
+function environmentForcingOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.environmentForcing) && derived.environmentForcing) ||
+    (isObject(model.environment?.forcing) && model.environment.forcing) ||
+    (isObject(model.environmentForcing) && model.environmentForcing) ||
+    null
+  );
+}
+
+function magnetosphereEnvironmentOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.magnetosphereEnvironment) && derived.magnetosphereEnvironment) ||
+    (isObject(model.magnetic?.magnetosphereEnvironment) &&
+      model.magnetic.magnetosphereEnvironment) ||
+    (isObject(model.magnetosphereEnvironment) && model.magnetosphereEnvironment) ||
+    null
+  );
+}
+
+function radiationOf(model = {}) {
+  return isObject(model.radiation) ? model.radiation : null;
+}
+
+function atmosphereLedgerOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.atmosphereLedger) && derived.atmosphereLedger) ||
+    (isObject(model.atmosphere?.ledger) && model.atmosphere.ledger) ||
+    null
+  );
+}
+
+function climateChemistryForcingOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.climateChemistryForcing) && derived.climateChemistryForcing) ||
+    (isObject(model.climate?.chemistryForcing) && model.climate.chemistryForcing) ||
+    null
+  );
+}
+
+function carbonCycleContextOf(model = {}) {
+  const derived = derivedModel(model);
+  return isObject(derived.carbonCycleContext) ? derived.carbonCycleContext : null;
+}
+
+function oceanChemistryContextOf(model = {}) {
+  const derived = derivedModel(model);
+  return isObject(derived.oceanChemistryContext) ? derived.oceanChemistryContext : null;
+}
+
+function biosignatureContextOf(model = {}) {
+  const derived = derivedModel(model);
+  return isObject(derived.biosignatureContext) ? derived.biosignatureContext : null;
+}
+
+function photochemistryOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.photochemistry) && derived.photochemistry) ||
+    (isObject(model.photochemistry) && model.photochemistry) ||
+    null
+  );
+}
+
+function atmospherePressureFrom(model = {}, ledger = null) {
+  const derived = derivedModel(model);
+  return firstFinite(
+    ledger?.pressureAtm,
+    model.atmosphere?.pressureAtm,
+    directRockyModel(model).inputs?.pressureAtm,
+    derived.pressureKpa == null ? null : derived.pressureKpa / 101.325,
+  );
+}
+
+function addCoupledEnvironmentContextEras(eras, context, model) {
+  addEnvironmentForcingEras(eras, context, model);
+  addMagnetosphereCompressionEra(eras, context, model);
+  addAtmosphereLedgerEras(eras, context, model);
+  addPhotochemicalHazeEra(eras, context, model);
+  addClimateChemistryEra(eras, context, model);
+  addCarbonCycleEra(eras, context, model);
+  addOceanChemistryEra(eras, context, model);
+  addBiosignatureContextEra(eras, context, model);
+}
+
+function addEnvironmentForcingEras(eras, context, model) {
+  const forcing = environmentForcingOf(model);
+  if (!forcing) return;
+  const xuvRatio = firstFinite(forcing.flux?.xuvEarthAtOrbit, forcing.flux?.xuvEarthMean);
+  const xuvHazard = firstFinite(forcing.hazards?.xuvHazardScore);
+  const stellarAge = firstFinite(forcing.stellar?.starAgeGyr, context.currentAgeGyr);
+  const youngHighEnergy = stellarAge != null && stellarAge < 1 && (xuvRatio ?? 0) >= 1.5;
+  const highCurrentXuv = (xuvRatio ?? 0) >= 5 || (xuvHazard ?? 0) >= 0.35;
+  if (!youngHighEnergy && !highCurrentXuv) return;
+
+  const pastEnd =
+    context.currentAgeGyr == null ? null : Math.min(0.5, Math.max(0.02, context.currentAgeGyr / 3));
+  addEra(eras, context, {
+    id: "early-high-xuv-atmosphere-erosion",
+    label: "High-XUV atmosphere-erosion era",
+    category: "atmosphere",
+    startGyr: 0.001,
+    endGyr: highCurrentXuv ? null : pastEnd,
+    state: highCurrentXuv ? "current" : context.currentAgeGyr == null ? "conditional" : "past",
+    confidence: normalizeConfidence(forcing.confidence, "medium"),
+    severity: highCurrentXuv ? "warning" : "caution",
+    headline: highCurrentXuv
+      ? "Current high-energy irradiation can drive atmospheric erosion"
+      : "Young-star high-energy irradiation likely shaped early volatile loss",
+    detail:
+      "This uses the shared stellar-environment forcing context. It is an erosion-pressure flag, not a solved atmospheric history.",
+    drivers: [
+      makeDriver(
+        "xuv",
+        "XUV flux",
+        xuvRatio == null ? "" : `${formatNumber(xuvRatio, 2)}x Earth`,
+        "",
+      ),
+      makeDriver(
+        "hazard",
+        "XUV hazard score",
+        xuvHazard == null ? "" : formatNumber(xuvHazard, 2),
+        "",
+      ),
+      makeDriver("stellarAge", "Stellar age", stellarAge == null ? "" : formatGyr(stellarAge), ""),
+    ],
+    evidenceCodes: ["ENVIRONMENT_FORCING", "HIGH_XUV_EROSION_CONTEXT"],
+    warningCodes: ["NOT_SOLVED_ATMOSPHERE_HISTORY"],
+  });
+}
+
+function addMagnetosphereCompressionEra(eras, context, model) {
+  const magnetosphere = magnetosphereEnvironmentOf(model);
+  const radiation = radiationOf(model);
+  const compressionClass = firstString(
+    magnetosphere?.compressionClass,
+    radiation?.parentMagnetosphereCompressionClass,
+  );
+  const windRatio = firstFinite(
+    magnetosphere?.windPressureEarthRatio,
+    radiation?.parentWindCompressionFactor,
+    environmentForcingOf(model)?.wind?.ramPressureEarthRatio,
+  );
+  const magnetopauseRp = firstFinite(magnetosphere?.magnetopauseRp, radiation?.magnetopauseLShell);
+  const compressed =
+    includesText(compressionClass, "compressed") ||
+    includesText(compressionClass, "collapsed") ||
+    (windRatio != null && windRatio >= 5);
+  if (!compressed) return;
+
+  addEra(eras, context, {
+    id: "wind-compressed-magnetosphere-era",
+    label: "Wind-compressed magnetosphere era",
+    category: "radiation",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(magnetosphere?.confidence, "medium"),
+    severity: includesText(compressionClass, "collapsed") ? "warning" : "caution",
+    headline: "Stellar wind pressure limits magnetic shielding",
+    detail:
+      "The timeline follows the magnetosphere environment or parent-radiation context; it does not calculate aurora or radiation-belt evolution here.",
+    drivers: [
+      makeDriver("compression", "Compression class", compressionClass, ""),
+      makeDriver(
+        "wind",
+        "Wind pressure",
+        windRatio == null ? "" : `${formatNumber(windRatio, 2)}x Earth`,
+        "",
+      ),
+      makeDriver(
+        "magnetopause",
+        "Magnetopause",
+        magnetopauseRp == null ? "" : `${formatNumber(magnetopauseRp, 2)} Rp/L-shell`,
+        "",
+      ),
+    ],
+    evidenceCodes: ["MAGNETOSPHERE_ENVIRONMENT"],
+    warningCodes: ["MAGNETOSPHERE_COMPRESSION"],
+  });
+}
+
+function atmosphereTrendLabel(ledger = {}) {
+  const trend = firstString(ledger.trendLabel, ledger.trendClass);
+  if (!trend) return "Atmosphere source-sink balance";
+  if (includesText(trend, "declin")) return "Atmosphere decline era";
+  if (includesText(trend, "replenish")) return "Atmosphere replenishment era";
+  if (includesText(trend, "airless")) return "Airless exosphere era";
+  return "Atmosphere source-sink balance";
+}
+
+function addAtmosphereLedgerEras(eras, context, model) {
+  const ledger = atmosphereLedgerOf(model);
+  if (!ledger) return;
+  const trend = firstString(ledger.trendClass, ledger.trendLabel);
+  const pressureAtm = atmospherePressureFrom(model, ledger);
+  const declining = includesText(trend, "declin") || (ledger.netBalance ?? 0) < -0.1;
+  const transient =
+    includesText(trend, "transient") || includesText(ledger.timescaleClass, "transient");
+  const airless = includesText(trend, "airless") || (pressureAtm != null && pressureAtm <= 1e-6);
+
+  addEra(eras, context, {
+    id: "atmosphere-ledger-era",
+    label: atmosphereTrendLabel(ledger),
+    category: "atmosphere",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: "medium",
+    severity: declining || airless ? "caution" : transient ? "info" : "good",
+    headline: "Atmospheric sources and sinks set the current stability context",
+    detail:
+      "This source-sink ledger is a qualitative trend and timescale diagnostic, not a precise atmospheric lifetime.",
+    drivers: [
+      makeDriver("trend", "Trend", firstString(ledger.trendLabel, ledger.trendClass), ""),
+      makeDriver(
+        "timescale",
+        "Timescale",
+        firstString(ledger.timescaleLabel, ledger.timescaleClass),
+        "",
+      ),
+      makeDriver("source", "Dominant source", ledger.dominantSource?.label, ""),
+      makeDriver("sink", "Dominant sink", ledger.dominantSink?.label, ""),
+      makeDriver(
+        "pressure",
+        "Pressure",
+        pressureAtm == null ? "" : `${formatNumber(pressureAtm, pressureAtm < 0.01 ? 6 : 3)} atm`,
+        "",
+      ),
+    ],
+    evidenceCodes: ["ATMOSPHERE_LEDGER"],
+  });
+
+  if (declining && pressureAtm != null && pressureAtm > 1e-5 && pressureAtm < 0.05) {
+    addEra(eras, context, {
+      id: "past-atmosphere-loss-water-candidate",
+      label: "Past thicker-atmosphere/water candidate",
+      category: "atmosphere",
+      startGyr: context.currentAgeGyr == null ? null : Math.max(0.05, context.currentAgeGyr - 3),
+      endGyr: context.currentAgeGyr == null ? null : Math.max(0.1, context.currentAgeGyr - 0.5),
+      state: context.currentAgeGyr == null ? "conditional" : "past",
+      confidence: "low",
+      severity: "info",
+      headline: "Current thin-air decline is consistent with earlier volatile loss",
+      detail:
+        "A declining thin atmosphere can indicate prior thicker-air or wetter conditions, but the app does not solve geomorphic evidence or exact timing.",
+      drivers: [
+        makeDriver("trend", "Ledger trend", firstString(ledger.trendLabel, ledger.trendClass), ""),
+        makeDriver("sink", "Dominant sink", ledger.dominantSink?.label, ""),
+        makeDriver(
+          "pressure",
+          "Current pressure",
+          `${formatNumber(pressureAtm, pressureAtm < 0.01 ? 6 : 3)} atm`,
+          "",
+        ),
+      ],
+      evidenceCodes: ["ATMOSPHERE_LEDGER", "THIN_DECLINING_ATMOSPHERE"],
+      warningCodes: ["LOW_CONFIDENCE_PAST_WATER_CONTEXT"],
+    });
+  }
+
+  if ((declining || transient) && pressureAtm != null && pressureAtm > 1e-5) {
+    addEra(eras, context, {
+      id: "future-atmosphere-loss-collapse-risk",
+      label: "Future atmosphere loss/collapse risk",
+      category: "atmosphere",
+      startGyr: futureStartGyr(context, 0.5, 0.15),
+      endGyr: null,
+      state: "conditional",
+      confidence: "low",
+      severity: declining ? "warning" : "caution",
+      headline: "Current source-sink balance may not maintain the atmosphere long term",
+      detail:
+        "This is a risk flag from the current ledger only; changing volcanism, escape, cold traps, or impact supply could alter it.",
+      drivers: [
+        makeDriver("trend", "Ledger trend", firstString(ledger.trendLabel, ledger.trendClass), ""),
+        makeDriver(
+          "timescale",
+          "Timescale",
+          firstString(ledger.timescaleLabel, ledger.timescaleClass),
+          "",
+        ),
+        makeDriver("net", "Net balance", formatNumber(ledger.netBalance, 3), ""),
+      ],
+      evidenceCodes: ["FUTURE_ATMOSPHERE_LEDGER_RISK"],
+    });
+  }
+}
+
+function addPhotochemicalHazeEra(eras, context, model) {
+  const haze = photochemistryOf(model)?.haze;
+  if (!isObject(haze)) return;
+  const hazeClass = firstString(haze.hazeClass);
+  const likelihood = firstFinite(haze.likelihoodScore);
+  const visibleOpacity = firstFinite(haze.visibleOpticalDepthProxy);
+  const active =
+    (hazeClass && !includesText(hazeClass, "none")) ||
+    (likelihood != null && likelihood >= 0.35) ||
+    (visibleOpacity != null && visibleOpacity >= 0.05);
+  if (!active) return;
+
+  addEra(eras, context, {
+    id: "haze-rich-anoxic-era",
+    label: "Haze-rich anoxic photochemistry era",
+    category: "atmosphere",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(haze.confidence, "medium"),
+    severity: includesText(hazeClass, "thick") ? "warning" : "caution",
+    headline: "Organic haze can reshape surface light and climate interpretation",
+    detail:
+      "The haze context comes from methane/CO2 ratio, oxygen suppression, atmospheric pressure, and UV supply; it is chemistry context, not biology.",
+    drivers: [
+      makeDriver("hazeClass", "Haze class", hazeClass, ""),
+      makeDriver(
+        "methaneToCo2",
+        "CH4/CO2",
+        haze.methaneToCo2Ratio == null ? "" : formatNumber(haze.methaneToCo2Ratio, 3),
+        "",
+      ),
+      makeDriver(
+        "surfaceLight",
+        "Surface-light reduction",
+        haze.surfaceLightReductionFraction == null
+          ? ""
+          : `${formatNumber(haze.surfaceLightReductionFraction * 100, 1)}%`,
+        "",
+      ),
+    ],
+    evidenceCodes: ["PHOTOCHEMICAL_HAZE"],
+  });
+}
+
+function addClimateChemistryEra(eras, context, model) {
+  const forcing = climateChemistryForcingOf(model);
+  if (!forcing) return;
+  const netDeltaK = firstFinite(forcing.netDeltaK);
+  if (netDeltaK == null || Math.abs(netDeltaK) < 1) return;
+  const cooling = netDeltaK < 0;
+  addEra(eras, context, {
+    id: "coupled-climate-forcing-era",
+    label: cooling ? "Coupled cooling tendency era" : "Coupled warming tendency era",
+    category: "climate",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: "medium",
+    severity: Math.abs(netDeltaK) >= 8 ? "warning" : "caution",
+    headline: "Photochemistry, clouds, and greenhouse terms shift climate tendency",
+    detail:
+      "This is the bounded Phase 4/5 diagnostic. It remains separate from the existing surface-temperature solve.",
+    drivers: [
+      makeDriver("netDelta", "Net tendency", `${formatNumber(netDeltaK, 1)} K`, ""),
+      makeDriver("haze", "Haze term", `${formatNumber(forcing.hazeDeltaK, 1)} K`, ""),
+      makeDriver(
+        "methane",
+        "Methane term",
+        `${formatNumber(forcing.methaneGreenhouseDeltaK, 1)} K`,
+        "",
+      ),
+      makeDriver("clouds", "Cloud term", `${formatNumber(forcing.cloudAlbedoDeltaK, 1)} K`, ""),
+    ],
+    evidenceCodes: ["CLIMATE_CHEMISTRY_FORCING"],
+  });
+}
+
+function addCarbonCycleEra(eras, context, model) {
+  const carbon = carbonCycleContextOf(model);
+  if (!carbon) return;
+  const tendency = firstString(carbon.tendencyClass);
+  if (!tendency || includesText(tendency, "inactive")) {
+    if ((firstFinite(carbon.seafloorWeatheringPotential) ?? 0) < 0.2) return;
+  }
+  const thermostat = firstFinite(carbon.thermostatStrength) ?? 0;
+  const limiter = firstString(carbon.weatheringLimiter, carbon.recyclingLimiter);
+  const breakdown =
+    includesText(limiter, "limited") ||
+    includesText(limiter, "barrier") ||
+    thermostat < 0.08 ||
+    includesText(tendency, "limited");
+  addEra(eras, context, {
+    id:
+      thermostat >= 0.35
+        ? "carbonate-silicate-thermostat-era"
+        : breakdown
+          ? "carbon-cycle-breakdown-risk"
+          : "carbon-cycle-tendency-era",
+    label:
+      thermostat >= 0.35
+        ? "Carbonate-silicate thermostat era"
+        : breakdown
+          ? "Carbon-cycle breakdown risk"
+          : "Carbonate-silicate tendency era",
+    category: "climate",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(carbon.confidence, "medium"),
+    severity: thermostat >= 0.35 ? "good" : breakdown ? "caution" : "info",
+    headline: "Weathering, outgassing, and recycling set the carbon-cycle context",
+    detail:
+      "The event records a carbonate-silicate tendency only; it is not an exact CO2 reservoir history.",
+    drivers: [
+      makeDriver("tendency", "Tendency", tendency, ""),
+      makeDriver("limiter", "Limiter", limiter, ""),
+      makeDriver("weathering", "Weathering", formatNumber(carbon.weatheringEfficiency, 3), ""),
+      makeDriver("recycling", "Recycling", formatNumber(carbon.recyclingEfficiency, 3), ""),
+      makeDriver("thermostat", "Thermostat strength", formatNumber(thermostat, 3), ""),
+    ],
+    evidenceCodes: ["CARBON_CYCLE_CONTEXT"],
+  });
+}
+
+function addOceanChemistryEra(eras, context, model) {
+  const ocean = oceanChemistryContextOf(model);
+  if (!ocean?.applicable) return;
+  const caveated =
+    ocean.highPressureIceCaveat === true ||
+    includesText(ocean.carbonateSaturationClass, "limited") ||
+    includesText(ocean.carbonateSaturationClass, "risk") ||
+    includesText(ocean.acidityClass, "acidic");
+  addEra(eras, context, {
+    id: "ocean-chemistry-context-era",
+    label: "Ocean-chemistry context era",
+    category: "hydrosphere",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(ocean.confidence, "medium"),
+    severity: caveated ? "caution" : "info",
+    headline: "Ocean chemistry constrains solvent and nutrient interpretation",
+    detail:
+      "Salinity, brine/ammonia freezing effects, acidity, carbonate support, and rock-ocean access are context labels, not full geochemical reservoirs.",
+    drivers: [
+      makeDriver(
+        "waterContext",
+        "Water context",
+        ocean.waterContextLabel || ocean.waterContext,
+        "",
+      ),
+      makeDriver("salinity", "Salinity", ocean.salinityClass, ""),
+      makeDriver("acidity", "Acidity", ocean.acidityClass, ""),
+      makeDriver("carbonate", "Carbonate", ocean.carbonateSaturationClass, ""),
+      makeDriver("nutrients", "Nutrients", ocean.nutrientSupportClass, ""),
+    ],
+    evidenceCodes: ["OCEAN_CHEMISTRY_CONTEXT"],
+  });
+}
+
+function addBiosignatureContextEra(eras, context, model) {
+  const bio = biosignatureContextOf(model);
+  if (!bio?.applicable) return;
+  const interpretation = firstString(bio.interpretationClass);
+  if (!interpretation || includesText(interpretation, "No atmospheric")) return;
+  const falsePositiveRisk = firstString(bio.o2O3FalsePositiveRisk, "Low");
+  const disequilibrium = firstString(bio.disequilibriumStrength, "Low");
+  const elevated =
+    !includesText(falsePositiveRisk, "low") ||
+    !includesText(disequilibrium, "low") ||
+    !includesText(firstString(bio.methaneContext), "No methane") ||
+    !includesText(firstString(bio.coBuildupRisk), "Low");
+  addEra(eras, context, {
+    id: "biosignature-context-caution-era",
+    label: "Biosignature-context caution era",
+    category: "habitability",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(bio.confidence, "medium"),
+    severity: elevated ? "caution" : "info",
+    headline: "Atmospheric biosignature gases require environmental context",
+    detail:
+      "This event never asserts life. It records false-positive risk, disequilibrium strength, and replenishment demand from the biosignature context model.",
+    drivers: [
+      makeDriver("interpretation", "Interpretation", interpretation, ""),
+      makeDriver("disequilibrium", "Disequilibrium", disequilibrium, ""),
+      makeDriver("o2FalsePositive", "O2/O3 false-positive risk", falsePositiveRisk, ""),
+      makeDriver("sourceDemand", "Source demand", bio.replenishmentDemandClass, ""),
+      makeDriver("methane", "Methane", bio.methaneContext, ""),
+    ],
+    evidenceCodes: ["BIOSIGNATURE_CONTEXT"],
+    warningCodes: ["NO_LIFE_DETECTION_CLAIM"],
+  });
+}
+
 function addRockyAtmosphereAndHydrosphereEras(eras, context, model) {
   const derived = derivedModel(model);
   const hydrosphere = hydrosphereOf(model);
@@ -2352,6 +2841,19 @@ export function buildPlanetaryEraTimelineForPlanetaryBody({
         addRockyFormationEras(eras, context, source);
         addRockyAtmosphereAndHydrosphereEras(eras, context, source);
         addRockyInteriorAndClimateEras(eras, context, source);
+      }
+      addCoupledEnvironmentContextEras(eras, context, source);
+      if (
+        !(
+          solverFamily === "brownDwarf" ||
+          family === "brownDwarf" ||
+          solverFamily === "gasGiant" ||
+          family === "gasGiant" ||
+          (GIANT_FAMILIES.has(family) && solverFamily !== "volatile") ||
+          solverFamily === "volatile" ||
+          VOLATILE_SOLVER_FAMILIES.has(family)
+        )
+      ) {
         addRockyFutureEras(eras, context, source);
       }
       if (body?.authoringIntent === "volatile" && !hasSubtype(source, "superPuff")) {
@@ -2391,6 +2893,7 @@ export function buildPlanetaryEraTimelineForPlanet({
       addRockyFormationEras(eras, context, model);
       addRockyAtmosphereAndHydrosphereEras(eras, context, model);
       addRockyInteriorAndClimateEras(eras, context, model);
+      addCoupledEnvironmentContextEras(eras, context, model);
       addRockyFutureEras(eras, context, model);
     },
   });
@@ -2424,6 +2927,7 @@ export function buildPlanetaryEraTimelineForMoon({
       context.family = "moon";
       context.solverFamily = "moon";
       addMoonEras(eras, context, model);
+      addCoupledEnvironmentContextEras(eras, context, model);
       addMoonFutureEras(eras, context, model);
     },
   });

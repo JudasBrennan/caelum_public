@@ -86,6 +86,40 @@ function sumCompanionXuvFluxEarth(companionStarIds, starsById, distanceAu) {
   return fluxRatioEarth;
 }
 
+function windPressureEarthAt1AuForStar(starContext) {
+  const ratio = Number(starContext?.model?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au);
+  return Number.isFinite(ratio) && ratio > 0 ? ratio : 0;
+}
+
+function prebioticUvEarthAt1AuForStar(starContext) {
+  const ratio = Number(
+    starContext?.model?.stellarEnvironment?.uv?.bandsAt1Au?.prebiotic200280?.earthRatio,
+  );
+  return Number.isFinite(ratio) && ratio > 0 ? ratio : 0;
+}
+
+function sumCompanionWindPressureEarth(companionStarIds, starsById, distanceAu) {
+  const distance = Math.max(toFiniteNumber(distanceAu, 0), 1e-6);
+  let pressureEarth = 0;
+  for (const starId of companionStarIds) {
+    const starContext = starsById[starId];
+    if (!starContext) continue;
+    pressureEarth += windPressureEarthAt1AuForStar(starContext) / distance ** 2;
+  }
+  return pressureEarth;
+}
+
+function sumCompanionPrebioticUvEarth(companionStarIds, starsById, distanceAu) {
+  const distance = Math.max(toFiniteNumber(distanceAu, 0), 1e-6);
+  let uvEarth = 0;
+  for (const starId of companionStarIds) {
+    const starContext = starsById[starId];
+    if (!starContext) continue;
+    uvEarth += prebioticUvEarthAt1AuForStar(starContext) / distance ** 2;
+  }
+  return uvEarth;
+}
+
 function sumHostVisibleFluxEarth(starIds, starsById) {
   let fluxEarth = 0;
   for (const starId of starIds || []) {
@@ -109,6 +143,26 @@ function sumHostXuvFluxEarthAt1Au(starIds, starsById) {
     });
   }
   return fluxRatioEarth;
+}
+
+function sumHostWindPressureEarthAt1Au(starIds, starsById) {
+  let pressureEarth = 0;
+  for (const starId of starIds || []) {
+    const starContext = starsById[starId];
+    if (!starContext) continue;
+    pressureEarth += windPressureEarthAt1AuForStar(starContext);
+  }
+  return pressureEarth;
+}
+
+function sumHostPrebioticUvEarthAt1Au(starIds, starsById) {
+  let uvEarth = 0;
+  for (const starId of starIds || []) {
+    const starContext = starsById[starId];
+    if (!starContext) continue;
+    uvEarth += prebioticUvEarthAt1AuForStar(starContext);
+  }
+  return uvEarth;
 }
 
 function resolveDominantContributorId(starIds, starsById) {
@@ -136,15 +190,25 @@ function buildFluxLayerFromPair({ pairId, pair, companionNodeId, companionStarId
   const xuvSamples = distancesAu.map((distanceAu) =>
     sumCompanionXuvFluxEarth(companionStarIds, starsById, distanceAu),
   );
+  const prebioticUvSamples = distancesAu.map((distanceAu) =>
+    sumCompanionPrebioticUvEarth(companionStarIds, starsById, distanceAu),
+  );
+  const windSamples = distancesAu.map((distanceAu) =>
+    sumCompanionWindPressureEarth(companionStarIds, starsById, distanceAu),
+  );
   return {
     pairId,
     companionNodeId,
     companionStarIds: [...companionStarIds],
     visibleSamples,
     xuvSamples,
+    prebioticUvSamples,
+    windSamples,
     separationSummaryAu: summariseSamples(distancesAu),
     visibleSummary: summariseSamples(visibleSamples),
     xuvSummary: summariseSamples(xuvSamples),
+    prebioticUvSummary: summariseSamples(prebioticUvSamples),
+    windSummary: summariseSamples(windSamples),
     eccentricity: toFiniteNumber(pair?.eccentricity, 0),
   };
 }
@@ -173,6 +237,8 @@ export function buildHierarchicalFluxModel({
 }) {
   const hostVisibleFluxEarth = sumHostVisibleFluxEarth(dominantStarIds, starsById);
   const hostXuvFluxEarth = sumHostXuvFluxEarthAt1Au(dominantStarIds, starsById);
+  const hostPrebioticUvEarthAt1Au = sumHostPrebioticUvEarthAt1Au(dominantStarIds, starsById);
+  const hostWindPressureEarthAt1Au = sumHostWindPressureEarthAt1Au(dominantStarIds, starsById);
   const companionLayers = [];
   const companionStarIds = [];
   const ancestorPairIds = Array.isArray(topology?.ancestorPairIdsByNodeId?.[hostNodeId])
@@ -229,6 +295,12 @@ export function buildHierarchicalFluxModel({
       fluxVariabilityFraction: 0,
       meanXuvFluxEarth: hostXuvFluxEarth,
       meanCompanionXuvFluxEarth: 0,
+      hostPrebioticUvEarthAt1Au,
+      meanPrebioticUvEarthAt1Au: hostPrebioticUvEarthAt1Au,
+      meanCompanionPrebioticUvEarth: 0,
+      hostWindPressureEarthAt1Au,
+      meanWindPressureEarthAt1Au: hostWindPressureEarthAt1Au,
+      meanCompanionWindPressureEarth: 0,
       dominantContributorId: resolveDominantContributorId(dominantStarIds, starsById),
       companionLayers: [],
       companionStarIds: [],
@@ -237,8 +309,12 @@ export function buildHierarchicalFluxModel({
 
   const visibleSamples = combineSampleLayers(companionLayers, "visibleSamples");
   const xuvSamples = combineSampleLayers(companionLayers, "xuvSamples");
+  const prebioticUvSamples = combineSampleLayers(companionLayers, "prebioticUvSamples");
+  const windSamples = combineSampleLayers(companionLayers, "windSamples");
   const visible = summariseSamples(visibleSamples);
   const xuv = summariseSamples(xuvSamples);
+  const prebioticUv = summariseSamples(prebioticUvSamples);
+  const wind = summariseSamples(windSamples);
   const meanVisibleFluxEarth = hostVisibleFluxEarth + visible.mean;
   const peakVisibleFluxEarth = hostVisibleFluxEarth + visible.max;
   const minVisibleFluxEarth = hostVisibleFluxEarth + visible.min;
@@ -260,6 +336,12 @@ export function buildHierarchicalFluxModel({
         : 0,
     meanXuvFluxEarth: hostXuvFluxEarth + xuv.mean,
     meanCompanionXuvFluxEarth: xuv.mean,
+    hostPrebioticUvEarthAt1Au,
+    meanPrebioticUvEarthAt1Au: hostPrebioticUvEarthAt1Au + prebioticUv.mean,
+    meanCompanionPrebioticUvEarth: prebioticUv.mean,
+    hostWindPressureEarthAt1Au,
+    meanWindPressureEarthAt1Au: hostWindPressureEarthAt1Au + wind.mean,
+    meanCompanionWindPressureEarth: wind.mean,
     dominantContributorId,
     companionLayers: companionLayers.map((layer) => ({
       pairId: layer.pairId,
@@ -273,6 +355,8 @@ export function buildHierarchicalFluxModel({
       peakVisibleFluxEarth: layer.visibleSummary.max,
       minVisibleFluxEarth: layer.visibleSummary.min,
       meanXuvFluxEarth: layer.xuvSummary.mean,
+      meanPrebioticUvEarth: layer.prebioticUvSummary?.mean ?? 0,
+      meanWindPressureEarth: layer.windSummary.mean,
     })),
     companionStarIds,
   };
@@ -287,6 +371,8 @@ export function buildSingleStarFluxModel({ dominantStars, hostStarId, starsById 
     luminosityLsol: hostLuminosityLsol,
     orbitAu: 1,
   });
+  const hostPrebioticUvEarthAt1Au = prebioticUvEarthAt1AuForStar(hostStar);
+  const hostWindPressureEarthAt1Au = windPressureEarthAt1AuForStar(hostStar);
   return {
     meanVisibleFluxEarth: hostLuminosityLsol,
     peakVisibleFluxEarth: hostLuminosityLsol,
@@ -297,6 +383,12 @@ export function buildSingleStarFluxModel({ dominantStars, hostStarId, starsById 
     fluxVariabilityFraction: 0,
     meanXuvFluxEarth: hostXuvAt1AuEarth,
     meanCompanionXuvFluxEarth: 0,
+    hostPrebioticUvEarthAt1Au,
+    meanPrebioticUvEarthAt1Au: hostPrebioticUvEarthAt1Au,
+    meanCompanionPrebioticUvEarth: 0,
+    hostWindPressureEarthAt1Au,
+    meanWindPressureEarthAt1Au: hostWindPressureEarthAt1Au,
+    meanCompanionWindPressureEarth: 0,
     dominantContributorId: resolveDominantContributorId(dominantStars, starsById),
   };
 }
@@ -310,6 +402,8 @@ export function buildCircumstellarFluxModel({ hostStarId, companionStarIds, pair
     luminosityLsol: hostLuminosityLsol,
     orbitAu: 1,
   });
+  const hostPrebioticUvEarthAt1Au = prebioticUvEarthAt1AuForStar(hostStar);
+  const hostWindPressureEarthAt1Au = windPressureEarthAt1AuForStar(hostStar);
   if (!pair || !companionStarIds.length) {
     return buildSingleStarFluxModel({
       dominantStars: [hostStarId],
@@ -329,8 +423,16 @@ export function buildCircumstellarFluxModel({ hostStarId, companionStarIds, pair
   const xuvSamples = distancesAu.map((distanceAu) =>
     sumCompanionXuvFluxEarth(companionStarIds, starsById, distanceAu),
   );
+  const prebioticUvSamples = distancesAu.map((distanceAu) =>
+    sumCompanionPrebioticUvEarth(companionStarIds, starsById, distanceAu),
+  );
+  const windSamples = distancesAu.map((distanceAu) =>
+    sumCompanionWindPressureEarth(companionStarIds, starsById, distanceAu),
+  );
   const visible = summariseSamples(visibleSamples);
   const xuv = summariseSamples(xuvSamples);
+  const prebioticUv = summariseSamples(prebioticUvSamples);
+  const wind = summariseSamples(windSamples);
   const meanVisibleFluxEarth = hostLuminosityLsol + visible.mean;
   const peakVisibleFluxEarth = hostLuminosityLsol + visible.max;
   const minVisibleFluxEarth = hostLuminosityLsol + visible.min;
@@ -347,6 +449,12 @@ export function buildCircumstellarFluxModel({ hostStarId, companionStarIds, pair
         : 0,
     meanXuvFluxEarth: hostXuvAt1AuEarth + xuv.mean,
     meanCompanionXuvFluxEarth: xuv.mean,
+    hostPrebioticUvEarthAt1Au,
+    meanPrebioticUvEarthAt1Au: hostPrebioticUvEarthAt1Au + prebioticUv.mean,
+    meanCompanionPrebioticUvEarth: prebioticUv.mean,
+    hostWindPressureEarthAt1Au,
+    meanWindPressureEarthAt1Au: hostWindPressureEarthAt1Au + wind.mean,
+    meanCompanionWindPressureEarth: wind.mean,
     dominantContributorId:
       hostLuminosityLsol >= visible.mean ? hostStarId : companionStarIds[0] || hostStarId,
   };
@@ -354,6 +462,8 @@ export function buildCircumstellarFluxModel({ hostStarId, companionStarIds, pair
 
 export function buildPairFluxModel({ dominantStarIds, starsById }) {
   const meanVisibleFluxEarth = sumHostVisibleFluxEarth(dominantStarIds, starsById);
+  const hostPrebioticUvEarthAt1Au = sumHostPrebioticUvEarthAt1Au(dominantStarIds, starsById);
+  const hostWindPressureEarthAt1Au = sumHostWindPressureEarthAt1Au(dominantStarIds, starsById);
   return {
     meanVisibleFluxEarth,
     peakVisibleFluxEarth: meanVisibleFluxEarth,
@@ -364,6 +474,12 @@ export function buildPairFluxModel({ dominantStarIds, starsById }) {
     fluxVariabilityFraction: 0,
     meanXuvFluxEarth: sumHostXuvFluxEarthAt1Au(dominantStarIds, starsById),
     meanCompanionXuvFluxEarth: 0,
+    hostPrebioticUvEarthAt1Au,
+    meanPrebioticUvEarthAt1Au: hostPrebioticUvEarthAt1Au,
+    meanCompanionPrebioticUvEarth: 0,
+    hostWindPressureEarthAt1Au,
+    meanWindPressureEarthAt1Au: hostWindPressureEarthAt1Au,
+    meanCompanionWindPressureEarth: 0,
     dominantContributorId: resolveDominantContributorId(dominantStarIds, starsById),
   };
 }

@@ -51,10 +51,17 @@ const MAX_FLARES_PER_TICK = 48;
 const MAX_CMES_PER_TICK = 48;
 const MAX_SURFACE_FLARES_PER_TICK = 96;
 const MAX_STAR_BURSTS = 48;
+const MAX_STAR_BURST_SPAWNS_PER_FRAME = 12;
+const MAX_STAR_BURSTS_DRAWN_PER_FRAME = 32;
 const STAR_BURST_INITIAL_AGE_SEC = 0.08;
 const SURFACE_FLARE_EMIN_ERG = 1e30;
 const SURFACE_FLARE_EMAX_ERG = FLARE_E0_ERG * 0.999;
 const SURFACE_TEXTURE_SIZE = 512;
+const LIVE_SURFACE_TEXTURE_SIZE = 256;
+const STAR_SURFACE_TEXTURE_CACHE_MAX = 24;
+const STAR_PREVIEW_MIN_FRAME_INTERVAL_MS = 1000 / 30;
+const STAR_PREVIEW_SLOW_FRAME_INTERVAL_MS = 1000 / 18;
+const STAR_PREVIEW_SLOW_FRAME_MS = 32;
 const STAR_PREVIEW_FILL = 0.36;
 const CELESTIAL_DEFAULT_LOD = "medium";
 const CELESTIAL_DPR_MIN = 1;
@@ -62,6 +69,7 @@ const CELESTIAL_DPR_MAX = 2;
 const CELESTIAL_TEXTURE_CACHE = new Map();
 const CELESTIAL_TEXTURE_CACHE_MAX = 64;
 const CELESTIAL_TEXTURE_PIPELINE_VERSION = 9;
+const STAR_SURFACE_TEXTURE_CACHE = new Map();
 
 /* Purge IDB entries from older pipeline versions (fire-and-forget) */
 clearStaleTextures(CELESTIAL_TEXTURE_PIPELINE_VERSION);
@@ -464,12 +472,18 @@ function updateBursts(preview, dtSec) {
   }
 
   const nowActivitySec = preview.activityDays * 86400;
+  let spawnBudget = MAX_STAR_BURST_SPAWNS_PER_FRAME;
+  const hasSpawnBudget = () => spawnBudget > 0 && preview.bursts.length < MAX_STAR_BURSTS;
+  const consumeSpawnBudget = () => {
+    spawnBudget = Math.max(0, spawnBudget - 1);
+  };
+
   let flareIterations = 0;
   while (
     Number.isFinite(preview.nextFlareTimeSec) &&
     preview.nextFlareTimeSec <= nowActivitySec &&
     flareIterations < MAX_FLARES_PER_TICK &&
-    preview.bursts.length < MAX_STAR_BURSTS
+    hasSpawnBudget()
   ) {
     const flareEnergy = Number(preview.nextFlareEnergyErg) || FLARE_E0_ERG;
     const flareClass = flareClassFromEnergy(flareEnergy);
@@ -481,13 +495,14 @@ function updateBursts(preview, dtSec) {
       angle: (preview.rng || Math.random)() * Math.PI * 2,
       activityCycle,
     });
+    consumeSpawnBudget();
     const next = scheduleNextFlare(preview.nextFlareTimeSec, preview.params, preview.rng);
     preview.nextFlareTimeSec = next.timeSec;
     preview.nextFlareEnergyErg = next.energyErg;
     flareIterations += 1;
   }
   if (
-    (flareIterations >= MAX_FLARES_PER_TICK || preview.bursts.length >= MAX_STAR_BURSTS) &&
+    (flareIterations >= MAX_FLARES_PER_TICK || !hasSpawnBudget()) &&
     preview.nextFlareTimeSec <= nowActivitySec
   ) {
     const next = scheduleNextFlare(nowActivitySec, preview.params, preview.rng);
@@ -500,7 +515,7 @@ function updateBursts(preview, dtSec) {
     Number.isFinite(preview.nextSurfaceFlareTimeSec) &&
     preview.nextSurfaceFlareTimeSec <= nowActivitySec &&
     surfaceIterations < MAX_SURFACE_FLARES_PER_TICK &&
-    preview.bursts.length < MAX_STAR_BURSTS
+    hasSpawnBudget()
   ) {
     const flareEnergy = Number(preview.nextSurfaceFlareEnergyErg) || SURFACE_FLARE_EMIN_ERG;
     const flareClass = flareClassFromEnergy(flareEnergy);
@@ -512,6 +527,7 @@ function updateBursts(preview, dtSec) {
       angle: (preview.rng || Math.random)() * Math.PI * 2,
       activityCycle,
     });
+    consumeSpawnBudget();
     const next = scheduleNextFlare(
       preview.nextSurfaceFlareTimeSec,
       preview.surfaceParams,
@@ -522,8 +538,7 @@ function updateBursts(preview, dtSec) {
     surfaceIterations += 1;
   }
   if (
-    (surfaceIterations >= MAX_SURFACE_FLARES_PER_TICK ||
-      preview.bursts.length >= MAX_STAR_BURSTS) &&
+    (surfaceIterations >= MAX_SURFACE_FLARES_PER_TICK || !hasSpawnBudget()) &&
     preview.nextSurfaceFlareTimeSec <= nowActivitySec
   ) {
     const next = scheduleNextFlare(nowActivitySec, preview.surfaceParams, preview.rng);
@@ -539,7 +554,7 @@ function updateBursts(preview, dtSec) {
     Number.isFinite(preview.nextAssociatedCmeTimeSec) &&
     preview.nextAssociatedCmeTimeSec <= nowActivitySec &&
     associatedIterations < MAX_CMES_PER_TICK &&
-    preview.bursts.length < MAX_STAR_BURSTS
+    hasSpawnBudget()
   ) {
     const burstTime = preview.nextAssociatedCmeTimeSec;
     const activityCycle = cycleValueAt(preview, burstTime);
@@ -560,6 +575,7 @@ function updateBursts(preview, dtSec) {
       angle,
       activityCycle,
     });
+    consumeSpawnBudget();
     preview.nextAssociatedCmeTimeSec = scheduleNextCme(
       preview.nextAssociatedCmeTimeSec,
       associatedRatePerDay,
@@ -568,7 +584,7 @@ function updateBursts(preview, dtSec) {
     associatedIterations += 1;
   }
   if (
-    (associatedIterations >= MAX_CMES_PER_TICK || preview.bursts.length >= MAX_STAR_BURSTS) &&
+    (associatedIterations >= MAX_CMES_PER_TICK || !hasSpawnBudget()) &&
     preview.nextAssociatedCmeTimeSec <= nowActivitySec
   ) {
     preview.nextAssociatedCmeTimeSec = scheduleNextCme(
@@ -583,7 +599,7 @@ function updateBursts(preview, dtSec) {
     Number.isFinite(preview.nextBackgroundCmeTimeSec) &&
     preview.nextBackgroundCmeTimeSec <= nowActivitySec &&
     backgroundIterations < MAX_CMES_PER_TICK &&
-    preview.bursts.length < MAX_STAR_BURSTS
+    hasSpawnBudget()
   ) {
     const burstTime = preview.nextBackgroundCmeTimeSec;
     const activityCycle = cycleValueAt(preview, burstTime);
@@ -595,6 +611,7 @@ function updateBursts(preview, dtSec) {
       angle: (preview.rng || Math.random)() * Math.PI * 2,
       activityCycle,
     });
+    consumeSpawnBudget();
     preview.nextBackgroundCmeTimeSec = scheduleNextCme(
       preview.nextBackgroundCmeTimeSec,
       backgroundRatePerDay,
@@ -603,7 +620,7 @@ function updateBursts(preview, dtSec) {
     backgroundIterations += 1;
   }
   if (
-    (backgroundIterations >= MAX_CMES_PER_TICK || preview.bursts.length >= MAX_STAR_BURSTS) &&
+    (backgroundIterations >= MAX_CMES_PER_TICK || !hasSpawnBudget()) &&
     preview.nextBackgroundCmeTimeSec <= nowActivitySec
   ) {
     preview.nextBackgroundCmeTimeSec = scheduleNextCme(
@@ -626,8 +643,12 @@ function drawStarBursts(preview, cx, cy, starR, starColourHex) {
   const burstTrailHex = mixHex(starColourHex, "#ffb581", 0.72);
   const loopHaloHex = mixHex(starColourHex, "#ff9f6d", 0.78);
   const loopCoreHex = mixHex(starColourHex, "#fff6e2", 0.62);
+  const visibleBursts =
+    preview.bursts.length > MAX_STAR_BURSTS_DRAWN_PER_FRAME
+      ? preview.bursts.slice(-MAX_STAR_BURSTS_DRAWN_PER_FRAME)
+      : preview.bursts;
 
-  for (const burst of preview.bursts) {
+  for (const burst of visibleBursts) {
     const t = clamp(burst.age / burst.ttl, 0, 1);
     const fade = Math.sin(Math.PI * t) * burst.intensity * burstOpacityScale;
     if (!(fade > 0.001)) continue;
@@ -866,29 +887,100 @@ function ensureCanvasSize(preview) {
   preview.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-function ensureSurfaceTexture(preview) {
-  const starColor = preview.model.starColourHex;
-  const seed = preview.model.seed;
-  const tempK = preview.model.starTempK;
-  const activity = preview.model.starActivityLevel;
+function buildSurfaceTextureKey(model, textureSize = LIVE_SURFACE_TEXTURE_SIZE) {
+  const starColor = model.starColourHex;
+  const seed = model.seed;
+  const tempK = model.starTempK;
+  const activity = model.starActivityLevel;
+  const regime = model.regime || "";
+  const mass = Number(model.starMassMsol) || 1;
   const key = `${starColor}:${seed}:${Math.round(tempK)}:${Math.round(activity * 100)}`;
-  if (preview.surfaceTexture && preview.surfaceTextureKey === key) return;
+  return `${textureSize}:${regime}:${mass.toFixed(4)}:${key}`;
+}
 
+function getCachedStarSurfaceTexture(key) {
+  const cached = STAR_SURFACE_TEXTURE_CACHE.get(key);
+  if (!cached) return null;
+  STAR_SURFACE_TEXTURE_CACHE.delete(key);
+  STAR_SURFACE_TEXTURE_CACHE.set(key, cached);
+  return cached;
+}
+
+function cacheStarSurfaceTexture(key, canvas) {
+  if (!key || !canvas) return;
+  STAR_SURFACE_TEXTURE_CACHE.set(key, canvas);
+  while (STAR_SURFACE_TEXTURE_CACHE.size > STAR_SURFACE_TEXTURE_CACHE_MAX) {
+    const oldestKey = STAR_SURFACE_TEXTURE_CACHE.keys().next().value;
+    STAR_SURFACE_TEXTURE_CACHE.delete(oldestKey);
+  }
+}
+
+function createStarSurfaceTexture(model, textureSize = LIVE_SURFACE_TEXTURE_SIZE) {
   const surfaceCanvas = document.createElement("canvas");
-  surfaceCanvas.width = SURFACE_TEXTURE_SIZE;
-  surfaceCanvas.height = SURFACE_TEXTURE_SIZE;
+  surfaceCanvas.width = textureSize;
+  surfaceCanvas.height = textureSize;
   const surfaceCtx = surfaceCanvas.getContext("2d");
-  if (!surfaceCtx) return;
-  paintStarSurfaceTexture(surfaceCtx, SURFACE_TEXTURE_SIZE, {
-    baseHex: starColor,
-    seed,
-    tempK,
-    activity,
-    regime: preview.model.regime,
-    massMsol: preview.model.starMassMsol,
+  if (!surfaceCtx) return null;
+  paintStarSurfaceTexture(surfaceCtx, textureSize, {
+    baseHex: model.starColourHex,
+    seed: model.seed,
+    tempK: model.starTempK,
+    activity: model.starActivityLevel,
+    regime: model.regime,
+    massMsol: model.starMassMsol,
   });
-  preview.surfaceTexture = surfaceCanvas;
-  preview.surfaceTextureKey = key;
+  return surfaceCanvas;
+}
+
+function cancelPendingSurfaceTexture(preview) {
+  if (preview.surfaceTextureBuildTimer != null && typeof clearTimeout === "function") {
+    clearTimeout(preview.surfaceTextureBuildTimer);
+  }
+  preview.surfaceTextureBuildTimer = null;
+  preview.surfaceTexturePendingKey = "";
+}
+
+function ensureSurfaceTexture(preview) {
+  if (!preview?.model) return;
+  const key = buildSurfaceTextureKey(preview.model);
+  if (preview.surfaceTexture && preview.surfaceTextureKey === key) return;
+  const cached = getCachedStarSurfaceTexture(key);
+  if (cached) {
+    preview.surfaceTexture = cached;
+    preview.surfaceTextureKey = key;
+    cancelPendingSurfaceTexture(preview);
+    return;
+  }
+  if (preview.surfaceTexturePendingKey === key) return;
+
+  cancelPendingSurfaceTexture(preview);
+  preview.surfaceTexturePendingKey = key;
+  const model = preview.model;
+  const buildTexture = () => {
+    preview.surfaceTextureBuildTimer = null;
+    if (
+      !preview.canvas ||
+      !isPreviewCanvasRenderable(preview.canvas) ||
+      !preview.model ||
+      buildSurfaceTextureKey(preview.model) !== key
+    ) {
+      if (preview.surfaceTexturePendingKey === key) preview.surfaceTexturePendingKey = "";
+      return;
+    }
+    const surfaceCanvas = createStarSurfaceTexture(model);
+    if (preview.model && buildSurfaceTextureKey(preview.model) === key && surfaceCanvas) {
+      cacheStarSurfaceTexture(key, surfaceCanvas);
+      preview.surfaceTexture = surfaceCanvas;
+      preview.surfaceTextureKey = key;
+    }
+    if (preview.surfaceTexturePendingKey === key) preview.surfaceTexturePendingKey = "";
+  };
+
+  if (typeof setTimeout === "function") {
+    preview.surfaceTextureBuildTimer = setTimeout(buildTexture, 0);
+  } else {
+    buildTexture();
+  }
 }
 
 function drawFrame(preview, dtSec) {
@@ -983,6 +1075,7 @@ function drawFrame(preview, dtSec) {
 function stopLoop(preview) {
   preview.running = false;
   preview.lastTs = 0;
+  preview.lastRenderTs = 0;
   if (preview.rafId != null) {
     if (typeof cancelAnimationFrame === "function") {
       cancelAnimationFrame(preview.rafId);
@@ -993,6 +1086,7 @@ function stopLoop(preview) {
 
 function startLoop(preview) {
   if (preview.running || !preview.canvas || !preview.ctx) return;
+  if (typeof requestAnimationFrame !== "function") return;
   preview.running = true;
   const frame = (ts) => {
     if (!preview.running) return;
@@ -1000,10 +1094,31 @@ function startLoop(preview) {
       stopLoop(preview);
       return;
     }
+    if (!isPreviewCanvasRenderable(preview.canvas)) {
+      preview.lastTs = 0;
+      preview.lastRenderTs = 0;
+      preview.rafId = requestAnimationFrame(frame);
+      return;
+    }
+    const frameIntervalMs =
+      Number(preview.frameIntervalMs) > 0
+        ? Number(preview.frameIntervalMs)
+        : STAR_PREVIEW_MIN_FRAME_INTERVAL_MS;
+    if (preview.lastRenderTs && ts - preview.lastRenderTs < frameIntervalMs) {
+      preview.rafId = requestAnimationFrame(frame);
+      return;
+    }
     if (!preview.lastTs) preview.lastTs = ts;
     const dt = clamp((ts - preview.lastTs) / 1000, 1 / 120, 0.12);
     preview.lastTs = ts;
+    preview.lastRenderTs = ts;
+    const frameStartMs = perfNowMs();
     drawFrame(preview, dt);
+    const frameMs = perfNowMs() - frameStartMs;
+    preview.frameIntervalMs =
+      frameMs > STAR_PREVIEW_SLOW_FRAME_MS
+        ? STAR_PREVIEW_SLOW_FRAME_INTERVAL_MS
+        : STAR_PREVIEW_MIN_FRAME_INTERVAL_MS;
     preview.rafId = requestAnimationFrame(frame);
   };
   preview.rafId = requestAnimationFrame(frame);
@@ -1118,6 +1233,7 @@ function applyModel(preview, input) {
     preview.rng,
   );
 
+  cancelPendingSurfaceTexture(preview);
   preview.surfaceTexture = null;
   preview.surfaceTextureKey = "";
 }
@@ -1136,6 +1252,8 @@ export function createSunVisualPreviewController({
     running: false,
     rafId: null,
     lastTs: 0,
+    lastRenderTs: 0,
+    frameIntervalMs: STAR_PREVIEW_MIN_FRAME_INTERVAL_MS,
     signature: "",
     model: normalizeModel({}),
     rng: Math.random,
@@ -1153,6 +1271,8 @@ export function createSunVisualPreviewController({
     bursts: [],
     surfaceTexture: null,
     surfaceTextureKey: "",
+    surfaceTexturePendingKey: "",
+    surfaceTextureBuildTimer: null,
     surfaceRotationOffset: 0,
   };
 
@@ -1180,6 +1300,7 @@ export function createSunVisualPreviewController({
     detach() {
       preview.canvas = null;
       preview.ctx = null;
+      cancelPendingSurfaceTexture(preview);
       stopLoop(preview);
     },
 
@@ -1187,6 +1308,7 @@ export function createSunVisualPreviewController({
       preview.bursts = [];
       preview.surfaceTexture = null;
       preview.surfaceTextureKey = "";
+      cancelPendingSurfaceTexture(preview);
       this.detach();
     },
   };
@@ -2905,9 +3027,13 @@ function positiveCanvasDimension(...values) {
   return 180;
 }
 
-export function isBodyPreviewCanvasRenderable(canvas) {
+export function isPreviewCanvasRenderable(canvas) {
   if (!canvas || !canvas.isConnected) return false;
   return !canvas.closest?.("[hidden], [aria-hidden='true']");
+}
+
+export function isBodyPreviewCanvasRenderable(canvas) {
+  return isPreviewCanvasRenderable(canvas);
 }
 
 export function applyBodyCanvasSize(runtime, canvas) {

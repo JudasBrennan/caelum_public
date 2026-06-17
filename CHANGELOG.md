@@ -4,6 +4,311 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.9.0 - 2026-06-17
+
+### Validation Report And Release Calibration Artifacts
+
+**Added a first-class Validation page and shipped calibration report artifacts**
+(app.js, index.html, styles.css, ui/validationPage.js, ui/sciencePage.js,
+ui/aboutPage.js, assets/icons/validation.svg,
+assets/icons/light/validation.svg, scripts/report-model-calibration.mjs,
+scripts/build.mjs, package.json, RELEASE_CHECKLIST.md,
+tests/validationPage.ui.test.js, tests/modelCalibrationReport.test.js,
+tests/sciencePageReference.ui.test.js, tests/aboutPage.ui.test.js,
+tests/browser/smoke.spec.js)
+
+WorldSmith now has a top-level `#/validation` route that loads the prebuilt
+model calibration report from static release artifacts. The page shows
+headline counts, Solar System versus non-Solar anchor coverage, category/source
+summaries, and the full calibration table with client-side search and filters
+for view, status, category, anchor type, and source group.
+
+The calibration report generator now emits Markdown, standalone HTML, and JSON
+companions. The standalone HTML report also has built-in search/filter controls,
+and production builds copy the generated files into `dist/reports/` so releases
+ship with the exact report used during verification. Science & Maths and About
+now link to Validation, and the release checklist plus `release:verify` flow
+explicitly refresh and inspect the report before shipping.
+
+### Model Calibration Gap Closure
+
+**Resolved calibration semantics, moon thermophysics, small-body tides, and giant intrinsic heat**
+(scripts/report-model-calibration.mjs, engine/moon/thermophysics.js,
+engine/moon/smallBody.js, engine/moon/tides.js,
+engine/gasGiant/intrinsicHeat.js, engine/gasGiant/temperature.js,
+engine/gasGiant.js, tests/modelCalibrationReport.test.js,
+tests/moonThermophysics.test.js, tests/moonSmallBodyTides.test.js,
+tests/gasGiantIntrinsicHeat.test.js, tests/modelCalibrationMonotonicity.test.js,
+filed-plans/complete-plans/MODEL_CALIBRATION_GAP_CLOSURE_PLAN.md)
+
+The model calibration report now records what every row is comparing:
+model quantity, reference quantity, comparison semantics, uncertainty, source
+category, Solar System versus non-Solar anchor status, and recommended
+calibration action. The report distinguishes hard calibration issues, semantic
+comparison mismatches, intentional modeling gaps, high-uncertainty rows, and
+rows resolved since the previous calibration pass.
+
+Airless moon temperature validation now uses a generic thermal envelope instead
+of forcing local or brightness-style measurements into a single global surface
+temperature. Tiny moons now route through small-body tidal and rigidity regimes
+instead of large-moon floors, with rubble-pile/cohesion caveats preserved.
+Gas and ice giants now distinguish equilibrium temperature from intrinsic-heat
+effective temperature, letting Uranus/Neptune-style differences arise from
+generic interior transport context rather than object-specific tuning.
+
+Calibration also gained non-Solar transiting-exoplanet anchors and synthetic
+monotonicity checks, so Solar System matches are guarded against overfitting.
+The current generated report contains 272 rows, 0 active `CHECK` rows,
+2 intentional modeling gaps, and 39 resolved/reclassified rows.
+
+### Second-Generation Environment Coupling Phase 8
+
+**Hardened cross-model snapshot and visualizer integration**
+(tests/environmentCouplingIntegration.test.js, ui/sciencePage.js,
+tests/sciencePageReference.ui.test.js,
+filed-plans/complete-plans/SECOND_GENERATION_ENVIRONMENT_COUPLING_OUTLINE_PLAN.md)
+
+Added a Phase 8 integration regression that solves a star, rocky planet, gas
+giant, and gas-giant moon through full world snapshots, summary snapshots, and
+the visualizer snapshot path. The test verifies shared stellar-environment
+forcing, planet forcing, gas-giant magnetosphere context, moon radiation,
+coupled timeline event consumption, and parity between read-only snapshot
+summaries and visualizer solved nodes.
+
+The Science page now states that snapshots and the visualizer reuse the same
+solved source contexts rather than building independent science summaries. This
+keeps the new coupled-environment outputs framed as engine-derived,
+confidence-labelled context, not separate climate histories or life claims.
+
+### Second-Generation Environment Coupling Phase 7
+
+**Fed coupled environment contexts into era timelines and visual cloud auto-coverage**
+(engine/planetaryEraTimeline.js, ui/rockyPlanetStyles.js,
+ui/planetaryVisual/autoCoverageReadout.js, ui/sciencePage.js,
+tests/planetaryEraTimeline.test.js, tests/nasaCalibration.test.js,
+tests/rockyPlanetStyles.test.js,
+tests/planetaryVisualEditorControls.ui.test.js,
+tests/sciencePageReference.ui.test.js)
+
+Planet and moon era timelines now consume the Phase 1-6 source contexts instead
+of only the older formation, hydrosphere, climate, interior, and orbital
+signals. Timelines can now show bounded high-XUV erosion pressure,
+wind-compressed magnetosphere intervals, atmosphere source-sink trends, thin-air
+past-water candidates, future atmosphere loss/collapse risks, haze-rich anoxic
+photochemistry, coupled climate forcing, carbon-cycle tendency or breakdown,
+ocean-chemistry constraints, and biosignature-context cautions.
+
+All new timeline rows are confidence-labelled context summaries and keep the
+"no life detected" boundary explicit. NASA calibration checks verify Earth,
+Venus, Mars, the Moon, and Europa receive sensible coupled-context chronology
+without creating exact climate histories or life-positive claims. Rocky visual
+auto cloud coverage now prefers the climate-facing cloud-circulation diagnostic
+when present, while preserving dense CO2 cloud behavior and manual visual
+overrides.
+
+### Second-Generation Environment Coupling Phase 6
+
+**Added ocean-chemistry and biosignature-context diagnostics**
+(engine/environment/oceanChemistry.js,
+engine/environment/biosignatureContext.js, engine/environment/index.js,
+engine/planet.js, engine/moon.js, engine/habitability/schema.js,
+engine/habitability/context.js, ui/planetPage.js, ui/moonPage.js,
+ui/planet/rockyOutputGroups.js, ui/planet/tooltips.js, ui/sciencePage.js,
+TODO.md, tests/oceanChemistry.test.js, tests/biosignatureContext.test.js,
+tests/nasaCalibration.test.js)
+
+Planets and modeled moons now expose `ocean-chemistry-v1` and
+`biosignature-context-v1` derived diagnostics. Ocean chemistry reports water
+context, inferred or explicit salinity, brine/ammonia freezing-point effects,
+acidity/buffering class, carbonate support, rock-ocean access, and
+hydrothermal/nutrient support. The model is qualitative and confidence-labeled,
+with high-pressure ice and inferred-salinity caveats kept visible.
+
+Biosignature context now frames O2/O3, CH4, CO, haze, source demand, redox, UV,
+ocean sinks, and atmospheric replenishment as environmental interpretation
+rather than life detection. Planet and moon outputs surface the new rows in
+Habitability and Derived Details, and the Science page documents the chemistry
+and false-positive boundaries. NASA calibration checks verify Earth-like ocean
+buffering, Europa-like subsurface-ocean chemistry, non-ocean Moon/Mars/Venus
+contexts, and no life-positive summary language.
+
+### Second-Generation Environment Coupling Phase 5
+
+**Added cloud/circulation context and carbonate-silicate tendency diagnostics**
+(engine/environment/cloudCirculation.js, engine/environment/carbonCycle.js,
+engine/environment/climateChemistryForcing.js, engine/planet.js,
+engine/moon.js, engine/habitability/schema.js, engine/habitability/context.js,
+engine/habitability/stability.js, ui/planetPage.js, ui/moonPage.js,
+ui/sciencePage.js, TODO.md, tests/cloudCirculation.test.js,
+tests/carbonCycleContext.test.js, tests/nasaCalibration.test.js)
+
+Planets and modeled moons now expose `cloud-circulation-v1` and
+`carbon-cycle-v1` derived diagnostics. The cloud context estimates cloud
+fraction, cloud albedo leverage, substellar cloud-deck likelihood, heat
+redistribution efficiency, circulation regime, and collapse-risk modification.
+The carbon-cycle context reports weathering efficiency, volcanic supply,
+tectonic recycling, thermostat strength, tendency class, limiters, and caveats
+without pretending to solve full CO2 history.
+
+The Phase 4 climate-chemistry diagnostic now consumes the cloud-albedo term as
+bounded cooling while keeping legacy temperatures unchanged. Planet and moon
+output tabs now show Cloud Regime, Heat Redistribution, Carbon Cycle, and
+detailed weathering/recycling rows. NASA calibration checks verify Earth has
+plausible cloud/transport and stronger weathering/recycling context, Venus and
+Mars do not receive Earth-like thermostat benefits, and Moon/Europa-style
+airless bodies do not receive exposed-cloud or atmospheric carbon-cycle
+benefits.
+
+### Second-Generation Environment Coupling Phase 4
+
+**Added bounded climate-chemistry forcing diagnostics**
+(engine/environment/climateChemistryForcing.js, engine/planet.js,
+engine/moon.js, engine/habitability/schema.js, engine/habitability/context.js,
+ui/planetPage.js, ui/moonPage.js, ui/sciencePage.js,
+tests/climateChemistryForcing.test.js, tests/planet.test.js,
+tests/moonAtmosphere.test.js, tests/nasaCalibration.test.js)
+
+Planets and moons now expose a derived-only `climate-chemistry-forcing-v1`
+diagnostic with haze cooling, methane greenhouse tendency, sulfur aerosol
+cooling gated by volcanic persistence, future cloud-albedo placeholder, water
+vapour feedback, net forcing, and diagnostic coupled surface temperature. The
+legacy `surfaceTempK` and moon `temperature.surfaceK` outputs remain unchanged.
+
+Planet and moon output panels now show Coupled Climate Tendency and
+Photochemical Forcing rows. NASA calibration checks verify Earth remains near
+baseline, Venus remains extremely hot, Mars remains cold/thin-atmosphere
+dominated, and the Moon remains airless under the diagnostic.
+
+### Second-Generation Environment Coupling Phases 0-3
+
+**Added shared forcing, magnetosphere/radiation coupling, and atmosphere ledgers**
+(engine/environment/index.js, engine/environment/forcing.js,
+engine/environment/magnetosphere.js, engine/environment/atmosphereLedger.js,
+engine/planet.js, engine/moon.js, engine/gasGiant.js,
+engine/habitability/context.js, engine/habitability/radiation.js,
+ui/planetPage.js, ui/moonPage.js, ui/planet/rockyOutputGroups.js,
+tests/environmentCouplingBaselines.test.js, tests/environmentForcing.test.js,
+tests/magnetosphereEnvironment.test.js, tests/atmosphereLedger.test.js,
+tests/nasaCalibration.test.js)
+
+The second-generation environment layer now starts from shared forcing objects
+rather than each solver recomputing its own context. Planets, volatile worlds,
+gas giants, brown dwarfs, moons, world snapshots, visualizer summaries, and
+output pages can consume the same bolometric flux, XUV, prebiotic UV, wind,
+companion, variability, confidence, and caveat fields.
+
+Magnetosphere and radiation context now respond to local wind pressure,
+including wind-compressed rocky and giant magnetospheres, bounded rocky
+radiation shielding, and parent-magnetosphere context for moons. The atmosphere
+ledger adds shared source-sink diagnostics for rocky planets and moons,
+including dominant source, dominant sink, broad stability timescale, trend, and
+habitability-facing caveats.
+
+NASA calibration gates now check these phases against Earth, Venus, Mars, the
+Moon, and Europa, keeping the new coupling layer scientifically bounded before
+later climate, chemistry, timeline, and visual integrations consume it.
+
+### Stellar Environment And Surface Photochemistry Phase 5
+
+**Completed cross-model stellar-environment wiring, output grouping, and science copy**
+(ui/star/outputModel.js, ui/star/constants.js, ui/planetPage.js,
+ui/sciencePage.js, TODO.md,
+tests/starOutputModel.test.js, tests/inputDraftStability.ui.test.js,
+tests/sciencePageReference.ui.test.js)
+
+Star outputs now group XUV flux, prebiotic UV flux, wind mass loss, and wind
+pressure under a dedicated Stellar Environment section, with detailed rows kept
+separate from flare/CME activity. Planet outputs continue to surface stellar
+wind pressure, prebiotic UV flux, prebiotic UV window, surface light, and
+organic haze diagnostics in the Environment and Habitability sections.
+
+Science and tooltip copy now documents the main caveats: gyrochronology is a
+representative differential-rotation diagnostic, stellar-wind pressure is not a
+magnetopause or erosion solver, prebiotic UV is chemistry context rather than a
+life claim, and haze cooling remains diagnostic rather than changing the legacy
+surface-temperature solve.
+
+### Stellar Environment And Surface Photochemistry Phase 4
+
+**Added organic photochemical haze diagnostics for rocky planets**
+(engine/planet/photochemistry.js, engine/planet.js,
+engine/habitability/schema.js, engine/habitability/context.js,
+ui/planetPage.js, ui/rockyPlanetStyles.js, tests/planetPhotochemistry.test.js,
+tests/habitabilityChemistry.test.js, tests/planet.test.js,
+tests/rockyPlanetStyles.test.js, tests/inputDraftStability.ui.test.js)
+
+Rocky planet photochemistry now reports Titan/Archean-style organic haze
+likelihood from CH4/CO2 ratio, oxygen suppression, atmospheric pressure, and
+available UV. The diagnostic exposes haze class, UV and visible optical-depth
+proxies, surface-light reduction, sky tint class, confidence, and
+anti-greenhouse cooling potential.
+
+The haze cooling term is intentionally reported as a diagnostic only and does
+not change legacy `surfaceTempK`. Hazy rocky worlds now surface
+compact Environment KPIs, detailed Environment and Habitability rows, and
+amber visual haze metadata without changing physical habitability scores.
+
+### Stellar Environment And Surface Photochemistry Phase 3
+
+**Added stellar UV band fluxes and planet prebiotic UV-window diagnostics**
+(engine/physics/radiative.js, engine/stellarEnvironment.js, engine/star.js,
+engine/homeSystem/flux.js, engine/homeSystem/context.js, engine/planet.js,
+engine/planet/photochemistry.js, engine/habitability/schema.js,
+engine/habitability/context.js, ui/star/outputModel.js, ui/star/constants.js,
+ui/planetPage.js, tests/physicsRadiative.test.js, tests/starUvBands.test.js,
+tests/planetPhotochemistry.test.js, tests/habitabilityChemistry.test.js,
+tests/starOutputModel.test.js)
+
+Stars now expose photospheric 200-280 nm and 100-280 nm UV band fluxes at
+1 AU, with Earth-normalised ratios and confidence notes for cool-star,
+hot-star, and brown-dwarf regimes. Multi-star host-frame flux aggregation now
+carries prebiotic UV context alongside visible light, XUV, and wind.
+
+Rocky planet photochemistry now reports a bounded prebiotic UV starter-window
+diagnostic based on stellar UV supply, atmospheric shielding, haze attenuation,
+surface-liquid coverage, and surface temperature. The verdict distinguishes
+UV-starved, starter-window, UV-overexposed, and no-surface-solvent cases, and
+is explicitly framed as chemistry context rather than a life or biosignature
+claim.
+
+### Stellar Environment And Surface Photochemistry Phase 2
+
+**Connected differential rotation to stellar activity and added stellar-wind diagnostics**
+(engine/stellarEnvironment.js, engine/stellarActivity.js, engine/star.js,
+engine/homeSystem/flux.js, engine/planet.js, ui/star/outputModel.js,
+ui/planetPage.js, tests/starWind.test.js, tests/stellarActivity.test.js,
+tests/starOutputModel.test.js, tests/planet.test.js)
+
+Star activity now consumes the solved Rossby number through a bounded
+rotation-activity factor, so fast rotators can become visibly more active
+without disturbing the solar old-FGK baseline. Star outputs now report wind
+mass loss and wind pressure at 1 AU.
+
+Rocky planet solves now expose diagnostic local stellar-wind pressure in
+Environment details, including multi-star host-frame companion wind context.
+The wind result is intentionally diagnostic in this phase and does not yet
+change atmospheric escape, magnetopause sizing, climate, or habitability
+scores.
+
+### Stellar Environment And Surface Photochemistry Phase 1
+
+**Added stellar rotation, differential-rotation, and gyrochronology context**
+(engine/stellarEnvironment.js, engine/star.js, ui/star/outputModel.js,
+ui/star/constants.js, tests/starRotation.test.js, tests/star.test.js,
+tests/starOutputModel.test.js)
+
+Stars now expose derived rotation context without adding new saved-world
+inputs. The model estimates B-V color, convective turnover time, representative
+rotation period, equatorial rotation velocity, Rossby number, and
+gyrochronology confidence, with cool-dwarf, hot-star, evolved-star, and brown
+dwarf caveats kept visible.
+
+The rotation output was corrected to avoid implying solid-body stellar
+rotation. Solar-like stars now expose equatorial period, polar period, period
+range, and differential shear, while the legacy representative period remains a
+spot-modulation-style summary for compatibility. The Star page shows the
+surface period range and related activity context.
+
 ## 2.8.0 - 2026-06-15
 
 ### Priority 1 Science UX Quick Wins

@@ -48,6 +48,39 @@ const OCEAN_COLOURS = {
 };
 const DEFAULT_OCEAN_COLOUR = "#2b7fca";
 
+function parseHexColour(hex, fallback = "#000000") {
+  const source = typeof hex === "string" && /^#[0-9a-f]{6}$/i.test(hex) ? hex : fallback;
+  return {
+    r: Number.parseInt(source.slice(1, 3), 16),
+    g: Number.parseInt(source.slice(3, 5), 16),
+    b: Number.parseInt(source.slice(5, 7), 16),
+  };
+}
+
+function componentToHex(value) {
+  return clamp(Math.round(value), 0, 255).toString(16).padStart(2, "0");
+}
+
+function mixHexColour(fromHex, toHex, amount) {
+  const from = parseHexColour(fromHex);
+  const to = parseHexColour(toHex);
+  const t = clamp(Number(amount) || 0, 0, 1);
+  return `#${componentToHex(from.r + (to.r - from.r) * t)}${componentToHex(
+    from.g + (to.g - from.g) * t,
+  )}${componentToHex(from.b + (to.b - from.b) * t)}`;
+}
+
+function hazeTintColourForClass(hazeClass) {
+  if (hazeClass === "Thick organic haze") return "#b7652f";
+  if (hazeClass === "Organic haze") return "#c9853d";
+  if (hazeClass === "Light organic haze") return "#e1b86f";
+  return null;
+}
+
+function isStrongOrganicHaze(hazeClass) {
+  return hazeClass === "Organic haze" || hazeClass === "Thick organic haze";
+}
+
 // ── Profile computation ──────────────────────────────────────────
 
 function iceCapsFromTemp(tempK, axialTiltDeg) {
@@ -134,6 +167,14 @@ export function computeRockyVisualProfile(derived, inputs) {
   const d = derived || {};
   const inp = inputs || {};
   const hydrosphere = resolveHydrosphere(d, inp);
+  const haze =
+    d.photochemistry?.haze && typeof d.photochemistry.haze === "object"
+      ? d.photochemistry.haze
+      : {};
+  const hazeClass = String(haze.hazeClass || "None");
+  const hazeLikelihoodScore = clamp(Number(haze.likelihoodScore) || 0, 0, 1);
+  const hazeTintColour = haze.tintHex || hazeTintColourForClass(hazeClass);
+  const strongOrganicHaze = isStrongOrganicHaze(hazeClass);
 
   // Palette — tinted by albedo when available
   const basePalette = SURFACE_PALETTES[d.compositionClass] || SURFACE_PALETTES["Earth-like"];
@@ -168,11 +209,18 @@ export function computeRockyVisualProfile(derived, inputs) {
   const pressure = Number(inp.pressureAtm) || 0;
   const h2o = Number(inp.h2oPct) || 0;
   const co2 = Number(inp.co2Pct) || 0;
+  const modeledCloudFraction = Number(d.cloudCirculation?.cloudFraction);
   let cloudCoverage = pressure > 0 ? clamp(((pressure * h2o) / 100) * 2, 0, 0.95) : 0;
   let cloudColour = "#ffffff";
+  let cloudSource = "atmosphere-water-heuristic";
+  if (pressure > 0 && Number.isFinite(modeledCloudFraction)) {
+    cloudCoverage = clamp(modeledCloudFraction, 0, 0.95);
+    cloudSource = "cloud-circulation";
+  }
   if (pressure > 10 && co2 > 80) {
-    cloudCoverage = 0.95;
+    cloudCoverage = cloudSource === "cloud-circulation" ? Math.max(cloudCoverage, 0.85) : 0.95;
     cloudColour = "#e0d0a0";
+    cloudSource = cloudSource === "cloud-circulation" ? cloudSource : "dense-co2";
   }
 
   // Atmosphere rim
@@ -180,6 +228,11 @@ export function computeRockyVisualProfile(derived, inputs) {
   let atmColour = d.skyColourDayHex || "#6688bb";
   if (pressure > 0) {
     atmThickness = clamp(Math.log10(pressure + 0.01) * 0.05 + 0.04, 0, 0.15);
+  }
+  if (pressure > 0 && strongOrganicHaze && hazeTintColour) {
+    const hazeBlend = clamp(0.22 + hazeLikelihoodScore * 0.38, 0.22, 0.6);
+    atmColour = mixHexColour(atmColour, hazeTintColour, hazeBlend);
+    atmThickness = clamp(atmThickness + 0.02 + 0.04 * hazeLikelihoodScore, 0, 0.22);
   }
 
   // Terrain
@@ -210,6 +263,14 @@ export function computeRockyVisualProfile(derived, inputs) {
     vegCoverage = clamp(0.35 * landFraction, 0, 0.4);
     vegColour = d.vegetationDeepHex || d.vegetationPaleHex;
   }
+  const vegetationVisualMutedByHaze = !!vegColour && strongOrganicHaze;
+  if (vegetationVisualMutedByHaze) {
+    vegColour = mixHexColour(
+      vegColour,
+      "#7c6b3a",
+      clamp(0.18 + hazeLikelihoodScore * 0.32, 0.18, 0.5),
+    );
+  }
 
   // Special effects
   let special = null;
@@ -227,10 +288,28 @@ export function computeRockyVisualProfile(derived, inputs) {
     surface: { landCoverage: exposedLandFraction },
     ocean: { coverage: oceanCoverage, colour: oceanColour, frozen },
     iceCaps,
-    clouds: { coverage: cloudCoverage, colour: cloudColour },
-    atmosphere: { thickness: atmThickness, colour: atmColour },
+    clouds: {
+      coverage: cloudCoverage,
+      colour: cloudColour,
+      source: cloudSource,
+      circulationRegime: d.cloudCirculation?.circulationRegime || "",
+    },
+    atmosphere: {
+      thickness: atmThickness,
+      colour: atmColour,
+      haze: strongOrganicHaze ? clamp(0.12 + hazeLikelihoodScore * 0.58, 0, 0.7) : 0,
+      hazeClass,
+      tintClass: haze.skyTintClass || "None",
+      tintColour: hazeTintColour,
+      surfaceLightReductionFraction: clamp(Number(haze.surfaceLightReductionFraction) || 0, 0, 1),
+      coolingPotentialK: Math.max(Number(haze.antiGreenhouseCoolingK) || 0, 0),
+    },
     terrain: { type: terrainType, craterDensity },
-    vegetation: { coverage: vegCoverage, colour: vegColour },
+    vegetation: {
+      coverage: vegCoverage,
+      colour: vegColour,
+      visualMutedByHaze: vegetationVisualMutedByHaze,
+    },
     desert: { coverage: desertCoverage },
     lava: { coverage: lavaCoverage },
     special,

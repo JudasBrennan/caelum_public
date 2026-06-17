@@ -1,4 +1,4 @@
-import { fmt } from "../utils.js";
+import { clamp, fmt } from "../utils.js";
 import {
   DIFFERENTIATED_PLANET_K2_SCALE,
   EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR,
@@ -13,6 +13,12 @@ import {
   calcTidalLockTimeSeconds,
   selectSpinOrbitResonance,
 } from "../physics/rotation.js";
+import {
+  classifySmallBodyRegime,
+  estimateSmallBodyLoveNumber,
+  estimateSmallBodyRigidity,
+  estimateSmallBodyTidalQ,
+} from "./smallBody.js";
 
 const PI = Math.PI;
 const G = 6.67e-11;
@@ -20,12 +26,11 @@ const KM_PER_REARTH = 6371;
 const KM_PER_RMOON = 1737.4;
 const SEC_PER_DAY = 86400;
 const SECONDS_TO_GYR = 3.171e-17;
-const LEGACY_TIDAL_MOON_MASS_KG = 7.35e22;
-const TIDAL_MOON_MASS_SCALE = LEGACY_TIDAL_MOON_MASS_KG / moonMassToKg(1);
 
 const RIGIDITY = SILICATE_RIGIDITY_PA;
 const EARTH_TIDES_REF = 1501373691439.2996;
 const EARTH_GEOTHERMAL_WM2 = 0.09;
+const NUMERICAL_FLOOR_MOON_MASS = 1e-12;
 
 const MELT_FLUX_CRIT = 0.02;
 const PARTIALLY_MOLTEN_PROFILE = getMoonMaterialProfileByClass({
@@ -43,6 +48,14 @@ function planetLockStatusFromGyr(tGyr) {
   if (tGyr < 100) return "Maybe (~10s Gyr)";
   if (tGyr >= 100) return "Maybe (~100s Gyr)";
   return "";
+}
+
+function estimateHostTidalQualityFactor({ isGasGiant, planetMassEarth }) {
+  if (isGasGiant) return GAS_GIANT_HOST_TIDAL_QUALITY_FACTOR;
+
+  const mass = clamp(Number(planetMassEarth) || 1, 0.05, 10);
+  const massScaling = mass < 1 ? mass ** -0.9 : mass ** -0.25;
+  return clamp(EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR * massScaling, 10, 300);
 }
 
 function buildMoonSpinState({ tidallyEvolved, resonance }) {
@@ -163,16 +176,25 @@ export function computeMoonTidalState({
   hasCompositionOverride,
   innerFateTargetLabel = "Roche limit",
 }) {
-  const moonMassKg = moonMassToKg(moonMassMoon) * TIDAL_MOON_MASS_SCALE;
+  const inputValidationMassMoon = Math.max(0, Number(moonMassMoon) || 0);
+  const physicsMassMoon = inputValidationMassMoon;
+  const numericalFloorMassMoon = NUMERICAL_FLOOR_MOON_MASS;
+  const moonMassKg = moonMassToKg(physicsMassMoon);
+  const moonMassKgForDivision = Math.max(moonMassKg, moonMassToKg(numericalFloorMassMoon));
   const moonRadiusM = moonRadiusMoon * KM_PER_RMOON * 1000;
   const moonDensityKgM3 = moonDensityGcm3 * 1000;
   const moonGravityMs2 = moonGravityG * 9.81;
+  const moonRadiusKm = moonRadiusM / 1000;
+  const moonDiameterKm = moonRadiusKm * 2;
 
   const planetMassKg = earthMassToKg(planetMassEarth);
   const planetRadiusM = planetRadiusEarth * KM_PER_REARTH * 1000;
   const planetDensityKgM3 = planetDensityGcm3 * 1000;
   const planetGravityMs2 = (planetMassEarth / planetRadiusEarth ** 2) * 9.81;
   const starMassKg = solarMassToKg(starMassMsol);
+  const isGasGiant = planetDensityGcm3 < 2;
+  const qPlanetEff = estimateHostTidalQualityFactor({ isGasGiant, planetMassEarth });
+  const qPlanetModel = isGasGiant ? "gas-giant-host-q-v1" : "rocky-host-mass-scaled-q-v1";
 
   const omegaMoon = (2 * PI) / (initialRotationPeriodHours * 3600);
   const omegaPlanet = (2 * PI) / (planetRotationHours * 3600);
@@ -180,16 +202,56 @@ export function computeMoonTidalState({
   const planetSemiMajorAxisM = auToMeters(planetSemiMajorAxisAu);
 
   const inertiaMoon = 0.4 * moonMassKg * moonRadiusM ** 2;
-  const isGasGiant = planetDensityGcm3 < 2;
   const planetMomentOfInertiaFactor = isGasGiant ? 0.25 : 0.3307;
   const inertiaPlanet = planetMomentOfInertiaFactor * planetMassKg * planetRadiusM ** 2;
 
-  const k2Moon = calcK2LoveNumber({
+  const smallBodyRegime = classifySmallBodyRegime({
+    massMoon: physicsMassMoon,
+    massKg: moonMassKg,
+    radiusM: moonRadiusM,
+    radiusKm: moonRadiusKm,
+    densityGcm3: moonDensityGcm3,
+    diameterKm: moonDiameterKm,
+    gravityMs2: moonGravityMs2,
+  });
+
+  let moonResponseRigidity = composition.mu;
+  let qMoon = composition.Q;
+  let k2Model = "homogeneous-elastic-moon-v1";
+  let qModel = hasCompositionOverride ? "composition-override-q-v1" : "density-derived-moon-q-v1";
+  if (smallBodyRegime.appliesSmallBodyTides) {
+    moonResponseRigidity = estimateSmallBodyRigidity({
+      densityGcm3: moonDensityGcm3,
+      diameterKm: moonDiameterKm,
+      structuralClass: smallBodyRegime.structuralClass,
+      compositionRigidityPa: composition.mu,
+    });
+    qMoon = estimateSmallBodyTidalQ({
+      densityGcm3: moonDensityGcm3,
+      diameterKm: moonDiameterKm,
+      gravityMs2: moonGravityMs2,
+      structuralClass: smallBodyRegime.structuralClass,
+    });
+    k2Model = "small-body-elastic-gravity-v1";
+    qModel = "small-body-porosity-gravity-q-v1";
+  }
+
+  let k2Moon = calcK2LoveNumber({
     densityKgM3: moonDensityKgM3,
     gravityMs2: moonGravityMs2,
     radiusM: moonRadiusM,
-    rigidityPa: composition.mu,
+    rigidityPa: moonResponseRigidity,
   });
+  if (smallBodyRegime.appliesSmallBodyTides) {
+    k2Moon = estimateSmallBodyLoveNumber({
+      densityKgM3: moonDensityKgM3,
+      densityGcm3: moonDensityGcm3,
+      gravityMs2: moonGravityMs2,
+      radiusM: moonRadiusM,
+      diameterKm: moonDiameterKm,
+      rigidityPa: moonResponseRigidity,
+    });
+  }
   const k2Planet = calcK2LoveNumber({
     densityKgM3: planetDensityKgM3,
     gravityMs2: planetGravityMs2,
@@ -203,7 +265,7 @@ export function computeMoonTidalState({
       spinRateRadPerSec: omegaMoon,
       orbitalSeparationM: moonSemiMajorAxisM,
       momentOfInertiaKgM2: inertiaMoon,
-      qualityFactor: composition.Q,
+      qualityFactor: qMoon,
       otherMassKg: planetMassKg,
       loveNumberK2: k2Moon,
       radiusM: moonRadiusM,
@@ -213,8 +275,8 @@ export function computeMoonTidalState({
       spinRateRadPerSec: omegaPlanet,
       orbitalSeparationM: moonSemiMajorAxisM,
       momentOfInertiaKgM2: inertiaPlanet,
-      qualityFactor: EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR,
-      otherMassKg: moonMassKg,
+      qualityFactor: qPlanetEff,
+      otherMassKg: moonMassKgForDivision,
       loveNumberK2: k2PlanetForLock,
       radiusM: planetRadiusM,
     }) * SECONDS_TO_GYR;
@@ -223,7 +285,7 @@ export function computeMoonTidalState({
       spinRateRadPerSec: omegaPlanet,
       orbitalSeparationM: planetSemiMajorAxisM,
       momentOfInertiaKgM2: inertiaPlanet,
-      qualityFactor: EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR,
+      qualityFactor: qPlanetEff,
       otherMassKg: starMassKg,
       loveNumberK2: k2PlanetForLock,
       radiusM: planetRadiusM,
@@ -244,16 +306,21 @@ export function computeMoonTidalState({
     ((G * planetMassKg ** 2 * moonRadiusM ** 5 * nMeanMotion) / moonSemiMajorAxisM ** 6) *
     calcEccentricityFactor({ eccentricity: moonEccentricity });
 
-  const tidalHeatingW0 = tidalGeomFactor * (k2Moon / composition.Q);
+  const tidalHeatingW0 = tidalGeomFactor * (k2Moon / qMoon);
   const tidalFlux0 = surfaceAreaM2 > 0 ? tidalHeatingW0 / surfaceAreaM2 : 0;
 
   let tidalFeedbackActive = false;
   let meltFraction = 0;
-  let effectiveRigidity = composition.mu;
-  let effectiveQ = composition.Q;
+  let effectiveRigidity = moonResponseRigidity;
+  let effectiveQ = qMoon;
   let tidalHeatingW = tidalHeatingW0;
 
-  if (!hasCompositionOverride && moonDensityGcm3 >= 3.2 && tidalFlux0 > 0) {
+  if (
+    !smallBodyRegime.appliesSmallBodyTides &&
+    !hasCompositionOverride &&
+    moonDensityGcm3 >= 3.2 &&
+    tidalFlux0 > 0
+  ) {
     const ratio = tidalFlux0 / MELT_FLUX_CRIT;
     meltFraction = ratio > 0 ? 1 / (1 + ratio ** -3) : 0;
     if (meltFraction > 0.01) {
@@ -276,9 +343,6 @@ export function computeMoonTidalState({
   const tidalHeatingEarth = tidalHeatingWm2 / EARTH_GEOTHERMAL_WM2;
 
   const k2PlanetEff = k2Planet * DIFFERENTIATED_PLANET_K2_SCALE;
-  const qPlanetEff = isGasGiant
-    ? GAS_GIANT_HOST_TIDAL_QUALITY_FACTOR
-    : EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR;
   const signFactor = orbitalDirection === "Retrograde" ? -1 : Math.sign(omegaPlanet - nMeanMotion);
   const dadtPlanet =
     signFactor *
@@ -289,8 +353,8 @@ export function computeMoonTidalState({
     (planetRadiusM ** 5 / moonSemiMajorAxisM ** 4);
   const dadtMoon =
     ((-21 / 2) *
-      (k2Moon / composition.Q) *
-      (planetMassKg / moonMassKg) *
+      (k2Moon / qMoon) *
+      (planetMassKg / moonMassKgForDivision) *
       nMeanMotion *
       (moonRadiusM ** 5 * moonEccentricity ** 2)) /
     moonSemiMajorAxisM ** 4;
@@ -347,14 +411,33 @@ export function computeMoonTidalState({
     tidalHeatingEarth,
     compositionClass: composition.compositionClass,
     k2Moon,
-    qMoon: composition.Q,
-    rigidityMoonGPa: composition.mu / 1e9,
+    qMoon,
+    rigidityMoonGPa: moonResponseRigidity / 1e9,
+    tidalRegime: smallBodyRegime.tidalRegime,
+    smallBodyRegime,
+    k2Model,
+    qModel,
+    qPlanet: qPlanetEff,
+    qPlanetModel,
+    k2Planet,
+    k2PlanetEffective: k2PlanetEff,
+    tidalUncertaintyCaveats: smallBodyRegime.caveats,
+    massModel: {
+      inputValidationMassMoon,
+      physicsMassMoon,
+      displayMassMoon: physicsMassMoon,
+      numericalFloorMassMoon,
+      physicsMassKg: moonMassKg,
+      numericalFloorMassKg: moonMassKgForDivision,
+    },
     tidalFeedbackActive,
     meltFraction,
     qEffective: effectiveQ,
     rigidityEffectiveGPa: effectiveRigidity / 1e9,
     recessionCmYr,
     dadtTotalMs,
+    dadtPlanetMs: dadtPlanet,
+    dadtMoonMs: dadtMoon,
     fateTimescaleMethod: "integrated-a^-11/2-v1",
     innerFateTargetLabel,
     timeToRocheGyr,

@@ -20,6 +20,12 @@ export function shortPopulationLabel(label) {
   return txt;
 }
 
+function titleCaseLabel(label) {
+  const txt = String(label || "").trim();
+  if (!txt) return "";
+  return `${txt.charAt(0).toUpperCase()}${txt.slice(1)}`;
+}
+
 function hasPositiveLifeSignal(value) {
   return /^yes$/i.test(String(value || "").trim());
 }
@@ -184,6 +190,63 @@ export function createStarOutputModelHelpers({
     const xuvFluxMeta = isBrownDwarfModel(model)
       ? `${model.display.xuvFluxRatioEarth} | negligible`
       : `${model.display.xuvFluxRatioEarth} | saturation ${model.display.xuvSaturationAge}`;
+    const rotation = model?.stellarEnvironment?.rotation || {};
+    const rotationNotes = Array.isArray(rotation.notes) ? rotation.notes.join(" ") : "";
+    const differentialNotes = Array.isArray(rotation.differentialRotation?.notes)
+      ? rotation.differentialRotation.notes.join(" ")
+      : "";
+    const rotationPeriodValue = model?.display?.rotationPeriod || "Unsupported";
+    const rotationRepresentativeValue = model?.display?.rotationRepresentativePeriod || "";
+    const rotationVelocityValue = model?.display?.rotationVelocity || "Unsupported";
+    const differentialShearValue = model?.display?.differentialShear || "Unsupported";
+    const rossbyValue = model?.display?.rossbyNumber || "n/a";
+    const rotationConfidenceRaw = String(rotation.confidence || "unsupported");
+    const rotationConfidenceValue =
+      rotationConfidenceRaw === "unsupported"
+        ? "Unsupported"
+        : titleCaseLabel(rotationConfidenceRaw);
+    const gyrochronologyMeta =
+      model?.display?.gyrochronology || rotationNotes || "No calibrated gyrochronology estimate";
+    const rotationPeriodMeta =
+      rotationConfidenceRaw === "unsupported"
+        ? rotationNotes || "No calibrated gyrochronology estimate"
+        : `${rotationRepresentativeValue} | ${gyrochronologyMeta}`;
+    const rotationVelocityMeta =
+      rotationConfidenceRaw === "unsupported"
+        ? rotationNotes || "No finite rotation period"
+        : "Equatorial speed from the faster equatorial period and radius";
+    const differentialShearMeta =
+      rotation.differentialRotation?.law || differentialNotes || "Latitude-dependent surface shear";
+    const rossbyMeta = Number.isFinite(rotation.convectiveTurnoverDays)
+      ? `Turnover ${formatNumber(rotation.convectiveTurnoverDays, 2)} days | ${rotation.regime}`
+      : rotationNotes || "No finite convective turnover estimate";
+    const wind = model?.stellarEnvironment?.wind || {};
+    const windNotes = Array.isArray(wind.notes) ? wind.notes.join(" ") : "";
+    const windMassLossValue = model?.display?.windMassLoss || "Unsupported";
+    const windPressureValue = model?.display?.windPressureAt1Au || "Unsupported";
+    const windSpeedValue = model?.display?.windSpeed || "Unsupported";
+    const windConfidenceValue = model?.display?.windConfidence || "Unsupported";
+    const windMeta =
+      wind.confidence === "unsupported"
+        ? windNotes || "No calibrated stellar wind estimate"
+        : `${windSpeedValue} | ${windConfidenceValue}`;
+    const uv = model?.stellarEnvironment?.uv || {};
+    const uvNotes = Array.isArray(uv.notes) ? uv.notes.join(" ") : "";
+    const prebioticUvValue = model?.display?.prebioticUvAt1Au || "Unsupported";
+    const prebioticUvMeta =
+      uv.confidence === "unsupported"
+        ? uvNotes || "No calibrated UV band estimate"
+        : `${model?.display?.prebioticUvRatioEarth || "0x Earth"} | ${model?.display?.prebioticUvConfidence || "Low confidence"}`;
+    const rotationActivityFactor = Number(activity?.rotationActivityFactor);
+    const rotationActivityRegime = String(activity?.rotationActivityRegime || "unknown");
+    const rotationActivityMeta =
+      rotationActivityRegime === "unknown"
+        ? "Teff + age bins"
+        : `Rotation factor ${formatNumber(rotationActivityFactor, 2)}x | ${rotationActivityRegime}`;
+    const gyroConfidenceMeta =
+      rotation.regime && rotationNotes
+        ? `${rotation.regime} | ${rotationNotes}`
+        : rotation.regime || rotationNotes;
     const life = model.earthLikeLifePossible;
     const classLabel = getHostClassLabel(model);
     const classValue = getHostClassValue(model);
@@ -239,6 +302,12 @@ export function createStarOutputModelHelpers({
       collapsible: true,
       open: false,
     });
+    const stellarEnvironmentItems = [
+      starKpi("XUV Flux at 1 AU", model.display.xuvFluxAt1Au, xuvFluxMeta),
+      starKpi("Prebiotic UV at 1 AU", prebioticUvValue, prebioticUvMeta),
+      starKpi("Mass Loss", windMassLossValue, windMeta),
+      starKpi("Wind Pressure at 1 AU", windPressureValue, windMeta),
+    ];
 
     const systemContextItems = [
       ...(isMulti
@@ -414,8 +483,13 @@ export function createStarOutputModelHelpers({
             { tip: buildLuminosityKpiTooltip(model) },
           ),
           starKpi("Temperature", formatNumber(model.tempK, 0), "K"),
+          starKpi("Rotation Period", rotationPeriodValue, rotationPeriodMeta),
           starKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" }),
-          starKpi("Activity Regime", `${activity.teffBin}/${activity.ageBand}`, "Teff + age bins"),
+          starKpi(
+            "Activity Regime",
+            `${activity.teffBin}/${activity.ageBand}`,
+            rotationActivityMeta,
+          ),
           starKpi(lifeLabel, lifeValue, lifeMeta, { tipLabel: "Earth-like Life?" }),
         ],
       },
@@ -464,6 +538,12 @@ export function createStarOutputModelHelpers({
         items: [starKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" })],
       }),
       collapsedKpiSection({
+        id: "star-stellar-environment",
+        title: "Stellar Environment",
+        density: "compact",
+        items: stellarEnvironmentItems,
+      }),
+      collapsedKpiSection({
         id: "star-system",
         title: "System Context",
         density: "compact",
@@ -474,9 +554,19 @@ export function createStarOutputModelHelpers({
         title: "Activity & Radiation",
         density: "compact",
         items: [
-          starKpi("Activity Regime", `${activity.teffBin}/${activity.ageBand}`, "Teff + age bins"),
+          starKpi(
+            "Activity Regime",
+            `${activity.teffBin}/${activity.ageBand}`,
+            rotationActivityMeta,
+          ),
+          starKpi("Rotation Period", rotationPeriodValue, rotationPeriodMeta),
+          starKpi("Rossby Number", rossbyValue, rossbyMeta),
+          starKpi(
+            "Rotation Activity Factor",
+            `${formatNumber(rotationActivityFactor, 2)}x`,
+            rotationActivityRegime,
+          ),
           starKpi("XUV Regime", model.display.xuvRegime, model.display.xuvSaturationAge),
-          starKpi("XUV Flux at 1 AU", model.display.xuvFluxAt1Au, xuvFluxMeta),
           starKpi("XUV Luminosity", model.display.xuvLuminosityW, model.display.xuvLuminosityErgS),
           starKpi(
             "N32 Rate",
@@ -551,6 +641,23 @@ export function createStarOutputModelHelpers({
           },
           { label: "Density", value: `${formatNumber(model.densityGcm3, 3)} g/cm³` },
           { label: "Temperature", value: `${formatNumber(model.tempK, 0)} K` },
+          { label: "Rotation Period", value: rotationPeriodValue, meta: rotationPeriodMeta },
+          {
+            label: "Equatorial Rotation",
+            value: rotationVelocityValue,
+            meta: rotationVelocityMeta,
+          },
+          {
+            label: "Differential Shear",
+            value: differentialShearValue,
+            meta: differentialShearMeta,
+          },
+          { label: "Rossby Number", value: rossbyValue, meta: rossbyMeta },
+          {
+            label: "Gyrochronology Confidence",
+            value: rotationConfidenceValue,
+            meta: gyroConfidenceMeta,
+          },
         ],
       },
       {
@@ -566,6 +673,37 @@ export function createStarOutputModelHelpers({
         ],
       },
       {
+        id: "star-details-stellar-environment",
+        title: "Stellar Environment",
+        items: [
+          {
+            label: "XUV Flux at 1 AU",
+            value: model.display.xuvFluxAt1Au,
+            meta: model.display.xuvFluxRatioEarth,
+          },
+          {
+            label: "Prebiotic UV at 1 AU",
+            value: prebioticUvValue,
+            meta: `${prebioticUvMeta}${uvNotes ? ` | ${uvNotes}` : ""}`,
+          },
+          {
+            label: "Wind Mass Loss",
+            value: windMassLossValue,
+            meta: windConfidenceValue,
+          },
+          {
+            label: "Wind Pressure at 1 AU",
+            value: windPressureValue,
+            meta: windMeta,
+          },
+          {
+            label: "Stellar Wind",
+            value: windPressureValue,
+            meta: `${windMassLossValue} | ${windMeta}`,
+          },
+        ],
+      },
+      {
         id: "star-details-system",
         title: "System Context",
         items: systemDetailItems,
@@ -574,16 +712,22 @@ export function createStarOutputModelHelpers({
         id: "star-details-activity",
         title: "Activity & Radiation",
         items: [
-          { label: "Activity Regime", value: `${activity.teffBin}/${activity.ageBand}` },
+          {
+            label: "Activity Regime",
+            value: `${activity.teffBin}/${activity.ageBand}`,
+            meta: rotationActivityMeta,
+          },
+          { label: "Rotation Period", value: rotationPeriodValue, meta: rotationPeriodMeta },
+          { label: "Rossby Number", value: rossbyValue, meta: rossbyMeta },
+          {
+            label: "Rotation Activity Factor",
+            value: `${formatNumber(rotationActivityFactor, 2)}x`,
+            meta: rotationActivityRegime,
+          },
           {
             label: "XUV Regime",
             value: model.display.xuvRegime,
             meta: model.display.xuvSaturationAge,
-          },
-          {
-            label: "XUV Flux at 1 AU",
-            value: model.display.xuvFluxAt1Au,
-            meta: model.display.xuvFluxRatioEarth,
           },
           {
             label: "XUV Luminosity",

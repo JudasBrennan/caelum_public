@@ -72,10 +72,14 @@ function surfaceRadiationShieldingFactor({
   pressureAtm,
   surfaceFieldEarths,
   intrinsicFieldKnown = true,
+  magnetosphereRadiationShieldingFactor = null,
 }) {
   const pressureShield = pressureWindowScore(pressureAtm);
   if (intrinsicFieldKnown === false) return pressureShield;
-  const fieldShield = clamp(Math.max(toFinite(surfaceFieldEarths, 0), 0) / 0.3, 0, 1);
+  const explicitMagnetosphereShield = Number(magnetosphereRadiationShieldingFactor);
+  const fieldShield = Number.isFinite(explicitMagnetosphereShield)
+    ? clamp(explicitMagnetosphereShield, 0, 1)
+    : clamp(Math.max(toFinite(surfaceFieldEarths, 0), 0) / 0.3, 0, 1);
   return clamp(0.65 * pressureShield + 0.35 * fieldShield, 0, 1);
 }
 
@@ -223,6 +227,30 @@ export function buildPlanetHabitabilityContext(model = {}) {
     atmosphereComposition,
   });
   const radiogenicHeatingEarth = Math.max(toFinite(derived.radiogenicHeatingEarth, 0), 0);
+  const atmosphereLedger =
+    derived.atmosphereLedger && typeof derived.atmosphereLedger === "object"
+      ? derived.atmosphereLedger
+      : {};
+  const climateChemistryForcing =
+    derived.climateChemistryForcing && typeof derived.climateChemistryForcing === "object"
+      ? derived.climateChemistryForcing
+      : {};
+  const carbonCycleContext =
+    derived.carbonCycleContext && typeof derived.carbonCycleContext === "object"
+      ? derived.carbonCycleContext
+      : {};
+  const oceanChemistryContext =
+    derived.oceanChemistryContext && typeof derived.oceanChemistryContext === "object"
+      ? derived.oceanChemistryContext
+      : {};
+  const biosignatureContext =
+    derived.biosignatureContext && typeof derived.biosignatureContext === "object"
+      ? derived.biosignatureContext
+      : {};
+  const cloudCirculation =
+    derived.cloudCirculation && typeof derived.cloudCirculation === "object"
+      ? derived.cloudCirculation
+      : {};
   const internalHeatSupport = computeInternalHeatSupport(
     derived.planetTidalHeatingEarth,
     radiogenicHeatingEarth,
@@ -280,6 +308,15 @@ export function buildPlanetHabitabilityContext(model = {}) {
       ozoneEarthRatio: derived.photochemistry?.ozoneEarthRatio,
       uvShieldingScore: derived.photochemistry?.uvShieldingScore,
       uvShieldingClass: String(derived.photochemistry?.uvShieldingClass || ""),
+      prebioticUvWindowClass: String(derived.photochemistry?.prebioticUv?.class || ""),
+      prebioticUvSurfaceFluxErgCm2S: derived.photochemistry?.prebioticUv?.surfaceFluxErgCm2S,
+      prebioticUvTopOfAtmosphereFluxErgCm2S:
+        derived.photochemistry?.prebioticUv?.topOfAtmosphereFluxErgCm2S,
+      photochemicalHazeClass: String(derived.photochemistry?.haze?.hazeClass || ""),
+      hazeLikelihoodScore: derived.photochemistry?.haze?.likelihoodScore,
+      hazeAntiGreenhouseCoolingK: derived.photochemistry?.haze?.antiGreenhouseCoolingK,
+      hazeSurfaceLightReductionFraction:
+        derived.photochemistry?.haze?.surfaceLightReductionFraction,
       photochemicalWarningCodes: Array.isArray(derived.photochemistry?.warningCodes)
         ? derived.photochemistry.warningCodes
         : [],
@@ -291,6 +328,11 @@ export function buildPlanetHabitabilityContext(model = {}) {
       climateStatePenalty: toFinite(derived.climateStatePenalty, 1),
       collapsePenalty: toFinite(derived.collapsePenalty, 1),
       stabilityMultiplier: toFinite(derived.stabilityMultiplier, 1),
+      coupledSurfaceTempK: climateChemistryForcing.coupledSurfaceTempK,
+      climateChemistryNetDeltaK: climateChemistryForcing.netDeltaK,
+      coupledClimateTendency: climateChemistryForcing.labelOnlyClimateState,
+      optInClimateState: climateChemistryForcing.optInClimateState,
+      climateChemistryConfidence: climateChemistryForcing.confidence,
     },
     environment: {
       magnetosphericRadRemDay: 0,
@@ -299,7 +341,34 @@ export function buildPlanetHabitabilityContext(model = {}) {
         pressureAtm: inputs.pressureAtm,
         surfaceFieldEarths: derived.surfaceFieldEarths,
         intrinsicFieldKnown: true,
+        magnetosphereRadiationShieldingFactor:
+          derived.magnetosphereEnvironment?.radiationShieldingFactor,
       }),
+      atmosphereTrendClass: atmosphereLedger.trendClass,
+      atmosphereTimescaleClass: atmosphereLedger.timescaleClass,
+      atmosphereSourceIndex: atmosphereLedger.sourceIndex,
+      atmosphereSinkIndex: atmosphereLedger.sinkIndex,
+      atmosphereNetBalance: atmosphereLedger.netBalance,
+      atmosphereDominantSource: atmosphereLedger.dominantSource?.id,
+      atmosphereDominantSink: atmosphereLedger.dominantSink?.id,
+      atmosphereLedgerConfidence: atmosphereLedger.confidence,
+      carbonCycleTendency: carbonCycleContext.tendencyClass,
+      carbonCycleConfidence: carbonCycleContext.confidence,
+      carbonCycleStabilityModifier:
+        carbonCycleContext.confidence === "high" ? carbonCycleContext.stabilityModifier : NaN,
+      carbonCycleThermostatStrength: carbonCycleContext.thermostatStrength,
+      oceanChemistryConfidence: oceanChemistryContext.confidence,
+      oceanChemistryWaterContext: oceanChemistryContext.waterContext,
+      oceanChemistryAcidityClass: oceanChemistryContext.acidityClass,
+      carbonateSaturationClass: oceanChemistryContext.carbonateSaturationClass,
+      nutrientSupportClass: oceanChemistryContext.nutrientSupportClass,
+      biosignatureInterpretationClass: biosignatureContext.interpretationClass,
+      biosignatureConfidence: biosignatureContext.confidence,
+      biosignatureDisequilibriumStrength: biosignatureContext.disequilibriumStrength,
+      o2O3FalsePositiveRisk: biosignatureContext.o2O3FalsePositiveRisk,
+      methaneContext: biosignatureContext.methaneContext,
+      coBuildupRisk: biosignatureContext.coBuildupRisk,
+      cloudHeatRedistributionEfficiency: cloudCirculation.heatRedistributionEfficiency,
       stellarAgeGyr: toFinite(model.star?.inputs?.ageGyr ?? model.star?.ageGyr, 0),
       tidallyLockedToPrimary: false,
       tidallyLockedToStar: derived.tidallyLockedToStar === true,
@@ -390,6 +459,40 @@ export function buildMoonHabitabilityContext(model = {}) {
   const surfaceExomoonCalibration = model.habitability?.summary?.surfaceExomoonCalibration || {};
   const moonIntrinsicField = Math.max(toFinite(model.physical?.surfaceFieldEarths, 0), 0);
   const intrinsicFieldKnown = Number.isFinite(model?.physical?.surfaceFieldEarths);
+  const atmosphereLedger =
+    atmosphere.ledger && typeof atmosphere.ledger === "object" ? atmosphere.ledger : {};
+  const climateChemistryForcing =
+    model.climateChemistryForcing && typeof model.climateChemistryForcing === "object"
+      ? model.climateChemistryForcing
+      : model.derived?.climateChemistryForcing &&
+          typeof model.derived.climateChemistryForcing === "object"
+        ? model.derived.climateChemistryForcing
+        : {};
+  const carbonCycleContext =
+    model.carbonCycleContext && typeof model.carbonCycleContext === "object"
+      ? model.carbonCycleContext
+      : model.derived?.carbonCycleContext && typeof model.derived.carbonCycleContext === "object"
+        ? model.derived.carbonCycleContext
+        : {};
+  const oceanChemistryContext =
+    model.oceanChemistryContext && typeof model.oceanChemistryContext === "object"
+      ? model.oceanChemistryContext
+      : model.derived?.oceanChemistryContext &&
+          typeof model.derived.oceanChemistryContext === "object"
+        ? model.derived.oceanChemistryContext
+        : {};
+  const biosignatureContext =
+    model.biosignatureContext && typeof model.biosignatureContext === "object"
+      ? model.biosignatureContext
+      : model.derived?.biosignatureContext && typeof model.derived.biosignatureContext === "object"
+        ? model.derived.biosignatureContext
+        : {};
+  const cloudCirculation =
+    model.cloudCirculation && typeof model.cloudCirculation === "object"
+      ? model.cloudCirculation
+      : model.derived?.cloudCirculation && typeof model.derived.cloudCirculation === "object"
+        ? model.derived.cloudCirculation
+        : {};
   const insolationEarth =
     planetSemiMajorAxisAu > 0 ? starLuminosityLsol / planetSemiMajorAxisAu ** 2 : 0;
   const internalHeatSupport = computeInternalHeatSupport(
@@ -459,6 +562,11 @@ export function buildMoonHabitabilityContext(model = {}) {
       climateStatePenalty: climate.climateStatePenalty,
       collapsePenalty: climate.collapsePenalty,
       stabilityMultiplier: climate.stabilityMultiplier,
+      coupledSurfaceTempK: climateChemistryForcing.coupledSurfaceTempK,
+      climateChemistryNetDeltaK: climateChemistryForcing.netDeltaK,
+      coupledClimateTendency: climateChemistryForcing.labelOnlyClimateState,
+      optInClimateState: climateChemistryForcing.optInClimateState,
+      climateChemistryConfidence: climateChemistryForcing.confidence,
     },
     environment: {
       magnetosphericRadRemDay: toFinite(radiation.magnetosphericRadRemDay, 0),
@@ -502,6 +610,31 @@ export function buildMoonHabitabilityContext(model = {}) {
         surfaceFieldEarths: intrinsicFieldKnown ? moonIntrinsicField : 0,
         intrinsicFieldKnown,
       }),
+      atmosphereTrendClass: atmosphereLedger.trendClass,
+      atmosphereTimescaleClass: atmosphereLedger.timescaleClass,
+      atmosphereSourceIndex: atmosphereLedger.sourceIndex,
+      atmosphereSinkIndex: atmosphereLedger.sinkIndex,
+      atmosphereNetBalance: atmosphereLedger.netBalance,
+      atmosphereDominantSource: atmosphereLedger.dominantSource?.id,
+      atmosphereDominantSink: atmosphereLedger.dominantSink?.id,
+      atmosphereLedgerConfidence: atmosphereLedger.confidence,
+      carbonCycleTendency: carbonCycleContext.tendencyClass,
+      carbonCycleConfidence: carbonCycleContext.confidence,
+      carbonCycleStabilityModifier:
+        carbonCycleContext.confidence === "high" ? carbonCycleContext.stabilityModifier : NaN,
+      carbonCycleThermostatStrength: carbonCycleContext.thermostatStrength,
+      oceanChemistryConfidence: oceanChemistryContext.confidence,
+      oceanChemistryWaterContext: oceanChemistryContext.waterContext,
+      oceanChemistryAcidityClass: oceanChemistryContext.acidityClass,
+      carbonateSaturationClass: oceanChemistryContext.carbonateSaturationClass,
+      nutrientSupportClass: oceanChemistryContext.nutrientSupportClass,
+      biosignatureInterpretationClass: biosignatureContext.interpretationClass,
+      biosignatureConfidence: biosignatureContext.confidence,
+      biosignatureDisequilibriumStrength: biosignatureContext.disequilibriumStrength,
+      o2O3FalsePositiveRisk: biosignatureContext.o2O3FalsePositiveRisk,
+      methaneContext: biosignatureContext.methaneContext,
+      coBuildupRisk: biosignatureContext.coBuildupRisk,
+      cloudHeatRedistributionEfficiency: cloudCirculation.heatRedistributionEfficiency,
       surfaceExomoonCalibrationPenalty: surfaceExomoonCalibration.penalty,
       surfaceExomoonCalibrationApplicable: surfaceExomoonCalibration.applicable === true,
       surfaceExomoonCalibrationPass: surfaceExomoonCalibration.overallPass !== false,

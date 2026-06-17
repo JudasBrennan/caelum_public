@@ -7,6 +7,7 @@ import { createElement } from "./domHelpers.js";
 import { createCelestialVisualPreviewController } from "./lazyCelestialVisualPreview.js";
 import { renderDerivedDetails } from "./derivedDetails.js";
 import { renderKpiSections } from "./kpiSections.js";
+import { enableOutputSectionTabs } from "./outputSectionTabs.js";
 import { listStellarSystemHostFrames } from "./store/stellarSystemModel.js";
 import { loadGuidedSession } from "./guidedCreation/sessionState.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
@@ -1475,6 +1476,8 @@ export function initStarPage(mountEl, options = {}) {
         ageGyr: Number(nextState.ageGyr),
         teffK: model.tempK,
         luminosityLsun: model.luminosityLsol,
+        rotationPeriodDays: model.stellarEnvironment?.rotation?.periodDays,
+        rossbyNumber: model.stellarEnvironment?.rotation?.rossbyNumber,
       },
       { activityCycle: 0.5 },
     );
@@ -1625,6 +1628,8 @@ export function initStarPage(mountEl, options = {}) {
         ageGyr: state.ageGyr,
         teffK: model.tempK,
         luminosityLsun: model.luminosityLsol,
+        rotationPeriodDays: model.stellarEnvironment?.rotation?.periodDays,
+        rossbyNumber: model.stellarEnvironment?.rotation?.rossbyNumber,
       },
       { activityCycle: 0.5 },
     );
@@ -1709,6 +1714,12 @@ export function initStarPage(mountEl, options = {}) {
     renderOutputStarStrip(kpisEl.querySelector("#star-summary"), focusedStarId, state);
 
     renderDerivedDetails(detailsEl, outputViewModel.detailSections, { title: "Derived Details" });
+    const derivedDetailsSection = detailsEl.querySelector(".derived-details");
+    if (derivedDetailsSection) {
+      derivedDetailsSection.id = "star-derived-details";
+      kpisEl.append(derivedDetailsSection);
+    }
+    enableOutputSectionTabs(kpisEl, { label: "Star output sections", includeAll: true });
 
     sunPreviewController.attach(kpisEl.querySelector(".sun-preview-canvas"), {
       starName: focusedStar.name,

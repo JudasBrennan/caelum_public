@@ -26,6 +26,7 @@ export const FLARE_EMAX_ERG = 1e35;
 export const FLARE_TOTAL_THRESHOLD_ERG = FLARE_EMIN_ERG;
 export const FGK_CME_MIN_PER_DAY = 0.5;
 export const FGK_CME_MAX_PER_DAY = 6.0;
+export const SOLAR_ROSSBY_NUMBER = 2.0;
 
 const TEFF_BIN_FGK = "FGK";
 const TEFF_BIN_EARLY_M = "earlyM";
@@ -140,6 +141,22 @@ function cmeSaturationFactor(recentCount24h, targetPerDay) {
   return clamp(1 / (1 + excess * excess * 1.2), 0.08, 1);
 }
 
+export function rotationActivityFactorFromRossby(rossbyNumber) {
+  const rossby = toFinite(rossbyNumber, NaN);
+  if (!Number.isFinite(rossby) || rossby <= 0) return 1;
+  if (rossby <= 0.13) return 4.0;
+  return clamp((rossby / SOLAR_ROSSBY_NUMBER) ** -1.2, 0.4, 4.0);
+}
+
+export function rotationActivityRegimeFromRossby(rossbyNumber) {
+  const rossby = toFinite(rossbyNumber, NaN);
+  if (!Number.isFinite(rossby) || rossby <= 0) return "unknown";
+  if (rossby <= 0.13) return "saturated";
+  if (rossby < 1.0) return "active";
+  if (rossby <= 2.5) return "solar-like";
+  return "quiet";
+}
+
 /**
  * Returns a cycle-dependent flare-rate multiplier by stellar regime.
  *
@@ -236,6 +253,8 @@ export function computeCmeRateModel(params, opts = {}) {
  * @param {number} [star.massMsol=1.0] - Stellar mass alias in solar masses
  * @param {number} [star.luminosityLsun] - Stellar luminosity in solar luminosities
  * @param {number} [star.luminosityLsol=1.0] - Stellar luminosity alias in solar luminosities
+ * @param {number} [star.rotationPeriodDays] - Representative stellar rotation period in days
+ * @param {number} [star.rossbyNumber] - Stellar Rossby number
  * @param {object} [opts={}] - Optional model controls
  * @param {number} [opts.activityCycle=0.5] - Activity-cycle phase in [0, 1]
  * @returns {{
@@ -265,6 +284,8 @@ export function computeStellarActivityModel(star, opts = {}) {
   const ageGyr = Math.max(0, toFinite(star?.ageGyr, 4.6));
   const massMsun = toFinite(star?.massMsun ?? star?.massMsol, 1.0);
   const luminosityLsun = toFinite(star?.luminosityLsun ?? star?.luminosityLsol, 1.0);
+  const rotationPeriodDays = toFinite(star?.rotationPeriodDays, null);
+  const rossbyNumber = toFinite(star?.rossbyNumber, null);
   const activityCycle = clamp(toFinite(opts?.activityCycle, 0.5), 0, 1);
 
   const teffBin = pickTeffBin(teffK);
@@ -272,7 +293,9 @@ export function computeStellarActivityModel(star, opts = {}) {
   const N32 = N32_TABLE[teffBin][ageBand];
   const alpha = ALPHA_TABLE[teffBin];
   const flareCycleMultiplier = flareCycleMultiplierFromCycle(teffBin, activityCycle);
-  const energeticFlareRatePerDay = N32 * flareCycleMultiplier;
+  const rotationActivityFactor = rotationActivityFactorFromRossby(rossbyNumber);
+  const rotationActivityRegime = rotationActivityRegimeFromRossby(rossbyNumber);
+  const energeticFlareRatePerDay = N32 * flareCycleMultiplier * rotationActivityFactor;
   const totalFlareRatePerDay =
     energeticFlareRatePerDay * (FLARE_TOTAL_THRESHOLD_ERG / FLARE_E0_ERG) ** -alpha;
   const energeticFlareRecurrenceDays =
@@ -296,6 +319,8 @@ export function computeStellarActivityModel(star, opts = {}) {
     ageGyr,
     massMsun,
     luminosityLsun,
+    rotationPeriodDays,
+    rossbyNumber,
     activityCycle,
   };
 
@@ -308,6 +333,10 @@ export function computeStellarActivityModel(star, opts = {}) {
     EminErg: FLARE_TOTAL_THRESHOLD_ERG,
     EmaxErg: FLARE_EMAX_ERG,
     flareCycleMultiplier,
+    rotationActivityFactor,
+    rossbyNumber,
+    rotationPeriodDays,
+    rotationActivityRegime,
     energeticFlareRatePerDay,
     totalFlareRatePerDay,
     energeticFlareRecurrenceDays,
@@ -329,6 +358,8 @@ export function computeStellarActivityModel(star, opts = {}) {
     energeticThresholdErg: `${FLARE_E0_ERG}`,
     totalThresholdErg: `${FLARE_TOTAL_THRESHOLD_ERG}`,
     energeticFlareRatePerDay: `${energeticFlareRatePerDay}`,
+    rotationActivityFactor: `${rotationActivityFactor}`,
+    rotationActivityRegime,
     totalFlareRatePerDay: `${totalFlareRatePerDay}`,
     energeticFlareRecurrenceDays: Number.isFinite(energeticFlareRecurrenceDays)
       ? `${energeticFlareRecurrenceDays}`

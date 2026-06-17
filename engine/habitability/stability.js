@@ -110,6 +110,10 @@ export function resolvePathwayStability(
     normalized.bodyType === "moon" && environment.surfaceExomoonCalibrationApplicable
       ? clamp(toFinite(environment.surfaceExomoonCalibrationPenalty, 1), 0, 1)
       : 1;
+  const carbonCycleStabilityModifier =
+    selectedPathway === "surface-water" && environment.carbonCycleConfidence === "high"
+      ? clamp(toFinite(environment.carbonCycleStabilityModifier, 1), 0.9, 1.08)
+      : 1;
 
   const shellPersistenceScore =
     surface.iceShellThicknessKm <= 0
@@ -151,7 +155,7 @@ export function resolvePathwayStability(
 
   const stabilityMultiplier =
     selectedPathway === "surface-water"
-      ? surfaceCollapsePenalty * surfaceExomoonCalibrationPenalty
+      ? surfaceCollapsePenalty * surfaceExomoonCalibrationPenalty * carbonCycleStabilityModifier
       : selectedPathway === "subsurface-water"
         ? subsurfaceCollapsePenalty
         : selectedPathway === "alternative-solvent"
@@ -165,6 +169,7 @@ export function resolvePathwayStability(
     collapsePenalty: clamp(stabilityMultiplier, 0, 1),
     surfaceCollapsePenalty,
     surfaceExomoonCalibrationPenalty,
+    carbonCycleStabilityModifier,
     subsurfaceCollapsePenalty,
     altCollapsePenalty,
     shellPersistenceScore,

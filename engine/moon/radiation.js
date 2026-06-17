@@ -42,6 +42,7 @@ export function computeMoonRadiationEnvironment({
   surfacePressurePa = 0,
   iceShellThicknessKm = 0,
   magnetosphere = null,
+  parentMagnetosphereEnvironment = null,
 } = {}) {
   const parent = computeMagnetosphericRadiation({
     surfaceFieldEarths,
@@ -76,14 +77,40 @@ export function computeMoonRadiationEnvironment({
     clamp(1 - (1 - intrinsicFieldShielding) * (1 - inducedFieldShielding), 0, 0.6),
     4,
   );
+  const windCompressionFactor = clamp(
+    toFinite(parentMagnetosphereEnvironment?.windCompressionFactor, 1),
+    0.2,
+    4,
+  );
+  const magnetopauseBoundaryFraction =
+    parent.magnetopauseLShell > 0
+      ? parent.lShell / Math.max(parent.magnetopauseLShell, 1e-9)
+      : Infinity;
+  const compressionExposureMultiplier =
+    windCompressionFactor < 0.95
+      ? round(
+          clamp(
+            1 +
+              (1 - windCompressionFactor) *
+                clamp(magnetopauseBoundaryFraction / 0.3, 0.25, 2) *
+                0.35,
+            1,
+            1.6,
+          ),
+          4,
+        )
+      : 1;
   const combinedShielding = round(
     clamp(1 - (1 - atmosphereShielding) * (1 - magneticShielding), 0, 0.96),
     4,
   );
   const parentSurfaceExposureRemDayEquivalent =
-    parent.magnetosphericRadRemDay * (1 - magneticShielding) * (1 - atmosphereShielding * 0.85);
+    parent.magnetosphericRadRemDay *
+    compressionExposureMultiplier *
+    (1 - magneticShielding) *
+    (1 - atmosphereShielding * 0.85);
   const stellarSurfaceExposureRemDayEquivalent =
-    stellarXuvRemDayEquivalent * (1 - atmosphereShielding);
+    stellarXuvRemDayEquivalent * compressionExposureMultiplier * (1 - atmosphereShielding);
   const surfaceExposureRemDayEquivalent =
     parentSurfaceExposureRemDayEquivalent + stellarSurfaceExposureRemDayEquivalent;
   const subsurfaceExposureRemDayEquivalent =
@@ -100,6 +127,10 @@ export function computeMoonRadiationEnvironment({
     inducedFieldShielding: round(inducedFieldShielding, 4),
     magneticShielding,
     combinedShielding,
+    parentMagnetosphereCompressionClass:
+      parentMagnetosphereEnvironment?.compressionClass || "Not evaluated",
+    parentWindCompressionFactor: round(windCompressionFactor, 4),
+    compressionExposureMultiplier,
     surfaceExposureRemDayEquivalent: round(surfaceExposureRemDayEquivalent, 4),
     surfaceExposure: exposureLevelFromRemDay(surfaceExposureRemDayEquivalent),
     subsurfaceExposureRemDayEquivalent: round(subsurfaceExposureRemDayEquivalent, 4),
@@ -110,6 +141,7 @@ export function computeMoonRadiationEnvironment({
       "relative-dose-model",
       "europa-anchored-parent-belt",
       "xuv-relative-scaling",
+      ...(compressionExposureMultiplier > 1 ? ["parent-magnetosphere-compression"] : []),
     ],
   };
 }

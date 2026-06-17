@@ -291,6 +291,7 @@ export function computeUnifiedHabitabilityIndex(context = {}, { solventPolicy } 
         collapsePenalty: stabilityModel.collapsePenalty,
         surfaceCollapsePenalty: stabilityModel.surfaceCollapsePenalty,
         surfaceExomoonCalibrationPenalty: stabilityModel.surfaceExomoonCalibrationPenalty,
+        carbonCycleStabilityModifier: stabilityModel.carbonCycleStabilityModifier,
         subsurfaceCollapsePenalty: stabilityModel.subsurfaceCollapsePenalty,
         altCollapsePenalty: stabilityModel.altCollapsePenalty,
         shellPersistenceScore: stabilityModel.shellPersistenceScore,

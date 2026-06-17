@@ -30,6 +30,15 @@ const GAS_SPECIES = [
   { key: "co", label: "CO", mw: MW_CO },
 ];
 
+function gasGiantNonThermalFactors({ massLossRateKgS = 0 } = {}) {
+  const escapeRate = Math.max(Number(massLossRateKgS) || 0, 0);
+  const heFactor = escapeRate >= 2e5 ? 5.0 : escapeRate >= 1e5 ? 3.4 : 2.5;
+  return [
+    { maxMw: MW_H2, factor: 4.0 },
+    { maxMw: MW_HE, factor: heFactor },
+  ];
+}
+
 export function calcMassLoss(
   massMjup,
   radiusKm,
@@ -88,11 +97,12 @@ export function computeGasGiantExobaseTemp(tEffK, fXuvRatio) {
   );
 }
 
-export function computeGasGiantJeansEscape(escapeVelocityKms, exobaseTempK) {
+export function computeGasGiantJeansEscape(escapeVelocityKms, exobaseTempK, options = {}) {
   return evaluateJeansEscapeSpecies({
     escapeVelocityKms,
     exobaseTempK,
     gasSpecies: GAS_SPECIES,
+    nonThermalFactors: gasGiantNonThermalFactors(options),
     lambdaDigits: 1,
   });
 }

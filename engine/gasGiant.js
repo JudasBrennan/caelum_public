@@ -40,6 +40,7 @@ import {
   massMjupToMsol,
   normalizeGiantCompanionClass,
 } from "./substellarRegime.js";
+import { buildEnvironmentForcing, formatEnvironmentForcingSummary } from "./environment/index.js";
 
 export { estimateMetallicity, massToRadiusRj, radiusToMassMjup } from "./gasGiant/structure.js";
 
@@ -71,6 +72,7 @@ function buildGasGiantSummaryResult({
   massSource,
   radiusSource,
   metallicitySource,
+  interiorHeatTransportMode = null,
   massEarth,
   massKg,
   radiusKm,
@@ -81,6 +83,8 @@ function buildGasGiantSummaryResult({
   escapeVelocityKms,
   effectiveTempK,
   equilibriumTempK,
+  intrinsicTempK = null,
+  intrinsicHeat = null,
   ringType,
   orbitalPeriodYears,
   orbitalPeriodDays,
@@ -88,6 +92,7 @@ function buildGasGiantSummaryResult({
   transitDepthPpm,
   transitProbabilityFraction,
   rvSemiAmplitudeMs,
+  environmentForcing = null,
 }) {
   return {
     regime,
@@ -112,6 +117,7 @@ function buildGasGiantSummaryResult({
       massSource,
       radiusSource,
       metallicitySource,
+      ...(interiorHeatTransportMode ? { interiorHeatTransportMode } : {}),
     },
     physical: {
       massEarth: round(massEarth, 2),
@@ -128,6 +134,8 @@ function buildGasGiantSummaryResult({
     thermal: {
       equilibriumTempK: round(equilibriumTempK, 1),
       effectiveTempK: round(effectiveTempK, 1),
+      ...(intrinsicTempK != null ? { intrinsicTempK: round(intrinsicTempK, 1) } : {}),
+      ...(intrinsicHeat ? { intrinsicHeat } : {}),
     },
     ringProperties: {
       ringType,
@@ -142,6 +150,7 @@ function buildGasGiantSummaryResult({
       transitProbabilityFraction: round(transitProbabilityFraction, 6),
       rvSemiAmplitudeMs: round(rvSemiAmplitudeMs, 4),
     },
+    environmentForcing,
   };
 }
 
@@ -279,8 +288,12 @@ function calcBrownDwarfCompanion({
   hostFrameId = null,
   hostFrame = null,
   hostXuvFluxEarthAt1Au = null,
+  hostPrebioticUvEarthAt1Au = null,
+  hostWindPressureEarthAt1Au = null,
   companionFluxEarth = 0,
   companionXuvFluxEarth = 0,
+  companionPrebioticUvEarth = 0,
+  companionWindPressureEarth = 0,
   fluxVariabilityFraction = 0,
   otherGiants,
   moons,
@@ -297,7 +310,8 @@ function calcBrownDwarfCompanion({
   const sAge = clamp(toFinite(starAgeGyr, 4.6), 0.01, 20);
   const meanCompanionFluxEarth = Math.max(toFinite(companionFluxEarth, 0), 0);
   const meanCompanionXuvFluxEarth = Math.max(toFinite(companionXuvFluxEarth, 0), 0);
-  const resolvedHostXuvFluxEarthAt1Au = toFinite(hostXuvFluxEarthAt1Au, null);
+  const meanCompanionPrebioticUvEarth = Math.max(toFinite(companionPrebioticUvEarth, 0), 0);
+  const meanCompanionWindPressureEarth = Math.max(toFinite(companionWindPressureEarth, 0), 0);
   const hostFrameFluxVariabilityFraction = Math.max(toFinite(fluxVariabilityFraction, 0), 0);
   const companionKind = resolveGiantCompanionClass(companionClass, rawMass);
   const giantMoons = Array.isArray(moons) ? moons : [];
@@ -368,6 +382,28 @@ function calcBrownDwarfCompanion({
   const teqPeriK = eccentricity > 0 ? equilibriumTempAtDistanceAu(periapsisAu) : equilibriumTempK;
   const teqApoK = eccentricity > 0 ? equilibriumTempAtDistanceAu(apoapsisAu) : equilibriumTempK;
   const insolationEarth = round(sLum / orbit ** 2 + meanCompanionFluxEarth, 4);
+  const environmentForcing = buildEnvironmentForcing({
+    bodyType: "brownDwarf",
+    solverFamily: "brownDwarf",
+    starConfig: {
+      massMsol: sMass,
+      ageGyr: sAge,
+      radiusRsolOverride: sRadius,
+      luminosityLsolOverride: sLum,
+    },
+    orbitAu: orbit,
+    eccentricity,
+    hostFrame,
+    hostFrameId,
+    hostXuvFluxEarthAt1Au,
+    hostPrebioticUvEarthAt1Au,
+    hostWindPressureEarthAt1Au,
+    companionFluxEarth: meanCompanionFluxEarth,
+    companionXuvFluxEarth: meanCompanionXuvFluxEarth,
+    companionPrebioticUvEarth: meanCompanionPrebioticUvEarth,
+    companionWindPressureEarth: meanCompanionWindPressureEarth,
+    fluxVariabilityFraction: hostFrameFluxVariabilityFraction,
+  });
 
   const massRatio = massMjup / (sMass * MSOL_PER_MJUP);
   const hillSphereAu = orbit * (massRatio / 3) ** (1 / 3);
@@ -436,6 +472,7 @@ function calcBrownDwarfCompanion({
       transitDepthPpm,
       transitProbabilityFraction,
       rvSemiAmplitudeMs,
+      environmentForcing,
     });
   }
 
@@ -464,10 +501,7 @@ function calcBrownDwarfCompanion({
     evaporationTimescaleGyr: 1e12,
     rocheLobeRadiusKm: round(hillSphereKm * 0.49, 0),
     rocheLobeOverflow: false,
-    xuvFluxRatioEarth:
-      resolvedHostXuvFluxEarthAt1Au != null && orbit > 0
-        ? Math.max(0, resolvedHostXuvFluxEarthAt1Au) / orbit ** 2 + meanCompanionXuvFluxEarth
-        : meanCompanionXuvFluxEarth,
+    xuvFluxRatioEarth: environmentForcing.flux.xuvEarthAtOrbit,
   };
   const bdExobaseTempK = Math.max(300, 600 + 80 * Math.log10(massLoss.xuvFluxRatioEarth + 1));
   const jeansEscape = buildBrownDwarfJeansDisplay(
@@ -649,6 +683,10 @@ function calcBrownDwarfCompanion({
     atmosphere,
     clouds,
     magnetic,
+    environment: {
+      forcing: environmentForcing,
+    },
+    environmentForcing,
     gravity: {
       hillSphereAu: round(hillSphereAu, 4),
       hillSphereKm: round(hillSphereKm, 0),
@@ -742,6 +780,7 @@ function calcBrownDwarfCompanion({
         hostFrameFluxVariabilityFraction > 0
           ? `${fmt(hostFrameFluxVariabilityFraction * 100, 1)}%`
           : "Low",
+      environmentForcing: formatEnvironmentForcingSummary(environmentForcing),
       dynamicalStability,
       transitDepth:
         `${fmt(transitDepthFraction * 100, transitDepthFraction * 100 >= 0.1 ? 2 : 4)}%` +
@@ -812,6 +851,7 @@ export function calcGasGiant({
   axialTiltDeg: rawTilt,
   rotationPeriodHours,
   metallicity: rawMetallicity,
+  interiorHeatTransportMode = "auto",
   starMassMsol,
   starLuminosityLsol,
   starAgeGyr,
@@ -819,8 +859,12 @@ export function calcGasGiant({
   hostFrameId = null,
   hostFrame = null,
   hostXuvFluxEarthAt1Au = null,
+  hostPrebioticUvEarthAt1Au = null,
+  hostWindPressureEarthAt1Au = null,
   companionFluxEarth = 0,
   companionXuvFluxEarth = 0,
+  companionPrebioticUvEarth = 0,
+  companionWindPressureEarth = 0,
   fluxVariabilityFraction = 0,
   stellarMetallicityFeH,
   otherGiants,
@@ -844,8 +888,12 @@ export function calcGasGiant({
       hostFrameId,
       hostFrame,
       hostXuvFluxEarthAt1Au,
+      hostPrebioticUvEarthAt1Au,
+      hostWindPressureEarthAt1Au,
       companionFluxEarth,
       companionXuvFluxEarth,
+      companionPrebioticUvEarth,
+      companionWindPressureEarth,
       fluxVariabilityFraction,
       otherGiants,
       moons,
@@ -862,10 +910,33 @@ export function calcGasGiant({
   const sAge = clamp(toFinite(starAgeGyr, 4.6), 0.01, 15);
   const meanCompanionFluxEarth = Math.max(toFinite(companionFluxEarth, 0), 0);
   const meanCompanionXuvFluxEarth = Math.max(toFinite(companionXuvFluxEarth, 0), 0);
-  const resolvedHostXuvFluxEarthAt1Au = toFinite(hostXuvFluxEarthAt1Au, null);
+  const meanCompanionPrebioticUvEarth = Math.max(toFinite(companionPrebioticUvEarth, 0), 0);
+  const meanCompanionWindPressureEarth = Math.max(toFinite(companionWindPressureEarth, 0), 0);
   const hostFrameFluxVariabilityFraction = Math.max(toFinite(fluxVariabilityFraction, 0), 0);
   const giantMoons = Array.isArray(moons) ? moons : [];
   void starRadiusRsol;
+  const environmentForcing = buildEnvironmentForcing({
+    bodyType: "gasGiant",
+    solverFamily: "gasGiant",
+    starConfig: {
+      massMsol: sMass,
+      ageGyr: sAge,
+      radiusRsolOverride: starRadiusRsol,
+      luminosityLsolOverride: sLum,
+    },
+    orbitAu: orbit,
+    eccentricity,
+    hostFrame,
+    hostFrameId,
+    hostXuvFluxEarthAt1Au,
+    hostPrebioticUvEarthAt1Au,
+    hostWindPressureEarthAt1Au,
+    companionFluxEarth: meanCompanionFluxEarth,
+    companionXuvFluxEarth: meanCompanionXuvFluxEarth,
+    companionPrebioticUvEarth: meanCompanionPrebioticUvEarth,
+    companionWindPressureEarth: meanCompanionWindPressureEarth,
+    fluxVariabilityFraction: hostFrameFluxVariabilityFraction,
+  });
 
   function effectiveLuminosityAtDistanceAu(distanceAu) {
     const orbitalDistanceAu = Math.max(toFinite(distanceAu, orbit), 0.01);
@@ -906,18 +977,26 @@ export function calcGasGiant({
     radiusSource = "default";
   }
 
-  const thermal = computeThermalProfile({
+  const hasMetallicity =
+    rawMetallicity != null && Number.isFinite(Number(rawMetallicity)) && Number(rawMetallicity) > 0;
+  const metallicitySource = hasMetallicity ? "user" : "derived";
+  const stellarFeH = clamp(toFinite(stellarMetallicityFeH, 0), -3, 1);
+  const stellarMetallicityScale = stellarMetallicityScaleFromFeH(stellarFeH);
+  const resolvedMetallicity = hasMetallicity
+    ? clamp(Number(rawMetallicity), 0.1, 200)
+    : clamp(estimateMetallicity(massMjup) * stellarMetallicityScale, 0.1, 200);
+
+  let thermal = computeThermalProfile({
     massMjup,
+    radiusRj,
     orbitAu: orbit,
     starLuminosityLsol: sLum,
     eccentricity,
+    ageGyr: sAge,
+    metallicitySolar: resolvedMetallicity,
+    interiorHeatTransportMode,
     extraFluxEarth: meanCompanionFluxEarth,
   });
-  const sudarsky = thermal.sudarsky;
-  const teqK = thermal.equilibriumTempK;
-  const ihRatio = thermal.internalHeatRatio;
-  const tEffK = thermal.effectiveTempK;
-  const internalFlux = thermal.internalFluxWm2;
   const incidentFluxWm2 = calcStellarFluxWm2({
     starLuminosityLsol: effectiveLuminosityAtDistanceAu(orbit),
     orbitalDistanceAu: orbit,
@@ -928,7 +1007,7 @@ export function calcGasGiant({
       massMjup,
       radiusRj,
       sAge,
-      teqK,
+      thermal.equilibriumTempK,
       incidentFluxWm2,
     );
     radiusRj = clamp(derivedAgeRadius.suggestedRadiusRj, 0.15, 2.5);
@@ -947,6 +1026,26 @@ export function calcGasGiant({
   const escapeVelocityMs = Math.sqrt((2 * G * massKg) / radiusM);
   const escapeVelocityKms = escapeVelocityMs / 1000;
 
+  thermal = computeThermalProfile({
+    massMjup,
+    radiusRj,
+    densityGcm3,
+    orbitAu: orbit,
+    starLuminosityLsol: sLum,
+    eccentricity,
+    ageGyr: sAge,
+    metallicitySolar: resolvedMetallicity,
+    interiorHeatTransportMode,
+    extraFluxEarth: meanCompanionFluxEarth,
+  });
+  const sudarsky = thermal.sudarsky;
+  const teqK = thermal.equilibriumTempK;
+  const ihRatio = thermal.internalHeatRatio;
+  const tEffK = thermal.effectiveTempK;
+  const intrinsicTempK = thermal.intrinsicTempK;
+  const intrinsicHeat = thermal.intrinsicHeat;
+  const internalFlux = thermal.internalFluxWm2;
+
   const surfaceAreaM2 = 4 * Math.PI * radiusM ** 2;
   const ggK2 = gasGiantK2(massMjup);
   const ggQ = gasGiantTidalQ(massMjup);
@@ -962,15 +1061,6 @@ export function calcGasGiant({
   const tEffApoK = thermal.effectiveTempApoK;
   const insolationEarth = thermal.insolationEarth;
   const isIceGiant = massMjup < ICE_GIANT_MASS_MJUP;
-
-  const hasMetallicity =
-    rawMetallicity != null && Number.isFinite(Number(rawMetallicity)) && Number(rawMetallicity) > 0;
-  const metallicitySource = hasMetallicity ? "user" : "derived";
-  const stellarFeH = clamp(toFinite(stellarMetallicityFeH, 0), -3, 1);
-  const stellarMetallicityScale = stellarMetallicityScaleFromFeH(stellarFeH);
-  const resolvedMetallicity = hasMetallicity
-    ? clamp(Number(rawMetallicity), 0.1, 200)
-    : clamp(estimateMetallicity(massMjup) * stellarMetallicityScale, 0.1, 200);
 
   const massRatio = massMjup / (sMass * MSOL_PER_MJUP);
   const hillSphereAu = orbit * (massRatio / 3) ** (1 / 3);
@@ -1020,6 +1110,7 @@ export function calcGasGiant({
       massSource,
       radiusSource,
       metallicitySource,
+      interiorHeatTransportMode,
       massEarth,
       massKg,
       radiusKm,
@@ -1030,6 +1121,8 @@ export function calcGasGiant({
       escapeVelocityKms,
       effectiveTempK: tEffK,
       equilibriumTempK: teqK,
+      intrinsicTempK,
+      intrinsicHeat,
       ringType: ringProperties.ringType,
       orbitalPeriodYears,
       orbitalPeriodDays,
@@ -1037,11 +1130,12 @@ export function calcGasGiant({
       transitDepthPpm,
       transitProbabilityFraction,
       rvSemiAmplitudeMs,
+      environmentForcing,
     });
   }
 
   const atmosphere = getAtmosphere(massMjup, tEffK, resolvedMetallicity);
-  const clouds = getClouds(tEffK, isIceGiant);
+  const clouds = getClouds(Math.max(tEffK, thermal.sudarskyTempK ?? tEffK), isIceGiant);
   const magnetic = calcMagnetic({
     massMjup,
     radiusKm,
@@ -1053,6 +1147,7 @@ export function calcGasGiant({
     moons: giantMoons,
     starLuminosityLsol: sLum,
     ageGyr: sAge,
+    windPressureNPa: environmentForcing.wind?.ramPressureNPa,
   });
 
   const dynamics = calcDynamics(massMjup, radiusKm, rot, tEffK);
@@ -1066,10 +1161,12 @@ export function calcGasGiant({
     sLum,
     sAge,
     meanCompanionXuvFluxEarth,
-    resolvedHostXuvFluxEarthAt1Au,
+    environmentForcing.flux.hostXuvEarthAt1Au,
   );
   const ggExobaseTempK = computeGasGiantExobaseTemp(tEffK, massLoss.xuvFluxRatioEarth);
-  const ggJeansSpecies = computeGasGiantJeansEscape(escapeVelocityKms, ggExobaseTempK);
+  const ggJeansSpecies = computeGasGiantJeansEscape(escapeVelocityKms, ggExobaseTempK, {
+    massLossRateKgS: massLoss.massLossRateKgS,
+  });
   const tidal = calcTidalEffects(massMjup, radiusKm, orbit, eccentricity, sMass, sAge);
   const ageRadius = calcAgeRadiusCorrection(massMjup, radiusRj, sAge, teqK, incidentFluxWm2);
 
@@ -1189,6 +1286,7 @@ export function calcGasGiant({
       rotationPeriodHours: rot,
       metallicitySolar: atmosphere.metallicitySolar,
       stellarMetallicityFeH: round(stellarFeH, 2),
+      interiorHeatTransportMode,
       massSource,
       radiusSource,
       metallicitySource,
@@ -1226,12 +1324,16 @@ export function calcGasGiant({
     thermal: {
       equilibriumTempK: round(teqK, 1),
       effectiveTempK: round(tEffK, 1),
+      intrinsicTempK: round(intrinsicTempK, 1),
       teqPeriK: round(teqPeriK, 1),
       teqApoK: round(teqApoK, 1),
       tEffPeriK: round(tEffPeriK, 1),
       tEffApoK: round(tEffApoK, 1),
       internalHeatRatio: round(ihRatio, 2),
       internalFluxWm2: round(internalFlux, 3),
+      heatTransportEfficiency: intrinsicHeat?.heatTransportEfficiency ?? null,
+      interiorHeatClass: intrinsicHeat?.interiorHeatClass ?? null,
+      intrinsicHeat,
       incidentFluxWm2: ageRadius.incidentFluxWm2,
       incidentFluxErgCm2S: ageRadius.incidentFluxErgCm2S,
       bondAlbedo: round(sudarsky.bondAlbedo, 3),
@@ -1248,6 +1350,10 @@ export function calcGasGiant({
     atmosphere,
     clouds,
     magnetic,
+    environment: {
+      forcing: environmentForcing,
+    },
+    environmentForcing,
 
     gravity: {
       hillSphereAu: round(hillSphereAu, 4),
@@ -1308,7 +1414,17 @@ export function calcGasGiant({
       gravity: `${fmt(equatorialGravityG, 2)} g (${fmt(equatorialGravityMs2, 1)} m/s²)`,
       escapeVelocity: `${fmt(escapeVelocityKms, 1)} km/s`,
       equilibriumTemp: `${fmt(teqK, 0)} K`,
+      intrinsicTemp: `${fmt(intrinsicTempK, 0)} K`,
       effectiveTemp: `${fmt(tEffK, 0)} K`,
+      internalFlux: `${fmt(internalFlux, 3)} W/m2`,
+      interiorHeatClass: intrinsicHeat?.interiorHeatClass || "Generic giant interior",
+      heatTransport: intrinsicHeat
+        ? `${fmt(intrinsicHeat.heatTransportEfficiency, 2)} (${intrinsicHeat.transportClass}, ${intrinsicHeat.confidence} confidence)`
+        : "Not evaluated",
+      intrinsicHeatCaveats:
+        intrinsicHeat?.caveats?.length > 0
+          ? intrinsicHeat.caveats.join(" | ")
+          : "Generic cooling model from mass, density, enrichment, age, and irradiation",
       classification: sudarsky.label,
       hillSphere: `${fmt(hillSphereAu, 3)} AU (${fmt(hillSphereKm, 0)} km)`,
       rocheLimit: `${fmt(rocheLimitIceKm, 0)} km (ice) / ${fmt(rocheLimitRockKm, 0)} km (rock)`,
@@ -1316,6 +1432,9 @@ export function calcGasGiant({
       magneticMorphology:
         magnetic.fieldMorphology.charAt(0).toUpperCase() + magnetic.fieldMorphology.slice(1),
       magnetosphere: `${fmt(magnetic.magnetopauseRp, 0)} Rp (${fmt(magnetic.magnetopauseKm, 0)} km)`,
+      windCompression: magnetic.magnetosphereEnvironment
+        ? `${magnetic.magnetosphereEnvironment.compressionClass} (${fmt(magnetic.magnetosphereEnvironment.windPressureEarthRatio, 2)}\u00d7 Earth wind)`
+        : "Not evaluated",
       moonTidalHeating:
         moonTidalHeatingW > 0
           ? `${moonTidalHeatingW.toExponential(2)} W (${fmt(moonTidalFraction * 100, 2)}% of internal heat)`
@@ -1339,6 +1458,7 @@ export function calcGasGiant({
         hostFrameFluxVariabilityFraction > 0
           ? `${fmt(hostFrameFluxVariabilityFraction * 100, 1)}%`
           : "Low",
+      environmentForcing: formatEnvironmentForcingSummary(environmentForcing),
       dynamicalStability,
       transitDepth:
         `${fmt(transitDepthFraction * 100, transitDepthFraction * 100 >= 0.1 ? 2 : 4)}%` +

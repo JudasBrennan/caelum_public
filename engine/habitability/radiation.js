@@ -188,13 +188,19 @@ export function computeHabitabilityRadiationModel(
   const xuvFluxRatio = Math.max(toFinite(energy.xuvFluxRatio, 0), 0);
   const stellarExposureMultiplier =
     xuvFluxRatio <= 1 ? 1 : clamp(1 - Math.log10(Math.max(xuvFluxRatio, 1)) / 3, 0.25, 1);
+  const physicalSurfaceShielding = Number.isFinite(environment.surfaceRadiationShieldingFactor)
+    ? clamp(environment.surfaceRadiationShieldingFactor, 0, 1)
+    : clamp(
+        0.65 * pressureWindowScore(surface.pressureAtm) +
+          0.35 *
+            (chemistry.intrinsicFieldKnown === false
+              ? 0
+              : clamp(toFinite(chemistry.surfaceFieldEarths, 0) / 0.3, 0, 1)),
+        0,
+        1,
+      );
   const surfaceShieldingScore = clamp(
-    0.45 * pressureWindowScore(surface.pressureAtm) +
-      0.25 *
-        (chemistry.intrinsicFieldKnown === false
-          ? 0
-          : clamp(toFinite(chemistry.surfaceFieldEarths, 0) / 0.3, 0, 1)) +
-      0.3 * clamp(toFinite(photochemicalShieldingScore, 0), 0, 1),
+    0.7 * physicalSurfaceShielding + 0.3 * clamp(toFinite(photochemicalShieldingScore, 0), 0, 1),
     0,
     1,
   );
@@ -217,6 +223,7 @@ export function computeHabitabilityRadiationModel(
       magnetosphereMultiplier,
       stellarExposureMultiplier,
       surfaceShieldingScore,
+      physicalSurfaceShielding,
       stellarRadiationMultiplier,
       iceShieldFactor: effectiveIceShield,
     },

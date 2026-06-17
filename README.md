@@ -1,4 +1,4 @@
-# WorldSmith Web 2.8.0
+# WorldSmith Web 2.9.0
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -6,6 +6,11 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Validation now has its own top-level page with searchable calibration reports, Solar System and non-Solar anchor coverage, and shipped static report artifacts for each release.
+- Stellar environment modelling now includes differential rotation, Rossby/activity coupling, stellar wind, UV bands, prebiotic UV context, and photochemical haze diagnostics.
+- Planet and moon environments now share coupled forcing, magnetosphere, radiation, atmosphere ledger, climate-chemistry, cloud, carbon-cycle, ocean-chemistry, and biosignature-context diagnostics.
+- The calibration suite now distinguishes hard issues, semantic mismatches, high-uncertainty anchors, resolved rows, and intentional modeling gaps, with non-Solar exoplanet benchmarks guarding against Solar System overfitting.
+- Era timelines, visual auto-coverage, world snapshots, and visualizer summaries now consume the shared coupled-environment contexts instead of rebuilding separate science summaries.
 - Planet and Moon outputs now include a top-level Era Timeline that presents past, current, and future physical-history entries with confidence and driver context.
 - Planet and Moon output panels now use shared tabs, matching section names, Result Summaries, and an All view for users who prefer the original long-column scan.
 - Planet visual editor coverage controls now show the current Auto percentages with short model reasons, and text/number inputs keep focus while editing.
@@ -81,6 +86,7 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - `Calendar`
 - `Lessons`
 - `Science and Maths`
+- `Validation`
 - `About WorldSmith`
 
 ## Ocean-World Phase Guide

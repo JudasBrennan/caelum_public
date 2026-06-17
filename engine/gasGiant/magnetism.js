@@ -1,21 +1,19 @@
 import { clamp, round } from "../utils.js";
+import { computeGiantMagnetosphereEnvironment } from "../environment/magnetosphere.js";
 import { totalMoonSelfHeating, totalMoonSputteringPlasmaW } from "./moonEffects.js";
 
 const JUPITER_MASS_KG = 1.8982e27;
-const MU_0 = 4 * Math.PI * 1e-7;
 const P_SW_1AU = 2.0e-9;
 
 const JUPITER_SURFACE_GAUSS = 4.28;
 const JUPITER_DENSITY_GCM3 = 1.326;
 const Q_FLOOR_WM2 = 0.4;
+const ICE_GIANT_DYNAMO_FLUX_CAP_WM2 = 0.45;
 const ICE_GIANT_REF_DENSITY = Math.sqrt(1.27 * 1.638);
 const SHELL_EXPONENT = 3.2;
-const JUPITER_INTERNAL_FLUX_WM2 = 5.53;
+const JUPITER_INTERNAL_FLUX_WM2 = 4.9;
 const ICE_GIANT_SURFACE_GAUSS = Math.sqrt(0.23 * 0.14);
 const ICE_GIANT_REF_SHELL = 0.7;
-
-const PLASMA_H_REF = 4e5;
-const PLASMA_GAMMA = 0.047;
 const PLASMA_H_THRESHOLD = 1e8;
 
 export function dynamoShellRatio(massMjup, isIceGiant, densityGcm3) {
@@ -54,9 +52,12 @@ export function calcMagnetic({
   moons,
   starLuminosityLsol,
   ageGyr,
+  windPressureNPa = null,
 }) {
   const qTotal = internalFluxWm2 + moonTidalFluxWm2;
-  const qEff = Math.max(qTotal, Q_FLOOR_WM2);
+  const qEff = isIceGiant
+    ? clamp(Math.max(qTotal, Q_FLOOR_WM2), Q_FLOOR_WM2, ICE_GIANT_DYNAMO_FLUX_CAP_WM2)
+    : Math.max(qTotal, Q_FLOOR_WM2);
   const shell = dynamoShellRatio(massMjup, isIceGiant, densityGcm3);
   const rawField = rawGiantFieldStrength(densityGcm3, qEff, shell);
   const surfaceGauss = isIceGiant
@@ -68,16 +69,21 @@ export function calcMagnetic({
   const surfaceTesla = surfaceGauss * 1e-4;
   const dipoleMomentAm2 = (surfaceTesla * radiusM ** 3) / 1e-7;
 
-  const bTesla = surfaceGauss * 1e-4;
-  const pSw = P_SW_1AU / (orbitAu * orbitAu);
-  const rCF = Math.pow((bTesla * bTesla) / (2 * MU_0 * pSw), 1 / 6);
   const massKg = massMjup * JUPITER_MASS_KG;
   const moonHeat = totalMoonSelfHeating(moons, massKg);
   const sputterW = totalMoonSputteringPlasmaW(moons, starLuminosityLsol, orbitAu, ageGyr);
   const totalPlasma = moonHeat + sputterW;
   const hasPlasmaSource = sputterW > 0 || moonHeat >= PLASMA_H_THRESHOLD;
-  const plasmaFactor = hasPlasmaSource ? Math.pow(1 + totalPlasma / PLASMA_H_REF, PLASMA_GAMMA) : 1;
-  const magnetopauseRp = rCF * plasmaFactor;
+  const fallbackWindPressureNPa = orbitAu > 0 ? (P_SW_1AU / (orbitAu * orbitAu)) * 1e9 : null;
+  const magnetosphereEnvironment = computeGiantMagnetosphereEnvironment({
+    surfaceFieldGauss: surfaceGauss,
+    radiusKm,
+    windPressureNPa,
+    fallbackWindPressureNPa,
+    plasmaSourcePowerW: totalPlasma,
+    forcePlasmaSource: hasPlasmaSource,
+    isIceGiant,
+  });
 
   const surfaceFieldEarths = surfaceGauss / 0.31;
   let fieldLabel;
@@ -101,8 +107,9 @@ export function calcMagnetic({
     conductivityRegime: isIceGiant ? "ionic" : "metallic-H",
     effectiveFluxWm2: round(qEff, 3),
     dipoleMomentAm2,
-    magnetopauseRp: round(magnetopauseRp, 1),
-    magnetopauseKm: round(magnetopauseRp * radiusKm, 0),
+    magnetosphereEnvironment,
+    magnetopauseRp: magnetosphereEnvironment.magnetopauseRp,
+    magnetopauseKm: magnetosphereEnvironment.magnetopauseKm,
     sputteringPlasmaW: round(sputterW, 0),
   };
 }

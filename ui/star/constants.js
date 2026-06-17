@@ -24,6 +24,26 @@ export const TIP_LABEL = {
   Density: "Mean stellar density in solar densities.\n\nSun = 1 Dsol = 1.41 g/cm\u00b3.",
   Temperature:
     "Effective photospheric temperature in kelvin, derived from luminosity and radius via Stefan-Boltzmann.",
+  "Rotation Period":
+    "Estimated stellar surface rotation period range in days.\n\nStars are treated as differentially rotating fluid bodies: the equator rotates faster than high latitudes. The gyrochronology period is interpreted as a representative active-latitude/spot-modulation period, not a solid-body spin.\n\nMost reliable for solar-like FGK main-sequence stars; lower confidence for young stars, hot stars, evolved stars, and M dwarfs. Brown dwarfs are not assigned gyrochronology periods in this model.",
+  "Equatorial Rotation":
+    "Estimated equatorial surface rotation speed, derived from the faster equatorial period and stellar radius.\n\nThis is an equatorial speed, not a projected v sin i observation.",
+  "Differential Shear":
+    "Latitude-dependent surface shear, reported as Omega_eq - Omega_pole in radians per day.\n\nSolar-like stars use a sin^2(latitude) differential-rotation law, with shear estimated from effective temperature and representative rotation period. Extrapolated regimes are labelled with lower confidence.",
+  "Rossby Number":
+    "Rotation period divided by convective turnover time.\n\nLower Rossby numbers usually indicate stronger magnetic activity and more efficient dynamo action. The convective turnover estimate is colour-based, so it becomes uncertain outside the calibrated stellar range.",
+  "Rotation Activity Factor":
+    "Multiplier applied to the flare-frequency baseline from the star's Rossby number.\n\nLow Rossby numbers mark fast, magnetically active rotation and increase the expected energetic flare rate; high Rossby numbers mark slower, quieter magnetic activity.",
+  "Mass Loss":
+    "Estimated steady stellar-wind mass-loss rate relative to the present-day Sun.\n\nThe scaling uses rotation, radius, and mass for hydrogen-burning stars. It is most useful as an order-of-magnitude environment diagnostic, not a precise measured mass-loss rate. Brown dwarfs and unsupported regimes are labelled rather than forced into the relation.",
+  "Wind Pressure at 1 AU":
+    "Estimated stellar-wind ram pressure at 1 AU, in nanopascals and relative to present-day Earth.\n\nPlanet pages dilute this host pressure by orbital distance and add any wide companion-star wind from the host-frame model. This is an environment diagnostic for wind exposure, not a full magnetopause or atmospheric erosion solve.",
+  "Stellar Wind":
+    "Combined stellar-wind diagnostic: mass-loss scaling, wind speed, and ram pressure at 1 AU.\n\nBrown dwarfs and unsupported host regimes are labelled rather than forced into the stellar wind scaling.",
+  "Stellar Environment":
+    "Cross-model host diagnostics that feed downstream planet and moon context: XUV flux, prebiotic 200-280 nm UV, stellar-wind mass loss, and wind pressure. These are reported with confidence/caveat wording and should be read as environment inputs rather than complete climate or atmospheric-loss predictions.",
+  "Gyrochronology Confidence":
+    "Confidence class for the rotation and gyrochronology estimate.\n\nHigh confidence is reserved for solar-like FGK main-sequence stars inside the calibrated colour, mass, and age range. M dwarfs, hot stars, evolved stars, and brown dwarfs are flagged as lower confidence or unsupported.",
   "Habitable Zone":
     "A planet orbiting within this region receives Earth-like stellar heating.\n\nHydrogen-burning stars use the classical habitable-zone wording. Brown dwarfs instead expose a current temperate zone because their luminosity cools over time.\n\nUses a temperature-dependent model where the inner/outer flux thresholds (S_in/S_out) vary with effective temperature.\n\n1 AU = ~150,000,000 km.",
   "Star Colour":
@@ -65,7 +85,9 @@ export const TIP_LABEL = {
   "XUV Luminosity":
     "High-energy host-object luminosity in the XUV band.\n\nHydrogen-burning stars report stellar coronal output. Brown dwarfs currently report negligible XUV in this model.",
   "XUV Flux at 1 AU":
-    "XUV flux a body would receive at 1 AU from this host object.\n\nReported both as erg/cm²/s and relative to present-day Earth, then diluted by inverse-square distance for planets and moons.",
+    "XUV flux a body would receive at 1 AU from this host object.\n\nReported both as erg/cm^2/s and relative to present-day Earth, then diluted by inverse-square distance for planets and moons.",
+  "Prebiotic UV at 1 AU":
+    "Photospheric 200-280 nm UV flux at 1 AU, reported in physical units and relative to an Earth/Sun blackbody reference.\n\nThis band feeds the bounded prebiotic-chemistry window and organic-haze diagnostics on planet pages. It does not imply life, and cool active stars may receive extra episodic UV from flares that this blackbody estimate does not explicitly solve.",
   "XUV Saturation Age":
     "Approximate duration of the host object's saturated high-XUV phase.\n\nLower-mass cool stars keep elevated XUV output for much longer than Sun-like stars. Brown dwarfs currently report no stellar-style saturation interval in this model.",
   "Home System Architecture":

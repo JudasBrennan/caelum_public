@@ -23,6 +23,11 @@ function optionalFraction(value) {
   return Number.isFinite(numeric) ? clamp(numeric, 0, 1) : NaN;
 }
 
+function optionalSignedFraction(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? clamp(numeric, -1, 1) : NaN;
+}
+
 function optionalFiniteNonNegative(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? Math.max(numeric, 0) : NaN;
@@ -106,6 +111,19 @@ export function normalizeHabitabilityContext(rawContext = {}) {
       ozoneEarthRatio: optionalFiniteNonNegative(chemistry.ozoneEarthRatio),
       uvShieldingScore: optionalFraction(chemistry.uvShieldingScore),
       uvShieldingClass: String(chemistry.uvShieldingClass || ""),
+      prebioticUvWindowClass: String(chemistry.prebioticUvWindowClass || ""),
+      prebioticUvSurfaceFluxErgCm2S: optionalFiniteNonNegative(
+        chemistry.prebioticUvSurfaceFluxErgCm2S,
+      ),
+      prebioticUvTopOfAtmosphereFluxErgCm2S: optionalFiniteNonNegative(
+        chemistry.prebioticUvTopOfAtmosphereFluxErgCm2S,
+      ),
+      photochemicalHazeClass: String(chemistry.photochemicalHazeClass || ""),
+      hazeLikelihoodScore: optionalFraction(chemistry.hazeLikelihoodScore),
+      hazeAntiGreenhouseCoolingK: optionalFiniteNonNegative(chemistry.hazeAntiGreenhouseCoolingK),
+      hazeSurfaceLightReductionFraction: optionalFraction(
+        chemistry.hazeSurfaceLightReductionFraction,
+      ),
       photochemicalWarningCodes: Array.isArray(chemistry.photochemicalWarningCodes)
         ? chemistry.photochemicalWarningCodes.map((code) => String(code))
         : [],
@@ -117,6 +135,11 @@ export function normalizeHabitabilityContext(rawContext = {}) {
       climateStatePenalty: fraction(climate.climateStatePenalty, 1),
       collapsePenalty: fraction(climate.collapsePenalty, 1),
       stabilityMultiplier: fraction(climate.stabilityMultiplier, 1),
+      coupledSurfaceTempK: optionalFiniteNonNegative(climate.coupledSurfaceTempK),
+      climateChemistryNetDeltaK: optionalSignedFraction(climate.climateChemistryNetDeltaK),
+      coupledClimateTendency: String(climate.coupledClimateTendency || ""),
+      optInClimateState: String(climate.optInClimateState || ""),
+      climateChemistryConfidence: String(climate.climateChemistryConfidence || ""),
     },
     environment: {
       magnetosphericRadRemDay: finiteNonNegative(environment.magnetosphericRadRemDay, 0),
@@ -138,6 +161,34 @@ export function normalizeHabitabilityContext(rawContext = {}) {
       subsurfaceRadiationClass: String(environment.subsurfaceRadiationClass || ""),
       surfaceRadiationShieldingFactor: optionalFraction(
         environment.surfaceRadiationShieldingFactor,
+      ),
+      atmosphereTrendClass: String(environment.atmosphereTrendClass || ""),
+      atmosphereTimescaleClass: String(environment.atmosphereTimescaleClass || ""),
+      atmosphereSourceIndex: optionalFraction(environment.atmosphereSourceIndex),
+      atmosphereSinkIndex: optionalFraction(environment.atmosphereSinkIndex),
+      atmosphereNetBalance: optionalSignedFraction(environment.atmosphereNetBalance),
+      atmosphereDominantSource: String(environment.atmosphereDominantSource || ""),
+      atmosphereDominantSink: String(environment.atmosphereDominantSink || ""),
+      atmosphereLedgerConfidence: String(environment.atmosphereLedgerConfidence || ""),
+      carbonCycleTendency: String(environment.carbonCycleTendency || ""),
+      carbonCycleConfidence: String(environment.carbonCycleConfidence || ""),
+      carbonCycleStabilityModifier: optionalFraction(environment.carbonCycleStabilityModifier),
+      carbonCycleThermostatStrength: optionalFraction(environment.carbonCycleThermostatStrength),
+      oceanChemistryConfidence: String(environment.oceanChemistryConfidence || ""),
+      oceanChemistryWaterContext: String(environment.oceanChemistryWaterContext || ""),
+      oceanChemistryAcidityClass: String(environment.oceanChemistryAcidityClass || ""),
+      carbonateSaturationClass: String(environment.carbonateSaturationClass || ""),
+      nutrientSupportClass: String(environment.nutrientSupportClass || ""),
+      biosignatureInterpretationClass: String(environment.biosignatureInterpretationClass || ""),
+      biosignatureConfidence: String(environment.biosignatureConfidence || ""),
+      biosignatureDisequilibriumStrength: String(
+        environment.biosignatureDisequilibriumStrength || "",
+      ),
+      o2O3FalsePositiveRisk: String(environment.o2O3FalsePositiveRisk || ""),
+      methaneContext: String(environment.methaneContext || ""),
+      coBuildupRisk: String(environment.coBuildupRisk || ""),
+      cloudHeatRedistributionEfficiency: optionalFraction(
+        environment.cloudHeatRedistributionEfficiency,
       ),
       surfaceExomoonCalibrationPenalty: optionalFraction(
         environment.surfaceExomoonCalibrationPenalty,
