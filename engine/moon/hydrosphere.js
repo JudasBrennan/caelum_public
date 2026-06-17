@@ -183,6 +183,48 @@ function estimateSubsurfaceOceanScore({
   );
 }
 
+function hasInferredTidalOceanSupport({
+  waterPresent,
+  frozenSurface,
+  temperatureK,
+  tidalHeatingEarth,
+  internalHeatFluxWm2,
+  equivalentWaterDepthKm,
+  compositionKey,
+  densityGcm3,
+  subsurfaceOceanScore,
+} = {}) {
+  if (!waterPresent || !frozenSurface) return false;
+
+  const composition = String(compositionKey || "");
+  const icyRockBody =
+    composition === "Very icy" ||
+    composition === "Icy" ||
+    composition === "Mixed rock/ice" ||
+    composition === "Subsurface ocean";
+  if (!icyRockBody) return false;
+
+  const score = clamp(toFinite(subsurfaceOceanScore, 0), 0, 1);
+  const tempK = Math.max(toFinite(temperatureK, 0), 0);
+  const tidalHeating = Math.max(toFinite(tidalHeatingEarth, 0), 0);
+  const internalHeat = Math.max(toFinite(internalHeatFluxWm2, 0), 0);
+  const waterDepthKm = Math.max(toFinite(equivalentWaterDepthKm, 0), 0);
+  const density = Math.max(toFinite(densityGcm3, 0), 0);
+
+  if (tempK <= 0 || tempK > 180 || score < 0.32 || waterDepthKm < 20) return false;
+
+  const europaLikeRockIce =
+    density >= 2.6 &&
+    density <= 3.35 &&
+    tidalHeating >= 0.4 &&
+    internalHeat >= 0.035 &&
+    score >= 0.33;
+  const enceladusLikeIce =
+    density >= 1.0 && density < 2.6 && tidalHeating >= 1 && internalHeat >= 0.08 && score >= 0.34;
+
+  return europaLikeRockIce || enceladusLikeIce;
+}
+
 function highPressureIceThresholdKm(gravityG) {
   return depthKmForPressurePa({
     pressurePa: HIGH_PRESSURE_ICE_BANDS.cautionPa,
@@ -320,7 +362,18 @@ export function hydrosphereStateFromMoon({
     ammoniaPct: resolvedAmmoniaPct,
     differentiatedInterior,
   });
-  const subsurfaceOceanPresent = subsurfaceOceanScore >= 0.55;
+  const inferredTidalOceanSupport = hasInferredTidalOceanSupport({
+    waterPresent,
+    frozenSurface,
+    temperatureK: tempK,
+    tidalHeatingEarth: tidalHeating,
+    internalHeatFluxWm2: internalHeat,
+    equivalentWaterDepthKm,
+    compositionKey,
+    densityGcm3,
+    subsurfaceOceanScore,
+  });
+  const subsurfaceOceanPresent = subsurfaceOceanScore >= 0.55 || inferredTidalOceanSupport;
 
   if (!waterPresent) {
     const emptyHighPressureIce = classifyHighPressureIce({ gravityG });
@@ -422,6 +475,7 @@ export function hydrosphereStateFromMoon({
     regime = "Subsurface ocean";
     hydrosphereState = "Ice shell over subsurface ocean";
     notes.push("subsurface-ocean-supported");
+    if (inferredTidalOceanSupport) notes.push("tidal-ocean-inferred");
   } else {
     permanentIceFraction = coverageFraction > 0 ? coverageFraction : 1;
     landFraction = Math.max(0, 1 - permanentIceFraction);

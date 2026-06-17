@@ -4,6 +4,43 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.9.1 - 2026-06-17
+
+### Bug Fixes
+
+**Inferred subsurface oceans for Europa-like moons**
+(engine/moon/hydrosphere.js, tests/moonHydrosphere.test.js)
+
+Europa-like frozen moons with available water, cold ice, and enough tidal or
+internal support can now resolve as subsurface-ocean worlds without requiring
+the manual `Subsurface ocean` composition override. This fixes worlds like the
+exported Ostrea case, where the physical inputs supported a Europa-style
+subsurface ocean but the score-only threshold left the moon as a plain frozen
+surface world.
+
+### Removed
+
+**Retired the Science Map page**
+(app.js, index.html, styles.css, ui/aboutPage.js,
+assets/icons/science-viz.svg, assets/icons/light/science-viz.svg,
+ui/scienceVisualiserPage.js, ui/scienceGraphData.js,
+tests/scienceVisualiser.ui.test.js, tests/scienceGraphData.test.js,
+tests/pageDomSafety.ui.test.js, tests/tooltipCoverage.ui.test.js,
+tests/aboutPage.ui.test.js, tests/browser/smoke.spec.js,
+RELEASE_CHECKLIST.md, TODO.md)
+
+The unused Science Map / Science Visualiser route has been removed from the
+app, navigation, runtime bundle, dedicated assets, release checklist, and test
+suite. Science & Maths, Lessons, and Validation remain as the maintained science
+reference surfaces.
+
+### Tests
+
+- Added a moon-hydrosphere regression covering Europa-like physical ocean
+  inference without a composition override.
+- Removed retired Science Map route/data/UI tests and adjusted shared DOM,
+  tooltip, About-page, and browser smoke coverage around the supported routes.
+
 ## 2.9.0 - 2026-06-17
 
 ### Validation Report And Release Calibration Artifacts

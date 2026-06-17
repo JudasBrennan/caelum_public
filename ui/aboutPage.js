@@ -1,15 +1,3 @@
-import {
-  SCIENCE_GRAPH_EDGES,
-  SCIENCE_GRAPH_NODES,
-  SCIENCE_GRAPH_SECTIONS,
-} from "./scienceGraphData.js";
-
-const LIVE_SCIENCE_VISUALISER_COUNTS = Object.freeze({
-  sections: SCIENCE_GRAPH_SECTIONS.length,
-  nodes: SCIENCE_GRAPH_NODES.length,
-  edges: SCIENCE_GRAPH_EDGES.length,
-});
-
 export function initAboutPage(mountEl) {
   const el = document.createElement("div");
   el.className = "page";
@@ -21,7 +9,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.9.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.9.1</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, calendars, and exotic planetary subtype evidence. Explore your
@@ -428,6 +416,15 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.9.1",
+      "(from 2.9.0)",
+      [
+        "<b>Moon Ocean Hotfix</b> &mdash; Europa-like frozen moons can now infer a subsurface ocean from available water, cold ice, and tidal or internal support without needing the manual subsurface-ocean override.",
+        "<b>Science Map Removed</b> &mdash; The unused Science Map page has been retired from navigation and release upkeep, leaving Science &amp; Maths, Lessons, and Validation as the maintained science references.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.9.0",
       "(from 2.8.0)",
       [
@@ -437,7 +434,7 @@ function changelogHTML() {
         "<b>Calibration Realism</b> &mdash; Airless moon thermophysics, tiny-moon tides, gas and ice giant intrinsic heat, and non-Solar exoplanet benchmarks now keep the generic model better calibrated without tuning specifically for Sol.",
         "<b>Timeline And Visual Integration</b> &mdash; Era timelines, auto visual coverage, snapshots, and visualizer summaries now consume the shared coupled-environment context while keeping life claims and exact climate histories explicitly bounded.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.8.0",
@@ -567,8 +564,8 @@ function changelogHTML() {
         "<b>Multistar Systems Are Release-Ready</b> &mdash; Binary, triple, and quad home systems now work as a normalized first-class feature instead of an experimental branch. WorldSmith now supports paired quads, host-frame-aware editing across system pages, and a true `System Overview` mode in the Visualiser.",
         "<b>Random System Generator</b> &mdash; The System page can now draft full seeded star systems instead of only individual bodies. You can generate stars, planets, moons, and debris with curated random names, AU-safe orbit ladders, and preserve/reroll strategies like `keep stars, reroll planets`.",
         "<b>Star Page Redesign</b> &mdash; Multistar authoring now uses layout cards, an interactive topology map, and a single-focus inspector instead of one long stacked form. Every selected star now gets the same advanced physics controls, and the outputs area keeps every star visible and labeled.",
-        "<b>Science Surfaces Synced</b> &mdash; The Science &amp; Maths page, Lesson 07, and the Science Visualiser now explain the current multistar host-frame model, companion flux, stability limits, and hierarchy guardrails instead of lagging behind the live engine.",
-        "<b>Tooltip Audit Completed</b> &mdash; The remaining unlabeled controls on Apparent, Calendar, Import/Export, Local Cluster, Moon, Science Visualiser, and Visualiser pages now carry proper explanatory tooltips, including science context where it helps.",
+        "<b>Science Surfaces Synced</b> &mdash; The Science &amp; Maths page and Lesson 07 now explain the current multistar host-frame model, companion flux, stability limits, and hierarchy guardrails instead of lagging behind the live engine.",
+        "<b>Tooltip Audit Completed</b> &mdash; The remaining unlabeled controls on Apparent, Calendar, Import/Export, Local Cluster, Moon, and Visualiser pages now carry proper explanatory tooltips, including science context where it helps.",
       ],
       { open: false },
     ),
@@ -585,7 +582,7 @@ function changelogHTML() {
         "<b>Lava World Classification</b> &mdash; Rocky planets now distinguish `Standard rocky world`, `Lava world`, and `Magma ocean world` explicitly. Extremely hot close-in planets no longer read as generic rocky bodies when the solved surface state is much more extreme.",
         "<b>Transit Depth And RV Semi-Amplitude</b> &mdash; Rocky planets and gas giants now report exoplanet-detection metrics like transit depth, geometric transit probability, and stellar wobble amplitude. This makes it much easier to judge whether a generated world would be obvious in transit or radial-velocity surveys.",
         "<b>Rocky Planet Oblateness And J2</b> &mdash; Rocky planets now report rotational flattening, equatorial versus polar radius, and `J2`. Fast rotators no longer present as perfectly spherical bodies in the science outputs.",
-        "<b>Science Reference Sync</b> &mdash; The Science &amp; Maths page, Lessons, and Science Visualiser now match the newer moon, radiation, and stellar-XUV models more closely, so the educational surfaces explain the same logic the live engine is using.",
+        "<b>Science Reference Sync</b> &mdash; The Science &amp; Maths page and Lessons now match the newer moon, radiation, and stellar-XUV models more closely, so the educational surfaces explain the same logic the live engine is using.",
       ],
       { open: false },
     ),
@@ -596,7 +593,7 @@ function changelogHTML() {
         "<b>Guided Creation</b> &mdash; Moons and rocky planets now have dedicated `Quick`, `Guided`, and `Recipes` entry flows at the top of their editors. You can jump straight to a ready-made archetype, answer a few guided questions, or use Recipes as an Advanced-mode starting point without hunting through output cards.",
         "<b>Moon Science Modes</b> &mdash; The Moon page now exposes separate Hydrosphere, Atmosphere, and Orbital Coupling modes, with richer moon-world outputs behind the Full and Manual paths. Moon results now surface stronger atmosphere, ocean, climate, resonance, and formation context instead of behaving like a thinner special case.",
         "<b>Guided Moon Systems</b> &mdash; Guided moon creation can now launch from Moon, Planet, and System contexts, preview host fixes, and apply reviewed sibling-moon adjustments when resonance-backed setups need them. This makes oceanic, resonant, and biologically active moon builds much easier to reach deliberately.",
-        "<b>Science Reference Refresh</b> &mdash; The Science page, Lessons, and Science Visualiser are now aligned with the current moon and ring models. Lesson links, moon-system descriptions, ring coverage, and graph nodes now match the live simulation instead of lagging behind it.",
+        "<b>Science Reference Refresh</b> &mdash; The Science page and Lessons are now aligned with the current moon and ring models. Lesson links, moon-system descriptions, and ring coverage now match the live simulation instead of lagging behind it.",
       ],
       { open: false },
     ),
@@ -674,7 +671,6 @@ function changelogHTML() {
       "<b>L4/L5 Stability</b> &mdash; Lagrange Trojan points now show whether they are stable or unstable via the Gascheau (1843) criterion (&mu;&nbsp;&lt;&nbsp;0.0385). Unstable Trojans appear as dimmed amber diamonds in the visualiser.",
       "<b>Giant Planet Probability</b> &mdash; Updated to Kepler-era baseline (~7% at solar mass and metallicity) with stellar mass dependence from Johnson et al. (2010). M&nbsp;dwarfs now show lower probability; A/F&nbsp;stars show higher.",
       "<b>Collapsible Sidebar</b> &mdash; Replaced the dual top-nav + sidebar with a single collapsible sidebar. Starts as a slim icon rail on desktop; click to expand, click outside to collapse. On mobile, opens as a full drawer via a hamburger button. Nav reorganised into six semantic groups.",
-      "<b>Science Visualiser Icon</b> &mdash; New blackboard-style icon for the Science Visualiser page, distinct from the flask used by Science &amp; Maths.",
       "<b>Light Mode Overhaul</b> &mdash; Warm-cream Paper Dashboard palette replacing the old grey theme. 18 dedicated light-mode icon variants, light favicon, flash-free theme loading, and redesigned Other Objects icon (comet + debris instead of gas giant).",
       "<b>Changelog Toast</b> &mdash; Changelog moved from the About page to a modal overlay with collapsible releases.",
       "<b>Release Scientists</b> &mdash; Each major release is now dedicated to a scientist, shown as a card in the changelog with name, dates, country, and contribution.",
@@ -692,8 +688,7 @@ function changelogHTML() {
       "<b>Bug Fixes</b> &mdash; Fixed infinite loop on Moon and Star pages when dragging sliders, fixed Science page crash from malformed data table call, fixed calendar rounding toggle responsiveness.",
     ]),
     release("1.17.1", "(from 1.17.0)", [
-      `<b>Science Visualiser</b> &mdash; New interactive dependency graph page. The launch release shipped with 58 scientific concepts across 12 sections and 112 typed edges; the live graph has since grown to ${LIVE_SCIENCE_VISUALISER_COUNTS.nodes} concepts across ${LIVE_SCIENCE_VISUALISER_COUNTS.sections} sections with ${LIVE_SCIENCE_VISUALISER_COUNTS.edges} typed edges. Three view modes (full graph, section filter, trace mode), search, and detail panels with formulas and engine references.`,
-      "<b>Climate State Classification</b> &mdash; Planets are now classified as Stable, Snowball, Moist greenhouse, or Runaway greenhouse based on surface temperature and absorbed stellar flux. New KPI card on the planet page, climate advisory warnings, and a science visualiser node with five edges.",
+      "<b>Climate State Classification</b> &mdash; Planets are now classified as Stable, Snowball, Moist greenhouse, or Runaway greenhouse based on surface temperature and absorbed stellar flux. New KPI card on the planet page, climate advisory warnings, and Science &amp; Maths reference coverage.",
       "<b>Climate State NASA Validation</b> &mdash; 19 tests validating absorbed flux and climate state against Solar System data (Mercury, Venus, Earth, Mars, Ceres) in dry and wet configurations.",
       "<b>Calendar Rounding Override</b> &mdash; New &ldquo;Round derived data&rdquo; toggle on the Calendar page with a 0&ndash;6 decimal places slider. When enabled, rounds orbital periods before they enter the calendar model, affecting month lengths and leap cycles. Persists per profile.",
     ]),
