@@ -147,8 +147,21 @@ function confidenceFloor(...values) {
   return labels[Math.min(...values.map((value) => ranks[value] ?? 1))];
 }
 
+function normalizeTidalPersistenceContext(context) {
+  if (!context || typeof context !== "object") return null;
+  return {
+    modelVersion: context.modelVersion || "sustained-tidal-heating-context-v1",
+    currentTidalHeatingClass: String(context.currentTidalHeatingClass || "unknown"),
+    sustainedTidalHeatingClass: String(context.sustainedTidalHeatingClass || "unknown"),
+    eccentricityPersistence: String(context.eccentricityPersistence || "uncertain"),
+    persistenceConfidence: String(context.persistenceConfidence || context.confidence || "unknown"),
+    note: String(context.note || ""),
+  };
+}
+
 export function calcAirlessMoonThermalEnvelope(input = {}) {
   const source = input && typeof input === "object" ? input : {};
+  const persistenceContext = normalizeTidalPersistenceContext(source.tidalPersistenceContext);
   const albedoContext = resolveMoonAlbedoContext(source);
   const bondAlbedo = albedoContext.bondAlbedo;
   const emissivity = clamp(toFinite(source.emissivity, 0.95), 0.7, 1);
@@ -248,6 +261,14 @@ export function calcAirlessMoonThermalEnvelope(input = {}) {
   if (thermalInertiaClass === "low" || thermalInertiaClass === "very-low") {
     caveats.push("Low thermal inertia allows strong local-time surface temperature variation.");
   }
+  if (
+    persistenceContext?.sustainedTidalHeatingClass === "damping" ||
+    persistenceContext?.sustainedTidalHeatingClass === "uncertain"
+  ) {
+    caveats.push("Tidal heat is treated as current heat; persistence is dynamically uncertain.");
+  } else if (persistenceContext?.sustainedTidalHeatingClass === "overdriven") {
+    caveats.push("Sustained tidal heat may be overdriven and stressful for stable environments.");
+  }
 
   const pressureConfidence =
     surfacePressurePa >= 1000 || source.hasVolatileAtmosphere === true ? "low" : "high";
@@ -283,6 +304,10 @@ export function calcAirlessMoonThermalEnvelope(input = {}) {
       surfacePressurePa >= 1000 || source.hasVolatileAtmosphere === true
         ? "atmosphere-caveated observable range"
         : "airless observable surface range",
+    dynamicalPersistenceContext: persistenceContext,
+    currentTidalHeatingClass: persistenceContext?.currentTidalHeatingClass || "unknown",
+    sustainedTidalHeatingClass: persistenceContext?.sustainedTidalHeatingClass || "unknown",
+    tidalPersistenceConfidence: persistenceContext?.persistenceConfidence || "unknown",
     thermalModelConfidence,
     thermalModelCaveats: caveats,
   };

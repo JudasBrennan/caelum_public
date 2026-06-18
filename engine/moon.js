@@ -24,6 +24,10 @@ import {
   computeEarthSimilarityIndex,
   computeMoonHabitabilityIndex,
 } from "./habitability/metrics.js";
+import {
+  buildHabitabilityPersistenceBridge,
+  buildSustainedTidalHeatingContext,
+} from "./dynamics/habitabilityBridge.js";
 import { calcPlanetExact } from "./planet.js";
 import { calcStar, massToLuminosity, massToRadius } from "./star.js";
 import { buildPlanetaryEraTimelineForMoon } from "./planetaryEraTimeline.js";
@@ -571,6 +575,97 @@ function buildMoonResonance({
   };
 }
 
+function formatSynchronousOrbitDistance(tides) {
+  if (!tides?.synchronousOrbitValid || !(Number(tides.synchronousOrbitKm) > 0)) {
+    return "Unknown";
+  }
+  const parentRadii =
+    Number(tides.synchronousOrbitParentRadii) > 0
+      ? ` (${fmt(tides.synchronousOrbitParentRadii, 2)} parent radii)`
+      : "";
+  return `${fmt(tides.synchronousOrbitKm, 0)} km${parentRadii}`;
+}
+
+function formatSynchronousOrbitContext(tides) {
+  if (!tides?.synchronousOrbitValid || tides.insideSynchronousOrbit == null) return "Unknown";
+  const side = tides.insideSynchronousOrbit ? "inside sync" : "outside sync";
+  const direction =
+    tides.migrationDirectionFromSync === "unknown"
+      ? "direction uncertain"
+      : `${tides.migrationDirectionFromSync} torque expected`;
+  return `${side} - ${direction}`;
+}
+
+function buildInitialMoonTidalPersistenceContext({ tides, moonSystemContext }) {
+  const hasSystemContext = moonSystemContext && typeof moonSystemContext === "object";
+  const eccentricityPersistence =
+    moonSystemContext?.eccentricityEquilibrium?.state ||
+    (moonSystemContext?.sustainedHeatingLikely ? "maintained" : "uncertain");
+  const supportingMechanism =
+    moonSystemContext?.forcedEccentricitySource ||
+    (moonSystemContext?.nearestResonance ? "near-resonance" : "none");
+  const limitingFactor =
+    eccentricityPersistence === "uncertain" &&
+    Math.max(toFinite(tides?.tidalHeatingEarth, 0), 0) > 0.01
+      ? hasSystemContext
+        ? "pending-eccentricity-equilibrium"
+        : "no-moon-system-context"
+      : "";
+  return buildSustainedTidalHeatingContext({
+    tidalHeatingEarth: tides?.tidalHeatingEarth,
+    eccentricityPersistence,
+    heatingLikelySustained: moonSystemContext?.sustainedHeatingLikely,
+    supportingMechanism,
+    limitingFactor,
+    reasons: [
+      moonSystemContext?.nearestResonance
+        ? `Nearest resonance: ${moonSystemContext.nearestResonance.label}.`
+        : "",
+      tides?.synchronousOrbitNote,
+    ].filter(Boolean),
+  });
+}
+
+function buildMoonStabilityContextForHabitabilityBridge(orbit = {}) {
+  const stabilityClass = String(orbit.orbitStabilityClass || "unknown");
+  const requestedStabilityClass = String(orbit.requestedOrbitStabilityClass || "");
+  const hardClasses = new Set([
+    "inside-parent-collision-limit",
+    "inside-roche-limit",
+    "outside-hill-sphere",
+    "outside-conservative-stable-region",
+  ]);
+  const requestedHard = hardClasses.has(requestedStabilityClass);
+  if (hardClasses.has(stabilityClass) || requestedHard) {
+    return {
+      state: "unstable",
+      confidence: "high",
+      reasons: [
+        requestedHard ? orbit.requestedOrbitStabilityLabel : orbit.orbitStabilityLabel,
+      ].filter(Boolean),
+    };
+  }
+  if (stabilityClass === "near-outer-stability-edge" || orbit.longTermStable === false) {
+    return {
+      state: "crowded",
+      confidence: "low",
+      reasons: [orbit.orbitStabilityLabel || "Moon orbit is near the stability edge."],
+    };
+  }
+  if (!stabilityClass || stabilityClass === "unknown") {
+    return {
+      state: "unknown",
+      confidence: "unknown",
+      reasons: ["Moon orbital stability context is incomplete."],
+    };
+  }
+  return {
+    state: "stable",
+    confidence: "high",
+    reasons: [orbit.orbitStabilityLabel].filter(Boolean),
+  };
+}
+
 function buildMoonSummaryResult({
   hostFrame,
   mStarMsol,
@@ -616,6 +711,8 @@ function buildMoonSummaryResult({
   surfaceExomoonCalibration,
   habitabilitySummary,
   unifiedMoonHabitability,
+  tidalPersistenceContext,
+  dynamicalHabitabilityBridge,
 }) {
   return {
     hostFrame: hostFrame
@@ -727,6 +824,15 @@ function buildMoonSummaryResult({
       qPlanet: tides.qPlanet,
       qPlanetModel: tides.qPlanetModel,
       tidalUncertaintyCaveats: tides.tidalUncertaintyCaveats,
+      synchronousOrbitKm: tides.synchronousOrbitKm,
+      synchronousOrbitParentRadii: tides.synchronousOrbitParentRadii,
+      insideSynchronousOrbit: tides.insideSynchronousOrbit,
+      migrationDirectionFromSync: tides.migrationDirectionFromSync,
+      synchronousOrbitNote: tides.synchronousOrbitNote,
+      synchronousOrbitValid: tides.synchronousOrbitValid,
+    },
+    dynamicalContext: {
+      tidalPersistenceContext,
     },
     resonance,
     formation,
@@ -738,6 +844,7 @@ function buildMoonSummaryResult({
         solventPathway: unifiedMoonHabitability.breakdown.solventPathway,
       },
       hydrosphere,
+      dynamicalPersistence: dynamicalHabitabilityBridge,
       summary: habitabilitySummary,
     },
     display: {
@@ -785,6 +892,10 @@ function buildMoonSummaryResult({
       surfaceBiosphere: biosphere.surfaceBiosphereClass,
       subsurfaceOcean: hydrosphere.subsurfaceOceanPresent ? "Yes" : "No",
       spinState: spinState?.state || "Not evaluated",
+      synchronousOrbit: formatSynchronousOrbitDistance(tides),
+      synchronousOrbitContext: formatSynchronousOrbitContext(tides),
+      tidalHeatingPersistence: tidalPersistenceContext?.sustainedTidalHeatingClass || "unknown",
+      dynamicalPersistenceConfidence: dynamicalHabitabilityBridge?.confidence || "unknown",
       tidalRegime: tides.tidalRegime || "regular moon",
       tidalResponseModel: tides.k2Model || "homogeneous-elastic-moon-v1",
       tidalUncertaintyCaveats: Array.isArray(tides.tidalUncertaintyCaveats)
@@ -1015,6 +1126,10 @@ export function calcMoonExact({
     innerFateTargetLabel:
       orbit.effectiveInnerLimitKind === "collision" ? "parent collision boundary" : "Roche limit",
   });
+  const tidalPersistenceContext = buildInitialMoonTidalPersistenceContext({
+    tides,
+    moonSystemContext,
+  });
 
   const baselineTemperature = computeMoonTemperature({
     albedo,
@@ -1025,6 +1140,7 @@ export function calcMoonExact({
     moonMassKg: tides.moonMassKg,
     radioisotopeAbundance,
     tidalHeatingWm2: tides.tidalHeatingWm2,
+    tidalPersistenceContext,
   });
   const illumination = computeMoonIllumination({
     starLuminosityLsol: lStarLsol,
@@ -1052,6 +1168,7 @@ export function calcMoonExact({
     parentReflectedFluxWm2: illumination.parentReflectedFluxWm2,
     parentThermalFluxWm2: illumination.parentThermalFluxWm2,
     eclipseCoolingPenalty: illumination.eclipseCoolingPenalty,
+    tidalPersistenceContext,
   });
 
   const allowAtmosphereTemperatureFeedback = baselineTemperature.equilibriumK <= 180;
@@ -1070,6 +1187,7 @@ export function calcMoonExact({
         compositionOverride: moonInputs.compositionOverride,
         waterMassFractionPct: moonInputs.waterMassFractionPct,
         ammoniaPct: moonInputs.ammoniaPct,
+        tidalPersistenceContext,
         manualSurfacePressureAtm: moonInputs.manualSurfacePressureAtm,
         manualCompositionPct: {
           h2Pct: moonInputs.h2Pct,
@@ -1125,6 +1243,7 @@ export function calcMoonExact({
       antiGreenhouseFraction: allowAtmosphereTemperatureFeedback
         ? atmosphere.antiGreenhouseFraction
         : 0,
+      tidalPersistenceContext,
     });
     if (Math.abs(nextTemperature.surfaceK - temperature.surfaceK) <= 1) {
       temperature = nextTemperature;
@@ -1145,6 +1264,7 @@ export function calcMoonExact({
       compositionOverride: moonInputs.compositionOverride,
       waterMassFractionPct: moonInputs.waterMassFractionPct,
       ammoniaPct: moonInputs.ammoniaPct,
+      tidalPersistenceContext,
       manualSurfacePressureAtm: moonInputs.manualSurfacePressureAtm,
       manualCompositionPct: {
         h2Pct: moonInputs.h2Pct,
@@ -1213,6 +1333,7 @@ export function calcMoonExact({
     thermalInertiaClass: moonInputs.thermalInertiaClass,
     surfacePressurePa: atmosphere.surfacePressurePa,
     hasVolatileAtmosphere: Number(atmosphere.surfacePressurePa) > 0,
+    tidalPersistenceContext,
   });
   atmosphere = {
     ...atmosphere,
@@ -1248,6 +1369,7 @@ export function calcMoonExact({
     salinityPct: moonInputs.salinityPct,
     ammoniaPct: moonInputs.ammoniaPct,
     differentiatedInterior: moonInputs.differentiatedInterior,
+    tidalPersistenceContext,
   });
   const oceanPhaseDiagnostics = formatOceanPhaseDiagnostics(hydrosphere);
   const climate = computeMoonClimate({
@@ -1274,6 +1396,18 @@ export function calcMoonExact({
     compositionClass: tides.compositionClass,
     compositionOverride: moonInputs.compositionOverride || null,
     hydrosphere,
+    tidalPersistenceContext,
+  });
+  const dynamicalHabitabilityBridge = buildHabitabilityPersistenceBridge({
+    bodyKind: "moon",
+    stabilityContext: buildMoonStabilityContextForHabitabilityBridge(orbit),
+    tidalContext: {
+      tidalHeatingEarth: tides.tidalHeatingEarth,
+      eccentricityPersistence: tidalPersistenceContext.eccentricityPersistence,
+      heatingLikelySustained: tidalPersistenceContext.heatingLikelySustained,
+    },
+    hydrosphere,
+    geology,
   });
   const magnetosphere = computeMoonMagnetosphere({
     massMoon: mMoonMM,
@@ -1403,6 +1537,7 @@ export function calcMoonExact({
       tidalHeatingEarth: tides.tidalHeatingEarth,
     },
     climateState: climate.climateState,
+    dynamicalPersistenceContext: tidalPersistenceContext,
   });
   const biosignatureContext = computeBiosignatureContext({
     pressureAtm: surfacePressurePa / 101325,
@@ -1592,6 +1727,12 @@ export function calcMoonExact({
       moonLockedToPlanet: tides.moonLockedToPlanet,
       planetLockedToMoon: tides.planetLockedToMoon,
       planetLockedToStar: tides.planetLockedToStar,
+      synchronousOrbitKm: tides.synchronousOrbitKm,
+      synchronousOrbitParentRadii: tides.synchronousOrbitParentRadii,
+      insideSynchronousOrbit: tides.insideSynchronousOrbit,
+      migrationDirectionFromSync: tides.migrationDirectionFromSync,
+      synchronousOrbitNote: tides.synchronousOrbitNote,
+      synchronousOrbitValid: tides.synchronousOrbitValid,
       lockingTimesGyr: tides.lockingTimesGyr,
     },
     habitability: {
@@ -1610,6 +1751,7 @@ export function calcMoonExact({
     interior,
     resonance,
     formation,
+    dynamical: dynamicalHabitabilityBridge,
   });
   const earthSimilarity = computeEarthSimilarityIndex(habitabilityContext);
   const unifiedMoonHabitability = computeMoonHabitabilityIndex(habitabilityContext, {
@@ -1662,6 +1804,8 @@ export function calcMoonExact({
       surfaceExomoonCalibration: habitabilitySummary.surfaceExomoonCalibration,
       habitabilitySummary,
       unifiedMoonHabitability,
+      tidalPersistenceContext,
+      dynamicalHabitabilityBridge,
     });
     return attachMoonEraTimeline(result, {
       planetModel: result.planet,
@@ -1860,6 +2004,7 @@ export function calcMoonExact({
       oceanChemistryContext,
       biosignatureContext,
       climateChemistryForcing,
+      dynamicalPersistence: dynamicalHabitabilityBridge,
       summary: habitabilitySummary,
     },
 
@@ -1925,7 +2070,18 @@ export function calcMoonExact({
       moonLockedToPlanet: tides.moonLockedToPlanet,
       planetLockedToMoon: tides.planetLockedToMoon,
       planetLockedToStar: tides.planetLockedToStar,
+      synchronousOrbitKm: tides.synchronousOrbitKm,
+      synchronousOrbitParentRadii: tides.synchronousOrbitParentRadii,
+      insideSynchronousOrbit: tides.insideSynchronousOrbit,
+      migrationDirectionFromSync: tides.migrationDirectionFromSync,
+      synchronousOrbitNote: tides.synchronousOrbitNote,
+      synchronousOrbitValid: tides.synchronousOrbitValid,
       lockingTimesGyr: tides.lockingTimesGyr,
+    },
+
+    dynamicalContext: {
+      tidalPersistenceContext,
+      habitabilityBridge: dynamicalHabitabilityBridge,
     },
 
     display: {
@@ -1980,6 +2136,8 @@ export function calcMoonExact({
               ? `${fmt(tides.rotationPeriodDays, 3)} days (locked)`
               : `${fmt(tides.rotationPeriodDays, 3)} days (est.)`,
       spinState: tides.spinState?.state || "Not evaluated",
+      tidalHeatingPersistence: tidalPersistenceContext.sustainedTidalHeatingClass || "unknown",
+      dynamicalPersistenceConfidence: dynamicalHabitabilityBridge.confidence || "unknown",
       tidalRegime: tides.tidalRegime || "regular moon",
       tidalResponseModel: tides.k2Model || "homogeneous-elastic-moon-v1",
       tidalUncertaintyCaveats: Array.isArray(tides.tidalUncertaintyCaveats)
@@ -2157,6 +2315,8 @@ export function calcMoonExact({
       surfaceRadiation: radiation.surfaceClass,
       subsurfaceRadiation: radiation.subsurfaceClass,
       recession: formatRecession(tides.recessionCmYr),
+      synchronousOrbit: formatSynchronousOrbitDistance(tides),
+      synchronousOrbitContext: formatSynchronousOrbitContext(tides),
       orbitalFate: formatOrbitalFate(
         tides.dadtTotalMs,
         tides.timeToRocheGyr,

@@ -32,6 +32,26 @@ export function buildPlanetHomeSystemContext(world) {
   return buildWorldHomeSystemContext(world);
 }
 
+export function buildCurrentSystemModel(world) {
+  const primaryStar = getProjectedPrimaryStar(world);
+  const pSov = getStarOverrides(primaryStar);
+  const pStarCalc = calcStar({
+    massMsol: Number(primaryStar.massMsol),
+    ageGyr: Number(primaryStar.ageGyr) || 4.6,
+    radiusRsolOverride: pSov.r,
+    luminosityLsolOverride: pSov.l,
+    tempKOverride: pSov.t,
+    evolutionMode: pSov.ev,
+  });
+  return calcSystem({
+    starMassMsol: Number(primaryStar.massMsol),
+    spacingFactor: Number(world.system.spacingFactor),
+    orbit1Au: Number(world.system.orbit1Au),
+    luminosityLsolOverride: pStarCalc.luminosityLsol,
+    radiusRsolOverride: pStarCalc.radiusRsol,
+  });
+}
+
 function buildFallbackHostFrameSolveContext(world, homeSystemContext, sysModel = null) {
   const primaryStar = getProjectedPrimaryStar(world);
   const starOverrides = getStarOverrides(primaryStar || {});

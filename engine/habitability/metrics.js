@@ -248,6 +248,16 @@ export function computeUnifiedHabitabilityIndex(context = {}, { solventPolicy } 
     selectedPathway,
     pathwayPersistenceScore: stabilityModel.stabilityMultiplier,
   });
+  const dynamicalPersistence = {
+    modelVersion: normalized.dynamical.modelVersion,
+    persistenceModifier: normalized.dynamical.persistenceModifier,
+    modifierTarget: normalized.dynamical.modifierTarget,
+    confidence: normalized.dynamical.confidence,
+    sustainedTidalHeatingClass: normalized.dynamical.sustainedTidalHeatingClass,
+    reasons: normalized.dynamical.reasons,
+    noOpReason: normalized.dynamical.noOpReason,
+    appliedToScore: false,
+  };
   const score = clamp(
     baseScore *
       stabilityModel.stabilityMultiplier *
@@ -298,6 +308,7 @@ export function computeUnifiedHabitabilityIndex(context = {}, { solventPolicy } 
       },
       radiationBreakdown: radiationModel.breakdown,
       persistenceBreakdown: persistenceModel.breakdown,
+      dynamicalPersistence,
     },
   };
 }

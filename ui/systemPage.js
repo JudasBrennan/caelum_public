@@ -1,10 +1,12 @@
 import { fmt } from "../engine/utils.js";
+import { buildDynamicalContext } from "../engine/dynamics/context.js";
 import { buildSystemPosterSnapshotInputs } from "../engine/worldAdapters.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { downloadCanvasPng, makeTimestampToken } from "./canvasExport.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import {
   renderManualBodyList,
+  renderOrbitalArchitectureDiagnostics,
   renderOrbitSlots,
   renderSystemKpis,
   renderUnassignedMoons,
@@ -23,6 +25,7 @@ import {
   listMoonParentBodies,
   listPlanetaryBodies,
   assignPlanetToSlot,
+  movePlanetToSlot,
   assignMoonToPlanet,
   selectPlanet,
   selectMoon,
@@ -163,6 +166,7 @@ function gasGiantFromBodyProjection(body) {
 function manualBodyListItemFromProjection(body) {
   const au = planetaryBodyOrbitAu(body);
   return {
+    id: body.id,
     kind: planetaryBodyKindLabel(body),
     name: body.name || body.id,
     au: Number.isFinite(au) && au > 0 ? au : Number.POSITIVE_INFINITY,
@@ -456,6 +460,7 @@ export function initSystemPage(mountEl) {
         <div class="panel__header"><h2>Outputs</h2></div>
         <div class="panel__body">
           <div class="kpi-grid" id="kpis"></div>
+          <div id="orbitalArchitectureDiagnostics" style="margin-top:12px"></div>
 
           <div style="margin-top:14px">
             <div id="guidedOutputs">
@@ -520,6 +525,7 @@ export function initSystemPage(mountEl) {
   const orbit1El = wrap.querySelector("#orbit1");
 
   const kpisEl = wrap.querySelector("#kpis");
+  const orbitalArchitectureEl = wrap.querySelector("#orbitalArchitectureDiagnostics");
   const unassignedEl = wrap.querySelector("#unassignedPlanets");
   const unassignedMoonsEl = wrap.querySelector("#unassignedMoons");
   const slotsUiEl = wrap.querySelector("#slotsUi");
@@ -538,11 +544,16 @@ export function initSystemPage(mountEl) {
   const posterPanel = wrap.querySelector("#posterPanel");
   let posterRendererReady = false;
   let disposed = false;
+  let noticeTimer = null;
   const cleanupFns = [];
 
   function disposePage() {
     if (disposed) return;
     disposed = true;
+    if (noticeTimer) {
+      clearTimeout(noticeTimer);
+      noticeTimer = null;
+    }
     posterRendererReady = false;
     cachedPosterData = null;
     disposeSystemPosterNative(posterCanvas);
@@ -552,6 +563,21 @@ export function initSystemPage(mountEl) {
         fn?.();
       } catch {}
     }
+  }
+
+  function showSystemNotice(message) {
+    let noteEl = wrap.querySelector(".system-float-note");
+    if (!noteEl) {
+      noteEl = document.createElement("div");
+      noteEl.className = "system-float-note";
+      wrap.appendChild(noteEl);
+    }
+    noteEl.textContent = message;
+    noteEl.classList.add("is-visible");
+    if (noticeTimer) clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => {
+      noteEl.classList.remove("is-visible");
+    }, 3200);
   }
 
   const posterUnmountObserver = new MutationObserver(() => {
@@ -834,7 +860,7 @@ export function initSystemPage(mountEl) {
       guidedInputsEl.style.display = isManual ? "none" : "";
       guidedOutputsEl.style.display = isManual ? "none" : "";
       manualOutputsEl.style.display = isManual ? "" : "none";
-      manualBodyHintEl.textContent = `Sorted by semi-major axis in ${activeHostFrame?.label || "the selected host frame"}. Edit orbits on the Planets tab.`;
+      manualBodyHintEl.textContent = `Sorted by semi-major axis in ${activeHostFrame?.label || "the selected host frame"}. Edit orbits on the Planets tab. Manual orbit mode disables planet slot dragging, but moon parent assignment is still available.`;
 
       // Planet assignment UI
       const planets = listPlanets(w0);
@@ -949,6 +975,12 @@ export function initSystemPage(mountEl) {
         moonCountByPlanet.set(pid, list.length);
       }
       const renderCtx = { planetsById: moonParentsById, moonsByPlanet, moonCountByPlanet };
+      const dynamicalContext = buildDynamicalContext({ world: worldForUi, detailLevel: "summary" });
+      const orbitalArchitecture =
+        dynamicalContext.hostFrames?.[state.activeHostFrameId]?.orbitalArchitecture ||
+        dynamicalContext.hostFrames?.[fallbackHostFrameId]?.orbitalArchitecture ||
+        null;
+      renderOrbitalArchitectureDiagnostics(orbitalArchitectureEl, orbitalArchitecture);
 
       // Unassigned list
       const unassigned = annotatedPlanetsForUi.filter((p) => p.slotIndex == null);
@@ -973,7 +1005,18 @@ export function initSystemPage(mountEl) {
 
       // ── Manual mode: sorted body list ──
       if (isManual) {
-        const allBodies = bodyProjectionsForUi.map(manualBodyListItemFromProjection);
+        const manualPlanetsById = new Map(
+          annotatedPlanetsForUi.map((planet) => [planet.id, planet]),
+        );
+        const allBodies = bodyProjectionsForUi.map((body) => {
+          const row = manualBodyListItemFromProjection(body);
+          if (body?.legacyKind === "rocky") {
+            row.planet = manualPlanetsById.get(body.id) || null;
+          } else if (body?.legacyKind === "gasGiant") {
+            row.gasGiant = gasGiantFromBodyProjection(body);
+          }
+          return row;
+        });
         for (const d of debrisRows) {
           const mid = (d.inner + d.outer) / 2;
           allBodies.push({
@@ -984,7 +1027,12 @@ export function initSystemPage(mountEl) {
           });
         }
         allBodies.sort((a, b) => a.au - b.au);
-        renderManualBodyList(manualBodyListEl, allBodies);
+        renderManualBodyList(manualBodyListEl, allBodies, {
+          sysModel: model,
+          renderCtx,
+          allowPlanetDrag: false,
+          placementText: "Manual orbit",
+        });
       } else {
         manualBodyListEl.replaceChildren();
       }
@@ -1112,7 +1160,14 @@ export function initSystemPage(mountEl) {
   // ── Orbit placement mode toggle ──
   wrap.querySelector('[data-toggle="orbitMode"]').addEventListener("change", (e) => {
     const mode = e.target.value;
-    setOrbitMode(mode);
+    const currentWorld = loadWorld();
+    const homeSystemContext = buildWorldHomeSystemContext(currentWorld);
+    const solveContext = resolveWorldHostFrameContext(
+      currentWorld,
+      state.activeHostFrameId,
+      homeSystemContext,
+    );
+    setOrbitMode(mode, solveContext?.hostFrame?.system?.orbitsAu);
     render();
   });
 
@@ -1168,14 +1223,11 @@ export function initSystemPage(mountEl) {
 
     wrap.addEventListener("dragstart", (e) => {
       const curWorld = loadWorld();
-      if ((curWorld.system.orbitMode || "guided") === "manual") {
-        e.preventDefault();
-        return;
-      }
       const moonCard = e.target.closest?.(".moon-card");
       if (moonCard) {
         if (moonCard.classList.contains("is-locked")) {
           e.preventDefault();
+          showSystemNotice("This moon's parent assignment is locked. Unlock parent to move it.");
           return;
         }
         const mid = moonCard.getAttribute("data-moon-id");
@@ -1196,6 +1248,10 @@ export function initSystemPage(mountEl) {
 
       const card = e.target.closest?.(".planet-card");
       if (!card) return;
+      if ((curWorld.system.orbitMode || "guided") === "manual") {
+        e.preventDefault();
+        return;
+      }
       if (card.classList.contains("is-locked")) {
         e.preventDefault();
         return;
@@ -1264,7 +1320,10 @@ export function initSystemPage(mountEl) {
       if (payload.type === "planet") {
         const zone = target;
         if (zone.id === "unassignedZone") {
-          assignPlanetToSlot(payload.id, null);
+          const result = movePlanetToSlot(payload.id, null);
+          if (!result.changed && result.reason === "source-locked") {
+            showSystemNotice("This planet's slot assignment is locked. Unlock it to move it.");
+          }
           render();
           return;
         }
@@ -1273,27 +1332,24 @@ export function initSystemPage(mountEl) {
         if (!slotAttr) return;
         const slot = Number(slotAttr);
 
-        // If the slot is occupied by a locked planet, do not allow replacement
         const wNow = loadWorld();
-        const planetsNow = listPlanets(wNow);
-        const fallbackHostFrameId = normalizeHostFrameId(
-          wNow?.stellarSystem?.defaultHostFrameId,
+        const homeSystemContext = buildWorldHomeSystemContext(wNow);
+        const solveContext = resolveWorldHostFrameContext(
+          wNow,
           state.activeHostFrameId,
+          homeSystemContext,
         );
-        const activeHostFrameId = normalizeHostFrameId(
-          state.activeHostFrameId,
-          fallbackHostFrameId,
-        );
-        const occ = planetsNow.find(
-          (p) =>
-            p.slotIndex === slot &&
-            normalizeHostFrameId(p?.hostFrameId, fallbackHostFrameId) === activeHostFrameId,
-        );
-        if (occ && occ.locked && occ.id !== payload.id) {
-          return;
+        const orbitSlots = solveContext?.hostFrame?.system?.orbitsAu || [];
+        const result = movePlanetToSlot(payload.id, slot, { orbitsAu: orbitSlots });
+        if (!result.changed) {
+          if (result.reason === "target-locked") {
+            showSystemNotice("That slot is occupied by a locked planet. Unlock it to swap.");
+          } else if (result.reason === "source-locked") {
+            showSystemNotice("This planet's slot assignment is locked. Unlock it to move it.");
+          } else if (result.reason === "target-occupied") {
+            showSystemNotice("That slot is occupied. Drag from another slot to swap planets.");
+          }
         }
-
-        assignPlanetToSlot(payload.id, slot);
         render();
       }
     });

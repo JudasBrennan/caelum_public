@@ -108,6 +108,20 @@ function compositionKeyFromInputs({ compositionOverride, compositionClass, densi
   return "Iron-rich";
 }
 
+function normalizeTidalPersistenceContext(context) {
+  if (!context || typeof context !== "object") return null;
+  return {
+    modelVersion: context.modelVersion || "sustained-tidal-heating-context-v1",
+    currentTidalHeatingClass: String(context.currentTidalHeatingClass || "unknown"),
+    sustainedTidalHeatingClass: String(context.sustainedTidalHeatingClass || "unknown"),
+    eccentricityPersistence: String(context.eccentricityPersistence || "uncertain"),
+    persistenceConfidence: String(context.persistenceConfidence || context.confidence || "unknown"),
+    supportingMechanism: String(context.supportingMechanism || "none"),
+    limitingFactor: String(context.limitingFactor || ""),
+    note: String(context.note || ""),
+  };
+}
+
 function computeSilicateVolcanism({
   compositionKey,
   tidalHeatingEarth,
@@ -254,8 +268,10 @@ export function computeMoonGeology({
   compositionClass = "",
   compositionOverride = "",
   hydrosphere = null,
+  tidalPersistenceContext = null,
 } = {}) {
   const notes = ["moon-geology-v1"];
+  const persistenceContext = normalizeTidalPersistenceContext(tidalPersistenceContext);
   const compositionKey = compositionKeyFromInputs({
     compositionOverride,
     compositionClass,
@@ -296,6 +312,18 @@ export function computeMoonGeology({
   if (cryovolcanic.score >= 0.4) notes.push("active-cryovolcanism");
   if (volatileReplenishmentScore >= 0.4) notes.push("volatile-replenishment-supported");
   if (oceanPersistenceScore >= 0.4) notes.push("ocean-persistence-supported");
+  if (persistenceContext?.sustainedTidalHeatingClass === "likely-sustained") {
+    notes.push("tidal-heating-likely-sustained");
+  } else if (persistenceContext?.sustainedTidalHeatingClass === "damping") {
+    notes.push("tidal-heating-may-damp");
+  } else if (persistenceContext?.sustainedTidalHeatingClass === "overdriven") {
+    notes.push("overdriven-tidal-heating-stress");
+  } else if (
+    persistenceContext?.sustainedTidalHeatingClass === "uncertain" &&
+    persistenceContext.currentTidalHeatingClass !== "low"
+  ) {
+    notes.push("tidal-heating-persistence-uncertain");
+  }
 
   return {
     modelVersion: "moon-geology-v1",
@@ -311,6 +339,11 @@ export function computeMoonGeology({
     volatileReplenishmentTendency: tendencyLabel(volatileReplenishmentScore),
     oceanPersistenceScore,
     oceanPersistenceTendency: tendencyLabel(oceanPersistenceScore),
+    dynamicalPersistenceContext: persistenceContext,
+    currentTidalHeatingClass: persistenceContext?.currentTidalHeatingClass || "unknown",
+    sustainedTidalHeatingClass: persistenceContext?.sustainedTidalHeatingClass || "unknown",
+    tidalPersistenceConfidence: persistenceContext?.persistenceConfidence || "unknown",
+    tidalPersistenceNote: persistenceContext?.note || "",
     inputs: {
       tidalHeatingEarth: Math.max(toFinite(tidalHeatingEarth, 0), 0),
       tidalHeatingWm2: Math.max(toFinite(tidalHeatingWm2, 0), 0),

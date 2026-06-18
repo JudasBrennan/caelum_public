@@ -36,6 +36,7 @@ export function computeMoonTemperature({
   thermalInertiaClass = null,
   surfacePressurePa = 0,
   hasVolatileAtmosphere = false,
+  tidalPersistenceContext = null,
 }) {
   const stellarFluxAtDistanceWm2 =
     calcStellarFluxWm2({
@@ -99,6 +100,7 @@ export function computeMoonTemperature({
     radiogenicHeatFluxWm2: radiogenicWm2,
     surfacePressurePa,
     hasVolatileAtmosphere,
+    tidalPersistenceContext,
   });
 
   return {

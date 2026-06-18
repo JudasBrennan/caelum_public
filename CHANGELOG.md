@@ -4,6 +4,143 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.10.0 - 2026-06-18
+
+### Added
+
+**Orbital integrity and moon tidal evolution diagnostics**
+(engine/orbitalArchitecture.js, engine/moon/tidalEvolution.js,
+engine/moon.js, engine/moon/system.js, engine/moon/tides.js,
+ui/systemPage.js, ui/system/domRender.js, ui/moonPage.js,
+ui/sciencePage.js, ui/lessons/L07_planetarySystems.js,
+ui/lessons/L12_moonsTides.js, scripts/report-model-calibration.mjs,
+tests/orbitalArchitecture.test.js, tests/moonTidalEvolution.test.js,
+tests/systemDomRender.test.js, tests/systemPageMultistar.ui.test.js,
+tests/moonOrbitalFateRegression.test.js, tests/moonResonance.test.js,
+tests/modelCalibrationReport.test.js, tests/sciencePageReference.ui.test.js,
+tests/lessonsContent.test.js)
+
+The Planetary System page now reports selected-host-frame mutual-Hill spacing
+for planets, gas giants, and brown-dwarf companions. The diagnostic labels
+stable, packed, crowded, unstable, or unknown with confidence notes rather than
+blocking edits or pretending to be an N-body integration.
+
+Moon tidal outputs now include parent synchronous-orbit context, qualitative
+eccentricity pump/damp state, and a bounded parent moon-system torque budget
+proxy. These outputs use existing resonance, migration, and tidal-fate inputs
+so users no longer need manual overrides to discover inward/outward migration,
+resonance-maintained heating, tidal damping, or mixed sibling-moon torque
+context.
+
+The Science & Maths page, Lessons, calibration report, and reference fixtures
+now document the formulas, assumptions, tolerances, and qualitative boundaries
+for the new diagnostics.
+
+**Shared dynamical context and science coupling**
+(engine/dynamics/context.js, engine/dynamics/schema.js,
+engine/dynamics/scienceRegistry.js, engine/dynamics/generationGuidance.js,
+engine/dynamics/habitabilityBridge.js, engine/dynamics/display.js,
+engine/systemGeneration/validators.js, engine/moon.js, engine/moon/system.js,
+engine/moon/geology.js, engine/moon/hydrosphere.js,
+engine/moon/thermophysics.js, engine/moon/retention.js,
+engine/environment/oceanChemistry.js, engine/habitability/schema.js,
+engine/habitability/metrics.js, engine/habitability/context.js,
+engine/planetaryEraTimeline.js, ui/systemPage.js, ui/sciencePage.js,
+ui/lessons/L07_planetarySystems.js, ui/lessons/L12_moonsTides.js,
+tests/dynamicalContext.test.js, tests/dynamicalGasGiantCoupling.test.js,
+tests/dynamicalMoonCoupling.test.js,
+tests/habitabilityDynamicalBridge.test.js,
+tests/systemGenerationValidators.test.js,
+tests/planetaryEraTimeline.test.js)
+
+WorldSmith now builds a shared dynamical context that routes host-frame
+architecture, moon synchronous-orbit state, eccentricity pump/damp context,
+sustained tidal-heating context, parent moon-system torque budget, generation
+guidance, habitability persistence, ring context, and qualitative parent
+radiation context through one source of truth.
+
+System generation and repair validation now consume shared orbital/tidal
+constraints. Moon interiors distinguish current tidal heat from sustained tidal
+support, ocean chemistry and geology carry persistence notes, and habitability
+receives dynamical confidence without hidden score penalties.
+
+Timelines, Science & Maths, and Lessons now explain these outputs as bounded
+diagnostics: no N-body integration, no exact magnetodisk model, and no claim
+that a subsurface ocean or habitable state is permanent.
+
+### Changed
+
+**Guided orbit slot placement and Planetary System UX**
+(ui/store.js, ui/store/bodyMutations.js, ui/systemPage.js,
+ui/system/domRender.js, ui/planetPage.js, ui/planet/formHelpers.js,
+ui/planet/hostFrame.js, styles.css, tests/planetStore.test.js,
+tests/systemPageMultistar.ui.test.js, tests/inputDraftStability.ui.test.js)
+
+Guided mode planet dragging on the Planetary System page now supports moving
+planets into empty slots and swapping two occupied unlocked slots. Invalid drops
+such as locked destinations or unassigned planets dropped onto occupied slots
+now show visible feedback rather than silently changing or failing.
+
+Switching from manual orbit mode back to guided mode now infers the nearest
+open orbital slots from current physical AU values for rocky planets and gas
+giants, using proportional distance on the logarithmic slot ladder. Resolved
+slot placements also sync the saved AU value so downstream models do not keep
+stale manual distances.
+
+The Planet page now disables direct AU entry for rocky planets and gas giants
+while guided orbit mode is active, with inline copy explaining that orbital
+distance is controlled by the selected slot. Manual orbit mode still allows
+direct AU editing.
+
+### Tests
+
+- Added store regressions for guided slot swaps, AU synchronization, and
+  manual-to-guided nearest-slot inference.
+- Added Planetary System UI regressions for dragging planets between slots,
+  occupied-slot swaps, and manual-mode moon parent visibility.
+- Added Planet page coverage for guided-mode AU locking while keeping slot
+  selection available.
+
+## 2.9.2 - 2026-06-18
+
+### Bug Fixes
+
+**Moon parent assignment in the Planetary System viewer**
+(ui/systemPage.js, ui/system/domRender.js, ui/moonPage.js, styles.css,
+tests/systemPageMultistar.ui.test.js, tests/systemDomRender.test.js,
+tests/inputDraftStability.ui.test.js)
+
+Moons can now be reassigned from the Planetary System viewer while manual orbit
+mode is active. Manual mode still disables planet slot dragging, but moon
+parent assignment remains available so users can move moons without switching
+back to guided orbit slots.
+
+Gas-giant and brown-dwarf companion rows now expose the same moon drop zones as
+rocky planet rows, so moons can be assigned to giant companions directly from
+the system view instead of requiring a separate page flow.
+
+### Changed
+
+**Clearer moon parent locks**
+(ui/system/domRender.js, ui/systemPage.js, ui/moonPage.js, styles.css)
+
+Moon lock controls now say `Lock parent` and `Unlock parent`, locked moon cards
+show `Parent locked`, and attempted drags of locked moons show a visible
+explanation instead of failing silently.
+
+The Moon page now shows an inline notice under the disabled parent selector
+when a moon's parent assignment is locked, with an `Unlock parent` action that
+immediately re-enables parent changes for the selected moon.
+
+### Tests
+
+- Added System-viewer regressions for moon reassignment in manual orbit mode,
+  gas-giant moon drop zones, and locked-moon drag feedback.
+- Added a Moon-page regression for the locked-parent notice and inline unlock
+  action.
+- Expanded System DOM rendering coverage for moon drop-zone labels and parent
+  lock wording.
+
 ## 2.9.1 - 2026-06-17
 
 ### Bug Fixes

@@ -149,6 +149,15 @@ export function buildLesson12(mode) {
       <p>Higher-order spin-orbit resonances (e.g. Mercury's 3:2 lock) can
         occur when orbital eccentricity is significant, preventing
         synchronous capture.</p>
+      <p>The parent body also has a <strong>synchronous orbit</strong>, where
+        a prograde moon's orbital period equals the parent's rotation
+        period:</p>
+      ${eq("r_\\text{sync} = \\left(\\frac{G M_p}{\\Omega_p^2}\\right)^{1/3}")}
+      <p>Inside this radius, a prograde moon orbits faster than the parent
+        spins and normally migrates inward; outside it, a faster-spinning
+        parent normally pushes the moon outward. WorldSmith reports this as
+        a bounded context check, with missing mass or rotation returning
+        unknown rather than a confident fate.</p>
       ${cite("Gladman et al. (1996, Icarus 122, 166); Peale (1999, ARA&A 37, 533)")}`,
       mode,
     ),
@@ -194,6 +203,16 @@ export function buildLesson12(mode) {
       <p>Resonant orbital configurations (e.g. Io-Europa-Ganymede Laplace
         resonance) maintain forced eccentricities that prevent tidal
         circularisation, sustaining heating over geological timescales.</p>
+      <p>WorldSmith now labels that pump-damp balance qualitatively. Resonance
+        or manual forced-eccentricity floors can mark heating as
+        <strong>maintained</strong>; isolated moons with no sustained forcing
+        tend toward <strong>damping</strong>; very high forced eccentricity
+        and high heat become <strong>overdriven</strong>; weak or incomplete
+        inputs remain <strong>uncertain</strong>.</p>
+      <p>The app keeps <strong>current tidal heat</strong> separate from
+        <strong>sustained tidal support</strong>. That shared dynamical context
+        can improve or reduce habitability persistence confidence, but it does
+        not claim that a subsurface ocean is permanent.</p>
       ${cite("Peale, Cassen & Reynolds (1979, Science 203, 892); Segatz et al. (1988, Icarus 75, 187)")}`,
       mode,
     ),
@@ -245,6 +264,11 @@ export function buildLesson12(mode) {
           ["Jupiter-Io", "~0 (resonance-locked)", "Stable; Laplace resonance maintains e"],
         ],
       )}
+      <p>For systems with multiple modeled moons, WorldSmith also summarizes a
+        parent moon-system torque budget. The first pass uses a mass-weighted
+        migration-rate proxy, so it can say net outward, net inward, or
+        balanced without pretending to know the exact physical torque of a
+        simplified exomoon system.</p>
       ${cite("Goldreich & Soter (1966, Icarus 5, 375); Bills et al. (2005, J. Geophys. Res. 110, E07004)")}`,
       mode,
     ),

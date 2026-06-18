@@ -37,6 +37,10 @@ function objectOrEmpty(value) {
   return value && typeof value === "object" ? value : {};
 }
 
+function stringArray(value) {
+  return Array.isArray(value) ? value.map((entry) => String(entry)).filter(Boolean) : [];
+}
+
 function normalizeBodyType(value) {
   return VALID_BODY_TYPES.has(value) ? value : "planet";
 }
@@ -55,6 +59,7 @@ export function normalizeHabitabilityContext(rawContext = {}) {
   const chemistry = objectOrEmpty(raw.chemistry);
   const climate = objectOrEmpty(raw.climate);
   const environment = objectOrEmpty(raw.environment);
+  const dynamical = objectOrEmpty(raw.dynamical);
   const provenance = objectOrEmpty(raw.provenance);
 
   return {
@@ -199,6 +204,15 @@ export function normalizeHabitabilityContext(rawContext = {}) {
       tidallyLockedToPrimary: environment.tidallyLockedToPrimary === true,
       tidallyLockedToStar: environment.tidallyLockedToStar === true,
       insideMagnetosphere: environment.insideMagnetosphere === true,
+    },
+    dynamical: {
+      modelVersion: String(dynamical.modelVersion || "dynamical-habitability-bridge-v1"),
+      persistenceModifier: clamp(toFinite(dynamical.persistenceModifier, 1), 0, 1),
+      modifierTarget: String(dynamical.modifierTarget || "confidence"),
+      confidence: String(dynamical.confidence || "unknown"),
+      sustainedTidalHeatingClass: String(dynamical.sustainedTidalHeatingClass || "unknown"),
+      reasons: stringArray(dynamical.reasons),
+      noOpReason: String(dynamical.noOpReason || ""),
     },
     provenance: {
       hydrosphereModelVersion: String(provenance.hydrosphereModelVersion || ""),

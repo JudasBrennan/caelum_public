@@ -1,4 +1,5 @@
 import { buildWorldSnapshot } from "../worldSnapshot.js";
+import { buildDynamicalContext } from "../dynamics/context.js";
 
 function normalizeHostFrameId(value, fallbackId = "star_a") {
   const id = String(value ?? "").trim();
@@ -8,6 +9,7 @@ function normalizeHostFrameId(value, fallbackId = "star_a") {
 export function validateGeneratedDraftWorld(draftWorld, request = {}) {
   const diagnostics = [];
   let snapshot = null;
+  let dynamicalContext = null;
 
   try {
     snapshot = buildWorldSnapshot(draftWorld, { mode: "summary" });
@@ -24,6 +26,51 @@ export function validateGeneratedDraftWorld(draftWorld, request = {}) {
       fitClass: "blocked",
       diagnostics,
     };
+  }
+
+  try {
+    dynamicalContext = buildDynamicalContext({
+      world: draftWorld,
+      includeGenerationGuidance: true,
+    });
+  } catch (error) {
+    diagnostics.push({
+      severity: "warning",
+      code: "dynamical-context-validation-unavailable",
+      title: "Dynamical guidance unavailable",
+      detail:
+        error instanceof Error
+          ? error.message
+          : "Shared dynamical validation could not be evaluated.",
+    });
+  }
+
+  const guidance = dynamicalContext?.generationGuidance || null;
+  for (const block of guidance?.hardBlocks || []) {
+    diagnostics.push({
+      severity: "blocked",
+      code: block.code,
+      title: block.title,
+      detail: block.detail,
+      targetId: block.targetId,
+      hostFrameId: block.hostFrameId,
+      repairSuggestions: (guidance.repairSuggestions || []).filter(
+        (suggestion) => suggestion.targetId === block.targetId,
+      ),
+    });
+  }
+  for (const warning of guidance?.softWarnings || []) {
+    diagnostics.push({
+      severity: "warning",
+      code: warning.code,
+      title: warning.title,
+      detail: warning.detail,
+      targetId: warning.targetId,
+      hostFrameId: warning.hostFrameId,
+      repairSuggestions: (guidance.repairSuggestions || []).filter(
+        (suggestion) => suggestion.targetId === warning.targetId,
+      ),
+    });
   }
 
   const defaultHostFrameId = snapshot?.meta?.defaultHostFrameId || "star_a";
@@ -71,7 +118,12 @@ export function validateGeneratedDraftWorld(draftWorld, request = {}) {
   return {
     ok: diagnostics.every((entry) => entry.severity !== "blocked"),
     snapshot,
-    fitClass: diagnostics.length ? "near-miss" : "exact-match",
+    dynamicalContext,
+    fitClass: diagnostics.some((entry) => entry.severity === "blocked")
+      ? "blocked"
+      : diagnostics.length
+        ? "near-miss"
+        : "exact-match",
     diagnostics,
   };
 }

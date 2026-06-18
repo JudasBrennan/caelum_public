@@ -72,6 +72,7 @@ import {
   planDeleteMoon,
   updateMoon,
   assignMoonToPlanet,
+  toggleMoonLock,
   applyMoonSiblingPatch,
   buildWorldHomeSystemContext,
   getProjectedPrimaryStar,
@@ -710,6 +711,15 @@ export function initMoonPage(mountEl, options = {}) {
             </div>
             <select id="moonPlanetSelect"></select>
           </div>
+          <div id="moonParentLockNotice" class="moon-parent-lock" hidden>
+            <div>
+              <div class="moon-parent-lock__title">Parent assignment locked</div>
+              <div class="moon-parent-lock__copy">
+                Parent assignment is locked from the Planetary System viewer. Unlock it to change this moon's parent.
+              </div>
+            </div>
+            <button id="moonParentUnlock" class="small" type="button">Unlock parent</button>
+          </div>
 
           <div style="height:10px"></div>
 
@@ -939,6 +949,8 @@ export function initMoonPage(mountEl, options = {}) {
   const moonNewEl = wrap.querySelector("#moonNew");
   const moonDeleteEl = wrap.querySelector("#moonDelete");
   const moonPlanetSelectEl = wrap.querySelector("#moonPlanetSelect");
+  const moonParentLockNoticeEl = wrap.querySelector("#moonParentLockNotice");
+  const moonParentUnlockEl = wrap.querySelector("#moonParentUnlock");
 
   const contextEl = wrap.querySelector("#context");
   const nameEl = wrap.querySelector("#name");
@@ -1291,6 +1303,9 @@ export function initMoonPage(mountEl, options = {}) {
         ? "This moon is locked to its current planet on the Planetary System tab."
         : "",
     });
+    if (moonParentLockNoticeEl) {
+      moonParentLockNoticeEl.hidden = !state.moonLocked;
+    }
   }
 
   function populateMoonSelect() {
@@ -1513,6 +1528,7 @@ export function initMoonPage(mountEl, options = {}) {
             moon: moonInputs,
             parentOverride,
           }),
+        parentBudget: solved.parentBudget || null,
       };
     }
 
@@ -1622,6 +1638,7 @@ export function initMoonPage(mountEl, options = {}) {
           planet: parentInputs,
           moon: moonInputs,
         }),
+      parentBudget: solved.parentBudget || null,
     };
   }
 
@@ -1670,6 +1687,23 @@ export function initMoonPage(mountEl, options = {}) {
       : model.display.orbitalFate.startsWith("Escape")
         ? "Outward drift"
         : "Stable";
+    const parentBudget = solved.parentBudget || null;
+    const parentBudgetValue =
+      parentBudget?.moonCount > 0 && parentBudget.netTorqueClass !== "unknown"
+        ? `Net ${parentBudget.netTorqueClass}`
+        : "Unknown";
+    const parentBudgetMeta =
+      parentBudget?.moonCount > 0
+        ? [
+            parentBudget.display?.netMigrationProxy,
+            parentBudget.display?.dominantMoon
+              ? `Dominant: ${parentBudget.display.dominantMoon}`
+              : null,
+            ...(Array.isArray(parentBudget.notes) ? parentBudget.notes : []),
+          ]
+            .filter(Boolean)
+            .join("\n")
+        : "Assign moons to a parent to build a bounded moon-system torque budget.";
     const moonHabitabilityPolicyVersion =
       moonHabitabilityBreakdown.solventPolicyVersion || "surface-plus-subsurface-water-v1";
     const moonHabitabilityPolicyLabel =
@@ -1944,7 +1978,23 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Nearest Resonance", model.display.nearestResonance),
           buildMoonKpi("Laplace Status", model.display.laplaceStatus),
           buildMoonKpi("Forced Eccentricity", model.display.forcedEccentricity),
+          buildMoonKpi(
+            "Eccentricity State",
+            model.display.eccentricityEquilibrium || "Unknown",
+            model.display.eccentricityEquilibriumNote || "",
+          ),
+          buildMoonKpi(
+            "Tidal Persistence",
+            model.display.tidalHeatingPersistence || "Unknown",
+            "Qualitative resonance-pump versus tidal-damp diagnostic.",
+          ),
           buildMoonKpi("Migration Trend", model.display.migrationTrend),
+          buildMoonKpi(
+            "Synchronous Orbit",
+            model.display.synchronousOrbit,
+            model.display.synchronousOrbitContext,
+          ),
+          buildMoonKpi("Moon System Torque", parentBudgetValue, parentBudgetMeta),
           buildMoonKpi("Tidal HZ", model.display.tidalHabitableZone),
           buildMoonKpi("Formation", model.display.formation),
           buildMoonKpi("Orbital Recession", model.display.recession),
@@ -2306,7 +2356,27 @@ export function initMoonPage(mountEl, options = {}) {
             { label: "Nearest Resonance", value: model.display.nearestResonance },
             { label: "Laplace Status", value: model.display.laplaceStatus },
             { label: "Forced Eccentricity", value: model.display.forcedEccentricity },
+            {
+              label: "Eccentricity State",
+              value: model.display.eccentricityEquilibrium || "Unknown",
+              meta: model.display.eccentricityEquilibriumNote || "",
+            },
+            {
+              label: "Tidal Persistence",
+              value: model.display.tidalHeatingPersistence || "Unknown",
+              meta: "Qualitative resonance-pump versus tidal-damp diagnostic.",
+            },
             { label: "Migration Trend", value: model.display.migrationTrend },
+            {
+              label: "Synchronous Orbit",
+              value: model.display.synchronousOrbit,
+              meta: model.display.synchronousOrbitContext,
+            },
+            {
+              label: "Moon System Torque",
+              value: parentBudgetValue,
+              meta: parentBudgetMeta,
+            },
             { label: "Tidal HZ", value: model.display.tidalHabitableZone },
             { label: "Formation", value: model.display.formation },
             { label: "Orbital Recession", value: model.display.recession },
@@ -2643,6 +2713,16 @@ export function initMoonPage(mountEl, options = {}) {
   nameEl.addEventListener("change", applyFromInputs);
   compOverrideEl.addEventListener("change", applyFromInputs);
   moonPlanetSelectEl.addEventListener("change", applyFromInputs);
+  moonParentUnlockEl?.addEventListener("click", (e) => {
+    e.preventDefault();
+    const w = loadWorld();
+    const moonId = state.moonId || w.moons?.selectedId;
+    if (!moonId) return;
+    toggleMoonLock(moonId);
+    loadIntoInputs();
+    render();
+    showMoonNotice("Parent assignment unlocked.");
+  });
   differentiatedInteriorEl.addEventListener("change", applyFromInputs);
   resonanceGroupEl.addEventListener("change", applyFromInputs);
   resonanceOrderEl.addEventListener("change", applyFromInputs);

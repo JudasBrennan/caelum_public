@@ -101,6 +101,7 @@ import {
   findNearestSlot,
   normalizeHostFrameId,
   buildPlanetHomeSystemContext,
+  buildCurrentSystemModel,
   resolvePlanetPageHostFrameContext,
   filterBodiesForHostFrame,
   buildHostFrameOptions,
@@ -108,6 +109,7 @@ import {
   formatHostFrameStabilityHint,
   buildSelectedBodyContextReadout,
 } from "./planet/hostFrame.js";
+import * as formHelpers from "./planet/formHelpers.js";
 import {
   createVegetationInfoOverlay,
   renderBodyActionButtons,
@@ -1108,26 +1110,6 @@ export function initPlanetPage(mountEl, options = {}) {
     };
   }
 
-  function buildCurrentSystemModel(world) {
-    const primaryStar = getProjectedPrimaryStar(world);
-    const pSov = getStarOverrides(primaryStar);
-    const pStarCalc = calcStar({
-      massMsol: Number(primaryStar.massMsol),
-      ageGyr: Number(primaryStar.ageGyr) || 4.6,
-      radiusRsolOverride: pSov.r,
-      luminosityLsolOverride: pSov.l,
-      tempKOverride: pSov.t,
-      evolutionMode: pSov.ev,
-    });
-    return calcSystem({
-      starMassMsol: Number(primaryStar.massMsol),
-      spacingFactor: Number(world.system.spacingFactor),
-      orbit1Au: Number(world.system.orbit1Au),
-      luminosityLsolOverride: pStarCalc.luminosityLsol,
-      radiusRsolOverride: pStarCalc.radiusRsol,
-    });
-  }
-
   function openSelectedPlanetaryVisualEditor() {
     const world = loadWorld();
     const context = buildSelectedPlanetaryVisualEditorContext(
@@ -1146,21 +1128,6 @@ export function initPlanetPage(mountEl, options = {}) {
         scheduleRender(true);
       },
     });
-  }
-
-  function readOptionalSelectValue(selectEl) {
-    const value = String(selectEl?.value || "").trim();
-    return value || null;
-  }
-
-  function readOptionalNonNegativeNumber(numberEl, previousValue = null) {
-    if (!numberEl) return { ok: true, value: null };
-    const raw = String(numberEl.value || "").trim();
-    if (!raw) return { ok: true, value: null };
-    const value = Number(raw);
-    if (Number.isFinite(value) && value >= 0) return { ok: true, value };
-    numberEl.value = previousValue ?? "";
-    return { ok: false, value: previousValue ?? null };
   }
 
   function populateBodySelector(world) {
@@ -1198,6 +1165,7 @@ export function initPlanetPage(mountEl, options = {}) {
       homeSystemContext?.defaultHostFrameId,
     );
     const hostSystem = solveContext?.hostFrame?.system || sysModel;
+    const guidedOrbitMode = formHelpers.isGuidedOrbitMode(world);
     const p = planet.inputs || {};
     renderRockyInputForm(bodyInputsEl, {
       planet,
@@ -1393,13 +1361,15 @@ export function initPlanetPage(mountEl, options = {}) {
 
     bodyInputsEl.querySelector("#carbonRichness")?.addEventListener("change", (event) => {
       if (hydrating) return;
-      commitRockyInputPatch({ carbonRichness: readOptionalSelectValue(event.currentTarget) });
+      commitRockyInputPatch({
+        carbonRichness: formHelpers.readOptionalSelectValue(event.currentTarget),
+      });
     });
 
     for (const fieldName of ["bulkDensityGcm3", "internalHeatFluxWm2", "tidalHeatFluxWm2"]) {
       bodyInputsEl.querySelector(`#${fieldName}`)?.addEventListener("change", (event) => {
         if (hydrating) return;
-        const result = readOptionalNonNegativeNumber(event.currentTarget, p[fieldName]);
+        const result = formHelpers.readOptionalNonNegativeNumber(event.currentTarget, p[fieldName]);
         if (result.ok) commitRockyInputPatch({ [fieldName]: result.value });
       });
     }
@@ -1425,10 +1395,16 @@ export function initPlanetPage(mountEl, options = {}) {
         commitOnInput: false,
         statusSubject: "orbit",
         onChange: (value) => {
-          if (hydrating) return;
+          if (hydrating || guidedOrbitMode) return;
           commitRockyField("a", value);
         },
       });
+      if (guidedOrbitMode)
+        formHelpers.applyGuidedOrbitDistanceGuard(
+          bodyInputsEl,
+          "a",
+          formHelpers.guidedOrbitDistanceMessage("planet"),
+        );
     }
 
     // CMF input (special: supports auto mode via cmfPct = -1)
@@ -1529,10 +1505,8 @@ export function initPlanetPage(mountEl, options = {}) {
     slotSelectEl.addEventListener("change", () => {
       if (hydrating) return;
       const w = loadWorld();
-      assignPlanetToSlot(
-        w.planets.selectedId,
-        slotSelectEl.value ? Number(slotSelectEl.value) : null,
-      );
+      const selectedSlot = slotSelectEl.value ? Number(slotSelectEl.value) : null;
+      assignPlanetToSlot(w.planets.selectedId, selectedSlot, { orbitsAu: hostSystem.orbitsAu });
       scheduleRender();
     });
 
@@ -3405,6 +3379,7 @@ export function initPlanetPage(mountEl, options = {}) {
     );
     const hostSystem = solveContext?.hostFrame?.system || sysModel;
     const orbitsAu = hostSystem.orbitsAu;
+    const guidedOrbitMode = formHelpers.isGuidedOrbitMode(world);
     const planets = filterBodiesForHostFrame(
       listPlanets(world),
       hostFrameId,
@@ -3429,7 +3404,13 @@ export function initPlanetPage(mountEl, options = {}) {
       if (g.slotIndex != null) ggSlotMap.set(g.slotIndex, g.id);
     }
 
-    const slotOptions = [{ value: "", label: "Custom orbit", selected: !giant.slotIndex }];
+    const slotOptions = [
+      {
+        value: "",
+        label: guidedOrbitMode ? "No slot selected" : "Custom orbit",
+        selected: !giant.slotIndex,
+      },
+    ];
     for (let i = 0; i < 20; i++) {
       const slot = i + 1;
       const au = orbitsAu[i];
@@ -3474,6 +3455,7 @@ export function initPlanetPage(mountEl, options = {}) {
     });
     const ggCustomAuRow = bodyInputsEl.querySelector("#ggAu")?.closest(".form-row");
     if (ggCustomAuRow) ggCustomAuRow.id = "ggCustomAuRow";
+    if (ggCustomAuRow && guidedOrbitMode) ggCustomAuRow.style.display = "";
     const ggRingModePillsEl = bodyInputsEl.querySelector("#ggRingModePills");
     const ggRingModeHintEl = bodyInputsEl.querySelector("#ggRingModeHint");
     const ggRingStyleSelectEl = bodyInputsEl.querySelector("#ggRingStyleSelect");
@@ -3514,14 +3496,17 @@ export function initPlanetPage(mountEl, options = {}) {
         currentHomeSystemContext,
       );
       const currentHostSystem = currentSolveContext?.hostFrame?.system || sysModel;
+      const guidedNow = formHelpers.isGuidedOrbitMode(w);
       const slotVal = bodyInputsEl.querySelector("#ggSlot").value;
       if (slotVal) {
         g.slotIndex = Number(slotVal);
         g.au = currentHostSystem.orbitsAu[g.slotIndex - 1];
       } else {
         g.slotIndex = null;
-        const au = Number(bodyInputsEl.querySelector("#ggAu").value);
-        g.au = Number.isFinite(au) && au > 0 ? au : 0.01;
+        if (!guidedNow) {
+          const au = Number(bodyInputsEl.querySelector("#ggAu").value);
+          g.au = Number.isFinite(au) && au > 0 ? au : 0.01;
+        }
       }
       g.radiusRj = clampGasGiantRadiusRj(bodyInputsEl.querySelector("#ggRadius").value);
       const selectedCompanionClass = normalizeGiantCompanionClass(
@@ -3549,9 +3534,11 @@ export function initPlanetPage(mountEl, options = {}) {
       g.rotationPeriodHours = rotVal !== "" ? Number(rotVal) || null : null;
       const metVal = bodyInputsEl.querySelector("#ggMetallicity").value;
       g.metallicity = metVal !== "" ? Number(metVal) || null : null;
-      g.carbonRichness = readOptionalSelectValue(bodyInputsEl.querySelector("#ggCarbonRichness"));
+      g.carbonRichness = formHelpers.readOptionalSelectValue(
+        bodyInputsEl.querySelector("#ggCarbonRichness"),
+      );
       for (const fieldName of ["bulkDensityGcm3", "internalHeatFluxWm2", "tidalHeatFluxWm2"]) {
-        const result = readOptionalNonNegativeNumber(
+        const result = formHelpers.readOptionalNonNegativeNumber(
           bodyInputsEl.querySelector(
             `#gg${fieldName.charAt(0).toUpperCase()}${fieldName.slice(1)}`,
           ),
@@ -3598,7 +3585,7 @@ export function initPlanetPage(mountEl, options = {}) {
       commitOnInput: false,
       statusSubject: "orbit",
       onChange: () => {
-        if (!hydrating) saveGiant();
+        if (!hydrating && !guidedOrbitMode) saveGiant();
       },
     });
 
@@ -3717,11 +3704,11 @@ export function initPlanetPage(mountEl, options = {}) {
 
     bodyInputsEl.querySelector("#ggSlot").addEventListener("change", () => {
       if (hydrating) return;
-      bodyInputsEl.querySelector("#ggCustomAuRow").style.display = bodyInputsEl.querySelector(
-        "#ggSlot",
-      ).value
-        ? "none"
-        : "";
+      bodyInputsEl.querySelector("#ggCustomAuRow").style.display = guidedOrbitMode
+        ? ""
+        : bodyInputsEl.querySelector("#ggSlot").value
+          ? "none"
+          : "";
       saveGiant();
     });
 
@@ -3755,6 +3742,12 @@ export function initPlanetPage(mountEl, options = {}) {
     [auEl, radiusEl, massEl, rotEl, metEl, eccEl, incEl, tiltEl].forEach((el) => {
       el.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    if (guidedOrbitMode)
+      formHelpers.applyGuidedOrbitDistanceGuard(
+        bodyInputsEl,
+        "ggAu",
+        formHelpers.guidedOrbitDistanceMessage("gas giant"),
+      );
 
     hydrating = false;
   }

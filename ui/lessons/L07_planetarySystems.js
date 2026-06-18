@@ -77,6 +77,24 @@ export function buildLesson07(mode) {
       adjacent planets are separated by at least ${iq("\\Delta > 2\\sqrt{3}")},
       roughly 3.46 mutual Hill radii. Most observed multi-planet systems
       have ${iq("\\Delta \\approx 10{-}30 R_H")}.</p>
+      <p>WorldSmith turns that same boundary into a conservative authoring
+      diagnostic for the selected host frame:</p>
+      ${dataTable(
+        ["Label", "Mutual-Hill separation", "Interpretation"],
+        [
+          ["Stable", "&ge; 10", "comfortably spaced in this simplified model"],
+          ["Packed", "6 to &lt; 10", "close but still plausible"],
+          ["Crowded", "2&radic;3 to &lt; 6", "worth revisiting"],
+          ["Unstable", "&lt; 2&radic;3", "below the circular coplanar stability boundary"],
+        ],
+      )}
+      <p>Eccentric or strongly inclined pairs are more complicated than this
+      one-number test, so the app lowers confidence and explains the limiting
+      pair instead of certifying the system as definitely safe.</p>
+      <p>That architecture diagnostic is now part of WorldSmith's
+      <strong>shared dynamical context</strong>. Generation checks, repair
+      suggestions, timelines, and system-page explanations consume the same
+      bounded state rather than recalculating private stability stories.</p>
       <p>A simple geometric spacing model predicts the ${iq("n")}-th planet's
       semi-major axis as:</p>
       ${eq("a_n = a_1 \\cdot k^{(n-1)}")}

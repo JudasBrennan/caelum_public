@@ -21,6 +21,49 @@ export function findNearestSlot(targetAu, orbitsAu, occupiedSlots) {
   return bestSlot;
 }
 
+export function guidedOrbitDistanceMessage(bodyLabel = "planet") {
+  return `Guided orbit mode sets this ${bodyLabel}'s distance from its selected orbital slot. Switch the System page to Manual mode for direct AU entry.`;
+}
+
+export function isGuidedOrbitMode(world) {
+  return (world?.system?.orbitMode || "guided") !== "manual";
+}
+
+export function applyGuidedOrbitDistanceGuard(root, inputId, message) {
+  const numberEl = root.querySelector(`#${inputId}`);
+  const sliderEl = root.querySelector(`#${inputId}_slider`);
+  const rowEl = numberEl?.closest(".form-row");
+  if (!numberEl || !sliderEl) return;
+  numberEl.disabled = true;
+  sliderEl.disabled = true;
+  numberEl.setAttribute("aria-describedby", `${inputId}_orbit_status`);
+  sliderEl.setAttribute("aria-describedby", `${inputId}_orbit_status`);
+  for (const modeEl of root.querySelectorAll(`input[name="${inputId}_orbitRange"]`)) {
+    modeEl.disabled = true;
+  }
+  if (rowEl) {
+    rowEl.classList.add("is-guided-orbit-locked");
+    rowEl.title = message;
+  }
+  const statusEl = root.querySelector(`#${inputId}_orbit_status`);
+  if (statusEl) statusEl.textContent = message;
+}
+
+export function readOptionalSelectValue(selectEl) {
+  const value = String(selectEl?.value || "").trim();
+  return value || null;
+}
+
+export function readOptionalNonNegativeNumber(numberEl, previousValue = null) {
+  if (!numberEl) return { ok: true, value: null };
+  const raw = String(numberEl.value || "").trim();
+  if (!raw) return { ok: true, value: null };
+  const value = Number(raw);
+  if (Number.isFinite(value) && value >= 0) return { ok: true, value };
+  numberEl.value = previousValue ?? "";
+  return { ok: false, value: previousValue ?? null };
+}
+
 export function numWithSlider(id, label, unit, hint, min, max, step, tipHtml = "") {
   const unitHtml = unit ? ` <span class="unit">${unit}</span>` : "";
   const hintHtml = hint ? `<div class="hint">${hint}</div>` : "";

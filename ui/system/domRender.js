@@ -43,8 +43,11 @@ export function createMoonCard(moon, { showParent = false, planetsById = null } 
   const parentText = parent
     ? `Parent: ${parent.name || parent.inputs?.name || parent.id}`
     : "Unassigned";
-  const metaText = showParent ? `${orbitText} - ${parentText}` : orbitText;
   const locked = !!moon.locked;
+  const metaParts = [orbitText];
+  if (showParent) metaParts.push(parentText);
+  if (locked) metaParts.push("Parent locked");
+  const metaText = metaParts.join(" - ");
   const canLock = moon.planetId != null;
 
   return createElement(
@@ -53,7 +56,7 @@ export function createMoonCard(moon, { showParent = false, planetsById = null } 
       className: `moon-mini moon-card${locked ? " is-locked" : ""}`,
       attrs: {
         draggable: locked ? "false" : "true",
-        title: locked ? "Locked to planet" : "Drag to reassign",
+        title: locked ? "Unlock parent to move" : "Drag to reassign parent",
       },
       dataset: { moonId: moon.id },
     },
@@ -71,7 +74,7 @@ export function createMoonCard(moon, { showParent = false, planetsById = null } 
             "data-moon-id": moon.id,
             disabled: canLock ? null : "disabled",
           },
-          text: locked ? "Unlock" : "Lock",
+          text: locked ? "Unlock parent" : "Lock parent",
         }),
         createElement("button", {
           className: "small",
@@ -90,7 +93,7 @@ export function createMoonCard(moon, { showParent = false, planetsById = null } 
 export function createPlanetCard(
   planet,
   sysModel,
-  { showAu = true, moonCountByPlanet = null } = {},
+  { showAu = true, moonCountByPlanet = null, allowPlanetDrag = true, placementText = null } = {},
 ) {
   let meta = "";
   if (showAu && planet.slotIndex != null) {
@@ -99,19 +102,27 @@ export function createPlanetCard(
   }
   const moonCount = Number(moonCountByPlanet?.get(planet.id) || 0);
   const slotText =
-    planet.slotIndex != null ? `Slot ${String(planet.slotIndex).padStart(2, "0")}` : "Unassigned";
+    placementText ||
+    (planet.slotIndex != null ? `Slot ${String(planet.slotIndex).padStart(2, "0")}` : "Unassigned");
   const metaTextBase = meta ? `${slotText} - ${meta}` : slotText;
   const classText = String(planet.classificationLabel || "").trim();
   const metaText = `${classText ? `${classText} - ` : ""}${metaTextBase} - Moons: ${moonCount}`;
   const name = planet.name || planet.inputs?.name || planet.id;
+  const draggable = allowPlanetDrag && !planet.locked;
 
   return createElement(
     "div",
     {
-      className: `planet-card${planet.locked ? " is-locked" : ""} moon-drop-target`,
+      className: `planet-card${planet.locked ? " is-locked" : ""}${
+        !allowPlanetDrag ? " is-drag-disabled" : ""
+      } moon-drop-target`,
       attrs: {
-        draggable: planet.locked ? "false" : "true",
-        title: planet.locked ? "Locked" : "Drag to assign",
+        draggable: draggable ? "true" : "false",
+        title: planet.locked
+          ? "Locked"
+          : allowPlanetDrag
+            ? "Drag to assign"
+            : "Manual orbit mode disables planet slot dragging",
         style: "",
       },
       dataset: {
@@ -159,27 +170,53 @@ export function createPlanetCard(
 }
 
 function createMoonDropZone(planetId, moons, planetsById) {
+  const children = [
+    createElement("div", { className: "moon-list__title", text: "Moons" }),
+    ...(moons.length
+      ? moons.map((moon) => createMoonCard(moon, { planetsById }))
+      : [createHint("Drop moons here")]),
+  ];
   return createElement(
     "div",
     {
       className: "moon-list moon-drop-target",
       dataset: { moonDropPlanetId: planetId },
     },
-    moons.length
-      ? moons.map((moon) => createMoonCard(moon, { planetsById }))
-      : createHint("No moons. Drop moons here."),
+    children,
   );
 }
 
-function createSlotPlanetWithMoons(planet, sysModel, renderCtx) {
+function createSlotPlanetWithMoons(planet, sysModel, renderCtx, options = {}) {
   const moons = (renderCtx?.moonsByPlanet?.get(planet.id) || []).slice();
   return [
     createPlanetCard(planet, sysModel, {
       showAu: false,
       moonCountByPlanet: renderCtx?.moonCountByPlanet,
+      allowPlanetDrag: options.allowPlanetDrag,
+      placementText: options.placementText,
     }),
     createMoonDropZone(planet.id, moons, renderCtx?.planetsById),
   ];
+}
+
+function createGasGiantWithMoons(giant, giantKind, renderCtx) {
+  const moons = (renderCtx?.moonsByPlanet?.get(giant.id) || []).slice();
+  return createElement("div", {}, [
+    createHint(`${giantKind} marker (${styleLabel(giant.style || "jupiter")}).`),
+    createElement("div", { className: "button-row", attrs: { style: "margin-top:8px" } }, [
+      createElement("button", {
+        className: "small",
+        attrs: {
+          type: "button",
+          "data-action": "guided-moon",
+          "data-parent-id": giant.id,
+          "data-parent-type": "gasGiant",
+        },
+        text: "Guided moon",
+      }),
+    ]),
+    createMoonDropZone(giant.id, moons, renderCtx?.planetsById),
+  ]);
 }
 
 function createSlotRow(title, body, options = {}) {
@@ -258,21 +295,7 @@ export function renderOrbitSlots(
       rows.push(
         createSlotRow(
           `${giant.name || giantKind} (Slot ${String(item.slot).padStart(2, "0")} - ${fmt(Number(giant.au) || item.au, 3)} AU)`,
-          createElement("div", {}, [
-            createHint(`${giantKind} marker (${styleLabel(giant.style || "jupiter")}).`),
-            createElement("div", { className: "button-row", attrs: { style: "margin-top:8px" } }, [
-              createElement("button", {
-                className: "small",
-                attrs: {
-                  type: "button",
-                  "data-action": "guided-moon",
-                  "data-parent-id": giant.id,
-                  "data-parent-type": "gasGiant",
-                },
-                text: "Guided moon",
-              }),
-            ]),
-          ]),
+          createGasGiantWithMoons(giant, giantKind, renderCtx),
           { dropzoneStyle: "cursor:default" },
         ),
       );
@@ -291,15 +314,101 @@ export function renderOrbitSlots(
   return replaceChildren(container, rows);
 }
 
-export function renderManualBodyList(container, bodies = []) {
+function architectureStateLabel(state) {
+  switch (state) {
+    case "stable":
+      return "Stable spacing";
+    case "packed":
+      return "Packed spacing";
+    case "crowded":
+      return "Crowded spacing";
+    case "unstable":
+      return "Unstable spacing";
+    default:
+      return "Spacing unknown";
+  }
+}
+
+function architecturePairLabel(pair) {
+  const separation =
+    pair?.separationMutualHill == null ? "unknown" : `${fmt(pair.separationMutualHill, 2)} R_H,m`;
+  return `${pair?.innerName || pair?.innerId || "Inner"} -> ${pair?.outerName || pair?.outerId || "Outer"}: ${separation}`;
+}
+
+export function renderOrbitalArchitectureDiagnostics(container, architecture) {
+  if (!container) return null;
+  const bodyCount = Number(architecture?.bodyCount || 0);
+  if (!architecture || bodyCount < 2 || !architecture.pairs?.length) {
+    return replaceChildren(container);
+  }
+
+  const summary = architecture.summary || {};
+  const state = String(summary.state || "unknown");
+  const limitingPair = architecture.pairs.find(
+    (pair) =>
+      pair.innerId === summary.limitingPairIds?.[0] &&
+      pair.outerId === summary.limitingPairIds?.[1],
+  );
+  const pairRows = architecture.pairs
+    .slice(0, 4)
+    .map((pair) =>
+      createElement("div", { className: "hint" }, [
+        createElement("b", { text: architecturePairLabel(pair) }),
+        ` - ${pair.note || architectureStateLabel(pair.state)}`,
+      ]),
+    );
+
+  return replaceChildren(
+    container,
+    createElement("div", { className: `system-architecture system-architecture--${state}` }, [
+      createElement("div", { className: "slot-row" }, [
+        createElement("div", {
+          className: "slot-title",
+          text: architectureStateLabel(state),
+        }),
+        createElement("div", { className: "dropzone", attrs: { style: "cursor:default" } }, [
+          createElement("div", {
+            className: "hint",
+            text:
+              summary.note ||
+              (limitingPair
+                ? limitingPair.note
+                : "Adjacent body spacing was evaluated for the selected host frame."),
+          }),
+          createElement("div", {
+            className: "planet-card__meta",
+            text: `Confidence: ${summary.confidence || "unknown"} | Adjacent pairs: ${architecture.pairs.length}`,
+          }),
+          ...pairRows,
+        ]),
+      ]),
+    ]),
+  );
+}
+
+export function renderManualBodyList(container, bodies = [], options = {}) {
+  const sysModel = options.sysModel || { orbitsAu: [] };
+  const renderCtx = options.renderCtx || {};
+  const allowPlanetDrag = options.allowPlanetDrag !== false;
   return replaceChildren(
     container,
     bodies.length
-      ? bodies.map((body) =>
-          createSlotRow(`${body.name} (${body.auLabel})`, createHint(body.kind), {
+      ? bodies.map((body) => {
+          let content = createHint(body.kind);
+          if (body.planet) {
+            content = createSlotPlanetWithMoons(body.planet, sysModel, renderCtx, {
+              allowPlanetDrag,
+              placementText: options.placementText || "Manual orbit",
+            });
+          } else if (body.gasGiant) {
+            const giantKind =
+              body.gasGiant.companionClass === "brownDwarf" ? "Brown dwarf" : "Gas giant";
+            content = createGasGiantWithMoons(body.gasGiant, giantKind, renderCtx);
+          }
+          return createSlotRow(`${body.name} (${body.auLabel})`, content, {
             dropzoneStyle: "cursor:default",
-          }),
-        )
+          });
+        })
       : createHint("No bodies created yet."),
   );
 }

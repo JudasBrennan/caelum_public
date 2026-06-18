@@ -98,6 +98,34 @@ function manualRequestedSpecies(manualCompositionPct = {}, manualSurfacePressure
   return requested;
 }
 
+function normalizeTidalPersistenceContext(context) {
+  if (!context || typeof context !== "object") return null;
+  return {
+    modelVersion: context.modelVersion || "sustained-tidal-heating-context-v1",
+    currentTidalHeatingClass: String(context.currentTidalHeatingClass || "unknown"),
+    sustainedTidalHeatingClass: String(context.sustainedTidalHeatingClass || "unknown"),
+    persistenceConfidence: String(context.persistenceConfidence || context.confidence || "unknown"),
+    note: String(context.note || ""),
+  };
+}
+
+function volatilePersistenceNotes(speciesKey, context) {
+  if (!context || speciesKey !== "so2") return [];
+  if (context.sustainedTidalHeatingClass === "likely-sustained") {
+    return ["SO2 source is consistent with likely sustained tidal heating."];
+  }
+  if (context.sustainedTidalHeatingClass === "damping") {
+    return ["SO2 source may fade if current tidal heating damps."];
+  }
+  if (context.sustainedTidalHeatingClass === "overdriven") {
+    return ["SO2 source may indicate an overdriven tidal-stress environment."];
+  }
+  if (context.sustainedTidalHeatingClass === "uncertain") {
+    return ["SO2 source persistence is uncertain without stronger dynamical forcing context."];
+  }
+  return [];
+}
+
 export function analyseMoonVolatiles(
   densityGcm3,
   surfaceTempK,
@@ -109,6 +137,9 @@ export function analyseMoonVolatiles(
 ) {
   const vEscMs = escapeVelocityKmS * 1000;
   const mode = String(options?.mode || "core").toLowerCase();
+  const tidalPersistenceContext = normalizeTidalPersistenceContext(
+    options?.tidalPersistenceContext,
+  );
   const manualRequests = manualRequestedSpecies(
     options?.manualCompositionPct,
     options?.manualSurfacePressureAtm,
@@ -170,6 +201,8 @@ export function analyseMoonVolatiles(
       lambda,
       pressurePa,
       status,
+      dynamicalPersistenceContext: speciesKey === "so2" && present ? tidalPersistenceContext : null,
+      persistenceNotes: volatilePersistenceNotes(speciesKey, tidalPersistenceContext),
     };
   });
 }

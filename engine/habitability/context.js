@@ -468,6 +468,16 @@ export function buildMoonHabitabilityContext(model = {}) {
           typeof model.derived.climateChemistryForcing === "object"
         ? model.derived.climateChemistryForcing
         : {};
+  const dynamicalPersistence =
+    model.dynamical && typeof model.dynamical === "object"
+      ? model.dynamical
+      : model.habitability?.dynamicalPersistence &&
+          typeof model.habitability.dynamicalPersistence === "object"
+        ? model.habitability.dynamicalPersistence
+        : model.dynamicalContext?.habitabilityBridge &&
+            typeof model.dynamicalContext.habitabilityBridge === "object"
+          ? model.dynamicalContext.habitabilityBridge
+          : {};
   const carbonCycleContext =
     model.carbonCycleContext && typeof model.carbonCycleContext === "object"
       ? model.carbonCycleContext
@@ -643,6 +653,7 @@ export function buildMoonHabitabilityContext(model = {}) {
       tidallyLockedToStar: false,
       insideMagnetosphere: radiation.insideMagnetosphere === true,
     },
+    dynamical: dynamicalPersistence,
     provenance: {
       hydrosphereModelVersion: String(hydrosphere.modelVersion || "moon-heuristic-v1"),
       habitabilityModelVersion: String(model.habitability?.habitabilityModelVersion || ""),

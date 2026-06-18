@@ -10,6 +10,11 @@ import {
   findNearestResonance,
   formatMigrationTrendDisplay,
 } from "./resonance.js";
+import { buildMoonTorqueBudget, estimateMoonEccentricityEquilibrium } from "./tidalEvolution.js";
+import {
+  buildHabitabilityPersistenceBridge,
+  buildSustainedTidalHeatingContext,
+} from "../dynamics/habitabilityBridge.js";
 
 const EARTH_MASS_KG = 5.9722e24;
 const EARTH_RADIUS_KM = 6371;
@@ -350,6 +355,177 @@ function applyMigrationTrendMetadata(results) {
   return results;
 }
 
+function formatEccentricityEquilibriumDisplay(equilibrium) {
+  if (!equilibrium) return "Unknown";
+  switch (equilibrium.state) {
+    case "maintained":
+      return `Maintained (${equilibrium.confidence})`;
+    case "damping":
+      return `Damping (${equilibrium.confidence})`;
+    case "overdriven":
+      return `Overdriven (${equilibrium.confidence})`;
+    default:
+      return `Uncertain (${equilibrium.confidence || "low"})`;
+  }
+}
+
+function buildMoonStabilityContextForHabitabilityBridge(orbit = {}) {
+  const stabilityClass = String(orbit.orbitStabilityClass || "unknown");
+  const requestedStabilityClass = String(orbit.requestedOrbitStabilityClass || "");
+  const hardClasses = new Set([
+    "inside-parent-collision-limit",
+    "inside-roche-limit",
+    "outside-hill-sphere",
+    "outside-conservative-stable-region",
+  ]);
+  const requestedHard = hardClasses.has(requestedStabilityClass);
+  if (hardClasses.has(stabilityClass) || requestedHard) {
+    return {
+      state: "unstable",
+      confidence: "high",
+      reasons: [
+        requestedHard ? orbit.requestedOrbitStabilityLabel : orbit.orbitStabilityLabel,
+      ].filter(Boolean),
+    };
+  }
+  if (stabilityClass === "near-outer-stability-edge" || orbit.longTermStable === false) {
+    return {
+      state: "crowded",
+      confidence: "low",
+      reasons: [orbit.orbitStabilityLabel || "Moon orbit is near the stability edge."],
+    };
+  }
+  if (!stabilityClass || stabilityClass === "unknown") {
+    return {
+      state: "unknown",
+      confidence: "unknown",
+      reasons: ["Moon orbital stability context is incomplete."],
+    };
+  }
+  return {
+    state: "stable",
+    confidence: "high",
+    reasons: [orbit.orbitStabilityLabel].filter(Boolean),
+  };
+}
+
+function habitabilityBridgeBreakdown(bridge) {
+  return {
+    modelVersion: bridge.modelVersion,
+    persistenceModifier: bridge.persistenceModifier,
+    modifierTarget: bridge.modifierTarget,
+    confidence: bridge.confidence,
+    sustainedTidalHeatingClass: bridge.sustainedTidalHeatingClass,
+    reasons: bridge.reasons,
+    noOpReason: bridge.noOpReason,
+    appliedToScore: false,
+  };
+}
+
+function applyTidalPersistenceContext(model, context, { bodyId = null } = {}) {
+  if (!model || !context) return;
+  const habitabilityBridge = buildHabitabilityPersistenceBridge({
+    bodyId,
+    bodyKind: "moon",
+    stabilityContext: buildMoonStabilityContextForHabitabilityBridge(model.orbit || {}),
+    tidalContext: {
+      tidalHeatingEarth: model.tides?.tidalHeatingEarth,
+      eccentricityPersistence: context.eccentricityPersistence,
+      heatingLikelySustained: context.heatingLikelySustained,
+    },
+    hydrosphere: model.habitability?.hydrosphere || model.hydrosphere || null,
+    geology: model.geology || null,
+  });
+  const fields = {
+    dynamicalPersistenceContext: context,
+    currentTidalHeatingClass: context.currentTidalHeatingClass,
+    sustainedTidalHeatingClass: context.sustainedTidalHeatingClass,
+    tidalPersistenceConfidence: context.persistenceConfidence,
+    tidalPersistenceNote: context.note,
+  };
+  model.dynamicalContext = {
+    ...(model.dynamicalContext && typeof model.dynamicalContext === "object"
+      ? model.dynamicalContext
+      : {}),
+    tidalPersistenceContext: context,
+    habitabilityBridge,
+  };
+  if (model.habitability && typeof model.habitability === "object") {
+    model.habitability.dynamicalPersistence = habitabilityBridge;
+    model.habitability.breakdown = {
+      ...(model.habitability.breakdown && typeof model.habitability.breakdown === "object"
+        ? model.habitability.breakdown
+        : {}),
+      dynamicalPersistence: habitabilityBridgeBreakdown(habitabilityBridge),
+    };
+  }
+  for (const target of [
+    model.hydrosphere,
+    model.habitability?.hydrosphere,
+    model.geology,
+    model.oceanChemistryContext,
+    model.environment?.oceanChemistryContext,
+    model.habitability?.oceanChemistryContext,
+    model.climate?.oceanChemistryContext,
+    model.temperature?.thermalEnvelope,
+  ]) {
+    if (!target || typeof target !== "object") continue;
+    Object.assign(target, fields);
+    if (Array.isArray(target.notes) && context.note && !target.notes.includes(context.note)) {
+      target.notes.push(context.note);
+    }
+  }
+  if (model.display) {
+    model.display.dynamicalPersistenceConfidence = habitabilityBridge.confidence;
+  }
+}
+
+function applyEccentricityEquilibriumMetadata(results, { systemAgeGyr } = {}) {
+  for (const entry of results) {
+    const model = entry.model;
+    if (!model?.resonance) continue;
+    const equilibrium = estimateMoonEccentricityEquilibrium({
+      currentEccentricity: model.inputs?.eccentricity,
+      forcedEccentricity: model.resonance.forcedEccentricity,
+      forcedEccentricitySource: model.resonance.forcedEccentricitySource,
+      nearestResonance: model.resonance.nearestResonance,
+      migrationTrendState: model.resonance.migrationTrendState,
+      tidalHeatingEarth: model.tides?.tidalHeatingEarth,
+      circularisationTimescaleGyr: model.tides?.eccentricityDampingTimescaleGyr,
+      systemAgeGyr,
+    });
+    model.resonance.eccentricityEquilibrium = equilibrium;
+    model.tidalEvolution = {
+      ...(model.tidalEvolution && typeof model.tidalEvolution === "object"
+        ? model.tidalEvolution
+        : {}),
+      eccentricityEquilibrium: equilibrium,
+    };
+    const persistenceContext = buildSustainedTidalHeatingContext({
+      tidalHeatingEarth: model.tides?.tidalHeatingEarth,
+      eccentricityPersistence: equilibrium.state,
+      heatingLikelySustained: equilibrium.heatingLikelySustained,
+      supportingMechanism:
+        model.resonance?.forcedEccentricitySource ||
+        (model.resonance?.nearestResonance ? "near-resonance" : "none"),
+      limitingFactor: equilibrium.state === "damping" ? "no-sustained-eccentricity-pump" : "",
+      reasons: [equilibrium.note, model.tides?.synchronousOrbitNote].filter(Boolean),
+    });
+    applyTidalPersistenceContext(model, persistenceContext, { bodyId: entry.raw?.id || null });
+    if (model.display) {
+      model.display.eccentricityEquilibrium = formatEccentricityEquilibriumDisplay(equilibrium);
+      model.display.eccentricityEquilibriumNote = equilibrium.note;
+      model.display.tidalHeatingPersistence = equilibrium.heatingLikelySustained
+        ? "Likely sustained"
+        : equilibrium.state === "damping"
+          ? "Likely damping"
+          : "Uncertain";
+      model.display.tidalHeatingPersistenceClass = persistenceContext.sustainedTidalHeatingClass;
+    }
+  }
+  return results;
+}
+
 export function buildRockyMoonParentOverride(model, { includeRadiation = true } = {}) {
   return {
     inputs: {
@@ -506,5 +682,18 @@ export function solveMoonSystem({
     };
   });
 
-  return applyMigrationTrendMetadata(results);
+  const finalizedResults = applyEccentricityEquilibriumMetadata(
+    applyMigrationTrendMetadata(results),
+    {
+      systemAgeGyr: starAgeGyr,
+    },
+  );
+  finalizedResults.parentBudget = buildMoonTorqueBudget({
+    parent: {
+      id: parentOverride?.id || null,
+      name: parentOverride?.name || (parentKind === "gasGiant" ? "Gas giant" : "Planet"),
+    },
+    moonResults: finalizedResults,
+  });
+  return finalizedResults;
 }

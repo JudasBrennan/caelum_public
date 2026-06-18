@@ -9,7 +9,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.9.1</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.10.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, calendars, and exotic planetary subtype evidence. Explore your
@@ -377,6 +377,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Formulated the uncertainty principle and helped make uncertainty a measurable part of physical theory rather than a flaw to hide.",
   },
+  "2.10.0": {
+    name: "Reinhard Genzel",
+    born: 1952,
+    died: null,
+    country: "Germany",
+    summary:
+      "Used precise infrared observations of stellar orbits near the Milky Way's center to reveal hidden mass and system structure.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -416,13 +424,34 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.10.0",
+      "(from 2.9.2)",
+      [
+        "<b>Orbital Integrity Diagnostics</b> &mdash; The Planetary System page now reports selected-host-frame mutual-Hill spacing for planets, gas giants, and brown-dwarf companions, with stable, packed, crowded, unstable, and unknown labels plus confidence notes.",
+        "<b>Moon Tidal Evolution Context</b> &mdash; Moon outputs now show parent synchronous-orbit context, qualitative eccentricity pump/damp state, and clearer inward/outward migration reasoning from the existing tidal model.",
+        "<b>Moon-System Torque Budget</b> &mdash; Modeled moon systems now get a bounded parent-level torque budget proxy so mixed sibling systems can summarize whether the net tidal trend is outward, inward, balanced, or unknown.",
+        "<b>Shared Dynamical Context</b> &mdash; Generation checks, moon interiors, habitability persistence, parent ring/radiation notes, timelines, and page explanations now consume one bounded orbital/tidal context instead of separate private summaries.",
+        "<b>System Slot Fixes</b> &mdash; Guided slot dragging now moves or swaps planets cleanly, manual-to-guided mode infers the nearest open slots from AU values, and the Planet page explains why Guided mode controls orbital distance.",
+      ],
+      { open: true },
+    ),
+    release(
+      "2.9.2",
+      "(from 2.9.1)",
+      [
+        "<b>Moon Parent Assignment</b> &mdash; The Planetary System viewer now keeps moon reassignment available in manual orbit mode and exposes moon drop zones for gas giants, so moons can be moved to their intended hosts from the system view.",
+        "<b>Clearer Parent Locks</b> &mdash; Moon lock controls now say Lock parent or Unlock parent, locked moon drags explain why they cannot move, and the Moon page offers an inline unlock action beside the disabled parent selector.",
+      ],
+      { open: false },
+    ),
+    release(
       "2.9.1",
       "(from 2.9.0)",
       [
         "<b>Moon Ocean Hotfix</b> &mdash; Europa-like frozen moons can now infer a subsurface ocean from available water, cold ice, and tidal or internal support without needing the manual subsurface-ocean override.",
         "<b>Science Map Removed</b> &mdash; The unused Science Map page has been retired from navigation and release upkeep, leaving Science &amp; Maths, Lessons, and Validation as the maintained science references.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.9.0",

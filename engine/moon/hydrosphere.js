@@ -249,6 +249,46 @@ function bottomOceanTempRangeK(profile) {
   return min == null || max == null ? null : [round(min, 1), round(max, 1)];
 }
 
+function normalizeTidalPersistenceContext(context) {
+  if (!context || typeof context !== "object") return null;
+  return {
+    modelVersion: context.modelVersion || "sustained-tidal-heating-context-v1",
+    currentTidalHeatingClass: String(context.currentTidalHeatingClass || "unknown"),
+    sustainedTidalHeatingClass: String(context.sustainedTidalHeatingClass || "unknown"),
+    eccentricityPersistence: String(context.eccentricityPersistence || "uncertain"),
+    persistenceConfidence: String(context.persistenceConfidence || context.confidence || "unknown"),
+    supportingMechanism: String(context.supportingMechanism || "none"),
+    limitingFactor: String(context.limitingFactor || ""),
+    note: String(context.note || ""),
+  };
+}
+
+function tidalPersistenceFields(context) {
+  return {
+    dynamicalPersistenceContext: context,
+    currentTidalHeatingClass: context?.currentTidalHeatingClass || "unknown",
+    sustainedTidalHeatingClass: context?.sustainedTidalHeatingClass || "unknown",
+    tidalPersistenceConfidence: context?.persistenceConfidence || "unknown",
+    tidalPersistenceNote: context?.note || "",
+  };
+}
+
+function appendTidalPersistenceNotes(notes, context, { subsurfaceOceanPresent }) {
+  if (!context) return;
+  if (context.sustainedTidalHeatingClass === "likely-sustained" && subsurfaceOceanPresent) {
+    notes.push("sustained-tidal-ocean-support");
+  } else if (context.sustainedTidalHeatingClass === "damping" && subsurfaceOceanPresent) {
+    notes.push("tidal-ocean-support-may-damp");
+  } else if (context.sustainedTidalHeatingClass === "overdriven") {
+    notes.push("overdriven-tidal-heating-stress");
+  } else if (
+    context.sustainedTidalHeatingClass === "uncertain" &&
+    context.currentTidalHeatingClass !== "low"
+  ) {
+    notes.push("tidal-ocean-persistence-uncertain");
+  }
+}
+
 function phaseDiagramMoonFields(highPressureIce, bottomOceanProfile = null) {
   return {
     bottomOceanTempK: finiteOrNull(bottomOceanProfile?.bottomTempK),
@@ -293,8 +333,10 @@ export function hydrosphereStateFromMoon({
   salinityPct = 0,
   ammoniaPct = 0,
   differentiatedInterior = null,
+  tidalPersistenceContext = null,
 } = {}) {
   const notes = ["moon-hydrosphere-v1"];
+  const persistenceContext = normalizeTidalPersistenceContext(tidalPersistenceContext);
   const water = moonWaterInventoryEntry(volatileInventory);
   const tempK = Math.max(toFinite(surfaceTempK, 0), 0);
   const pressureAtm = Math.max(toFinite(surfacePressurePa, 0), 0) / 101325;
@@ -378,6 +420,9 @@ export function hydrosphereStateFromMoon({
   if (!waterPresent) {
     const emptyHighPressureIce = classifyHighPressureIce({ gravityG });
     notes.push("no-water-inventory");
+    appendTidalPersistenceNotes(notes, persistenceContext, {
+      subsurfaceOceanPresent: false,
+    });
     return {
       regime: "Dry",
       hydrosphereState: "Dry surface",
@@ -415,6 +460,7 @@ export function hydrosphereStateFromMoon({
       estimatedSurfaceOceanDepthKm: 0,
       estimatedSubsurfaceOceanDepthKm: 0,
       estimatedIceShellThicknessKm: 0,
+      ...tidalPersistenceFields(persistenceContext),
       notes,
     };
   }
@@ -559,6 +605,9 @@ export function hydrosphereStateFromMoon({
           ? "Thin conductive shell"
           : "Cold conductive shell";
   if (highPressureIceBarrier) notes.push("high-pressure-ice-barrier");
+  appendTidalPersistenceNotes(notes, persistenceContext, {
+    subsurfaceOceanPresent,
+  });
 
   return {
     regime,
@@ -599,6 +648,7 @@ export function hydrosphereStateFromMoon({
     estimatedSurfaceOceanDepthKm: round(estimatedSurfaceOceanDepthKm, 1),
     estimatedSubsurfaceOceanDepthKm: round(estimatedSubsurfaceOceanDepthKm, 1),
     estimatedIceShellThicknessKm: round(estimatedIceShellThicknessKm, 1),
+    ...tidalPersistenceFields(persistenceContext),
     notes,
   };
 }

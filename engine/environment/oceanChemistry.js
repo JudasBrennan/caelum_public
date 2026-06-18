@@ -276,6 +276,37 @@ function buildNotes({ salinitySource, waterContext, hydrosphere, ppCO2Atm }) {
   return notes;
 }
 
+function normalizeDynamicalPersistenceContext(context) {
+  if (!context || typeof context !== "object") return null;
+  return {
+    modelVersion: context.modelVersion || "sustained-tidal-heating-context-v1",
+    currentTidalHeatingClass: String(context.currentTidalHeatingClass || "unknown"),
+    sustainedTidalHeatingClass: String(context.sustainedTidalHeatingClass || "unknown"),
+    eccentricityPersistence: String(context.eccentricityPersistence || "uncertain"),
+    persistenceConfidence: String(context.persistenceConfidence || context.confidence || "unknown"),
+    note: String(context.note || ""),
+  };
+}
+
+function appendDynamicalPersistenceNotes(notes, context, waterContext) {
+  if (!context || !waterContext?.liquid) return;
+  if (context.sustainedTidalHeatingClass === "likely-sustained") {
+    notes.push(
+      "Dynamical context suggests tidal heating can persist, supporting ocean-energy confidence without proving permanence.",
+    );
+  } else if (context.sustainedTidalHeatingClass === "damping") {
+    notes.push(
+      "Current tidal heating may damp, so ocean-energy persistence confidence is reduced.",
+    );
+  } else if (context.sustainedTidalHeatingClass === "overdriven") {
+    notes.push(
+      "Sustained tidal heating may be overdriven, so chemistry is not treated as simply benign.",
+    );
+  } else if (context.sustainedTidalHeatingClass === "uncertain") {
+    notes.push("Ocean-energy persistence is uncertain without stronger dynamical forcing context.");
+  }
+}
+
 export function computeOceanChemistryContext({
   hydrosphere = null,
   salinityPct = null,
@@ -287,8 +318,13 @@ export function computeOceanChemistryContext({
   carbonCycleContext = null,
   geology = null,
   climateState = "",
+  dynamicalPersistenceContext = null,
 } = {}) {
   const resolvedHydrosphere = hydrosphere && typeof hydrosphere === "object" ? hydrosphere : {};
+  const persistenceContext =
+    normalizeDynamicalPersistenceContext(dynamicalPersistenceContext) ||
+    normalizeDynamicalPersistenceContext(resolvedHydrosphere.dynamicalPersistenceContext) ||
+    normalizeDynamicalPersistenceContext(geology?.dynamicalPersistenceContext);
   const waterContext = classifyWaterContext(resolvedHydrosphere);
   const pressure = finiteNonNegative(pressureAtm, 0);
   const co2Partial = finiteNonNegative(ppCO2Atm, 0);
@@ -372,6 +408,7 @@ export function computeOceanChemistryContext({
     hydrosphere: resolvedHydrosphere,
     ppCO2Atm: co2Partial,
   });
+  appendDynamicalPersistenceNotes(notes, persistenceContext, waterContext);
 
   return {
     modelVersion: MODEL_VERSION,
@@ -400,6 +437,9 @@ export function computeOceanChemistryContext({
     highPressureIceCaveat:
       resolvedHydrosphere.highPressureIceBarrier === true ||
       resolvedHydrosphere.rockOceanBarrier === true,
+    dynamicalPersistenceContext: persistenceContext,
+    sustainedTidalHeatingClass: persistenceContext?.sustainedTidalHeatingClass || "unknown",
+    tidalPersistenceConfidence: persistenceContext?.persistenceConfidence || "unknown",
     confidence,
     summaryLabel:
       waterContext.key === "none"

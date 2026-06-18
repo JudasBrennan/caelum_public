@@ -287,7 +287,7 @@ export function togglePlanetLockInWorld(world, planetId) {
   return world;
 }
 
-export function assignPlanetToSlotInWorld(world, planetId, slotIndexOrNull) {
+export function assignPlanetToSlotInWorld(world, planetId, slotIndexOrNull, options = {}) {
   const planets = listRockyPlanetEntries(world);
   const planet = planets.find((entry) => entry.id === planetId);
   if (!planet) return world;
@@ -303,9 +303,75 @@ export function assignPlanetToSlotInWorld(world, planetId, slotIndexOrNull) {
   }
 
   planet.slotIndex = slotIndexOrNull;
+  syncPlanetOrbitAuToSlot(planet, slotIndexOrNull, options.orbitsAu);
   replacePlanetaryBodiesByLegacyKind(world, "rocky", planets, {
     selectedLegacyId: getSelectedPlanetaryBodyLegacyId(world, "rocky"),
   });
   syncSelectedPlanetSnapshot(world);
   return world;
+}
+
+function syncPlanetOrbitAuToSlot(planet, slotIndex, orbitsAu) {
+  if (slotIndex == null || !Array.isArray(orbitsAu)) return;
+  const slotAu = Number(orbitsAu[Number(slotIndex) - 1]);
+  if (!(Number.isFinite(slotAu) && slotAu > 0)) return;
+  planet.inputs = {
+    ...(planet.inputs || {}),
+    semiMajorAxisAu: slotAu,
+  };
+}
+
+export function movePlanetToSlotInWorld(world, planetId, slotIndexOrNull, options = {}) {
+  const planets = listRockyPlanetEntries(world);
+  const planet = planets.find((entry) => entry.id === planetId);
+  if (!planet) return { world, changed: false, reason: "missing-planet" };
+  if (planet.locked) return { world, changed: false, reason: "source-locked" };
+
+  const targetSlot = slotIndexOrNull == null ? null : Number(slotIndexOrNull);
+  if (targetSlot != null && (!Number.isInteger(targetSlot) || targetSlot < 1)) {
+    return { world, changed: false, reason: "invalid-slot" };
+  }
+
+  const sourceSlot = planet.slotIndex == null ? null : Number(planet.slotIndex);
+  const targetHostFrameKey = normalizeHostFrameKey(planet.hostFrameId);
+
+  if (targetSlot == null) {
+    if (sourceSlot == null) return { world, changed: false, reason: "already-unassigned" };
+    planet.slotIndex = null;
+    replacePlanetaryBodiesByLegacyKind(world, "rocky", planets, {
+      selectedLegacyId: getSelectedPlanetaryBodyLegacyId(world, "rocky"),
+    });
+    syncSelectedPlanetSnapshot(world);
+    return { world, changed: true, reason: "unassigned" };
+  }
+
+  if (sourceSlot === targetSlot) return { world, changed: false, reason: "same-slot" };
+
+  const occupant = planets.find(
+    (entry) =>
+      entry?.id !== planetId &&
+      Number(entry?.slotIndex) === targetSlot &&
+      normalizeHostFrameKey(entry?.hostFrameId) === targetHostFrameKey,
+  );
+  if (occupant?.locked) return { world, changed: false, reason: "target-locked" };
+  if (occupant && sourceSlot == null) return { world, changed: false, reason: "target-occupied" };
+
+  planet.slotIndex = targetSlot;
+  syncPlanetOrbitAuToSlot(planet, targetSlot, options.orbitsAu);
+
+  if (occupant) {
+    occupant.slotIndex = sourceSlot;
+    syncPlanetOrbitAuToSlot(occupant, sourceSlot, options.orbitsAu);
+  }
+
+  replacePlanetaryBodiesByLegacyKind(world, "rocky", planets, {
+    selectedLegacyId: getSelectedPlanetaryBodyLegacyId(world, "rocky"),
+  });
+  syncSelectedPlanetSnapshot(world);
+  return {
+    world,
+    changed: true,
+    reason: occupant ? "swapped" : "moved",
+    swappedWithId: occupant?.id || null,
+  };
 }

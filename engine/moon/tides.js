@@ -19,6 +19,7 @@ import {
   estimateSmallBodyRigidity,
   estimateSmallBodyTidalQ,
 } from "./smallBody.js";
+import { buildMoonSynchronousOrbitContext } from "./tidalEvolution.js";
 
 const PI = Math.PI;
 const G = 6.67e-11;
@@ -391,6 +392,13 @@ export function computeMoonTidalState({
   const moonLockedToPlanet = spinState.tidallyEvolved && spinState.ratio === "1:1" ? "Yes" : "No";
   const planetLockedToMoon = planetLockStatusFromGyr(tPlanetLockToMoonGyr);
   const planetLockedToStar = tPlanetLockToStarGyr <= systemAgeGyr ? "Yes" : "No";
+  const synchronousOrbit = buildMoonSynchronousOrbitContext({
+    parentMassEarth: planetMassEarth,
+    parentRotationHours: planetRotationHours,
+    parentRadiusEarth: planetRadiusEarth,
+    moonSemiMajorAxisKm,
+    orbitalDirection,
+  });
 
   let rotationPeriodDays;
   if (spinState.tidallyEvolved && spinOrbitResonance?.p > 0) {
@@ -448,6 +456,12 @@ export function computeMoonTidalState({
     moonLockedToPlanet,
     planetLockedToMoon,
     planetLockedToStar,
+    synchronousOrbitKm: synchronousOrbit.radiusKm,
+    synchronousOrbitParentRadii: synchronousOrbit.radiusParentRadii,
+    insideSynchronousOrbit: synchronousOrbit.moonInsideSynchronousOrbit,
+    migrationDirectionFromSync: synchronousOrbit.migrationDirectionFromSync,
+    synchronousOrbitNote: synchronousOrbit.note,
+    synchronousOrbitValid: synchronousOrbit.valid,
     lockingTimesGyr: {
       moonToPlanet: tMoonLockGyr,
       planetToMoon: tPlanetLockToMoonGyr,

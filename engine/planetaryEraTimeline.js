@@ -428,6 +428,60 @@ function radiationOf(model = {}) {
   return isObject(model.radiation) ? model.radiation : null;
 }
 
+function tidalPersistenceContextOf(model = {}) {
+  return (
+    (isObject(model.dynamicalContext?.tidalPersistenceContext) &&
+      model.dynamicalContext.tidalPersistenceContext) ||
+    (isObject(model.habitability?.dynamicalPersistence) &&
+      model.habitability.dynamicalPersistence) ||
+    (isObject(model.hydrosphere?.dynamicalPersistenceContext) &&
+      model.hydrosphere.dynamicalPersistenceContext) ||
+    (isObject(model.geology?.dynamicalPersistenceContext) &&
+      model.geology.dynamicalPersistenceContext) ||
+    null
+  );
+}
+
+function tidalPersistenceTimelineCopy(sustainedClass) {
+  switch (String(sustainedClass || "").toLowerCase()) {
+    case "likely-sustained":
+      return {
+        severity: "info",
+        headline: "Tidal heating may be sustained by orbital forcing",
+        detail:
+          "Shared dynamical context links current tidal heat to resonance or forced-eccentricity support, without claiming a permanent ocean.",
+      };
+    case "damping":
+      return {
+        severity: "caution",
+        headline: "Tidal heating persistence may be damping",
+        detail:
+          "Current tidal heat is separated from long-term support; without maintained eccentricity, heating may fade in the simplified model.",
+      };
+    case "overdriven":
+      return {
+        severity: "warning",
+        headline: "Sustained tidal stress may be overdriven",
+        detail:
+          "Shared dynamical context treats strong tidal heating as stress context, not as a simple habitability benefit.",
+      };
+    case "uncertain":
+      return {
+        severity: "caution",
+        headline: "Tidal heating persistence is uncertain",
+        detail:
+          "The current model lacks enough forcing, damping, or age context to claim sustained tidal heat.",
+      };
+    default:
+      return {
+        severity: "info",
+        headline: "Tidal heating persistence is low",
+        detail:
+          "Shared dynamical context does not find strong sustained tidal heating support for this moon.",
+      };
+  }
+}
+
 function atmosphereLedgerOf(model = {}) {
   const derived = derivedModel(model);
   return (
@@ -2413,6 +2467,44 @@ function addMoonEras(eras, context, model) {
         makeDriver("cryovolcanism", "Cryovolcanic activity", geology.cryovolcanicActivity, ""),
       ],
       evidenceCodes: ["MOON_TIDAL_HEATING"],
+    });
+  }
+
+  const tidalPersistence = tidalPersistenceContextOf(model);
+  const sustainedTidalHeatingClass = firstString(
+    tidalPersistence?.sustainedTidalHeatingClass,
+    tidalPersistence?.sustainedHeatingClass,
+  );
+  if (sustainedTidalHeatingClass && sustainedTidalHeatingClass !== "unknown") {
+    const copy = tidalPersistenceTimelineCopy(sustainedTidalHeatingClass);
+    addEra(eras, context, {
+      id: "tidal-heating-persistence-context",
+      label: "Tidal-heating persistence context",
+      category: "orbital",
+      startGyr: context.currentAgeGyr,
+      endGyr: null,
+      state: "current",
+      confidence: tidalPersistence?.confidence || "low",
+      severity: copy.severity,
+      headline: copy.headline,
+      detail: copy.detail,
+      drivers: [
+        makeDriver(
+          "currentTidalHeating",
+          "Current heating",
+          tidalPersistence?.currentTidalHeatingClass || "",
+          "",
+        ),
+        makeDriver("sustainedTidalHeating", "Sustained context", sustainedTidalHeatingClass, ""),
+        makeDriver(
+          "supportingMechanism",
+          "Supporting mechanism",
+          tidalPersistence?.supportingMechanism || "",
+          "",
+        ),
+        makeDriver("limitingFactor", "Limiting factor", tidalPersistence?.limitingFactor || "", ""),
+      ],
+      evidenceCodes: ["MOON_TIDAL_PERSISTENCE"],
     });
   }
 

@@ -9,6 +9,7 @@ import {
   createPlanetInWorld,
   deleteMoonInWorld,
   deletePlanetInWorld,
+  movePlanetToSlotInWorld,
   selectMoonInWorld,
   selectPlanetInWorld,
   toggleMoonLockInWorld,
@@ -526,11 +527,18 @@ export function togglePlanetLock(planetId) {
   return world;
 }
 
-export function assignPlanetToSlot(planetId, slotIndexOrNull) {
+export function assignPlanetToSlot(planetId, slotIndexOrNull, options = {}) {
   const world = loadWorld();
-  assignPlanetToSlotInWorld(world, planetId, slotIndexOrNull);
+  assignPlanetToSlotInWorld(world, planetId, slotIndexOrNull, options);
   saveWorld(world);
   return world;
+}
+
+export function movePlanetToSlot(planetId, slotIndexOrNull, options = {}) {
+  const world = loadWorld();
+  const result = movePlanetToSlotInWorld(world, planetId, slotIndexOrNull, options);
+  if (result.changed) saveWorld(world);
+  return result;
 }
 
 export function applyPlanetaryBodyVisualPatch(bodyId, patch) {
@@ -571,6 +579,116 @@ function resolveOrbitSlotsForHostFrame(homeSystemContext, hostFrameId, fallbackS
   return Array.isArray(fallbackSlots) ? fallbackSlots : [];
 }
 
+function slotDistanceScore(targetAu, slotAu) {
+  const target = Number(targetAu);
+  const slot = Number(slotAu);
+  if (Number.isFinite(target) && target > 0 && Number.isFinite(slot) && slot > 0) {
+    return Math.abs(Math.log(slot / target));
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
+function findNearestOpenSlot(targetAu, orbitsAu, occupiedSlots) {
+  let bestSlot = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < orbitsAu.length; i += 1) {
+    const slot = i + 1;
+    if (occupiedSlots.has(slot)) continue;
+    const score = slotDistanceScore(targetAu, orbitsAu[i]);
+    if (score < bestScore) {
+      bestScore = score;
+      bestSlot = slot;
+    }
+  }
+  return bestSlot;
+}
+
+function syncRockyGuidedOrbitAu(planet, orbitSlots) {
+  const slotAu = Number(orbitSlots?.[Number(planet?.slotIndex) - 1]);
+  if (!(Number.isFinite(slotAu) && slotAu > 0)) return;
+  planet.inputs = { ...(planet.inputs || {}), semiMajorAxisAu: slotAu };
+}
+
+function assignNearestGuidedSlots(world, homeSystemContext, fallbackSlots) {
+  const fallbackHostFrameId =
+    homeSystemContext?.defaultHostFrameId || homeSystemContext?.primaryStarId || null;
+  const planets = listRockyPlanetEntries(world);
+  const gasGiants = listGasGiantEntries(world);
+  const occupiedByHostFrame = new Map();
+
+  const occupiedSlotsFor = (hostFrameId) => {
+    const key = normalizeHostFrameId(hostFrameId, fallbackHostFrameId);
+    if (!occupiedByHostFrame.has(key)) occupiedByHostFrame.set(key, new Set());
+    return occupiedByHostFrame.get(key);
+  };
+
+  for (const planet of planets) {
+    if (!planet?.locked || planet.slotIndex == null) continue;
+    const orbitSlots = resolveOrbitSlotsForHostFrame(
+      homeSystemContext,
+      planet.hostFrameId,
+      fallbackSlots,
+    );
+    const slot = Number(planet.slotIndex);
+    if (!Number.isInteger(slot) || slot < 1 || slot > orbitSlots.length) {
+      planet.slotIndex = null;
+      continue;
+    }
+    occupiedSlotsFor(planet.hostFrameId).add(slot);
+    syncRockyGuidedOrbitAu(planet, orbitSlots);
+  }
+
+  const candidates = [
+    ...planets
+      .filter((planet) => planet && !planet.locked)
+      .map((planet) => ({
+        kind: "rocky",
+        body: planet,
+        au: Number(planet.inputs?.semiMajorAxisAu),
+      })),
+    ...gasGiants.map((gasGiant) => ({
+      kind: "gasGiant",
+      body: gasGiant,
+      au: Number(gasGiant.au),
+    })),
+  ].sort((left, right) => {
+    const leftAu = Number.isFinite(left.au) && left.au > 0 ? left.au : Number.POSITIVE_INFINITY;
+    const rightAu = Number.isFinite(right.au) && right.au > 0 ? right.au : Number.POSITIVE_INFINITY;
+    return leftAu - rightAu;
+  });
+
+  for (const entry of candidates) {
+    const orbitSlots = resolveOrbitSlotsForHostFrame(
+      homeSystemContext,
+      entry.body.hostFrameId,
+      fallbackSlots,
+    );
+    const occupiedSlots = occupiedSlotsFor(entry.body.hostFrameId);
+    const sourceAu =
+      Number.isFinite(entry.au) && entry.au > 0
+        ? entry.au
+        : Number(orbitSlots?.[Number(entry.body.slotIndex) - 1]);
+    const slot = findNearestOpenSlot(sourceAu, orbitSlots, occupiedSlots);
+    if (slot == null) {
+      entry.body.slotIndex = null;
+      continue;
+    }
+    entry.body.slotIndex = slot;
+    occupiedSlots.add(slot);
+    const slotAu = Number(orbitSlots[slot - 1]);
+    if (Number.isFinite(slotAu) && slotAu > 0) {
+      if (entry.kind === "rocky") {
+        entry.body.inputs = { ...(entry.body.inputs || {}), semiMajorAxisAu: slotAu };
+      } else {
+        entry.body.au = slotAu;
+      }
+    }
+  }
+
+  replacePlanetaryBodiesByLegacyKind(world, "rocky", planets);
+  replacePlanetaryBodiesByLegacyKind(world, "gasGiant", gasGiants);
+}
+
 /**
  * Switch between guided (slot-based) and manual orbit placement modes.
  * When switching to manual, slot-bound planets and gas giants inherit the slot AU.
@@ -581,8 +699,9 @@ export function setOrbitMode(mode, orbitsAu) {
   const next = mode === "manual" ? "manual" : "guided";
   if (prev === next) return world;
 
+  const homeSystemContext = buildHomeSystemContext(world);
+
   if (next === "manual") {
-    const homeSystemContext = buildHomeSystemContext(world);
     const planets = listRockyPlanetEntries(world);
     for (const planet of planets) {
       if (!planet || planet.slotIndex == null) continue;
@@ -609,6 +728,8 @@ export function setOrbitMode(mode, orbitsAu) {
     }
     replacePlanetaryBodiesByLegacyKind(world, "rocky", planets);
     replacePlanetaryBodiesByLegacyKind(world, "gasGiant", gasGiants);
+  } else {
+    assignNearestGuidedSlots(world, homeSystemContext, orbitsAu);
   }
 
   world.system.orbitMode = next;

@@ -947,6 +947,37 @@ function buildOrbitalMechanics() {
     ),
 
     formula(
+      "Mutual Hill Spacing",
+      `<div class="sci-formula__eq">${eq("\\Delta = \\frac{a_2 - a_1}{R_{H,m}}, \\quad R_{H,m} = \\frac{a_1 + a_2}{2}\\left(\\frac{m_1 + m_2}{3M_\\star}\\right)^{1/3}")}</div>
+      ${vars([
+        ["\\Delta", "Adjacent-orbit separation in mutual Hill radii"],
+        ["a_1, a_2", "Inner and outer semi-major axes"],
+        ["m_1, m_2", "Adjacent body masses"],
+        ["M_\\star", "Selected host-frame mass"],
+      ])}
+      <p>WorldSmith applies this diagnostic to planets, gas giants, and brown-dwarf companions in the selected host frame. It is a conservative architecture warning, not an N-body integration.</p>
+      ${dataTable(
+        ["Label", "Separation", "Meaning"],
+        [
+          [
+            "Stable",
+            "&ge; 10 R<sub>H,m</sub>",
+            "Comfortably separated for this simplified diagnostic",
+          ],
+          ["Packed", "6 to &lt; 10 R<sub>H,m</sub>", "Dynamically close but often plausible"],
+          ["Crowded", "2&radic;3 to &lt; 6 R<sub>H,m</sub>", "Long-term stability is questionable"],
+          [
+            "Unstable",
+            "&lt; 2&radic;3 R<sub>H,m</sub>",
+            "Below the circular coplanar Hill-stability boundary",
+          ],
+        ],
+      )}
+      <p>Missing masses or semi-major axes return <b>unknown</b>. Eccentricity overlap or high-mutual-inclination contexts lower confidence because the mutual-Hill threshold assumes near-circular, near-coplanar orbits.</p>
+      ${cite("Gladman (1993); Chambers, Wetherill & Boss (1996); Murray & Dermott (1999)")}`,
+    ),
+
+    formula(
       "Love Number k<sub>2</sub>",
       `<div class="sci-formula__eq">${eq("k_2 = \\frac{1.5}{1 + \\dfrac{19\\mu}{2\\rho g R}}")}</div>
       ${vars([
@@ -977,6 +1008,23 @@ function buildOrbitalMechanics() {
         <li><b>Planet &rarr; star</b>: ${iq("M_{\\text{tide}}")} = star mass, ${iq("R, k_2")} = planet</li>
       </ul>
       ${cite("Duchene &amp; Kraus (2013); tidal dissipation model")}`,
+    ),
+
+    formula(
+      "Parent Synchronous Orbit",
+      `<div class="sci-formula__eq">${eq("r_{\\text{sync}} = \\left(\\frac{G M_p}{\\Omega_p^2}\\right)^{1/3}, \\quad \\Omega_p = \\frac{2\\pi}{P_{\\text{rot}}}")}</div>
+      ${vars([
+        [
+          "r_{\\text{sync}}",
+          "Orbital radius where a prograde moon's mean motion matches parent spin",
+        ],
+        ["M_p", "Parent mass"],
+        ["\\Omega_p", "Parent spin angular velocity"],
+        ["P_{\\text{rot}}", "Parent sidereal rotation period"],
+      ])}
+      <p>For a prograde moon inside ${iq("r_{\\text{sync}}")}, the moon orbits faster than the parent spins and the parent tide tends to pull it inward. Outside ${iq("r_{\\text{sync}}")}, a faster-spinning parent tends to push the orbit outward. Retrograde moons are treated separately because their tidal evolution is generally inward.</p>
+      <p>Missing parent mass, missing rotation, or non-positive rotation returns <b>unknown</b>. The value is calibrated against Earth geostationary distance and the Mars synchronous-orbit boundary that separates Phobos-like and Deimos-like cases.</p>
+      ${cite("Murray & Dermott (1999); NASA/JPL planetary fact sheets")}`,
     ),
 
     formula(
@@ -1067,6 +1115,32 @@ function buildOrbitalMechanics() {
     ),
 
     formula(
+      "Eccentricity Pump-Damp Context",
+      `<div class="sci-formula__eq">${eq("e_{\\text{eff}} = \\max(e_{\\text{authored}}, e_{\\text{forced}})")}</div>
+      <p>WorldSmith uses the existing resonance and forced-eccentricity context to classify whether tidal heating is likely to persist. This is a qualitative pump-versus-damp diagnostic, not a full resonant Hamiltonian or de/dt integration.</p>
+      ${dataTable(
+        ["State", "Model meaning"],
+        [
+          [
+            "Maintained",
+            "A resonance or forced-eccentricity floor is present, so damping alone is unlikely to erase heating quickly",
+          ],
+          [
+            "Damping",
+            "No sustained forcing is found and tides should circularise the orbit over the modeled age",
+          ],
+          [
+            "Overdriven",
+            "Forced eccentricity and tidal heat are both high enough to imply extreme stress",
+          ],
+          ["Uncertain", "Required age, damping, heating, or resonance inputs are missing or weak"],
+        ],
+      )}
+      <p>The UI keeps the output qualitative because real eccentricity equilibrium depends on resonance widths, tidal Q evolution, migration history, and sibling masses. Reference fixtures check Io-style maintained forcing, isolated damping cases, and high-stress overdriven boundaries.</p>
+      ${cite("Peale, Cassen & Reynolds (1979); Murray & Dermott (1999)")}`,
+    ),
+
+    formula(
       "Moon Tidal Heating on Planet",
       `<div class="sci-formula__eq">${eq("\\dot{E}_{\\text{planet}} = \\frac{21}{2}\\,\\frac{k_{2p}}{Q_p} \\, \\frac{G \\, M_m^{\\,2} \\, R_p^{\\,5} \\, n}{a^6} \\, f(e)")}</div>
       ${vars([
@@ -1102,6 +1176,30 @@ function buildOrbitalMechanics() {
       ])}
       <p>When the planet spins faster than the moon orbits (${iq("\\Omega_p > n")}), the planet&rsquo;s tidal bulge leads the moon and transfers angular momentum outward &mdash; the orbit expands (Earth&ndash;Moon: +3.8 cm/yr). When ${iq("\\Omega_p < n")}, angular momentum is lost and the moon spirals inward (Phobos).</p>
       ${cite("Leconte et al. (2010); constant-time-lag tidal model")}`,
+    ),
+
+    formula(
+      "Moon-System Torque Budget",
+      `<div class="sci-formula__eq">${eq("B_{\\text{moon system}} = \\sum_i m_i\\,\\left(\\frac{da}{dt}\\right)_i")}</div>
+      <p>The first-pass parent moon-system budget sums each modeled moon's migration-rate sign and moon-mass weighting. This is a stable comparison proxy for net inward, outward, or balanced tidal evolution; it is not reported as an exact physical torque.</p>
+      ${vars([
+        ["m_i", "Moon mass"],
+        ["(da/dt)_i", "Modeled total migration rate for that moon"],
+        ["B_{\\text{moon system}}", "Mass-weighted migration proxy used for classification"],
+      ])}
+      <p>The budget reports the dominant moon only when one contribution clearly controls the signed sum. Otherwise the parent is labelled balanced or mixed. Missing moon masses or migration rates keep the budget <b>unknown</b>.</p>
+      ${cite("Goldreich & Soter (1966); Murray & Dermott (1999)")}`,
+    ),
+
+    formula(
+      "Shared Dynamical Context",
+      `<p>WorldSmith now routes orbital architecture, moon synchronous-orbit state, pump-damp context, moon-system torque budget, ring context, and parent radiation context through one shared dynamical context. Pages and generation checks read that context instead of rebuilding private versions of the same physics.</p>
+      <p><b>Science bound:</b> the shared layer is a coupling and explanation layer, not a new N-body integrator. It preserves the upstream owners for mutual-Hill spacing, Roche and Hill limits, synchronous orbit, tidal migration, resonance pump-damp state, magnetosphere environment, and ring science.</p>
+      <p><b>Sustained tidal heating:</b> moon interiors and timelines distinguish current tidal heat from sustained tidal support. A moon can be currently heated, likely sustained, damping, overdriven, or uncertain; none of those labels claims that an ocean is permanent.</p>
+      <p><b>Dynamical persistence confidence:</b> habitability receives visible persistence reasons and confidence labels before any direct habitability-score penalty. Missing inputs produce <b>unknown</b> or no-op context rather than hidden scoring changes.</p>
+      <p><b>Parent ring and radiation context:</b> gas-giant ring and radiation notes reuse existing Roche/ring-zone, magnetosphere, plasma-source, and assigned-moon outputs. They remain qualitative unless the source model already owns a calibrated numeric output; the shared context is not a detailed magnetodisk model.</p>
+      <p><b>Generation and repair:</b> hard blocks are reserved for existing physical impossibilities such as Roche/collision/Hill failures. Crowded architecture, uncertain persistence, and degraded confidence produce warnings or repair suggestions rather than silent rewrites.</p>
+      ${cite("Gladman (1993); Murray & Dermott (1999); Peale, Cassen & Reynolds (1979); Paranicas et al. (2009)")}`,
     ),
 
     formula(
@@ -3397,7 +3495,7 @@ const SECTIONS = [
     count: 14,
     builder: buildTectonicsScience,
   },
-  { id: "orbital", title: "Orbital Mechanics", count: 13, builder: buildOrbitalMechanics },
+  { id: "orbital", title: "Orbital Mechanics", count: 22, builder: buildOrbitalMechanics },
   { id: "lagrange", title: "Lagrange Points", count: 4, builder: buildLagrangePoints },
   { id: "photometry", title: "Photometry &amp; Magnitudes", count: 8, builder: buildPhotometry },
   { id: "atmosphere", title: "Atmosphere &amp; Colour", count: 9, builder: buildAtmosphereColour },

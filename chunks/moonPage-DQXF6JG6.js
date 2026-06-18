@@ -1,0 +1,576 @@
+import{c as Ta,d as xt}from"./chunk-22EFWKAO.js";import{a as Ia,b as Ra,c as Ct}from"./chunk-5FTGEPJV.js";import{a as Na,b as Ha}from"./chunk-VEK53WDC.js";import{b as ya,c as ba,d as va,e as ga,f as bt,g as vt,h as gt,i as ft,j as xa,k as Pa,l as wa,m as ka}from"./chunk-IW3FGYCV.js";import"./chunk-X5HJXCPV.js";import{b as $a}from"./chunk-SIP25B6Y.js";import{e as Mt,f as he,j as St}from"./chunk-4CDBXSKU.js";import"./chunk-DFN46JRM.js";import{a as Ca}from"./chunk-PCXLDNQS.js";import{a as ua}from"./chunk-WYZYYRUA.js";import{a as pa,b as ha}from"./chunk-PKLCSPQT.js";import{b as Aa}from"./chunk-OTQP7TWD.js";import{a as ma,b as me}from"./chunk-YHKWPJRH.js";import{m as yt}from"./chunk-WC4KNZ43.js";import{a as Sa}from"./chunk-FZEHZHVH.js";import{a as Ma}from"./chunk-NCELRTS6.js";import{a as H,b as pe,d as fa,e as Ea}from"./chunk-4HEO5JKX.js";import{b as I,c as ht}from"./chunk-XMLMEZIZ.js";import"./chunk-LAMR64J5.js";import"./chunk-7PVDVLB6.js";import"./chunk-5SEMLOPL.js";import{$a as ca,D as Xt,Ga as Pe,Ha as we,Ia as ea,Ka as ta,Q as Jt,Qa as aa,Sa as ke,Ta as oe,Ua as oa,Va as ia,Wa as na,Xa as ra,Ya as Ee,Za as sa,_a as la,ib as pt,pb as ue,wb as da,za as D}from"./chunk-CO4MAOXZ.js";import{ra as Yt}from"./chunk-6EWUDDHO.js";import"./chunk-WNGVR2CK.js";import{S as Qt,h as zt,m as Wt,n as Zt}from"./chunk-PEDZU4MZ.js";import{j as m}from"./chunk-T2JC7ILW.js";import"./chunk-VC46IEJQ.js";function Pt(s,u){return I("option",{attrs:{value:s==null?"":String(s)},text:u==null?"":String(u)})}function Oa(s,u=[]){return u.length?I("optgroup",{attrs:{label:s}},u.map(b=>Pt(b?.value,b?.label))):null}function Fa(s,{planets:u=[],gasGiants:b=[],selectedValue:p="",disabled:S=!1,title:k=""}={}){ht(s,[Pt("","Unassigned"),Oa("Planets",(u||[]).map(A=>({value:A?.moonParentId||A?.id||"",label:`${A?.name||A?.inputs?.name||A?.id||"Planet"}${A?.classification?.displayLabel?` - ${A.classification.displayLabel}`:""}`}))),Oa("Gas Giants",(b||[]).map(A=>({value:A?.moonParentId||A?.id||"",label:`${A?.name||A?.id||"Gas Giant"}${A?.classification?.displayLabel?` - ${A.classification.displayLabel}`:""}`})))]);let a=p==null?"":String(p);return s.value=[...s.options].some(A=>A.value===a)?a:"",s.disabled=!!S,s.title=k||"",s}function Ga(s,u=[],b=""){let p=Array.isArray(u)?u:[];if(ht(s,p.map(a=>Pt(a?.id||"",a?.name||a?.inputs?.name||a?.id||"Moon"))),!p.length)return s.value="",s;let S=String(b||""),k=String(p[0]?.id||"");return s.value=[...s.options].some(a=>a.value===S)?S:k,s}function La(s,u=[]){return ba(s,u)}function qa(s,u={}){return Ha(s,u,{id:"moonResultSummary",className:"moon-result-summary",subject:"Moon",ariaLabel:"Moon result summary"})}function Da(s,u=[],b={}){return ya(s,u,b),s}function mo(s){let u=s?.preview||{},b=u?.tides||{},p=u?.inputs||{},S=u?.physical||{},k=String(b?.compositionClass||""),a=String(s?.id||""),A=Number(b?.tidalHeatingEarth)||0,n=Number(p?.albedo)||0,_=Number(S?.radiusMoon)||0;return a==="irregular-capture"?"Dark captured rubble body":a==="phobos"||a==="deimos"?"Tiny captured moonlet":A>=12?"Volcanic resurfacing world":A>=1&&k==="Subsurface ocean"?"Fractured ice over an interior ocean":k==="Subsurface ocean"?"Ice shell with likely ocean below":k==="Icy"||k==="Very icy"?"Bright frozen surface":k==="Mixed rock/ice"&&_>=1.2&&n<=.25?"Cold haze-prone ice-rock moon":k==="Mixed rock/ice"?"Blended rock and ice surface":k==="Partially molten"?"Heated molten companion":_<.05?"Small irregular capture":"Rocky major moon"}function Ba(s=[]){let u=[...new Set((s||[]).map(b=>b?.category).filter(Boolean))];return I("div",{className:"rp-picker-overlay rp-picker-overlay--moon"},[I("div",{className:"rp-picker-dialog rp-picker-dialog--moon panel"},[I("div",{className:"panel__header"},[I("div",{className:"rp-picker-heading"},[I("h2",{text:"Moon Recipes"}),I("div",{className:"rp-picker-subtitle",text:"Pick a visual and physical starting point for the current moon."})]),I("button",{className:"small rp-picker-close",attrs:{type:"button"},text:"Close"})]),I("div",{className:"rp-picker-progress"},[I("span")]),I("div",{className:"panel__body"},u.flatMap(b=>[I("div",{className:"rp-picker-category",text:b}),I("div",{className:"rp-picker-grid"},(s||[]).filter(p=>p?.category===b).map(p=>I("div",{className:"rp-picker-card",dataset:{recipe:p?.id||""}},[I("canvas",{attrs:{width:"90",height:"90"}}),I("div",{className:"rp-picker-card__label",text:p?.label||p?.id||"Moon recipe"}),I("div",{className:"rp-picker-card__hint",text:p?.hint||mo(p)})])))]))])])}function wt(){return Ma({overlayClassName:"rp-picker-overlay--moon moon-guided-overlay",dialogClassName:"rp-picker-dialog--moon moon-guided-dialog",closeButtonClassName:"moon-guided-overlay__close",contentClassName:"moon-guided-overlay__content",closeLabel:"Close moon guided creation"})}var T={"Star Mass":`Host star mass in solar masses.
+
+Sun = 1 Msol.`,"Star Radius":`Host star radius in solar radii.
+
+Sun = 1 Rsol.`,"Star Luminosity":`Host star luminosity in solar luminosities.
+
+Sun = 1 Lsol.`,"Star Age":"Age of the host star in billions of years.","Planet Mass":`Parent planet mass in Earth masses.
+
+Earth = 1 MEarth.`,"Planet CMF":"Parent planet core mass fraction.","Planet Density":`Parent planet bulk density in g/cm\xB3.
+
+Earth = 5.51 g/cm\xB3.`,"Planet Radius":`Parent planet radius in Earth radii.
+
+Earth = 1 REarth = 6,371 km.`,"Planet Gravity":`Surface gravity at sea level on the parent planet.
+
+Earth = 1 g = 9.8 m/s\xB2.`,"Planet Semi-Major Axis":`Orbital distance of the parent planet from the host star in AU.
+
+Earth = 1 AU.`,"Planet Eccentricity":`Orbital eccentricity of the parent planet.
+
+Earth = 0.0167.`,"Planet Periapsis":"Closest approach of the parent planet to the host star during orbit.","Planet Orbital Period":"Orbital period (year length) of the parent planet in Earth days.","Planet Rotation Period":"Rotation period (day length) of the parent planet in Earth hours.",Mass:`Moon mass in lunar masses. Moons should be less massive than their parent planet.
+
+Moon = 1 MMoon = 7.342E22 kg.`,Density:`Bulk density of the moon in g/cm\xB3. Rocky moons typically exceed 3 g/cm\xB3.
+
+Moon = 3.34 g/cm\xB3.`,Radius:`Moon radius in lunar radii. Major moons typically exceed 0.173 RMoon.
+
+Moon = 1 RMoon = 1,736.4 km.`,Gravity:`Surface gravity on the moon relative to Earth.
+
+Earth = 1 g = 9.8 m/s\xB2.
+Moon = 0.17 g = 1.62 m/s\xB2.`,"Escape Velocity":`Speed required to escape the gravitational pull of the moon.
+
+Moon = 2.38 km/s. Earth = 11.2 km/s.`,Albedo:`Bond albedo of the moon, measuring reflectivity on a scale of 0 to 1.
+
+0 = perfect absorber. 1 = perfect reflector.
+
+Mercury = 0.068
+Venus = 0.77
+Earth = 0.306
+Moon = 0.11
+Jupiter = 0.343
+Saturn = 0.342
+Uranus = 0.30
+Neptune = 0.29
+Pluto = 0.49`,"Moon Zone (Inner)":"Closest stable orbit for the moon. Any closer and tidal forces tear it apart (the Roche limit).","Moon Zone (Outer)":"Farthest stable orbit for the moon. Beyond this distance the moon is no longer gravitationally bound.","Semi-Major Axis":`Orbital distance from the planet in km.
+
+For moons of habitable Earth-like planets, the semi-major axis should fall between Moon Zone (Inner) and half of Moon Zone (Outer). Multiple major moons should be spaced at least 10 planetary radii apart.
+
+The app clamps this value on Apply to keep the orbit inside the Moon Zone.
+
+Moon = 384,748 km.`,Eccentricity:`Orbital eccentricity of the moon (0\u20131).
+
+0 = perfect circle. 1 = parabola.
+
+Major moons should have very low eccentricities.
+
+Moon = 0.055.`,Periapsis:`Closest approach of the moon to the planet during orbit.
+
+Should fall between Moon Zone (Inner) and Moon Zone (Outer).`,Apoapsis:`Farthest point of the moon from the planet during orbit.
+
+Should fall between Moon Zone (Inner) and Moon Zone (Outer).`,Inclination:`Inclination of the moon's orbit relative to the planet's orbital plane.
+
+Range: 0\u2013180\xB0. Major moons should have very low inclinations.
+
+Moon = 5.15\xB0 (with respect to the ecliptic).`,"Orbital Direction":`Prograde = the moon orbits the planet in the same direction as the planet's spin.
+
+Retrograde = the moon orbits the planet in the opposite direction of the planet's spin.
+
+Undefined = the orbital inclination is exactly 90\xBA, so the orbit is classed as neither prograde nor retrograde.
+
+Major moons of habitable Earth-like planets should be on prograde orbits.`,"Orbital Period (sidereal)":"The time it takes the moon to complete one orbit of the planet with respect to the background stars, in Earth days.","Orbital Period (synodic)":`The time between successive occurrences of the same lunar phase (e.g. full moon to full moon).
+
+This value represents a lunar month on the planet.`,"Rotation Period":`The time it takes the moon to complete one full rotation about its axis.
+
+If tidally locked, the rotation period equals the synodic orbital period (the moon always shows the same face to the planet).
+
+If not yet locked, an estimated current period is shown based on exponential tidal despinning from the initial rotation period.`,"Total Tidal Force":`Total tidal force exerted on the planet by the moon and the star, relative to the tidal forces exerted on Earth.
+
+<1 = tides less extreme than Earth.
+~1 = tides comparable to Earth.
+>1 = tides more extreme than Earth.`,"Moon Contribution":`Fraction of the total tidal force contributed by the moon.
+
+Moon \u2248 66% (Earth\u2013Moon system).`,"Star Contribution":`Fraction of the total tidal force contributed by the host star.
+
+Sun \u2248 33% (Earth\u2013Moon system).`,"Moon locked to Planet?":`Checks whether the moon is tidally locked to the planet.
+
+A body is tidally locked when it takes the same amount of time to spin about its axis as it does to orbit its companion. Tidally locked objects always present the same face to their companion.
+
+Major moons should always be tidally locked to the planet, i.e., the expected output is "Yes".`,"Planet locked to Moon?":`Checks whether the planet is tidally locked to the moon.
+
+This is shown as a rough lock-timescale category rather than a strict Yes/No result, so the output is necessarily imprecise. 'Very Likely Locked' means the estimated planet-to-moon lock time is extremely short; the longer 'Maybe' categories indicate progressively weaker or less plausible locking. Adjust the moon's semi-major axis to change the result.`,"Planet locked to Star?":`Checks whether the planet is expected to be tidally locked to its star.
+
+WorldSmith Web uses a user-friendly rule: this shows "Yes" when the computed Planet\u2192Star lock time is less than or equal to the current star age.
+
+For an Earth-like setup, this should usually remain "No".`,"Derived Data":"Read-only parent and host-frame context used for moon calculations. In binary systems this includes which star-centered frame the parent world belongs to, plus any extra companion heating or stability pressure inherited from that frame.","Environment Forcing":"Canonical host-frame forcing inherited by the moon solver: bolometric light at the parent planet orbit, XUV, prebiotic UV, stellar wind, companion contributions, and flux variability.","Moon selection":"Saved moon currently being edited.","Editing moon":"Moon selector with create and delete controls.","Belongs to planet":"Parent planet this moon orbits. May be left unassigned.",Identity:"Identity fields for the currently selected moon.",Name:"Display name for the moon, used across tabs and exports.",Orbit:"Orbital inputs that determine moon distance, periods, and lock behaviour.",Physical:"Physical inputs used to derive radius, gravity, and escape velocity.",Composition:`Inferred from bulk density as a proxy for rock/ice fraction. Controls the material rigidity (\u03BC) and tidal quality factor (Q) used in tidal lock and heating calculations.
+
+Density alone is often enough for cold, geologically quiet moons. But moons with extreme internal states \u2014 active volcanism or subsurface oceans \u2014 have much softer interiors than their bulk density implies. Use the Composition Override dropdown to select a special class when your moon has one of these conditions.
+
+Iron-rich (>5 g/cm\xB3): Dense metallic core, like Mercury.
+Rocky (3.2\u20135 g/cm\xB3): Solid silicate mantle. Earth\u2019s Moon, Io (cold).
+Mixed rock/ice (2\u20133.2 g/cm\xB3): Roughly equal rock and ice. Europa.
+Icy (1\u20132 g/cm\xB3): Mostly water ice with some rock. Ganymede, Titan.
+Very icy (<1 g/cm\xB3): Dominated by volatile ices. Cometary bodies.
+
+Special overrides (see Composition Override tooltip):
+Subsurface ocean: Liquid layer decouples the ice shell (\u03BC = 0.3 GPa, Q = 2).
+Partially molten: Magma interior from extreme tidal heating (\u03BC = 10 GPa, Q = 10).`,"Composition Override":`Override the density-derived composition class with a specific interior state. Density is a good proxy for cold, solid moons, but it underestimates tidal heating by 10\u2013100\xD7 for moons with extreme interiors.
+
+Auto (from density): Default. Best for geologically quiet moons.
+
+Very icy: Cometary or outer solar system bodies dominated by volatile ices. Low density (<1 g/cm\xB3).
+
+Icy: Mostly water ice with some rock. Ganymede, Callisto, Rhea. Density 1\u20132 g/cm\xB3.
+
+Subsurface ocean: A global liquid ocean beneath a thin ice shell dramatically softens the body and amplifies tidal dissipation. Use for moons showing signs of geological activity despite low density (cryovolcanism, plumes, young surface). Calibrated to Enceladus: predicted heating matches Cassini observations within 10%. WARNING: over-predicts for large moons like Titan (\u223C37\xD7 too high) \u2014 use Icy for those.
+
+Mixed rock/ice: Roughly half rock, half ice. Europa\u2019s density (3.0 g/cm\xB3) places it here. Good default for moons of giant planets with intermediate density.
+
+Rocky: Solid silicate mantle, like Earth\u2019s Moon (3.34 g/cm\xB3). Appropriate for tidally quiet rocky moons.
+
+Partially molten: Extreme tidal heating has melted the interior, creating a magma ocean or mushy mantle. This makes the body much softer than solid rock, dramatically increasing dissipation. Use for moons in strong orbital resonances with high volcanic activity. Calibrated to Io: predicted heating matches observed 10\xB9\u2074 W within 1%.
+
+Iron-rich: Dense metallic body (>5 g/cm\xB3). Very stiff, dissipates little energy. Mercury-like composition.`,Dynamics:"Optional inputs that affect tidal evolution timescales.","Moon Science Modes":`Top-level complexity controls for the moon solver.
+
+Use these to switch the Hydrosphere, Atmosphere, and Orbital Coupling blocks between compact heuristic handling and the deeper Full / Manual paths.`,"Hydrosphere Mode":`Core keeps the existing density-driven moon water heuristics.
+
+Full adds explicit water inventory, salinity, ammonia, and interior-state controls.
+
+Manual lets you set physical moon water/interior inputs directly, but the engine still computes the resulting ocean and ice structure.`,"Atmosphere Mode":`Core uses the retained-volatile moon atmosphere path.
+
+Full adds stability diagnostics, source/loss reasoning, and haze/cloud outputs.
+
+Manual lets you set pressure and gas mix inputs; the solver then checks whether that atmosphere is stable or transient.`,"Orbital Coupling":`Core treats the moon independently.
+
+Full adds sibling-moon resonance detection, forced eccentricity floors, Laplace-chain flags, and a tidal-habitable-zone readout.
+
+Manual exposes resonance-group inputs and manual forcing controls.`,"Bulk & Interior":`Physical moon water and interior controls used by the Full and Manual hydrosphere paths.
+
+These inputs shape whether the moon ends up dry, ocean-bearing, frozen over, differentiated, or internally warm enough to keep buried liquid water.`,"Water Mass Fraction":"Explicit moon water inventory as percent of total mass. Core mode ignores this and infers water from composition. Full and Manual modes use it to solve exposed ocean depth, buried ocean depth, and ice-shell structure.",Salinity:"Bulk ocean or ice salinity in percent by mass. Higher salinity lowers the freezing point and helps buried oceans persist.",Ammonia:"Bulk ammonia fraction in the volatile inventory. Ammonia acts as an antifreeze and can support colder subsurface oceans.","Differentiated Interior":"Flags whether the moon is internally differentiated into a rocky core and volatile-rich outer shell. Differentiation makes long-lived internal oceans more plausible.","Moon Radioisotopes":"Moon internal heat mode. Simple uses a single abundance multiplier. Advanced exposes the individual U-238, U-235, Th-232, and K-40 controls, mirroring rocky planets.","Radioisotope Abundance":`Simple moon radioisotope abundance multiplier relative to Earth.
+
+Raise this to model a more radionuclide-rich moon with stronger long-lived internal heating, or lower it for an older or less enriched rocky interior.`,"Internal Heat":`Simple moon radioisotope abundance multiplier relative to Earth.
+
+Raise this to model a more radionuclide-rich moon with stronger long-lived internal heating, or lower it for an older or less enriched rocky interior.`,"U-238":`Moon uranium-238 abundance relative to Earth's reference inventory.
+
+U-238 is the dominant long-lived radiogenic heat source on multi-gigayear timescales.`,"U-235":`Moon uranium-235 abundance relative to Earth's reference inventory.
+
+U-235 contributes more strongly in young systems because of its shorter half-life.`,"Th-232":`Moon thorium-232 abundance relative to Earth's reference inventory.
+
+Th-232 is a long-lived radiogenic heat source that helps sustain late-time internal heating.`,"K-40":`Moon potassium-40 abundance relative to Earth's reference inventory.
+
+K-40 is a shorter-lived radiogenic contributor that can matter more in younger rocky interiors.`,"Atmosphere Controls":`Manual atmosphere inputs for the Moon Atmosphere Manual mode.
+
+Set a target surface pressure and gas mix here, then let the moon solver judge whether that atmosphere is stable, transient, or physically strained under the current escape and source conditions.`,"Manual Surface Pressure":"Manual surface pressure used only in Moon Atmosphere Manual mode.","Nitrogen (N2)":`Manual nitrogen fraction for the moon atmosphere in percent.
+
+In Manual mode this acts as the background bulk gas. If you leave it at 0, the remaining percentage can be inferred after the other gases are applied.`,"Oxygen (O2)":`Manual oxygen fraction for the moon atmosphere in percent.
+
+Useful for deliberately Earth-like or oxidizing atmospheres, but the solver still checks whether the overall atmosphere is stable or transient.`,"Carbon Dioxide (CO2)":`Manual carbon-dioxide fraction for the moon atmosphere in percent.
+
+Higher CO2 generally strengthens greenhouse warming and can dominate thin cold atmospheres.`,"Argon (Ar)":`Manual argon fraction for the moon atmosphere in percent.
+
+Argon is chemically inert and mostly acts as a heavy tracer or ballast gas in the current moon atmosphere model.`,"Water Vapor (H2O)":`Manual water-vapour fraction for the moon atmosphere in percent.
+
+This can strengthen greenhouse warming, but warm moist atmospheres may also be short-lived on low-gravity moons.`,"Methane (CH4)":`Manual methane fraction for the moon atmosphere in percent.
+
+Useful for Titan-like or reducing atmospheres. In the current model methane can contribute both greenhouse warming and haze-prone chemistry.`,"Carbon Monoxide (CO)":`Manual carbon-monoxide fraction for the moon atmosphere in percent.
+
+CO is treated as a volatile atmospheric constituent rather than a full photochemical equilibrium species.`,"Hydrogen (H2)":`Manual hydrogen fraction for the moon atmosphere in percent.
+
+Hydrogen gives a low molecular weight and large scale height, but it is also the easiest gas for small moons to lose.`,"Helium (He)":`Manual helium fraction for the moon atmosphere in percent.
+
+Helium is chemically inert but usually hard for low-gravity moons to retain over long timescales.`,"Sulfur Dioxide (SO2)":`Manual sulfur-dioxide fraction for the moon atmosphere in percent.
+
+Useful for volcanic or Io-like moon scenarios where outgassing can temporarily supply a harsh sulfur-rich atmosphere.`,"Ammonia (NH3)":`Manual ammonia fraction for the moon atmosphere in percent.
+
+Useful for cold reducing atmospheres, but ammonia is usually chemically fragile and difficult to keep at the surface over long timescales.`,"Forced Eccentricity":`Minimum orbital eccentricity sustained by gravitational perturbations from a neighbouring moon in or near a mean-motion resonance (MMR). Acts as a floor \u2014 the effective eccentricity is whichever is larger: this value or the user-set eccentricity.
+
+In Full coupling mode the solver derives this automatically from the mass ratio, semi-major-axis ratio, and resonance proximity of sibling moons; in Manual mode you can set it directly. Laplace chains (three consecutive 2:1 MMRs) impose a floor of 0.0035. Values \u2265 0.003 flag sustained tidal heating, which prevents eccentricity from damping to zero over geological time \u2014 the mechanism behind Io\u2019s volcanism.
+
+Range: 0\u20130.2. Capped at 0.02 by the auto solver; higher values require manual entry.`,"Resonance Group":"Manual resonance-chain identifier for moons that should be treated as part of the same forced-eccentricity group.","Resonance & Rotation":`Manual orbital-coupling and primordial-spin controls.
+
+Use these when you want to override the default independent-moon assumption and steer resonant forcing, chain membership, or the initial spin state more directly.`,"Resonance Order":`Manual ordering index for moons placed in the same resonance group.
+
+Lower numbers are treated as the inner members of the chain, which helps the manual coupling solver interpret the sequence you intend.`,"Resonance Ratio":`Manual target period ratio used for a resonance group.
+
+Use 2 for a 2:1-style chain, 1.5 for 3:2, and similar low-order ratios for other hand-built coupled systems.`,"Initial Rotation Period":`Primordial spin period of the moon before tidal braking. Faster spin (shorter period) means more angular momentum to dissipate and a longer time to reach tidal lock.
+
+Default: 12 hours (model assumption from accretion dynamics). Range varies widely \u2014 fast-spinning bodies can be as short as 2\u20133 hours (near breakup), while captured moons may spin much slower.
+
+This value feeds directly into the tidal locking timescale calculation.`,"Surface & Habitability":`Compact summary block for the moon's environment and life-facing implications.
+
+This section is intentionally light on direct inputs; use it as a reminder that the habitability outputs below depend on the water, atmosphere, radiation, and orbital-coupling controls above.`,"Tidal Heating":`Surface heat flux from tidal deformation of the moon by its parent body. Uses the Wisdom (2008) formula with higher-order eccentricity corrections that remain accurate up to e \u2248 0.8.
+
+Higher eccentricity and closer orbits produce more heating. Io: ~0.3\u20132 W/m\xB2 (highest in the Solar System). Earth's geothermal flux: 0.09 W/m\xB2.
+
+Tidal-thermal feedback: for rocky moons (\u03C1 \u2265 3.2), when tidal flux exceeds ~0.02 W/m\xB2 the model automatically lowers Q and \u03BC toward partially-molten values, modelling the positive feedback loop that drives Io-like volcanism in orbital resonances.`,"Tidal Heating (\xD7 Earth)":`Tidal surface heat flux normalised to Earth's mean geothermal heat flux (0.09 W/m\xB2).
+
+<1 = less than Earth's internal heat. >1 = more. Io \u2248 4\xD7 Earth (equilibrium model).`,"Orbital Recession":`Rate of orbital migration due to tidal dissipation. Positive = outward (planet spins faster than moon orbits, like Earth\u2013Moon at +3.8 cm/yr). Negative = inward (planet spins slower, like Phobos spiralling toward Mars).
+
+Driven by two competing effects: the planet\u2019s tidal bulge transfers angular momentum, while the moon\u2019s own dissipation damps the orbit inward.`,"Orbital Fate":`Integrated tidal-evolution estimate for when the moon reaches the Roche limit (tidal disruption) or escapes the stable outer moon zone.
+
+The current migration rate is propagated as an a^(-11/2) tidal law, which reduces distortion in long-lived inward and outward fate estimates. This is still an approximate estimate: the model assumes the current tidal regime continues over geological time.`,"Nearest Resonance":"Closest sibling-moon mean-motion resonance identified by the coupled moon-system solver.","Laplace Status":"Whether the moon is currently tagged as part of a Laplace-style resonant chain.","Migration Trend":"Instantaneous drift of the moon pair's period ratio from the current tidal migration rates. Converging means the pair is moving closer to resonance; diverging means it is moving away. This is not a capture guarantee.","Tidal HZ":"Moon tidal-habitable-zone readout from the coupled moon-system solver.",Formation:"First-pass moon formation classifier derived from orbit geometry, inclination, distance from the parent, and regular versus irregular moon architecture.",Limits:"Derived orbital limits and lock times for the selected moon.","Tidal locking":"Lock times and current lock state for the moon\u2013planet\u2013star system.","Equilibrium Temp":`Temperature from stellar radiation alone, assuming no atmosphere (airless body).
+
+Uses the Stefan-Boltzmann equilibrium: T = (L(1\u2212a) / 16\u03C0\u03C3d\xB2)\xBC, where a is Bond albedo and d is star distance.`,"Surface Temp":`Estimated mean surface temperature including stellar radiation, tidal heating, radiogenic heating, and any modeled atmospheric greenhouse warming.
+
+For airless bodies, this stays close to the radiative equilibrium. Tidal heating dominates for close-orbit moons like Io; greenhouse warming matters most for volatile-rich moons such as Titan-like cases.`,"Global Equilibrium":"Global radiative equilibrium temperature for the moon after albedo, planetshine, and eclipse cooling are applied. This is not the same as a local measured surface temperature on an airless body.","Observable Surface Range":"Modeled airless-body observable temperature envelope spanning nightside floor through dayside/subsolar-like temperatures. The range is widened or narrowed by rotation state and thermal inertia class.","Climate State":`High-level moon climate regime derived from the moon-specific climate model.
+
+Stable, Snowball, Moist greenhouse, and Runaway greenhouse states reflect the modeled surface-water and temperature outcomes after planetshine, eclipses, and internal heating are considered.`,"Coupled Climate Tendency":"Phase 4 diagnostic showing how bounded chemistry forcing would tend to shift the moon climate label if opted in. The baseline moon surface temperature remains unchanged.","Photochemical Forcing":"Bounded diagnostic temperature delta from climate-chemistry coupling. For moons this is conservative because there is not yet a dedicated moon photochemistry solver.","Cloud Regime":"Cloud and circulation context inferred from pressure, exposed water, temperature, rotation, host flux, haze, and atmospheric-collapse risk. Airless moons and subsurface-only oceans do not receive exposed-cloud benefits.","Heat Redistribution":"How effectively the modeled moon atmosphere and cloud context move heat around the surface. Higher values reduce day-night extremes and collapse risk when there is enough pressure.","Cloud Albedo Effect":"Diagnostic cooling leverage from cloud reflectivity. This is bounded and does not directly rewrite the baseline moon temperature solve.","Carbon Cycle":"Long-term carbon-cycle tendency from exposed water/rock, CO2, volcanism or cryovolcanism, and recycling context. For icy ocean moons this is a rock-ocean chemistry cue, not Earth-like exposed-land weathering.","Weathering Efficiency":"Relative strength of CO2 drawdown by exposed-rock weathering plus limited seafloor weathering. Airless, dry, high-pressure-ice, and subsurface-only cases are deliberately limited.","Volcanic Supply":"Relative source-side carbon supply from silicate volcanism, cryovolcanism, or other outgassing context. Cryovolcanic supply is treated conservatively.","Surface Temp Range":`Estimated climate envelope for the moon's modeled surface temperature.
+
+This Stage M3 output combines seasonal forcing, synchronous parentshine contrast, and eclipse cooling into a first-pass min/max surface-temperature range.`,"Day/Night Contrast":"First-pass synchronous day-night thermal contrast for the current moon climate.","Nightside Min":"Estimated nightside minimum temperature after eclipse and synchronous-cooling effects.","Collapse State":"Atmospheric-collapse risk assessment for thin or volatile atmospheres on locked moons.","Climate Zones":`Moon climate-zone summary from the parent-coupled moon climate model.
+
+The current implementation reuses the Koppen-style zone classifier with moon-specific mean temperature, water state, pressure, and effective seasonal forcing.`,"Surface Ices":`High-level description of exposed surface-ice stability on the moon.
+
+This rolls together surface temperature, volatile inventory, and atmosphere into a quick read such as stable frost, seasonal ice, or ice-free terrain. Use it as the compact visual companion to the deeper hydrosphere outputs.`,Seasonality:`Qualitative description of the moon's climate variability.
+
+This combines seasonal forcing, eclipse duty cycle, and parentshine contrast to indicate whether the moon behaves as a low-, moderate-, strong-, or extreme-seasonality world.`,Planetshine:`Average climate forcing from the parent body's reflected starlight plus thermal emission.
+
+Close-in large moons should show stronger parentshine than distant or small-parent cases.`,"Eclipse Cooling":`Fraction of the stellar energy budget lost to eclipses by the parent body.
+
+Low-inclination close moons experience deeper eclipse forcing than high-inclination or distant moons.`,Atmosphere:`Derived moon atmosphere class from the retained volatile inventory.
+
+Airless and exosphere states indicate no meaningful surface atmosphere. Thin, substantial, and dense volatile atmospheres represent retained or replenished gases near the surface.`,"Surface Pressure":`Total modeled moon surface pressure from retained volatile species.
+
+This is derived from the retained volatile inventory rather than a manual input. Higher values generally support stronger greenhouse warming and denser near-surface air.`,"Atmosphere Composition":`Top atmosphere species by modeled pressure share.
+
+This is a volatile-atmosphere composition summary, not a full photochemical equilibrium model.`,"Atmosphere Mix":`Top atmosphere species by modeled pressure share.
+
+This is a volatile-atmosphere composition summary, not a full photochemical equilibrium model.`,"Greenhouse Warming":`Approximate surface warming above the moon's airless equilibrium / internal-heating baseline.
+
+This Stage M1 model supports volatile greenhouse warming and a simple methane anti-greenhouse penalty, but not full haze photochemistry yet.`,"Atmosphere Stability":"Source-loss balance for the current moon atmosphere. Stable means the current atmosphere is plausibly long-lived; transient means it likely needs active replenishment.","Atmosphere Lifetime":"Estimated order-of-magnitude lifetime of the modeled atmosphere under the current source and loss assumptions.","Atmosphere Trend":"Long-term atmosphere source-sink ledger. Stable/replenished moons have source terms that plausibly balance loss terms; declining/transient moons are dominated by escape, cold trapping, or sputtering.","Dominant Source":"Largest current atmosphere source term in the Phase 3 ledger, such as retained volatiles, cryovolcanism, volcanic supply, or ocean buffering.","Dominant Sink":"Largest current atmosphere sink term in the Phase 3 ledger, such as Jeans escape, XUV escape, wind sputtering, condensation collapse, or surface adsorption.","Stability Timescale":"Qualitative atmospheric persistence timescale from the source-sink ledger. This is an order-of-magnitude class, not a precise lifetime calculation.","Atmosphere Haze":"First-pass haze class inferred from the dominant atmospheric chemistry and pressure.","Atmosphere Clouds":"First-pass cloud or aerosol class inferred from pressure, condensables, and surface liquid support.","Volcanic Activity":`Derived silicate-volcanism signal from tidal heating, radiogenic heating, interior class, and bulk size/gravity.
+
+High values indicate Io-like or strongly molten rocky interiors that are likely to refresh the surface with lava or outgassed material.`,"Cryovolcanic Activity":`Derived icy-moon cryovolcanism signal from subsurface-water support, internal heating, composition, and venting ease.
+
+High values indicate plumes or icy resurfacing that can resupply water-rich volatiles from beneath the surface.`,Cryovolcanism:`Derived icy-moon cryovolcanism signal from subsurface-water support, internal heating, composition, and venting ease.
+
+High values indicate plumes or icy resurfacing that can resupply water-rich volatiles from beneath the surface.`,Resurfacing:`High-level surface-renewal class derived from the stronger of the silicate-volcanic and cryovolcanic channels.
+
+Quiet moons should stay cratered, while Io-like or Enceladus-like cases should move into active resurfacing classes.`,"Volatile Replenishment":`Tendency for internal activity to resupply the moon's surface or near-surface volatile inventory.
+
+This is a source-side signal from volcanism / cryovolcanism, not a guarantee that the moon can retain a long-lived atmosphere.`,"Ocean Persistence":`Tendency for liquid-water reservoirs to persist over time under the current heating, water inventory, and bulk-property assumptions.
+
+This favors moons with supported subsurface or surface oceans, enough internal heat, and sufficient bulk support to avoid a purely frozen shell.`,"Volatile Supply":`Tendency for internal activity to resupply the moon's surface or near-surface volatile inventory.
+
+This is a source-side signal from volcanism / cryovolcanism, not a guarantee that the moon can retain a long-lived atmosphere.`,Biosphere:`High-level surface-biology classification from the moon biosphere model.
+
+This stage estimates whether exposed surface environments are sterile, only marginally habitable for microbes, or plausibly supportive of richer biospheres.`,"Surface Biosphere":`High-level surface-biology classification from the moon biosphere model.
+
+This stage estimates whether exposed surface environments are sterile, only marginally habitable for microbes, or plausibly supportive of richer biospheres.`,"Plant Life":`Plant-life plausibility is a stricter gate than PHI.
+
+It depends on atmosphere adequacy, accessible surface water, climate livability, radiation, stellar spectrum, and the moon's illumination regime. A moon can have a moderate habitability score and still fail the plant-life gate.`,Vegetation:`Whether the current moon biosphere gate supports visible surface vegetation.
+
+This is only enabled when plant-life plausibility is high enough and the current atmosphere, water access, climate, and radiation conditions all support persistent surface flora.`,"Vegetation Colours":`First-pass vegetation colours for supported biosphere cases.
+
+This reuses the same star-spectrum vegetation-colour logic as rocky planets, but only after the moon biosphere gate says surface vegetation is plausible.`,"Veg Colours":`First-pass vegetation colours for supported biosphere cases.
+
+This reuses the same star-spectrum vegetation-colour logic as rocky planets, but only after the moon biosphere gate says surface vegetation is plausible.`,"Biosphere Limits":`Primary reasons the current moon does or does not support surface biology.
+
+Use this readout to see which inputs are blocking exposed life or vegetation under the current model assumptions.`,"Life Limits":`Primary reasons the current moon does or does not support surface biology.
+
+Use this readout to see which inputs are blocking exposed life or vegetation under the current model assumptions.`,Hydrosphere:`Derived moon water-state summary.
+
+Stage M2 separates dry, surface-liquid, frozen-surface, steam, and subsurface-ocean cases so the model can distinguish ocean moons from icy moons with buried water.`,"Surface Water":`Modeled surface water state and coverage.
+
+This reports accessible liquid water when present, otherwise the dominant surface water phase such as ice or vapour.`,"Subsurface Ocean":`Heuristic score for a buried liquid-water ocean beneath the surface ice shell.
+
+Europa-like and Enceladus-like cases should reach a clear 'Yes'. Lower scores mean a buried ocean is only a possibility under the current inputs.`,"Ocean Depth":`Heuristic depth estimate for the moon's dominant liquid-water layer.
+
+Surface-ocean moons report an exposed ocean depth. Frozen ocean worlds report the estimated buried-ocean depth instead.`,"Ice Shell":`Estimated thickness of the frozen surface shell above the liquid layer.
+
+This is only shown for frozen-surface cases and is intended as a first-pass structural estimate.`,"High-pressure Ice Barrier":`Flags when the modeled ocean reaches pressure bands where dense ice phases become possible or likely.
+
+The threshold is gravity-aware, so lower-gravity moons need deeper oceans to reach the same pressure.`,"High-Pressure Ice":`Flags when the modeled ocean reaches pressure bands where dense ice phases become possible or likely.
+
+The threshold is gravity-aware, so lower-gravity moons need deeper oceans to reach the same pressure.`,"Interior Structure":"Compact readout of the current solved moon interior: ocean depth plus the inferred ice-shell convection regime.","Ocean Chemistry":"Qualitative surface or subsurface ocean-chemistry context from salinity/ammonia, CO2 pressure, carbonate buffering, rock-ocean access, and hydrothermal support. It is not an exact pH or ocean-circulation model.","Carbonate Saturation":"Whether the current water, CO2, weathering, and rock-ocean context can plausibly support carbonate buffering. High-pressure ice can limit this even on ocean worlds.","Nutrient Support":"Qualitative nutrient and hydrothermal access for moon oceans. Subsurface oceans can be promising, but high-pressure ice or isolated shells reduce rock-ocean exchange.","Biosignature Context":"Context-dependent interpretation of atmospheric O2/O3, methane, CO, haze, replenishment demand, and false-positive risk. This never claims that life is detected.",Disequilibrium:"How strongly reactive gases such as O2 plus CH4 coexist at levels that require ongoing replenishment. A high value means source required, not biology proven.","O2/O3 False Positive":"Abiotic oxygen or ozone risk from water loss, strong UV/XUV, dry surfaces, weak sinks, and redox context.","Methane Context":"Methane interpretation using oxygen level, haze likelihood, outgassing, hydrothermal context, and replenishment demand. Methane can be geologic or photochemical.","CO Buildup Risk":"Carbon-monoxide buildup risk in low-UV or high-CO2 atmospheres. CO can create false-positive or false-negative biosignature context.","Radiogenic Heating":`Internal heat from radioactive decay (U, Th, K) on the moon\u2019s surface.
+
+Scales from Earth\u2019s 44 TW by moon mass and the system\u2019s radioisotope abundance setting. Typically small compared to tidal heating.`,"Magnetospheric Radiation":`Charged-particle radiation dose from the host planet\u2019s magnetosphere.
+
+Scales as B\xB3 at the moon\u2019s orbit (dipole field), calibrated to Jupiter\u2013Europa (~540 rem/day). Zero if the moon orbits outside the magnetopause. Compressed parent magnetospheres can raise the exposed-surface context near the boundary. Upper estimate \u2014 actual doses may be lower due to ring absorption and loss processes.`,"Magnetosphere Dose":`Charged-particle radiation dose from the host planet\u2019s magnetosphere.
+
+Scales as B\xB3 at the moon\u2019s orbit (dipole field), calibrated to Jupiter\u2013Europa (~540 rem/day). Zero if the moon orbits outside the magnetopause. Compressed parent magnetospheres can raise the exposed-surface context near the boundary. Upper estimate \u2014 actual doses may be lower due to ring absorption and loss processes.`,"Earth Similarity Index":`Compares this moon to Earth using radius, density, escape velocity, and surface temperature.
+
+Range: 0 to 1, where 1 is most Earth-like. Earth-likeness is not the same as direct habitability.`,Appearance:`Physics-driven visual of the moon from space. Surface texture, ice, clouding, haze, and ocean cues are derived from the current solved moon state.
+
+This preview is now read-only. Use Create This Moon in the Inputs column for Quick, Guided, or Recipes.`,"Habitability Index":`WorldSmith comparative habitability model for moons.
+
+This is PHI-inspired, not a direct literature PHI implementation. The score depends on the selected solvent pathway and the active solvent-policy support for surface water, subsurface water, and alternative solvents.
+
+Use the expanded KPI details to see the current pathway, policy version, and term breakdown.`,"Surface Radiation":"Gate-based surface-radiation class after parent-belt exposure, stellar XUV, atmosphere shielding, and moon magnetic shielding are combined.","Magnetic Shielding":`Combined intrinsic and induced moon magnetic shielding class.
+
+Intrinsic shielding comes from a plausible moon dynamo. Induced shielding comes from a conductive salty subsurface ocean interacting with the parent field.`,"Surface Exomoon Calibration":`Paper-informed exposed-surface moon calibration for cool-star systems.
+
+This surface-only gate weighs cool-star band, giant-host mass, moon mass floor, composition, and spin state. It does not block subsurface-ocean outcomes.`,"Spin State":`Solved moon spin-orbit state from the tidal model.
+
+A 1:1 synchronous lock strengthens permanent parent-facing contrast, while a 3:2 resonance modestly softens that contrast for exposed-surface climate cases.`,"Life Class":`High-level gate-based moon outcome.
+
+This sits alongside the numeric Habitability Index and tells you whether the current moon is best described as a surface-life candidate, a cool-star mass-limited surface moon, a radiation-limited ocean moon, a subsurface-ocean moon, or another environmental class.`,"Surface Habitability":`Gate-based surface-habitability readout.
+
+This separates true surface-life plausibility from warm-but-radiation-limited or marginal-atmosphere cases.`,"Subsurface Habitability":`Gate-based subsurface-habitability readout.
+
+Moons outside the stellar habitable zone can still score well here if they plausibly sustain buried liquid water under ice.`,"Habitability Gates":"Quick count of how many surface and subsurface habitability gates currently pass."},po=[{title:"Getting Started",body:"The Moons page creates and configures natural satellites. Select a moon from the dropdown, or create a new one. Assign it to a parent planet or giant companion using the parent selector."},{title:"Orbit Setup",body:"Set semi-major axis, eccentricity, and inclination. The semi-major axis is automatically clamped to the parent\u2019s moon zone \u2014 between the Roche limit and Hill sphere."},{title:"Physical Properties",body:"Adjust mass, density, albedo, and composition. Use the composition override dropdown for special scenarios like subsurface oceans or partially molten interiors."},{title:"Tidal System",body:"Outputs show tidal forces, heating, and locking timescales. Check whether the moon is tidally locked to its planet, and whether the planet is locked to its star or moon."},{title:"Creation Modes",body:"Use Create This Moon at the top of Inputs. Quick applies a moon archetype, Guided walks you to a recommendation, Recipes opens the preset library for exact moon templates like Luna, Europa, Io, or Titan, and Advanced is the direct editor below."}];function Ae(s,u=null){return String(s??"").trim()||u||null}function ja(s){return ea(s)}function ho(s,u){let b=we(s),p=Pe(b||{}),S={massMsol:Number(b?.massMsol)||1,ageGyr:Number(b?.ageGyr)||4.6,metallicityFeH:Number(b?.metallicityFeH)||0,radiusRsolOverride:p.r,luminosityLsolOverride:p.l,tempKOverride:p.t,evolutionMode:p.ev},k=Qt({massMsol:S.massMsol,ageGyr:S.ageGyr,metallicityFeH:S.metallicityFeH,radiusRsolOverride:S.radiusRsolOverride,luminosityLsolOverride:S.luminosityLsolOverride,tempKOverride:S.tempKOverride,evolutionMode:S.evolutionMode}),a=u?.defaultHostFrameId||u?.primaryStarId||"star_a";return{hostFrameId:a,hostFrame:{id:a,label:b?.name||"Star",frameKind:"star",orbitFamilyKind:"single",zones:{habitableZoneAu:k.habitableZoneAu},fluxModel:{meanCompanionFluxEarth:0,fluxVariabilityFraction:0,meanCompanionXuvFluxEarth:0,hostWindPressureEarthAt1Au:k?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au??null,meanWindPressureEarthAt1Au:k?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au??null,meanCompanionWindPressureEarth:0},stability:{criticalOuterAu:null,diskTruncationAu:null,warnings:[]}},starId:u?.primaryStarId||a,starConfig:S,starModel:k,hostWindPressureEarthAt1Au:k?.stellarEnvironment?.wind?.ramPressureEarthRatioAt1Au??null,companionFluxEarth:0,companionXuvFluxEarth:0,companionWindPressureEarth:0,fluxVariabilityFraction:0,dominantContributorId:u?.primaryStarId||a}}function yo(s,u,b=null){let p=b||ja(s),S=Ae(u?.hostFrameId,p?.defaultHostFrameId||p?.primaryStarId);return Xt(p,S)||ho(s,p)}function bo({compactLifeLimits:s,compactOrbitalFate:u,lifeClass:b}){return u!=="Stable"||s&&s!=="Clear"?"warning":/surface|complex|simple|microbial|candidate|habitable/i.test(String(b||""))?"good":"neutral"}function vo({moonName:s,model:u,moonProfile:b,compactLifeLimits:p,compactOrbitalFate:S}={}){let k=String(s||u?.inputs?.name||"Moon").trim()||"Moon",a=b?.displayClass||u?.display?.compositionClass||"moon environment",A=u?.display?.hydrosphereState||"water state unresolved",n=u?.display?.atmosphereClass||"atmosphere unresolved",_=u?.display?.surfaceTemp||"temperature unresolved",te=u?.display?.lifeClass||"life class unresolved",ie=S==="Stable"?"The current orbit is not showing a strong inward decay or outward escape warning.":`Orbital fate needs attention: ${u?.display?.orbitalFate||S}.`,Ie=p==="Clear"?"No compact life blockers are flagged.":`${p||"Some blockers"} ${p==="1 blocker"?"is":"are"} active; inspect Habitability for the gate details.`;return{tone:bo({compactLifeLimits:p,compactOrbitalFate:S,lifeClass:te}),body:`${k} reads as ${a.toLowerCase()} with ${A.toLowerCase()} and ${n.toLowerCase()}. Surface temperature is ${_}. ${te} is the current habitability class. ${ie} ${Ie}`,items:[{label:"Focus",value:k},{label:"Surface",value:a},{label:"Life signal",value:te}]}}function oi(s,u={}){let b=u?.routeContext?.guided||null,p=D(),S=we(p),k=Pe(S),a={starMassMsol:Number(S.massMsol),starAgeGyr:Number(S.ageGyr),starMetallicityFeH:Number(S.metallicityFeH)||0,starRadiusRsolOverride:k.r,starLuminosityLsolOverride:k.l,starTempKOverride:k.t,starEvolutionMode:k.ev,planet:{...p.planet},moon:{...p.moon}},A=pa({speedDaysPerSec:.5}),n=document.createElement("div");n.className="page",n.innerHTML=`
+    <div class="panel">
+      <div class="panel__header">
+        <h1 class="panel__title"><span class="ws-icon icon--moons" aria-hidden="true"></span><span>Moons</span></h1>
+        <button id="moonTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
+      </div>
+      <div class="panel__body">
+        ${Ca({summary:"Author moons for selected planets and gas giants, then validate their orbit and environment outputs.",controls:"The selected moon, its parent assignment, and the orbit, interior, atmosphere, and coupling inputs.",affects:"Planet tides, calendar moon phases, and moon-specific habitability and visual outputs.",primaryAction:"Choose a parent world or leave the moon unassigned, then set orbit distance before fine-tuning the deeper modes.",compact:!0,detailsTitle:"Moon workflow context",detailsSummary:"Parent, orbit, and environment choices feed tides, calendars, and visuals."})}
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel__header"><h2>Inputs</h2></div>
+        <div class="panel__body">
+
+          <div class="label">Parent Context ${H(T["Derived Data"]||"")}</div>
+          <div class="derived-readout derived-readout--context" id="context"></div>
+
+          <div style="height:12px"></div>
+
+          <div class="label">Moon selection ${H(T["Moon selection"]||"")}</div>
+          <div class="form-row">
+            <div>
+              <div class="label">Editing moon ${H(T["Editing moon"]||"")}</div>
+              <div class="hint">Create multiple moons and assign each to a planet.</div>
+            </div>
+            <div class="select-stack">
+              <select id="moonSelect"></select>
+              <div class="select-actions">
+                <button id="moonNew" class="small" type="button">New</button>
+                <button id="moonDelete" class="small danger" type="button">Delete</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div>
+              <div class="label">Belongs to planet ${H(T["Belongs to planet"]||"")}</div>
+              <div class="hint">Set a parent planet or leave this moon unassigned.</div>
+            </div>
+            <select id="moonPlanetSelect"></select>
+          </div>
+          <div id="moonParentLockNotice" class="moon-parent-lock" hidden>
+            <div>
+              <div class="moon-parent-lock__title">Parent assignment locked</div>
+              <div class="moon-parent-lock__copy">
+                Parent assignment is locked from the Planetary System viewer. Unlock it to change this moon's parent.
+              </div>
+            </div>
+            <button id="moonParentUnlock" class="small" type="button">Unlock parent</button>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="guided-entry-strip" id="moonCreateEntry">
+            <div class="guided-entry-strip__title">Create This Moon</div>
+            <div class="guided-entry-strip__copy">
+              Quick applies a moon archetype, Guided walks you to a recommendation, and Advanced
+              is the direct editor below. Use Recipes alongside Advanced when you want a preset
+              starting point: Recipes will override the current moon inputs.
+            </div>
+            <div class="guided-entry-strip__modes">
+              <button id="moonCreateQuickBtn" type="button" class="guided-entry-strip__mode" ${pe(he("quick"))}>
+                Quick
+              </button>
+              <button id="moonCreateGuidedBtn" type="button" class="guided-entry-strip__mode" ${pe(he("guided"))}>
+                Guided
+              </button>
+              <button id="moonCreateRecipesBtn" type="button" class="guided-entry-strip__mode" ${pe(he("recipes"))}>
+                Recipes
+              </button>
+              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page" ${pe(he("advanced"))}>
+                Advanced
+              </span>
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="label">Moon Science Modes ${H(T["Moon Science Modes"]||"")}</div>
+          ${kt("hydModePills","hydMode","Hydrosphere Mode","Hydrosphere Mode",[{value:"core",label:"Core",checked:!0},{value:"full",label:"Full",checked:!1},{value:"manual",label:"Manual",checked:!1}],"hydModeHint")}
+          ${kt("atmModePills","atmMode","Atmosphere Mode","Atmosphere Mode",[{value:"core",label:"Core",checked:!0},{value:"full",label:"Full",checked:!1},{value:"manual",label:"Manual",checked:!1}],"atmModeHint")}
+          ${kt("orbModePills","orbMode","Orbital Coupling","Orbital Coupling",[{value:"core",label:"Core",checked:!0},{value:"full",label:"Full",checked:!1},{value:"manual",label:"Manual",checked:!1}],"orbModeHint")}
+
+          <div style="height:10px"></div>
+
+<div class="label">Identity ${H(T.Identity||"")}</div>
+          <div class="form-row">
+            <div>
+              <div class="label">Name ${H(T.Name||"")}</div>
+              <div class="hint">Used in exports and print view.</div>
+            </div>
+            <input id="name" type="text" />
+          </div>
+
+          <div style="height:8px"></div>
+          <div class="label">Orbit ${H(T.Orbit||"")}</div>
+
+          ${q("a","Semi-Major Axis","km","",10,1e9,100,"Semi-Major Axis")}
+          ${q("e","Eccentricity","","",0,.99,.001,"Eccentricity")}
+          ${q("inc","Inclination","\xB0","",0,180,.1,"Inclination")}
+
+          <div style="height:8px"></div>
+          <div class="label">Physical ${H(T.Physical||"")}</div>
+
+          ${q("m","Mass","MMoon","",1e-8,1e3,1e-8,"Mass")}
+          ${q("density","Density","g/cm\xB3","",.1,20,.01,"Density")}
+          ${q("albedo","Albedo","","",0,.95,.001,"Albedo")}
+
+          <div class="form-row">
+            <div>
+              <div class="label">Composition Override ${H(T["Composition Override"]||"")}</div>
+            </div>
+            <select id="compOverride" aria-label="Composition Override">
+              <option value="">Auto (from density)</option>
+              <option value="Very icy">Very icy</option>
+              <option value="Icy">Icy</option>
+              <option value="Subsurface ocean">Subsurface ocean</option>
+              <option value="Mixed rock/ice">Mixed rock/ice</option>
+              <option value="Rocky">Rocky</option>
+              <option value="Partially molten">Partially molten</option>
+              <option value="Iron-rich">Iron-rich</option>
+            </select>
+          </div>
+
+          <div style="height:8px"></div>
+          <div class="label">Dynamics ${H(T.Dynamics||"")}</div>
+          ${q("initRot","Initial Rotation Period","hours","",2,1e3,.1,"Initial Rotation Period")}
+
+          <div style="height:8px"></div>
+          <div class="label">Bulk & Interior ${H(T["Bulk & Interior"]||"")}</div>
+          <div id="moonHydrosphereSection">
+            ${q("wmf","Water Mass Fraction","%","",0,60,.1,"Water Mass Fraction")}
+            ${q("salinity","Salinity","%","",0,35,.1,"Salinity")}
+            ${q("ammonia","Ammonia","%","",0,30,.1,"Ammonia")}
+            <div class="form-row">
+              <div>
+                <div class="label">Differentiated Interior ${H(T["Differentiated Interior"]||"")}</div>
+                <div class="hint">Auto defers to the solver. Yes/No pins the interior assumption.</div>
+              </div>
+              <select id="differentiatedInterior">
+                <option value="">Auto</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <div class="label">Moon Radioisotopes ${H(T["Moon Radioisotopes"]||"")}</div>
+                <div class="hint" id="isoModeHint"></div>
+              </div>
+              <div class="pill-toggle-wrap">
+                ${fo("isoModePills","isoMode",[{value:"simple",label:"Simple",checked:!0},{value:"advanced",label:"Advanced",checked:!1}])}
+              </div>
+            </div>
+            <div id="moonIsoSimpleRows">
+              ${q("radioAbundance","Radioisotope Abundance","x Earth","",.1,3,.01,"Internal Heat")}
+            </div>
+            <div id="moonIsoAdvancedRows">
+              ${q("u238","U-238","x Earth","",0,5,.01,"U-238")}
+              ${q("u235","U-235","x Earth","",0,5,.01,"U-235")}
+              ${q("th232","Th-232","x Earth","",0,5,.01,"Th-232")}
+              ${q("k40","K-40","x Earth","",0,5,.01,"K-40")}
+            </div>
+          </div>
+
+          <div style="height:8px"></div>
+          <div class="label">Atmosphere ${H(T["Atmosphere Controls"]||"")}</div>
+          <div id="moonAtmosphereSection">
+            ${q("manualPressure","Manual Surface Pressure","atm","",0,10,.01,"Manual Surface Pressure")}
+            ${U("n2Pct","Nitrogen (N2)","%","Derived to fill the remainder when left at 0 in manual mode.")}
+            ${U("o2Pct","Oxygen (O2)","%","")}
+            ${U("co2Pct","Carbon Dioxide (CO2)","%","")}
+            ${U("arPct","Argon (Ar)","%","")}
+            ${U("h2oPct","Water Vapor (H2O)","%","")}
+            ${U("ch4Pct","Methane (CH4)","%","")}
+            ${U("coPct","Carbon Monoxide (CO)","%","")}
+            ${U("h2Pct","Hydrogen (H2)","%","")}
+            ${U("hePct","Helium (He)","%","")}
+            ${U("so2Pct","Sulfur Dioxide (SO2)","%","")}
+            ${U("nh3Pct","Ammonia (NH3)","%","")}
+          </div>
+
+          <div style="height:8px"></div>
+          <div class="label">Resonance & Rotation ${H(T["Resonance & Rotation"]||"")}</div>
+          <div id="moonOrbitalSection">
+            ${q("forcedEcc","Forced Eccentricity","","",0,.2,1e-4,"Forced Eccentricity")}
+            <div class="form-row">
+              <div>
+                <div class="label">Resonance Group ${H(T["Resonance Group"]||"")}</div>
+                <div class="hint">Manual mode only. Leave blank for auto.</div>
+              </div>
+              <input id="resonanceGroup" type="text" />
+            </div>
+            ${U("resonanceOrder","Resonance Order","","Manual mode only. Smaller numbers are closer in.")}
+            ${U("resonanceRatio","Resonance Ratio","","Use 2 for a 2:1-style manual chain, 1.5 for 3:2, etc.")}
+          </div>
+
+          <div style="height:8px"></div>
+          <div class="label">Surface & Habitability ${H(T["Surface & Habitability"]||"")}</div>
+          <div class="hint">Core mode keeps the page compact. Full and Manual reveal the deeper moon-environment controls above.</div>
+
+          <div class="button-row">
+            <button id="btn-default">Reset to Defaults</button>
+          </div>
+
+          <div class="hint" style="margin-top:10px">
+            Radius, gravity, and escape velocity are derived from Mass + Density.
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel__header"><h2>Outputs</h2></div>
+        <div class="panel__body">
+          <div id="kpis"></div>
+
+          <div id="details"></div>
+        </div>
+      </div>
+    </div>
+  `,s.appendChild(n),fa(n),Ea({steps:po,storageKey:"worldsmith.moon.tutorial",container:n,triggerBtn:n.querySelector("#moonTutorials")});let _=new Set,te=new MutationObserver(()=>{n.isConnected||(A.dispose(),te.disconnect())});te.observe(document.body,{childList:!0,subtree:!0});let ie=n.querySelector("#moonSelect"),Ie=n.querySelector("#moonNew"),Ka=n.querySelector("#moonDelete"),Re=n.querySelector("#moonPlanetSelect"),Et=n.querySelector("#moonParentLockNotice"),Ua=n.querySelector("#moonParentUnlock"),_a=n.querySelector("#context"),ye=n.querySelector("#name"),$e=n.querySelector("#a"),Te=n.querySelector("#e"),Ne=n.querySelector("#inc"),He=n.querySelector("#m"),Oe=n.querySelector("#density"),Fe=n.querySelector("#albedo"),Ge=n.querySelector("#compOverride"),Le=n.querySelector("#initRot"),qe=n.querySelector("#hydModePills"),De=n.querySelector("#atmModePills"),Be=n.querySelector("#orbModePills"),At=n.querySelector("#hydModeHint"),It=n.querySelector("#atmModeHint"),Rt=n.querySelector("#orbModeHint"),je=n.querySelector("#wmf"),Ke=n.querySelector("#salinity"),Ue=n.querySelector("#ammonia"),be=n.querySelector("#differentiatedInterior"),_e=n.querySelector("#isoModePills"),$t=n.querySelector("#isoModeHint"),Ve=n.querySelector("#radioAbundance"),ze=n.querySelector("#u238"),We=n.querySelector("#u235"),Ze=n.querySelector("#th232"),Qe=n.querySelector("#k40"),Xe=n.querySelector("#manualPressure"),Ye=n.querySelector("#n2Pct"),Je=n.querySelector("#o2Pct"),et=n.querySelector("#co2Pct"),tt=n.querySelector("#arPct"),at=n.querySelector("#h2oPct"),ot=n.querySelector("#ch4Pct"),it=n.querySelector("#coPct"),nt=n.querySelector("#h2Pct"),rt=n.querySelector("#hePct"),st=n.querySelector("#so2Pct"),lt=n.querySelector("#nh3Pct"),ct=n.querySelector("#forcedEcc"),ne=n.querySelector("#resonanceGroup"),re=n.querySelector("#resonanceOrder"),se=n.querySelector("#resonanceRatio"),Va=n.querySelector("#moonCreateQuickBtn"),za=n.querySelector("#moonCreateGuidedBtn"),Wa=n.querySelector("#moonCreateRecipesBtn"),Tt=n.querySelector("#moonHydrosphereSection"),Nt=n.querySelector("#moonAtmosphereSection"),Ht=n.querySelector("#moonOrbitalSection"),Ot=n.querySelector("#moonIsoSimpleRows"),Ft=n.querySelector("#moonIsoAdvancedRows"),Y=n.querySelector("#kpis"),Gt=n.querySelector("#details"),le=null,Lt={};L("a",$e,10,1e9,100,"auto"),L("e",Te,0,.99,.001,"auto"),L("inc",Ne,0,180,.1,"auto"),L("m",He,1e-8,1e3,1e-8,"auto"),L("density",Oe,.1,20,.01,"auto"),L("albedo",Fe,0,.95,.001,"auto"),L("initRot",Le,2,1e3,.1,"auto"),L("wmf",je,0,60,.1,"auto"),L("salinity",Ke,0,35,.1,"auto"),L("ammonia",Ue,0,30,.1,"auto"),L("radioAbundance",Ve,.1,3,.01,"auto"),L("u238",ze,0,5,.01,"auto"),L("u235",We,0,5,.01,"auto"),L("th232",Ze,0,5,.01,"auto"),L("k40",Qe,0,5,.01,"auto"),L("manualPressure",Xe,0,10,.01,"auto"),L("forcedEcc",ct,0,.2,1e-4,"auto");function L(t,e,i,r,c,d){let l=n.querySelector(`#${t}_slider`),f=n.querySelector(`#${t}_min`),h=n.querySelector(`#${t}_max`);f.textContent=String(i),h.textContent=String(r),Lt[t]=ua({numberEl:e,sliderEl:l,min:i,max:r,step:c,mode:d,commitOnInput:!1,onChange:()=>W()})}function Za(){for(let t of["a","e","inc","m","density","albedo","initRot","wmf","salinity","ammonia","radioAbundance","u238","u235","th232","k40","manualPressure","forcedEcc"])Lt[t]?.syncFromNumber({commit:!1,normalize:!0})}function qt(){let t=D(),e=we(t);a.starMassMsol=Number(e?.massMsol),a.starAgeGyr=Number(e?.ageGyr),a.starMetallicityFeH=Number(e?.metallicityFeH)||0;let i=Pe(e);a.starRadiusRsolOverride=i.r,a.starLuminosityLsolOverride=i.l,a.starTempKOverride=i.t,a.starEvolutionMode=i.ev;let r=oe(t);a.moonId=r?.id||t.moons?.selectedId,a.moon={...r?.inputs||t.moon},a.moonName=r?.name||a.moon.name||"Luna",a.moonPlanetId=r?r.planetId??null:null,a.moonLocked=!!r?.locked;let c=Dt(t,a.moonPlanetId);a.parentType=c.type,c.type==="gasGiant"?(a.gasGiant=c.gasGiant,a.planet=null):(a.planet=c.inputs,a.gasGiant=null)}function Dt(t,e){let i=e==null?null:String(e);if(i){let r=ta(t).find(d=>String(d.id)===i);if(r?.inputs)return{type:"planet",inputs:{...r.inputs}};let c=ue(t).find(d=>String(d.id)===i);if(c)return{type:"gasGiant",gasGiant:c}}return{type:"planet",inputs:{...t.planet}}}function Qa(t){let e=String(t?.companionClass||"").trim();return e?Wt(e):zt({massMjup:t?.massMjup})==="brownDwarf"?"brownDwarf":"gasGiant"}function dt(t){return Zt(Qa(t))}function ve(t,e,i="core"){return t?.querySelector(`input[name="${e}"]:checked`)?.value||i}function ge(t,e,i,r="core"){let c=i||r;t?.querySelectorAll(`input[name="${e}"]`).forEach(d=>{d.checked=d.value===c})}function Bt(){let t=a.moon.hydrosphereMode||"core",e=a.moon.atmosphereMode||"core",i=a.moon.orbitalCouplingMode||"core",r=a.moon.radioisotopeMode||"simple";ge(qe,"hydMode",t),ge(De,"atmMode",e),ge(Be,"orbMode",i),ge(_e,"isoMode",r,"simple"),At&&(At.textContent=t==="core"?"Compatibility heuristics.":t==="full"?"Inventory-driven moon water and ice solving.":"Direct water/interior inputs with computed outputs."),It&&(It.textContent=e==="core"?"Retained-volatile atmosphere only.":e==="full"?"Computed atmosphere plus stability diagnostics.":"Manual pressure and gas mix with stability checks."),Rt&&(Rt.textContent=i==="core"?"Single-moon treatment.":i==="full"?"Sibling resonance and tidal-HZ analysis.":"Manual resonance-chain controls enabled."),$t&&($t.textContent=r==="advanced"?"Advanced isotope-by-isotope moon heat inputs.":"Single moon radiogenic-heat multiplier."),Tt&&(Tt.style.display=t==="core"?"none":""),Nt&&(Nt.style.display=e==="manual"?"":"none"),Ht&&(Ht.style.display=i==="core"?"none":""),Ot&&(Ot.style.display=t==="core"||r==="advanced"?"none":""),Ft&&(Ft.style.display=t==="core"||r!=="advanced"?"none":""),ne&&(ne.disabled=i!=="manual"),re&&(re.disabled=i!=="manual"),se&&(se.disabled=i!=="manual")}function Xa(){return{name:ye.value||"New Moon",semiMajorAxisKm:Number($e.value),eccentricity:Number(Te.value),inclinationDeg:Number(Ne.value),massMoon:Number(He.value),densityGcm3:Number(Oe.value),albedo:Number(Fe.value),compositionOverride:Ge.value||null,initialRotationPeriodHours:Number(Le.value)||null,hydrosphereMode:ve(qe,"hydMode"),atmosphereMode:ve(De,"atmMode"),orbitalCouplingMode:ve(Be,"orbMode"),waterMassFractionPct:Number(je.value)||null,salinityPct:Number(Ke.value)||null,ammoniaPct:Number(Ue.value)||null,differentiatedInterior:be.value==="yes"?!0:be.value==="no"?!1:null,radioisotopeMode:ve(_e,"isoMode","simple"),radioisotopeAbundance:Number(Ve.value)||null,u238Abundance:Number(ze.value)||null,u235Abundance:Number(We.value)||null,th232Abundance:Number(Ze.value)||null,k40Abundance:Number(Qe.value)||null,manualSurfacePressureAtm:Number(Xe.value)||null,n2Pct:Number(Ye.value)||0,o2Pct:Number(Je.value)||0,co2Pct:Number(et.value)||0,arPct:Number(tt.value)||0,h2oPct:Number(at.value)||0,ch4Pct:Number(ot.value)||0,coPct:Number(it.value)||0,h2Pct:Number(nt.value)||0,hePct:Number(rt.value)||0,so2Pct:Number(st.value)||0,nh3Pct:Number(lt.value)||0,forcedEccentricity:Number(ct.value)||null,manualResonanceGroupId:ne.value?.trim()||null,manualResonanceOrder:Number(re.value)||null,manualResonanceRatio:Number(se.value)||null}}function ce(t){let e=n.querySelector(".moon-float-note");e||(e=document.createElement("div"),e.className="moon-float-note",n.appendChild(e)),e.textContent=t,e.classList.add("is-visible"),le&&clearTimeout(le),le=setTimeout(()=>{e.classList.remove("is-visible")},3200)}function ut(t,{noticeLabel:e="Moon preset"}={}){let i=D(),r=oe(i);if(!r)return null;let c=r.id,d=r.planetId??a.moonPlanetId??null,l=de(i,{moonId:c,moonInputs:t,planetId:d}).model,f=String(l?.orbit?.semiMajorAxisGuard||"none"),h=Number(l?.inputs?.semiMajorAxisKm),x=Number(t.semiMajorAxisKm),g=Number.isFinite(h)?Math.round(h):x,$=f!=="none"&&Number.isFinite(g),R={...t,semiMajorAxisKm:$?g:x};return Ee(c,{inputs:R}),pt({moon:R}),$&&Math.abs(R.semiMajorAxisKm-x)>1e-9&&ce(`${e} adjusted the semi-major axis to ${m(R.semiMajorAxisKm,0)} km to keep this moon inside the Moon Zone.`),ee(),J(),R}function Ya(){let t=D(),e=Jt(t),i=e.filter(c=>c.moonParentKind==="planet"),r=e.filter(c=>c.moonParentKind==="gasGiant");Fa(Re,{planets:i,gasGiants:r,selectedValue:a.moonPlanetId,disabled:a.moonLocked,title:a.moonLocked?"This moon is locked to its current planet on the Planetary System tab.":""}),Et&&(Et.hidden=!a.moonLocked)}function Ja(){let t=D(),e=ke(t);Ga(ie,e,t.moons.selectedId)}function eo(t,e,i){let r=Array.isArray(e?.operations)?e.operations:[];if(!r.length)return t;let c=(Array.isArray(t)?t:[]).map(d=>({...d,inputs:{...d?.inputs||{}}}));for(let d=0;d<r.length;d+=1){let l=r[d];if(!(!l||typeof l!="object"))if(l.type==="update"&&l.moonId){let f=c.findIndex(h=>h?.id===l.moonId);f>=0&&(c[f]={...c[f],name:l.name??c[f].name,planetId:l.planetId===void 0?c[f].planetId:l.planetId??null,inputs:{...c[f].inputs||{},...l.inputPatch||{}}})}else l.type==="create"&&l.inputs&&c.push({id:l.previewId||`preview-sibling-${d+1}`,name:l.name||l.inputs?.name||"Preview sibling",planetId:l.planetId===void 0?i??null:l.planetId??null,inputs:{...l.inputs||{}}})}return c}function de(t,{moonId:e,moonInputs:i,planetId:r,parentPatch:c=null,siblingPatch:d=null}){let l=c?.assignMoonToParentId!=null?c.assignMoonToParentId:r,f=Dt(t,l),h=ke(t).filter(N=>(N.planetId??null)===(l??null)).map(N=>({...N,inputs:N.id===e?i:N.inputs})),x=eo(h,d,l),g=c?.parentKind==="gasGiant"&&f.type==="gasGiant"&&f.gasGiant?{...f,gasGiant:{...f.gasGiant,...c.inputPatch||{}}}:c?.parentKind==="planet"&&f.type==="planet"?{...f,inputs:{...f.inputs||{},...c.inputPatch||{}}}:f,$=ja(t),R=g.type==="gasGiant"&&g.gasGiant?g.gasGiant:{id:l??null,hostFrameId:t.planets?.byId?.[l]?.hostFrameId||null},P=yo(t,R,$),v=P?.starConfig||{},M=P?.starModel,O=P?.hostFrame?.zones?.habitableZoneAu||M?.habitableZoneAu||null,E=Ae(P?.hostFrameId,$?.defaultHostFrameId),y=Number(P?.companionFluxEarth||0),w=Number(P?.companionXuvFluxEarth||0),Q=P?.hostXuvFluxEarthAt1Au??null,Z=P?.hostPrebioticUvEarthAt1Au??null,o=Number(P?.companionPrebioticUvEarth||0),V=P?.hostWindPressureEarthAt1Au??null,j=Number(P?.companionWindPressureEarth||0),F=Number(P?.fluxVariabilityFraction||0);if(g.type==="gasGiant"&&g.gasGiant){let N=Aa({...g.gasGiant,orbitAu:Number(g.gasGiant.au)||5,starMassMsol:Number(v.massMsol)||1,starLuminosityLsol:Number(M?.luminosityLsol)||1,starAgeGyr:Number(v.ageGyr)||4.6,starRadiusRsol:Number(M?.radiusRsol)||1,hostFrameId:E,hostFrame:P?.hostFrame||null,hostXuvFluxEarthAt1Au:Q,hostPrebioticUvEarthAt1Au:Z,hostWindPressureEarthAt1Au:V,companionFluxEarth:y,companionXuvFluxEarth:w,companionPrebioticUvEarth:o,companionWindPressureEarth:j,fluxVariabilityFraction:F,stellarMetallicityFeH:Number(v.metallicityFeH)||0,otherGiants:ue(t).filter(B=>B.id!==g.gasGiant.id&&Ae(B?.hostFrameId,$?.defaultHostFrameId)===E),moons:x.map(B=>B.inputs||{})}),X=Ra(N),ae=Ct({starMassMsol:Number(v.massMsol)||1,starAgeGyr:Number(v.ageGyr)||4.6,starMetallicityFeH:Number(v.metallicityFeH)||0,starRadiusRsolOverride:v.radiusRsolOverride??null,starLuminosityLsolOverride:v.luminosityLsolOverride??null,starTempKOverride:v.tempKOverride??null,starEvolutionMode:v.evolutionMode||"zams",starHabitableZoneAu:O,hostFrameId:E,hostFrame:P?.hostFrame||null,hostXuvFluxEarthAt1Au:Q,hostPrebioticUvEarthAt1Au:Z,hostWindPressureEarthAt1Au:V,companionFluxEarth:y,companionXuvFluxEarth:w,companionPrebioticUvEarth:o,companionWindPressureEarth:j,fluxVariabilityFraction:F,parentKind:"gasGiant",parentOverride:X,moonEntries:x.length?x:[{id:e||"draft-moon",planetId:l,inputs:i}]});return{parentType:"gasGiant",parentOverride:X,parentInfo:{parentId:g.gasGiant.id||l||null,parentKind:"gasGiant",parentName:g.gasGiant.name||g.gasGiant.id||dt(g.gasGiant),parentClassLabel:dt(g.gasGiant),assigned:l!=null,orbitAu:Number(g.gasGiant.au)||Number(X.inputs.semiMajorAxisAu)||null,eccentricity:Number(g.gasGiant.eccentricity)||0,massEarth:Number(X.inputs.massEarth)||null,massMjup:Number(g.gasGiant.massMjup)||null,rotationPeriodHours:Number(g.gasGiant.rotationPeriodHours)||null,siblingCount:Math.max(x.length-(e?1:0),0),starHabitableZoneAu:O||null,hostFrameId:E},contextText:`Host frame: ${P?.hostFrame?.label||"Primary star"}
+Parent: ${g.gasGiant.name||g.gasGiant.id} (${dt(g.gasGiant).toLowerCase()})
+Parent orbit: ${m(X.inputs.semiMajorAxisAu,3)} AU
+${y>5e-4?`Companion flux: ${m(y,3)}x Earth
+`:""}${F>.001?`Flux variability: ${m(F*100,1)}%`:"Flux variability: low"}`,model:ae.find(B=>B.raw.id===e)?.model||ae.find(B=>B.raw.inputs===i)?.model||ae[0]?.model||yt({starMassMsol:Number(v.massMsol)||1,starAgeGyr:Number(v.ageGyr)||4.6,starMetallicityFeH:Number(v.metallicityFeH)||0,starRadiusRsolOverride:v.radiusRsolOverride??null,starLuminosityLsolOverride:v.luminosityLsolOverride??null,starTempKOverride:v.tempKOverride??null,starEvolutionMode:v.evolutionMode||"zams",hostFrameId:E,hostFrame:P?.hostFrame||null,hostWindPressureEarthAt1Au:V,companionFluxEarth:y,companionXuvFluxEarth:w,companionWindPressureEarth:j,fluxVariabilityFraction:F,moon:i,parentOverride:X}),parentBudget:ae.parentBudget||null}}let C=g.inputs||{...t.planet},G=Yt({starMassMsol:Number(v.massMsol)||1,starAgeGyr:Number(v.ageGyr)||4.6,starMetallicityFeH:Number(v.metallicityFeH)||0,starRadiusRsolOverride:v.radiusRsolOverride??null,starLuminosityLsolOverride:v.luminosityLsolOverride??null,starTempKOverride:v.tempKOverride??null,starEvolutionMode:v.evolutionMode||"zams",hostFrameId:E,hostFrame:P?.hostFrame||null,hostXuvFluxEarthAt1Au:Q,hostPrebioticUvEarthAt1Au:Z,hostWindPressureEarthAt1Au:V,companionFluxEarth:y,companionXuvFluxEarth:w,companionPrebioticUvEarth:o,companionWindPressureEarth:j,fluxVariabilityFraction:F,planet:C,moons:x.map(N=>N.inputs||{}),gasGiants:ue(t).filter(N=>Ae(N?.hostFrameId,$?.defaultHostFrameId)===E).map(N=>({name:N.name,au:N.au}))}),K=Ia(G),z=Ct({starMassMsol:Number(v.massMsol)||1,starAgeGyr:Number(v.ageGyr)||4.6,starMetallicityFeH:Number(v.metallicityFeH)||0,starRadiusRsolOverride:v.radiusRsolOverride??null,starLuminosityLsolOverride:v.luminosityLsolOverride??null,starTempKOverride:v.tempKOverride??null,starEvolutionMode:v.evolutionMode||"zams",starHabitableZoneAu:O,hostFrameId:E,hostFrame:P?.hostFrame||null,hostXuvFluxEarthAt1Au:Q,hostPrebioticUvEarthAt1Au:Z,hostWindPressureEarthAt1Au:V,companionFluxEarth:y,companionXuvFluxEarth:w,companionPrebioticUvEarth:o,companionWindPressureEarth:j,fluxVariabilityFraction:F,parentKind:"planet",parentOverride:K,moonEntries:x.length?x:[{id:e||"draft-moon",planetId:l,inputs:i}]});return{parentType:"planet",parentOverride:K,parentInfo:{parentId:l??null,parentKind:"planet",parentName:l&&t.planets.byId?.[l]?.name||"Planet",assigned:l!=null,orbitAu:Number(C.semiMajorAxisAu)||Number(K.inputs.semiMajorAxisAu)||null,eccentricity:Number(C.eccentricity)||0,massEarth:Number(C.massEarth)||Number(K.inputs.massEarth)||null,massMjup:null,rotationPeriodHours:Number(C.rotationPeriodHours)||null,siblingCount:Math.max(x.length-(e?1:0),0),starHabitableZoneAu:O||null,hostFrameId:E},contextText:`Host frame: ${P?.hostFrame?.label||"Primary star"}
+Planet Mass: ${m(C.massEarth,3)} MEarth
+Planet orbit: ${m(C.semiMajorAxisAu,3)} AU
+${y>5e-4?`Companion flux: ${m(y,3)}x Earth
+`:""}${F>.001?`Flux variability: ${m(F*100,1)}%`:"Flux variability: low"}`,model:z.find(N=>N.raw.id===e)?.model||z.find(N=>N.raw.inputs===i)?.model||z[0]?.model||yt({starMassMsol:Number(v.massMsol)||1,starAgeGyr:Number(v.ageGyr)||4.6,starMetallicityFeH:Number(v.metallicityFeH)||0,starRadiusRsolOverride:v.radiusRsolOverride??null,starLuminosityLsolOverride:v.luminosityLsolOverride??null,starTempKOverride:v.tempKOverride??null,starEvolutionMode:v.evolutionMode||"zams",hostFrameId:E,hostFrame:P?.hostFrame||null,hostWindPressureEarthAt1Au:V,companionFluxEarth:y,companionXuvFluxEarth:w,companionWindPressureEarth:j,fluxVariabilityFraction:F,planet:C,moon:i}),parentBudget:z.parentBudget||null}}function J(){qt();let t=de(D(),{moonId:a.moonId,moonInputs:a.moon,planetId:a.moonPlanetId});_a.textContent=t.contextText;let e=t.model,i=ma(e),r=e.habitability?.earthSimilarityBreakdown||{},c=e.habitability?.breakdown||{},d=e.biosphere||{},l=e.geology||{},f=e.display.surfaceBiosphere.includes("Surface sterile")?"Sterile":e.display.surfaceBiosphere.includes("Marginal")?"Marginal":e.display.surfaceBiosphere.includes("Microbial")?"Microbial":e.display.surfaceBiosphere.includes("Simple")?"Simple":e.display.surfaceBiosphere.includes("Complex")?"Complex":e.display.surfaceBiosphere,h=e.atmosphere?.dominantSpecies?`${e.atmosphere.dominantSpecies}-dominant`:"None",x=l.resurfacingDominantProcess==="volcanic"?"Volcanic":l.resurfacingDominantProcess==="cryovolcanic"?"Cryovolcanic":l.resurfacingDominantProcess==="mixed"?"Mixed":"Quiet",g=d.limitingFactors?.length?`${d.limitingFactors.length} blocker${d.limitingFactors.length===1?"":"s"}`:"Clear",$=e.display.orbitalFate.startsWith("Roche limit")?"Inward decay":e.display.orbitalFate.startsWith("Escape")?"Outward drift":"Stable",R=t.parentBudget||null,P=R?.moonCount>0&&R.netTorqueClass!=="unknown"?`Net ${R.netTorqueClass}`:"Unknown",v=R?.moonCount>0?[R.display?.netMigrationProxy,R.display?.dominantMoon?`Dominant: ${R.display.dominantMoon}`:null,...Array.isArray(R.notes)?R.notes:[]].filter(Boolean).join(`
+`):"Assign moons to a parent to build a bounded moon-system torque budget.",M=c.solventPolicyVersion||"surface-plus-subsurface-water-v1",O=M==="surface-subsurface-plus-alt-solvents-v1"?"surface + subsurface + alt solvents":M==="surface-plus-subsurface-water-v1"?"surface + subsurface water":"surface water only",E=e.habitability?.summary||{},y=E.surfaceExomoonCalibration||{},w=y.applicable===!0?[y.starClassBand,y.hostGiantFavorability?.label,`Moon ${m(y.moonMassEarth??0,3)} MEarth vs floor ${m(y.moonMassFloorEarth??0,3)} MEarth`,y.spinStateBenefit?.label,...y.notes||[]].filter(Boolean).join(`
+`):"Applied only to exposed-surface, atmosphere-bearing moons around cool-star giant-planet systems.",Q=e.spinState?.climateNote||e.tides?.spinState?.climateNote||"",Z=[E.gates?.stellarZone?.label,E.gates?.stableOrbit?.label,E.gates?.energyBudget?.label,E.gates?.atmosphereRetention?.label,E.gates?.radiationShielding?.label].filter(Boolean).join(`
+`),o=(xe,co,uo="",Vt={})=>({label:xe,tip:T[xe]||"",value:co,meta:uo,kpiClass:`kpi--compact ${Vt.kpiClass||""}`.trim(),...Vt}),V=`Substrate ${m(c.substrate??0,2)} | Solvent ${m(c.solvent??0,2)} | Energy ${m(c.energy??0,2)} | Chemistry ${m(c.chemistry??0,2)} | Stability ${m(c.stabilityMultiplier??0,2)} | Radiation ${m(c.radiationMultiplier??0,2)} | Persistence ${m(c.persistenceMultiplier??0,2)}
+Pathway ${c.solventPathway||"none"} | ${O}
+${e.habitability?.habitabilityModelVersion||"phi-unified-v2"} | ${M}`,j=Y.querySelector(".moon-preview-canvas"),F=xe=>({...xe,collapsible:!0,open:!1}),C=vo({moonName:a.moonName||a.moon.name,model:e,moonProfile:i,compactLifeLimits:g,compactOrbitalFate:$}),G="Radiative global equilibrium; excludes local time, roughness, and thermal inertia.",K=[`${String(e.display.thermalEnvelopeConfidence||"medium").toUpperCase()} confidence`,"Compare measured or brightness-style local temperatures with this range; global equilibrium is the radiative baseline.",e.display.thermalEnvelopeCaveats].filter(Boolean).join(" | "),z=[e.display.tidalResponseModel,e.display.tidalUncertaintyCaveats].filter(Boolean).join(" | "),N=[{id:"moon-summary",title:"Key Numbers",items:[{kind:"preview",label:"Appearance",tip:T.Appearance||"",canvasClass:"moon-preview-canvas",metaChildren:[i.displayClass," \u2014 ",i.terrain.type.replace("-"," ")]},o("Composition",e.display.compositionClass),o("Radius",e.display.radius,"derived"),o("Surface Temp",e.display.surfaceTemp),o("Global Equilibrium",e.display.globalEquilibriumTemp||e.display.equilibriumTemp,G),o("Observable Surface Range",e.display.observableSurfaceRange,K),o("Hydrosphere",e.display.hydrosphereState),o("Atmosphere",e.display.atmosphereClass,e.display.atmosphereSource),o("Tidal Regime",e.display.tidalRegime,z),o("Life Class",e.display.lifeClass,e.display.habitabilityGates),o("Habitability Index",e.display.habitabilityIndex,V)]},F({id:"moon-identity",title:"Identity & Class",density:"compact",items:[o("Composition",e.display.compositionClass),o("Albedo",m(a.moon.albedo,3))]}),F({id:"moon-physical",title:"Physical State",density:"compact",items:[o("Mass",`${m(a.moon.massMoon,3)} M\u263E`),o("Density",`${m(a.moon.densityGcm3,2)} g/cm\xB3`),o("Radius",e.display.radius,"derived"),o("Gravity",e.display.gravity),o("Escape Velocity",e.display.esc)]}),F({id:"moon-environment",title:"Environment",density:"compact",items:[o("Atmosphere",e.display.atmosphereClass,e.display.atmosphereSource),o("Environment Forcing",e.display.environmentForcing,Array.isArray(e.environment?.forcing?.caveats)&&e.environment.forcing.caveats.length?e.environment.forcing.caveats.join(" | "):"Canonical host-frame UV, XUV, wind, and light context"),o("Surface Pressure",e.display.surfacePressure),o("Atmosphere Mix",h,e.display.atmosphereComposition),o("Greenhouse Warming",e.display.greenhouseWarming),o("Atmosphere Stability",e.display.atmosphereStability,e.display.atmosphereLoss),o("Atmosphere Trend",e.display.atmosphereTrend,e.atmosphere?.ledger?.confidence?`${String(e.atmosphere.ledger.confidence).toUpperCase()} confidence`:""),o("Dominant Source",e.display.atmosphereDominantSource,e.atmosphere?.ledger?.dominantSource?.reason||""),o("Dominant Sink",e.display.atmosphereDominantSink,e.atmosphere?.ledger?.dominantSink?.reason||""),o("Stability Timescale",e.display.atmosphereStabilityTimescale,e.atmosphere?.ledger?.netBalance!=null?`net ${m(e.atmosphere.ledger.netBalance,2)}`:""),o("Coupled Climate Tendency",e.display.coupledClimateTendency,`${e.display.photochemicalForcing} | baseline temperature unchanged`),o("Photochemical Forcing",e.display.photochemicalForcing,e.climateChemistryForcing?.confidence?`${String(e.climateChemistryForcing.confidence).toUpperCase()} confidence`:""),o("Cloud Regime",e.display.cloudRegime,e.cloudCirculation?.confidence?`${String(e.cloudCirculation.confidence).toUpperCase()} confidence`:""),o("Heat Redistribution",e.display.heatRedistribution,e.cloudCirculation?.substellarCloudDeckLikelihood!=null?`Substellar deck ${m(e.cloudCirculation.substellarCloudDeckLikelihood*100,0)}%`:""),o("Atmosphere Lifetime",e.display.atmosphereLifetime),o("Atmosphere Haze",e.display.atmosphereHaze),o("Atmosphere Clouds",e.display.atmosphereClouds),o("Hydrosphere",e.display.hydrosphereState),o("Surface Ices",e.display.surfaceIces),o("Surface Water",e.display.surfaceWater),o("Subsurface Ocean",e.display.subsurfaceOcean),o("Ocean Depth",e.display.oceanDepth),o("Ice Shell",e.display.iceShell),o("High-Pressure Ice",e.display.highPressureIce,e.display.oceanPhaseDiagnostics),o("Interior Structure",e.display.interiorStructure),o("Ocean Chemistry",e.display.oceanChemistry,e.oceanChemistryContext?.confidence?`${String(e.oceanChemistryContext.confidence).toUpperCase()} confidence`:""),o("Global Equilibrium",e.display.globalEquilibriumTemp||e.display.equilibriumTemp,G),o("Observable Surface Range",e.display.observableSurfaceRange,K),o("Equilibrium Temp",e.display.equilibriumTemp),o("Climate State",e.display.climateState),o("Collapse State",e.display.collapseState),o("Surface Temp Range",e.display.surfaceTempRange),o("Day/Night Contrast",e.display.dayNightContrast),o("Nightside Min",e.display.nightsideMin),o("Climate Zones",e.display.climateZones,e.display.climateZoneSummary),o("Seasonality",e.display.seasonality)]}),F({id:"moon-system",title:"System Context",density:"compact",items:[o("Orbital Period (sidereal)",e.display.sidereal),o("Orbital Period (synodic)",e.display.synodic),o("Rotation Period",e.display.rot),o("Spin State",e.display.spinState,Q),o("Initial Rotation Period",e.display.initialRot),o("Planetshine",e.display.planetshine),o("Eclipse Cooling",e.display.eclipseCooling),o("Nearest Resonance",e.display.nearestResonance),o("Laplace Status",e.display.laplaceStatus),o("Forced Eccentricity",e.display.forcedEccentricity),o("Eccentricity State",e.display.eccentricityEquilibrium||"Unknown",e.display.eccentricityEquilibriumNote||""),o("Tidal Persistence",e.display.tidalHeatingPersistence||"Unknown","Qualitative resonance-pump versus tidal-damp diagnostic."),o("Migration Trend",e.display.migrationTrend),o("Synchronous Orbit",e.display.synchronousOrbit,e.display.synchronousOrbitContext),o("Moon System Torque",P,v),o("Tidal HZ",e.display.tidalHabitableZone),o("Formation",e.display.formation),o("Orbital Recession",e.display.recession),o("Orbital Fate",$,$==="Stable"?"No strong inward decay or outward escape trend is currently predicted":e.display.orbitalFate)]}),F({id:"moon-activity",title:"Activity & Radiation",density:"compact",items:[o("Total Tidal Force",e.display.tides),o("Tidal Regime",e.display.tidalRegime,z),o("Moon Contribution",e.display.moonPct),o("Star Contribution",e.display.starPct),o("Tidal Heating",e.display.tidalHeating,e.display.tidalHeatingTotal),o("Tidal Heating (\xD7 Earth)",e.display.tidalHeatingXEarth),o("Volcanic Activity",e.display.volcanicActivity,`score ${m(l.volcanicActivityScore??0,2)}`),o("Cryovolcanism",e.display.cryovolcanicActivity,`score ${m(l.cryovolcanicActivityScore??0,2)}`),o("Resurfacing",x,`${e.display.resurfacing}
+${l.resurfacingDominantProcess==="none"?"No dominant resurfacing driver":`${l.resurfacingDominantProcess||"mixed"}-driven`}`),o("Carbon Cycle",e.display.carbonCycle,e.carbonCycleContext?.confidence?`${String(e.carbonCycleContext.confidence).toUpperCase()} confidence`:""),o("Volatile Supply",e.display.volatileReplenishment,`score ${m(l.volatileReplenishmentScore??0,2)}`),o("Ocean Persistence",e.display.oceanPersistence,`score ${m(l.oceanPersistenceScore??0,2)}`),o("Radiogenic Heating",e.display.radiogenicHeating),o("Magnetosphere Dose",e.display.magnetosphericRad,e.display.parentMagnetosphereCompression&&e.display.parentMagnetosphereCompression!=="Not evaluated"?`${e.display.magnetosphericLabel}
+${e.display.parentMagnetosphereCompression}`:e.display.magnetosphericLabel),o("Surface Radiation",e.display.surfaceRadiation),o("Magnetic Shielding",e.display.magneticShielding)]}),F({id:"moon-habitability",title:"Habitability",density:"compact",items:[o("Life Class",e.display.lifeClass,e.display.habitabilityGates),o("Habitability Index",e.display.habitabilityIndex,V),o("Earth Similarity Index",e.display.earthSimilarityIndex,`Radius ${m(r.radius??0,2)} | Density ${m(r.density??0,2)} | Escape ${m(r.escapeVelocity??0,2)} | Temp ${m(r.surfaceTemp??0,2)}`),o("Surface Habitability",e.display.surfaceHabitability,E.gates?.radiationShielding?.label||""),o("Surface Exomoon Calibration",e.display.surfaceExomoonCalibration,w),o("Subsurface Habitability",e.display.subsurfaceHabitability),o("Habitability Gates",e.display.habitabilityGates,Z),...e.oceanChemistryContext?.applicable?[o("Ocean Chemistry",e.display.oceanChemistry,[e.display.carbonateSaturation,e.display.nutrientSupport,e.oceanChemistryContext?.confidence?`${String(e.oceanChemistryContext.confidence).toUpperCase()} confidence`:""].filter(Boolean).join(" | "))]:[],o("Biosignature Context",e.display.biosignatureContext,e.biosignatureContext?.confidence?`${String(e.biosignatureContext.confidence).toUpperCase()} confidence`:"Context only; not a life detection"),o("Disequilibrium",e.display.disequilibriumStrength,e.biosignatureContext?.replenishmentDemandClass?`Source demand ${e.biosignatureContext.replenishmentDemandClass}`:""),o("O2/O3 False Positive",e.display.oxygenFalsePositiveRisk,`Methane: ${e.display.methaneContext} | CO buildup ${e.display.coBuildupRisk}`),o("Biosphere",f,`${e.display.surfaceBiosphere}
+Score ${m(d.surfaceBiologyScore??0,2)}`),o("Plant Life",e.display.plantLife),o("Vegetation",e.biosphere?.vegetationEligible?"Yes":"No",e.display.vegetation==="Supported"?"Surface vegetation is supported by the current biosphere gate":e.display.vegetationNote),o("Life Limits",g,e.display.biosphereLimits),...e.biosphere?.vegetationEligible?[o("Veg Colours","Available",`${e.display.vegetationColours}
+${e.display.vegetationNote}`)]:[]]})];La(Y,N),qa(Y,C);let X=Na(e.derived?.eraTimeline,{id:"moon-era-timeline"});X&&Y.insertBefore(X,Y.children[2]||null),Da(Gt,[{id:"moon-details-identity",title:"Identity & Class",items:[{label:"Name",value:a.moonName||a.moon.name||"Moon"},{label:"Composition",value:e.display.compositionClass},{label:"Albedo",value:m(a.moon.albedo,3)}]},{id:"moon-details-physical",title:"Physical State",items:[{label:"Mass",value:`${m(a.moon.massMoon,3)} M\u263E`},{label:"Density",value:`${m(a.moon.densityGcm3,2)} g/cm\xB3`},{label:"Radius",value:e.display.radius},{label:"Gravity",value:e.display.gravity},{label:"Escape Velocity",value:e.display.esc}]},{id:"moon-details-environment",title:"Environment",items:[{label:"Atmosphere",value:e.display.atmosphereClass,meta:e.display.atmosphereSource},{label:"Surface Pressure",value:e.display.surfacePressure},{label:"Atmosphere Mix",value:h,meta:e.display.atmosphereComposition},{label:"Greenhouse Warming",value:e.display.greenhouseWarming},{label:"Atmosphere Stability",value:e.display.atmosphereStability,meta:e.display.atmosphereLoss},{label:"Atmosphere Trend",value:e.display.atmosphereTrend,meta:e.atmosphere?.ledger?.summary||""},{label:"Dominant Source",value:e.display.atmosphereDominantSource,meta:e.atmosphere?.ledger?.dominantSource?.reason||""},{label:"Dominant Sink",value:e.display.atmosphereDominantSink,meta:e.atmosphere?.ledger?.dominantSink?.reason||""},{label:"Stability Timescale",value:e.display.atmosphereStabilityTimescale,meta:Array.isArray(e.atmosphere?.ledger?.caveats)&&e.atmosphere.ledger.caveats.length?e.atmosphere.ledger.caveats.join(" | "):""},{label:"Coupled Climate Tendency",value:e.display.coupledClimateTendency,meta:e.climateChemistryForcing?.optInClimateState||"Derived-only diagnostic; baseline climate state retained"},{label:"Photochemical Forcing",value:e.display.photochemicalForcing,meta:e.climateChemistryForcing?[`Haze ${m(e.climateChemistryForcing.hazeDeltaK||0,1)} K`,`CH4 ${m(e.climateChemistryForcing.methaneGreenhouseDeltaK||0,1)} K`,`SO2 ${m(e.climateChemistryForcing.sulfurAerosolDeltaK||0,1)} K`,`Cloud ${m(e.climateChemistryForcing.cloudAlbedoDeltaK||0,1)} K`,`H2O feedback ${m(e.climateChemistryForcing.waterVaporFeedbackDeltaK||0,1)} K`].join(" | "):""},{label:"Cloud Regime",value:e.display.cloudRegime,meta:Array.isArray(e.cloudCirculation?.notes)&&e.cloudCirculation.notes.length?e.cloudCirculation.notes.join(" | "):e.cloudCirculation?.confidence?`${String(e.cloudCirculation.confidence).toUpperCase()} confidence`:""},{label:"Heat Redistribution",value:e.display.heatRedistribution,meta:e.cloudCirculation?.collapseRiskModifier!=null?`Collapse risk modifier ${m(e.cloudCirculation.collapseRiskModifier,2)}`:""},{label:"Cloud Albedo Effect",value:e.display.cloudAlbedoEffect,meta:e.cloudCirculation?.cloudFraction!=null?`Cloud fraction ${m(e.cloudCirculation.cloudFraction*100,0)}% | deck likelihood ${m((e.cloudCirculation.substellarCloudDeckLikelihood||0)*100,0)}%`:""},{label:"Atmosphere Lifetime",value:e.display.atmosphereLifetime},{label:"Atmosphere Haze",value:e.display.atmosphereHaze},{label:"Atmosphere Clouds",value:e.display.atmosphereClouds},{label:"Hydrosphere",value:e.display.hydrosphereState},{label:"Surface Water",value:e.display.surfaceWater},{label:"Subsurface Ocean",value:e.display.subsurfaceOcean},{label:"Ocean Depth",value:e.display.oceanDepth},{label:"Ice Shell",value:e.display.iceShell},{label:"High-Pressure Ice",value:e.display.highPressureIce,meta:e.display.oceanPhaseDiagnostics},{label:"Interior Structure",value:e.display.interiorStructure},{label:"Ocean Chemistry",value:e.display.oceanChemistry,meta:Array.isArray(e.oceanChemistryContext?.notes)&&e.oceanChemistryContext.notes.length?e.oceanChemistryContext.notes.join(" | "):""},{label:"Global Equilibrium",value:e.display.globalEquilibriumTemp||e.display.equilibriumTemp,meta:G},{label:"Observable Surface Range",value:e.display.observableSurfaceRange,meta:K},{label:"Climate State",value:e.display.climateState},{label:"Collapse State",value:e.display.collapseState},{label:"Day/Night Contrast",value:e.display.dayNightContrast},{label:"Nightside Min",value:e.display.nightsideMin},{label:"Climate Zones",value:e.display.climateZones,meta:e.display.climateZoneSummary},{label:"Seasonality",value:e.display.seasonality}]},{id:"moon-details-system",title:"System Context",items:[{label:"Classical Roche Limit",value:e.display.classicalRocheLimit},{label:"Effective Inner Limit",value:e.display.effectiveInnerLimit||e.display.zoneInner,meta:e.display.innerLimitNote},{label:"Moon Zone (Outer)",value:e.display.zoneOuter},{label:"Periapsis",value:e.display.peri},{label:"Apoapsis",value:e.display.apo},{label:"Orbital Direction",value:e.orbit.orbitalDirection},{label:"Orbital Period (sidereal)",value:e.display.sidereal},{label:"Orbital Period (synodic)",value:e.display.synodic},{label:"Rotation Period",value:e.display.rot},{label:"Spin State",value:e.display.spinState,meta:Q},{label:"Initial Rotation Period",value:e.display.initialRot},{label:"Planetshine",value:e.display.planetshine},{label:"Eclipse Cooling",value:e.display.eclipseCooling},{label:"Nearest Resonance",value:e.display.nearestResonance},{label:"Laplace Status",value:e.display.laplaceStatus},{label:"Forced Eccentricity",value:e.display.forcedEccentricity},{label:"Eccentricity State",value:e.display.eccentricityEquilibrium||"Unknown",meta:e.display.eccentricityEquilibriumNote||""},{label:"Tidal Persistence",value:e.display.tidalHeatingPersistence||"Unknown",meta:"Qualitative resonance-pump versus tidal-damp diagnostic."},{label:"Migration Trend",value:e.display.migrationTrend},{label:"Synchronous Orbit",value:e.display.synchronousOrbit,meta:e.display.synchronousOrbitContext},{label:"Moon System Torque",value:P,meta:v},{label:"Tidal HZ",value:e.display.tidalHabitableZone},{label:"Formation",value:e.display.formation},{label:"Orbital Recession",value:e.display.recession},{label:"Orbital Fate",value:e.display.orbitalFate},{label:"Moon locked to Planet",value:e.display.moonLocked},{label:"Planet locked to Moon",value:e.display.planetLockedMoon},{label:"Planet locked to Star",value:e.display.planetLockedStar},{label:"Lock time (Moon\u2192Planet)",value:e.display.tMoonLock},{label:"Lock time (Planet\u2192Moon)",value:e.display.tPlanetMoon},{label:"Lock time (Planet\u2192Star)",value:e.display.tPlanetStar}]},{id:"moon-details-activity",title:"Activity & Radiation",items:[{label:"Total Tidal Force",value:e.display.tides},{label:"Tidal Regime",value:e.display.tidalRegime,meta:z},{label:"Host Tidal Q",value:e.display.tidalHostQ},{label:"Moon Contribution",value:e.display.moonPct},{label:"Star Contribution",value:e.display.starPct},{label:"Tidal Heating",value:e.display.tidalHeating,meta:e.display.tidalHeatingTotal},{label:"Tidal Heating (\xD7 Earth)",value:e.display.tidalHeatingXEarth},{label:"Volcanic Activity",value:e.display.volcanicActivity,meta:`score ${m(l.volcanicActivityScore??0,2)}`},{label:"Cryovolcanism",value:e.display.cryovolcanicActivity,meta:`score ${m(l.cryovolcanicActivityScore??0,2)}`},{label:"Resurfacing",value:x,meta:l.resurfacingDominantProcess==="none"?"No dominant resurfacing driver":`${l.resurfacingDominantProcess||"mixed"}-driven`},{label:"Carbon Cycle",value:e.display.carbonCycle,meta:Array.isArray(e.carbonCycleContext?.notes)&&e.carbonCycleContext.notes.length?e.carbonCycleContext.notes.join(" | "):e.carbonCycleContext?.confidence?`${String(e.carbonCycleContext.confidence).toUpperCase()} confidence`:""},{label:"Weathering Efficiency",value:e.display.weatheringEfficiency,meta:`Limiter: ${e.carbonCycleContext?.weatheringLimiter||"not evaluated"}`},{label:"Volcanic Supply",value:e.display.volcanicSupply,meta:`Recycling limiter: ${e.carbonCycleContext?.recyclingLimiter||"not evaluated"}`},{label:"Carbon Recycling",value:e.display.carbonRecycling,meta:`Thermostat strength ${e.display.carbonThermostat}`},{label:"Volatile Supply",value:e.display.volatileReplenishment,meta:`score ${m(l.volatileReplenishmentScore??0,2)}`},{label:"Ocean Persistence",value:e.display.oceanPersistence,meta:`score ${m(l.oceanPersistenceScore??0,2)}`},{label:"Radiogenic Heating",value:e.display.radiogenicHeating},{label:"Magnetosphere Dose",value:e.display.magnetosphericRad,meta:e.display.parentMagnetosphereCompression&&e.display.parentMagnetosphereCompression!=="Not evaluated"?`${e.display.magnetosphericLabel} | ${e.display.parentMagnetosphereCompression}`:e.display.magnetosphericLabel},{label:"Surface Radiation",value:e.display.surfaceRadiation},{label:"Magnetic Shielding",value:e.display.magneticShielding}]},{id:"moon-details-habitability",title:"Habitability",items:[{label:"Life Class",value:e.display.lifeClass,meta:e.display.habitabilityGates},{label:"Habitability Index",value:e.display.habitabilityIndex,meta:V.replace(/\n/g," | ")},{label:"Earth Similarity Index",value:e.display.earthSimilarityIndex,meta:`Radius ${m(r.radius??0,2)} | Density ${m(r.density??0,2)} | Escape ${m(r.escapeVelocity??0,2)} | Temp ${m(r.surfaceTemp??0,2)}`},{label:"Surface Habitability",value:e.display.surfaceHabitability,meta:E.gates?.radiationShielding?.label||""},{label:"Surface Exomoon Calibration",value:e.display.surfaceExomoonCalibration,meta:w.replace(/\n/g," | ")},{label:"Subsurface Habitability",value:e.display.subsurfaceHabitability},{label:"Habitability Gates",value:e.display.habitabilityGates,meta:Z.replace(/\n/g," | ")},e.oceanChemistryContext?.applicable?{label:"Ocean Chemistry",value:e.display.oceanChemistry,meta:Array.isArray(e.oceanChemistryContext?.notes)&&e.oceanChemistryContext.notes.length?e.oceanChemistryContext.notes.join(" | "):""}:null,e.oceanChemistryContext?.applicable?{label:"Carbonate Saturation",value:e.display.carbonateSaturation,meta:`Acidity: ${e.display.oceanAcidity} | Freezing point ${m(e.oceanChemistryContext.freezingPointK,1)} K`}:null,e.oceanChemistryContext?.applicable?{label:"Nutrient Support",value:e.display.nutrientSupport,meta:`Rock-ocean access ${m(e.oceanChemistryContext.rockOceanAccess??0,2)} | Hydrothermal: ${e.oceanChemistryContext.hydrothermalSupportClass||"not evaluated"}`}:null,{label:"Biosignature Context",value:e.display.biosignatureContext,meta:Array.isArray(e.biosignatureContext?.notes)&&e.biosignatureContext.notes.length?e.biosignatureContext.notes.join(" | "):"Context only; not a life detection"},{label:"Disequilibrium",value:e.display.disequilibriumStrength,meta:`Source demand ${e.biosignatureContext?.replenishmentDemandClass||"Low"}`},{label:"O2/O3 False Positive",value:e.display.oxygenFalsePositiveRisk,meta:`CO buildup risk ${e.display.coBuildupRisk} | Methane: ${e.display.methaneContext}`},{label:"Biosphere",value:e.display.surfaceBiosphere,meta:`Score ${m(d.surfaceBiologyScore??0,2)}`},{label:"Plant Life",value:e.display.plantLife},{label:"Vegetation",value:e.display.vegetation,meta:e.display.vegetationNote},{label:"Life Limits",value:g,meta:e.display.biosphereLimits},...e.biosphere?.vegetationEligible?[{label:"Veg Colours",value:e.display.vegetationColours,meta:e.display.vegetationNote}]:[]]}],{title:"Derived Details"});let ae=Gt.querySelector(".derived-details");ae&&Y.append(ae),va(Y,{label:"Moon output sections",includeAll:!0});let B=Y.querySelector(".moon-preview-canvas");j&&B&&j!==B&&(B.replaceWith(j),B=j),B&&i?A.attach(B,{bodyType:"moon",name:a.moonName||a.moon.name||"Moon",recipeId:String(a.moon?.appearanceRecipeId||""),moonProfile:i,moonCalc:e,rotationPeriodDays:Number(e?.orbit?.rotationPeriodDays)||Number(e?.orbit?.periodSiderealDays)||27.3}):A.detach()}function ee(){qt(),Ja(),Ya(),ye.value=a.moonName,$e.value=a.moon.semiMajorAxisKm,Te.value=a.moon.eccentricity,Ne.value=a.moon.inclinationDeg,He.value=a.moon.massMoon,Oe.value=a.moon.densityGcm3,Fe.value=a.moon.albedo,Ge.value=a.moon.compositionOverride||"",Le.value=a.moon.initialRotationPeriodHours||12,je.value=a.moon.waterMassFractionPct??0,Ke.value=a.moon.salinityPct??0,Ue.value=a.moon.ammoniaPct??0,be.value=a.moon.differentiatedInterior===!0?"yes":a.moon.differentiatedInterior===!1?"no":"",Ve.value=a.moon.radioisotopeAbundance??1,ze.value=a.moon.u238Abundance??1,We.value=a.moon.u235Abundance??1,Ze.value=a.moon.th232Abundance??1,Qe.value=a.moon.k40Abundance??1,Xe.value=a.moon.manualSurfacePressureAtm??0,Ye.value=a.moon.n2Pct??0,Je.value=a.moon.o2Pct??0,et.value=a.moon.co2Pct??0,tt.value=a.moon.arPct??0,at.value=a.moon.h2oPct??0,ot.value=a.moon.ch4Pct??0,it.value=a.moon.coPct??0,nt.value=a.moon.h2Pct??0,rt.value=a.moon.hePct??0,st.value=a.moon.so2Pct??0,lt.value=a.moon.nh3Pct??0,ct.value=a.moon.forcedEccentricity??0,ne.value=a.moon.manualResonanceGroupId||"",re.value=a.moon.manualResonanceOrder??"",se.value=a.moon.manualResonanceRatio??"",Za(),Bt()}let mt=!1;function W(){if(mt)return;mt=!0;let t=D(),e=t.moons.selectedId,i=ye.value||"New Moon",r=Re.value||null,c=Xa(),d=de(t,{moonId:e,moonInputs:c,planetId:r}).model,l=String(d?.orbit?.semiMajorAxisGuard||"none"),f=Number(d?.inputs?.semiMajorAxisKm),h=Number(c.semiMajorAxisKm),x=Number.isFinite(f)?Math.round(f):h,g=l!=="none"&&Number.isFinite(x),$={...c,semiMajorAxisKm:g?x:h};Ee(e,{name:i,inputs:$}),la(e,r),pt({moon:$}),g&&Math.abs($.semiMajorAxisKm-h)>1e-9&&ce(`Semi-Major Axis adjusted to ${m($.semiMajorAxisKm,0)} km to keep this moon within the Moon Zone.`),ee(),J(),mt=!1}ye.addEventListener("change",W),Ge.addEventListener("change",W),Re.addEventListener("change",W),Ua?.addEventListener("click",t=>{t.preventDefault();let e=D(),i=a.moonId||e.moons?.selectedId;i&&(sa(i),ee(),J(),ce("Parent assignment unlocked."))}),be.addEventListener("change",W),ne.addEventListener("change",W),re.addEventListener("change",W),se.addEventListener("change",W),[qe,De,Be,_e].forEach(t=>{t?.addEventListener("change",()=>{W(),Bt()})}),[Ye,Je,et,tt,at,ot,it,nt,rt,st,lt].forEach(t=>{t?.addEventListener("change",W)}),ie.addEventListener("change",()=>{oa(ie.value),ee(),J()}),Ie.addEventListener("click",t=>{t.preventDefault();let e=D(),i=oe(e)?.inputs||e.moon;ia(i,{name:"New Moon",planetId:e.planets.selectedId}),ee(),J()}),Ka.addEventListener("click",async t=>{t.preventDefault();let e=D();if(e.moons.order.length<=1)return;let i=ra(e.moons.selectedId,e);!i||!await Sa(i)||(na(e.moons.selectedId),ee(),J())}),Va?.addEventListener("click",()=>{Se()}),za?.addEventListener("click",()=>{Ce()}),Wa?.addEventListener("click",()=>{lo(t=>{ut(Ta(t.apply,t.id),{noticeLabel:t.label||"Moon recipe"})})}),n.querySelector("#btn-default").addEventListener("click",()=>{a.moon={name:"Luna",semiMajorAxisKm:384748,eccentricity:.055,inclinationDeg:5.15,massMoon:1,densityGcm3:3.34,albedo:.11,initialRotationPeriodHours:null};let t=D();Ee(t.moons.selectedId,{name:a.moon.name||"Luna",inputs:a.moon}),ee(),J()});let jt=Object.freeze([{id:"type",label:"Goal"},{id:"parent-context",label:"Setup"},{id:"goal-details",label:"Traits"},{id:"recommendation",label:"Recommendation"}]);function to(t){let e=jt.findIndex(i=>i.id===String(t||""));return e>=0?e:0}function Kt(){let t=D(),e=oe(t),i=e?.id||a.moonId,r=e?.planetId??a.moonPlanetId??null,c=e?.inputs||a.moon,d=de(t,{moonId:i,moonInputs:c,planetId:r}),l=d.parentInfo?.parentClassLabel?`Current ${String(d.parentInfo.parentClassLabel).toLowerCase()} system`:"Current giant companion system",f=d.parentInfo?.assigned===!1?"No assigned parent":d.parentType==="gasGiant"?l:"Current planet system",h=d.parentInfo?.assigned===!1?`${d.contextText}
+Moon is currently unassigned. Assign it to a planet or giant companion before using strict guided fitting.`:d.contextText;return{currentMoonId:i,currentMoonName:a.moonName||a.moon.name||"Moon",currentInputs:{...c||{}},currentOrbitWindowKm:{inner:Number(d.model?.orbit?.zoneInnerKm??d.model?.orbit?.moonZoneInnerKm)||null,outer:Number(d.model?.orbit?.zoneOuterKm??d.model?.orbit?.moonZoneOuterKm)||null},siblingEntries:ke(t).filter(x=>x?.id!==i&&(x?.planetId??null)===(r??null)),currentContextLabel:f,currentContextText:h,parentContext:d.parentInfo||null,starHabitableZoneAu:d.parentInfo?.starHabitableZoneAu||null,recipeCatalog:me,solveMoonInputs:(x,g={})=>{let $=D(),R=oe($);return de($,{moonId:R?.id||i,moonInputs:x,planetId:R?.planetId??r,parentPatch:g.parentPatch||null,siblingPatch:g.siblingPatch||null})}}}function ao(t,e=[]){return xa(t,e)}function oo(t,e,i,r){return Pa(t,e,i,r)}function io(t,e){return wa(t,e,{objectType:"moon",objectLabel:"moon"})}function no(t){return ka(t,{readyDetail:"The structured goal is valid. Run Search to try seeded moon candidates.",searchingDetail:"Trying seeded moon candidates against the current parent context.",completeDetail:"Review the result, diagnostics, and context adjustments before applying.",completeTitleWithoutResult:"Ready to search"})}function fe(){let t=D(),e=oe(t);return{objectKey:e?.id||"",contextFingerprint:ga({moonId:e?.id||"",planetId:e?.planetId||null,inputs:e?.inputs||null})}}function Me(t,e,i=""){let r=e==null||e===""||typeof e=="number"&&!Number.isFinite(e)?"n/a":String(e);return I("div",{className:"moon-guided-preview__metric"},[I("div",{className:"moon-guided-preview__metric-label",text:t}),I("div",{className:"moon-guided-preview__metric-value",text:r}),i?I("div",{className:"moon-guided-preview__metric-meta",text:i}):null])}function Ut(t){let e=t?.previewPayload?.moonCalc;if(!e)return null;let i=(t?.contextAdjustments||[]).join(" "),r=!!t?.applyPayload?.parentPatch,c=!!t?.applyPayload?.siblingPatch;return I("div",{className:"moon-guided-preview"},[I("div",{className:"moon-guided-preview__title",text:r&&c?"Solved preview after applying the recommended host and moon-system fixes":r?"Solved preview after applying the recommended host fixes":c?"Solved preview after applying the recommended moon-system fixes":"Solved preview in the current host context"}),I("div",{className:"moon-guided-preview__grid"},[Me("Hydrosphere",e.display?.hydrosphereState),Me("Atmosphere",e.display?.atmosphereClass,e.display?.surfacePressure),Me("Climate",e.display?.climateState),Me("Biosphere",e.display?.surfaceBiosphere,e.display?.vegetation)]),i?I("div",{className:"moon-guided-preview__summary",text:i}):null])}function ro(t){if(!t||!t.parentId||!t.parentKind)return!1;if(t.parentKind==="planet")return aa(t.parentId,{inputs:{...t.inputPatch||{}}}),!0;if(t.parentKind==="gasGiant"){let e=ue().map(i=>i.id===t.parentId?{...i,...t.inputPatch||{}}:i);return da(e),!0}return!1}function so(t,{noticeLabel:e="Guided moon"}={}){let i=ro(t?.applyPayload?.parentPatch||null),r=ca(t?.applyPayload?.siblingPatch||null,{preserveSelectedMoonId:D().moons?.selectedId||null});return{appliedInputs:ut(t?.applyPayload?.objectInputs||{},{noticeLabel:e}),parentPatched:i,parentPatchSummary:t?.applyPayload?.parentPatch?.summary||"",siblingPatched:!!r?.changed,siblingPatchSummary:t?.applyPayload?.siblingPatch?.summary||"",siblingPatchCreatedCount:r?.createdMoonIds?.length||0,siblingPatchUpdatedCount:r?.updatedMoonIds?.length||0}}function Se(t=null,e=""){let i=xt(),r=Kt(),c=fe(),{overlayEl:d,contentEl:l,closeButtonEl:f}=wt(),h=null;function x(P=!1){h?.cancelSearch?.("overlay-closed"),_.delete($),P||ft("moon"),d.remove(),document.removeEventListener("keydown",R)}function g(){x(!1),e&&location.hash!==e&&(location.hash=e)}let $=()=>x(!0);function R(P){P.key==="Escape"&&g()}h=Mt({adapter:i,context:r,initialState:{objectType:"moon",uxMode:"quick",selectedArchetypeId:t?.selectedArchetypeId||"",answers:t?.answers||{}},onUpdate:({state:P,archetypes:v,questions:M,recommendation:O})=>{let E=St({title:"Moon Quick Types",subtitle:"Pick a defensible starting point. Each option maps to an engine-backed moon preset and is re-solved in the current parent context.",archetypes:(v||[]).filter(y=>y?.quickEnabled!==!1),selectedArchetypeId:P.selectedArchetypeId||"",questions:M,answers:P.answers,recommendation:O,previewContent:Ut(O),actions:[{id:"apply",label:O?.diagnostics?.some(y=>y?.severity==="warning")?"Apply Starting Point":"Apply Quick Type",disabled:!O}],onArchetypeSelect:y=>h?.selectArchetype(y),onQuestionChange:(y,w)=>h?.setAnswer(y,w),onAction:y=>{y!=="apply"||!O||(h?.apply({applyMoonInputs:w=>ut(w,{noticeLabel:O.title||"Moon quick type"})}),g())}});l.replaceChildren(E),vt("moon",{...c,uxMode:"quick",...bt(P)})}}),_.add($),f.addEventListener("click",g),d.addEventListener("click",P=>{P.target===d&&g()}),document.addEventListener("keydown",R),document.body.appendChild(d)}function Ce(t=null,e=""){let i=xt(),r=Kt(),c=fe(),{overlayEl:d,contentEl:l,closeButtonEl:f}=wt(),h=null;function x(M=!1){h?.cancelSearch?.("overlay-closed"),_.delete($),M||ft("moon"),d.remove(),document.removeEventListener("keydown",R)}function g(){x(!1),e&&location.hash!==e&&(location.hash=e)}let $=()=>x(!0);function R(M){M.key==="Escape"&&g()}function P(M,O=[]){let E=String(M?.currentStepId||"type");return E==="type"?"parent-context":E==="parent-context"&&O.some(y=>y?.stepId==="goal-details")?"goal-details":"recommendation"}function v(M){let O=String(M?.currentStepId||"type");return O==="recommendation"?(M?.questions||[]).some(E=>E?.stepId==="goal-details")?"goal-details":"parent-context":O==="goal-details"?"parent-context":"type"}h=Mt({adapter:i,context:r,searchMode:"manual",initialState:{objectType:"moon",uxMode:"guided",currentStepId:t?.currentStepId||"type",selectedArchetypeId:t?.selectedGoalTemplateId||"",selectedGoalTemplateId:t?.selectedGoalTemplateId||"",goalDraft:t?.goalDraft||{},compiledGoal:t?.compiledGoal||null,searchStatus:t?.searchStatus||"idle",lastSearchResult:t?.lastSearchResult||null,lastSearchContextFingerprint:t?.lastSearchContextFingerprint||"",lastSearchEngineFingerprint:t?.lastSearchEngineFingerprint||""},onUpdate:({state:M,archetypes:O,questions:E,recommendation:y})=>{let w=String(M.currentStepId||"type"),Q=to(w),Z=(E||[]).filter(C=>String(C?.stepId||"goal-details")===w),o=ao(M,Z),V=(E||[]).some(C=>C?.stepId==="goal-details"),j=jt.map((C,G)=>({...C,disabled:C.id!=="type"&&!M.selectedGoalTemplateId||C.id==="goal-details"&&!V||C.id==="recommendation"&&(!M.selectedGoalTemplateId||G>Q+1)})),F=St({title:"Moon Goal Builder",subtitle:"Choose the moon outcome you want, set scope and search budget, then compile and run a seeded goal search before applying the recommendation.",steps:j,currentStepId:w,archetypes:(O||[]).filter(C=>C?.guidedEnabled!==!1),selectedArchetypeId:M.selectedGoalTemplateId||"",typeSupplement:w==="type"?io(()=>h,M):null,questions:Z,answers:o,recommendation:y,status:w==="recommendation"?no(M):null,previewContent:w==="recommendation"?Ut(y):null,visibleSections:{type:w==="type",questions:w==="parent-context"||w==="goal-details",status:w==="recommendation",recommendation:w==="recommendation",diagnostics:w==="recommendation"},typeSectionTitle:"Moon Goal",questionSectionTitle:w==="parent-context"?"Search Setup":"Goal Traits",recommendationSectionTitle:"Best Moon Fit",diagnosticSectionTitle:"Search Diagnostics",actions:[...w!=="type"?[{id:"back",label:"Back"}]:[],...w!=="recommendation"?[{id:"next",label:w==="goal-details"?"Review Goal Search":"Next",disabled:w==="type"&&!M.selectedGoalTemplateId}]:[{id:"compile",label:"Compile Goal",disabled:!M.selectedGoalTemplateId||M.searchStatus==="searching"},{id:"run-search",label:M.searchStatus==="searching"?"Searching...":"Run Search",disabled:!M.selectedGoalTemplateId||M.searchStatus==="searching"},{id:"apply",label:y?.applyPayload?.parentPatch&&y?.applyPayload?.siblingPatch?"Apply with Host + Moon-System Fixes":y?.applyPayload?.parentPatch?"Apply with Host Fixes":y?.applyPayload?.siblingPatch?"Apply with Moon-System Fixes":"Apply",disabled:!y||y.hasBlockingDiagnostics||M.searchStatus!=="complete"},{id:"apply-advanced",label:y?.applyPayload?.parentPatch&&y?.applyPayload?.siblingPatch?"Apply with Host + Moon-System Fixes and open Advanced":y?.applyPayload?.parentPatch?"Apply with Host Fixes and open Advanced":y?.applyPayload?.siblingPatch?"Apply with Moon-System Fixes and open Advanced":"Apply and open Advanced",disabled:!y||y.hasBlockingDiagnostics||M.searchStatus!=="complete"}],{id:"reset",label:"Reset",className:"is-secondary"}],onArchetypeSelect:C=>h?.reset({objectType:"moon",uxMode:"guided",currentStepId:"type",selectedArchetypeId:C,selectedGoalTemplateId:C}),onQuestionChange:(C,G)=>oo(h,M,C,G),onStepSelect:(C,G)=>{G?.disabled||h?.setStep(C)},onAction:C=>{if(C==="reset"){h?.reset({objectType:"moon",uxMode:"guided",currentStepId:"type"});return}if(C==="back"){h?.setStep(v(M));return}if(C==="next"){h?.setStep(P(M,E));return}if(C==="compile"){h?.compileGoal();return}if(C==="run-search"){h?.startSearch();return}if((C==="apply"||C==="apply-advanced")&&y){let G=h?.apply({applyMoonRecommendation:N=>so(N,{noticeLabel:y.title||"Guided moon"})});g();let K=[];G?.parentPatched&&G?.parentPatchSummary&&K.push(`host fixes: ${G.parentPatchSummary}`),G?.siblingPatched&&G?.siblingPatchSummary&&K.push(`moon-system fixes: ${G.siblingPatchSummary}`);let z=K.length?`${y.title||"Guided moon"} applied with ${K.join("; ")}. `:"";C==="apply-advanced"?ce(`${z}Continue refining with the Moon page controls.`):z&&ce(z.trim())}}});l.replaceChildren(F),vt("moon",{...c,uxMode:"guided",...bt(M,{currentStepId:M.currentStepId||"type"})})}}),_.add($),f.addEventListener("click",g),d.addEventListener("click",M=>{M.target===d&&g()}),document.addEventListener("keydown",R),document.body.appendChild(d)}function lo(t){let e=Ba(me);document.body.appendChild(e);let i=e.querySelector(".rp-picker-progress > span"),r=e.querySelector(".rp-picker-progress"),c=[];for(let f of e.querySelectorAll(".rp-picker-card")){let h=me.find(x=>x.id===f.dataset.recipe);h&&c.push({canvas:f.querySelector("canvas"),model:{bodyType:"moon",name:h.label||"Moon",recipeId:h.id,moonCalc:h.previewCalc||h.preview}})}ha(c,(f,h)=>{let x=h?f/h*100:100;i&&(i.style.width=`${x}%`),x>=100&&r&&r.classList.add("is-done")},{maxRendersPerFrame:1,frameBudgetMs:7});function d(){_.delete(d),e.remove(),document.removeEventListener("keydown",l)}for(let f of e.querySelectorAll(".rp-picker-card"))f.addEventListener("click",()=>{let h=me.find(x=>x.id===f.dataset.recipe);h&&t(h),d()});e.addEventListener("click",f=>{f.target===e&&d()}),e.querySelector(".rp-picker-close").addEventListener("click",d);function l(f){f.key==="Escape"&&d()}_.add(d),document.addEventListener("keydown",l)}ee(),J();let _t=$a("moon");if(b?.dedicated&&b.objectType==="moon"){let t=gt("moon",fe());b.uxMode==="quick"?Se(t?.uxMode==="quick"?t:null,b.baseHash||""):Ce(t?.uxMode==="guided"?t:null,b.baseHash||"")}else if(_t?.uxMode==="quick")Se();else if(_t)Ce();else{let t=gt("moon",fe());t?.uxMode==="quick"?Se(t):t&&Ce(t)}return()=>{_.forEach(t=>{try{t()}catch{}}),le&&clearTimeout(le),te.disconnect(),A.dispose()}}function q(s,u,b,p,S,k,a,A){let n=b?` <span class="unit">${b}</span>`:"";return`
+  <div class="form-row">
+    <div>
+      <div class="label">${u}${n} ${H(T[A]||T[u]||"")}</div>
+      <div class="hint">${p}</div>
+    </div>
+    <div class="input-pair">
+      <input id="${s}" type="number" step="${a}" aria-label="${u}" />
+      <input id="${s}_slider" type="range" aria-label="${u} slider" />
+      <div class="range-meta"><span id="${s}_min"></span><span id="${s}_max"></span></div>
+    </div>
+  </div>`}function go(s,u,b=[]){return`
+    <div id="${s}" class="physics-trio-toggle">
+      ${b.map((p,S)=>`
+            <input type="radio" name="${u}" id="${s}_${S}" value="${p.value}" ${p.checked?"checked":""} />
+            <label for="${s}_${S}">${p.label}</label>`).join("")}
+      <span></span>
+    </div>`}function fo(s,u,b=[]){return`
+    <div id="${s}" class="physics-duo-toggle">
+      ${b.map((p,S)=>`
+            <input type="radio" name="${u}" id="${s}_${S}" value="${p.value}" ${p.checked?"checked":""} />
+            <label for="${s}_${S}">${p.label}</label>`).join("")}
+      <span></span>
+    </div>`}function kt(s,u,b,p,S,k){return`
+  <div class="form-row">
+    <div>
+      <div class="label">${b} ${H(T[p]||"")}</div>
+      <div class="hint" id="${k}"></div>
+    </div>
+    <div class="pill-toggle-wrap">
+      ${go(s,u,S)}
+    </div>
+  </div>`}function U(s,u,b="",p="",S=""){let k=b?` <span class="unit">${b}</span>`:"";return`
+  <div class="form-row">
+    <div>
+      <div class="label">${u}${k} ${H(T[S]||T[u]||"")}</div>
+      <div class="hint">${p}</div>
+    </div>
+    <input id="${s}" type="number" step="0.01" />
+  </div>`}export{oi as initMoonPage};
