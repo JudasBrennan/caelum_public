@@ -35,15 +35,18 @@ function confidenceFromInputs({
   atmosphereLedger,
   carbonCycleContext,
   oceanChemistryContext,
+  nitrogenCycleContext,
 }) {
   const rank = Math.max(
     photochemistry ? 2 : 1,
     confidenceRank(atmosphereLedger?.confidence),
     confidenceRank(carbonCycleContext?.confidence),
     confidenceRank(oceanChemistryContext?.confidence),
+    confidenceRank(nitrogenCycleContext?.confidence),
   );
   if (rank >= 3 && photochemistry && atmosphereLedger) return "high";
-  if (rank >= 2 || atmosphereLedger || oceanChemistryContext) return "medium";
+  if (rank >= 2 || atmosphereLedger || oceanChemistryContext || nitrogenCycleContext)
+    return "medium";
   return "low";
 }
 
@@ -123,7 +126,10 @@ function o2FalsePositiveScore({
   partials,
   hydrosphere,
   environmentForcing,
+  stellarHistoryDoseContext,
+  planetRadiationEnvironmentContext,
   atmosphereLedger,
+  atmosphereEvolutionContext,
   oceanChemistryContext,
   photochemistry,
 }) {
@@ -154,6 +160,32 @@ function o2FalsePositiveScore({
       : []),
   ]);
   const waterLossScore = lossIds.has("photolysis_h_escape") || lossIds.has("xuv_escape") ? 0.55 : 0;
+  const atmosphereEvolutionText = [
+    atmosphereEvolutionContext?.volatileLossRiskClass,
+    atmosphereEvolutionContext?.compositionStabilityClass,
+    atmosphereEvolutionContext?.dominantGasTendency,
+  ]
+    .join(" ")
+    .toLowerCase();
+  const evolutionLossScore =
+    atmosphereEvolutionText.includes("high volatile") ||
+    atmosphereEvolutionText.includes("photolysis") ||
+    atmosphereEvolutionText.includes("loss tendency")
+      ? 0.3
+      : atmosphereEvolutionText.includes("moderate volatile")
+        ? 0.14
+        : 0;
+  const historyOutputs =
+    stellarHistoryDoseContext && typeof stellarHistoryDoseContext === "object"
+      ? stellarHistoryDoseContext.outputs || stellarHistoryDoseContext
+      : {};
+  const historyAbioticOxygenScore = fraction(historyOutputs.abioticOxygenRiskScore, 0);
+  const historyWaterLossScore = fraction(historyOutputs.waterLossRiskScore, 0);
+  const planetRadiationOutputs =
+    planetRadiationEnvironmentContext && typeof planetRadiationEnvironmentContext === "object"
+      ? planetRadiationEnvironmentContext.outputs || {}
+      : {};
+  const uvRadiationScore = fraction(planetRadiationOutputs.uvSurfaceHazardScore, 0);
   const oceanBuffer = oceanChemistryContext?.liquidContext ? 0.28 : 0;
   const carbonBuffer =
     String(oceanChemistryContext?.carbonateSaturationClass || "").includes("supported") ||
@@ -164,7 +196,11 @@ function o2FalsePositiveScore({
     clamp(
       o2Score * (0.25 + 0.35 * dryScore + 0.25 * xuvScore + waterLossScore) -
         oceanBuffer -
-        carbonBuffer,
+        carbonBuffer +
+        evolutionLossScore +
+        0.35 * historyAbioticOxygenScore +
+        0.15 * historyWaterLossScore +
+        0.15 * uvRadiationScore,
       0,
       1,
     ),
@@ -254,7 +290,16 @@ function interpretation({ disequilibrium, falsePositive, methane, coRisk, partia
   return "Weak atmospheric biosignature context";
 }
 
-function buildNotes({ falsePositive, methane, coRisk, disequilibrium }) {
+function buildNotes({
+  falsePositive,
+  methane,
+  coRisk,
+  disequilibrium,
+  atmosphereEvolutionContext,
+  stellarHistoryDoseContext,
+  planetRadiationEnvironmentContext,
+  nitrogenCycleContext,
+}) {
   const notes = [
     "Biosignature context never asserts life; it reports source demand and false-positive risk.",
   ];
@@ -267,6 +312,39 @@ function buildNotes({ falsePositive, methane, coRisk, disequilibrium }) {
   if (coRisk >= 0.33) {
     notes.push("Low-UV, high-CO2 atmospheres can accumulate CO without biology.");
   }
+  if (
+    /loss|photolysis|escape/i.test(String(atmosphereEvolutionContext?.dominantGasTendency || ""))
+  ) {
+    notes.push("Atmosphere-evolution tendency adds an escape/loss caveat to gas interpretation.");
+  }
+  const historyOutputs =
+    stellarHistoryDoseContext && typeof stellarHistoryDoseContext === "object"
+      ? stellarHistoryDoseContext.outputs || stellarHistoryDoseContext
+      : {};
+  if (fraction(historyOutputs.abioticOxygenRiskScore, 0) >= 0.42) {
+    notes.push("Stellar-history dose adds an abiotic oxygen false-positive caveat.");
+  }
+  const planetRadiationOutputs =
+    planetRadiationEnvironmentContext && typeof planetRadiationEnvironmentContext === "object"
+      ? planetRadiationEnvironmentContext.outputs || {}
+      : {};
+  if (fraction(planetRadiationOutputs.uvSurfaceHazardScore, 0) >= 0.42) {
+    notes.push("Planet radiation context adds a UV-driven interpretation caveat.");
+  }
+  const nitrogenOutputs =
+    nitrogenCycleContext && typeof nitrogenCycleContext === "object"
+      ? nitrogenCycleContext.outputs || nitrogenCycleContext
+      : {};
+  if (/severe|strong/i.test(String(nitrogenOutputs.nutrientLimitationClass || ""))) {
+    notes.push(
+      "Nitrogen context adds a nutrient-limitation caveat to biosignature interpretation.",
+    );
+  }
+  if (/massive|strong/i.test(String(nitrogenOutputs.n2ReservoirClass || ""))) {
+    if (/poor|limited|severe/i.test(String(nitrogenOutputs.fixedNitrogenAvailabilityClass || ""))) {
+      notes.push("A large N2 reservoir is not treated as Earth-like fixed nitrogen availability.");
+    }
+  }
   notes.push(...methane.notes);
   return [...new Set(notes)];
 }
@@ -276,8 +354,12 @@ export function computeBiosignatureContext({
   composition = {},
   photochemistry = null,
   atmosphereLedger = null,
+  atmosphereEvolutionContext = null,
+  stellarHistoryDoseContext = null,
+  planetRadiationEnvironmentContext = null,
   carbonCycleContext = null,
   oceanChemistryContext = null,
+  nitrogenCycleContext = null,
   environmentForcing = null,
   hydrosphere = null,
 } = {}) {
@@ -294,7 +376,10 @@ export function computeBiosignatureContext({
     partials,
     hydrosphere,
     environmentForcing,
+    stellarHistoryDoseContext,
+    planetRadiationEnvironmentContext,
     atmosphereLedger,
+    atmosphereEvolutionContext,
     oceanChemistryContext,
     photochemistry,
   });
@@ -331,13 +416,35 @@ export function computeBiosignatureContext({
     methaneContextScore: round(methane.score, 3),
     coBuildupRiskScore: coRisk,
     coBuildupRisk: classFromScore(coRisk, ["Low", "Moderate", "High"]),
+    stellarHistoryAbioticOxygenRisk:
+      stellarHistoryDoseContext?.outputs?.abioticOxygenRiskClass || "Not evaluated",
+    stellarHistoryWaterLossRisk:
+      stellarHistoryDoseContext?.outputs?.waterLossRiskClass || "Not evaluated",
+    planetRadiationUvHazard:
+      planetRadiationEnvironmentContext?.outputs?.uvSurfaceHazardClass || "Not evaluated",
+    nitrogenNutrientLimitation:
+      nitrogenCycleContext?.outputs?.nutrientLimitationClass || "Not evaluated",
+    nitrogenPressureBuffer:
+      nitrogenCycleContext?.outputs?.pressureBufferSupportClass || "Not evaluated",
+    nitrogenBiosignatureCaveat:
+      nitrogenCycleContext?.outputs?.biosignatureNitrogenCaveatClass || "not-evaluated",
     confidence: confidenceFromInputs({
       photochemistry,
       atmosphereLedger,
       carbonCycleContext,
       oceanChemistryContext,
+      nitrogenCycleContext,
     }),
     summaryLabel: `${interpretationClass} (${classFromScore(disequilibrium, ["low", "moderate", "high"])} disequilibrium)`,
-    notes: buildNotes({ falsePositive, methane, coRisk, disequilibrium }),
+    notes: buildNotes({
+      falsePositive,
+      methane,
+      coRisk,
+      disequilibrium,
+      atmosphereEvolutionContext,
+      stellarHistoryDoseContext,
+      planetRadiationEnvironmentContext,
+      nitrogenCycleContext,
+    }),
   };
 }

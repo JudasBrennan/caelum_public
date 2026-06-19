@@ -491,6 +491,32 @@ function atmosphereLedgerOf(model = {}) {
   );
 }
 
+function atmosphereEvolutionContextOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.atmosphereEvolutionContext) && derived.atmosphereEvolutionContext) ||
+    (isObject(model.environment?.atmosphereEvolutionContext) &&
+      model.environment.atmosphereEvolutionContext) ||
+    (isObject(model.climate?.atmosphereEvolutionContext) &&
+      model.climate.atmosphereEvolutionContext) ||
+    null
+  );
+}
+
+function stellarHistoryDoseContextOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.stellarHistoryDoseContext) && derived.stellarHistoryDoseContext) ||
+    (isObject(model.environment?.stellarHistoryDoseContext) &&
+      model.environment.stellarHistoryDoseContext) ||
+    (isObject(model.climate?.stellarHistoryDoseContext) &&
+      model.climate.stellarHistoryDoseContext) ||
+    (isObject(model.habitability?.stellarHistoryDoseContext) &&
+      model.habitability.stellarHistoryDoseContext) ||
+    null
+  );
+}
+
 function climateChemistryForcingOf(model = {}) {
   const derived = derivedModel(model);
   return (
@@ -505,6 +531,43 @@ function carbonCycleContextOf(model = {}) {
   return isObject(derived.carbonCycleContext) ? derived.carbonCycleContext : null;
 }
 
+function interiorEvolutionContextOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.interiorEvolutionContext) && derived.interiorEvolutionContext) ||
+    (isObject(model.environment?.interiorEvolutionContext) &&
+      model.environment.interiorEvolutionContext) ||
+    (isObject(model.habitability?.interiorEvolutionContext) &&
+      model.habitability.interiorEvolutionContext) ||
+    (isObject(model.interiorEvolutionContext) && model.interiorEvolutionContext) ||
+    null
+  );
+}
+
+function co2ClimateTendencyContextOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.co2ClimateTendencyContext) && derived.co2ClimateTendencyContext) ||
+    (isObject(model.environment?.co2ClimateTendencyContext) &&
+      model.environment.co2ClimateTendencyContext) ||
+    (isObject(model.climate?.co2ClimateTendencyContext) &&
+      model.climate.co2ClimateTendencyContext) ||
+    null
+  );
+}
+
+function smallBodyReservoirContextOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.smallBodyReservoirContext) && derived.smallBodyReservoirContext) ||
+    (isObject(model.environment?.smallBodyReservoirContext) &&
+      model.environment.smallBodyReservoirContext) ||
+    (isObject(model.climate?.smallBodyReservoirContext) &&
+      model.climate.smallBodyReservoirContext) ||
+    null
+  );
+}
+
 function oceanChemistryContextOf(model = {}) {
   const derived = derivedModel(model);
   return isObject(derived.oceanChemistryContext) ? derived.oceanChemistryContext : null;
@@ -513,6 +576,17 @@ function oceanChemistryContextOf(model = {}) {
 function biosignatureContextOf(model = {}) {
   const derived = derivedModel(model);
   return isObject(derived.biosignatureContext) ? derived.biosignatureContext : null;
+}
+
+function dynamicalVariabilityContextOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.dynamicalVariabilityContext) && derived.dynamicalVariabilityContext) ||
+    (isObject(model.dynamicalVariabilityContext) && model.dynamicalVariabilityContext) ||
+    (isObject(model.dynamicalContext?.dynamicalVariabilityContext) &&
+      model.dynamicalContext.dynamicalVariabilityContext) ||
+    null
+  );
 }
 
 function photochemistryOf(model = {}) {
@@ -538,11 +612,17 @@ function addCoupledEnvironmentContextEras(eras, context, model) {
   addEnvironmentForcingEras(eras, context, model);
   addMagnetosphereCompressionEra(eras, context, model);
   addAtmosphereLedgerEras(eras, context, model);
+  addAtmosphereEvolutionEra(eras, context, model);
+  addStellarHistoryDoseEra(eras, context, model);
   addPhotochemicalHazeEra(eras, context, model);
   addClimateChemistryEra(eras, context, model);
+  addCo2ClimateTendencyEra(eras, context, model);
+  addSmallBodyReservoirEra(eras, context, model);
+  addInteriorEvolutionEra(eras, context, model);
   addCarbonCycleEra(eras, context, model);
   addOceanChemistryEra(eras, context, model);
   addBiosignatureContextEra(eras, context, model);
+  addDynamicalVariabilityEra(eras, context, model);
 }
 
 function addEnvironmentForcingEras(eras, context, model) {
@@ -749,6 +829,101 @@ function addAtmosphereLedgerEras(eras, context, model) {
   }
 }
 
+function addAtmosphereEvolutionEra(eras, context, model) {
+  const evolution = atmosphereEvolutionContextOf(model);
+  if (!evolution) return;
+  const pressureTrend = firstString(evolution.pressureTrendClass);
+  const volatileLoss = firstString(evolution.volatileLossRiskClass);
+  const lifetime = firstString(evolution.atmosphereLifetimeClass);
+  const composition = firstString(evolution.compositionStabilityClass);
+  if (!pressureTrend && !volatileLoss && !lifetime && !composition) return;
+  const risky =
+    includesText(pressureTrend, "rapid") ||
+    includesText(pressureTrend, "declin") ||
+    includesText(pressureTrend, "no durable") ||
+    includesText(volatileLoss, "high") ||
+    includesText(lifetime, "transient");
+  const stable =
+    includesText(pressureTrend, "stable") ||
+    includesText(pressureTrend, "balanced") ||
+    includesText(lifetime, "geologic");
+  addEra(eras, context, {
+    id: risky ? "atmosphere-evolution-loss-tendency" : "atmosphere-evolution-context",
+    label: risky ? "Atmosphere evolution loss tendency" : "Atmosphere evolution context",
+    category: "atmosphere",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(evolution.confidence, "medium"),
+    severity: risky ? "warning" : stable ? "good" : "info",
+    headline: risky
+      ? "Atmosphere source/sink context suggests volatile loss pressure"
+      : "Atmosphere source/sink context is bounded and traceable",
+    detail:
+      "This timeline row uses the atmosphere-evolution tendency context. It is not a reservoir time integration or exact atmospheric history.",
+    drivers: [
+      makeDriver("pressureTrend", "Pressure trend", pressureTrend, ""),
+      makeDriver("volatileLoss", "Volatile loss", volatileLoss, ""),
+      makeDriver("lifetime", "Lifetime class", lifetime, ""),
+      makeDriver("composition", "Composition stability", composition, ""),
+    ],
+    evidenceCodes: ["ATMOSPHERE_EVOLUTION_CONTEXT"],
+    warningCodes: risky ? ["VOLATILE_LOSS_TENDENCY_ONLY"] : [],
+  });
+}
+
+function addStellarHistoryDoseEra(eras, context, model) {
+  const doseContext = stellarHistoryDoseContextOf(model);
+  if (!doseContext) return;
+  const outputs =
+    doseContext.outputs && typeof doseContext.outputs === "object"
+      ? doseContext.outputs
+      : doseContext;
+  const waterLoss = firstString(outputs.waterLossRiskClass);
+  const abioticOxygen = firstString(outputs.abioticOxygenRiskClass);
+  const preMainSequence = firstString(outputs.preMainSequenceExposureClass);
+  const wind = firstString(outputs.windErosionDoseClass);
+  const integratedDose = firstFinite(outputs.integratedXuvDoseEarth);
+  if (!waterLoss && !abioticOxygen && !preMainSequence && integratedDose == null) return;
+  const risky =
+    includesText(waterLoss, "high") ||
+    includesText(waterLoss, "moderate") ||
+    includesText(abioticOxygen, "high") ||
+    includesText(preMainSequence, "high") ||
+    (integratedDose != null && integratedDose >= 10);
+  addEra(eras, context, {
+    id: risky ? "stellar-history-dose-water-loss-risk" : "stellar-history-dose-context",
+    label: risky ? "Stellar history water-loss risk" : "Stellar history dose context",
+    category: "atmosphere",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(doseContext.confidence, "medium"),
+    severity: risky ? "warning" : "info",
+    headline: risky
+      ? "Long-term stellar XUV history may affect water and oxygen interpretation"
+      : "Stellar history dose is tracked as a bounded context",
+    detail:
+      "This row is a relative fluence and risk screen. It is not a stellar-evolution grid, ocean-loss integration, or photochemical reservoir model.",
+    drivers: [
+      makeDriver(
+        "integratedXuv",
+        "Integrated XUV dose",
+        integratedDose == null
+          ? ""
+          : `${formatNumber(integratedDose, integratedDose >= 10 ? 1 : 2)}x Earth history`,
+        "",
+      ),
+      makeDriver("preMainSequence", "Pre-main-sequence exposure", preMainSequence, ""),
+      makeDriver("wind", "Wind erosion", wind, ""),
+      makeDriver("waterLoss", "Water-loss risk", waterLoss, ""),
+      makeDriver("abioticOxygen", "Abiotic oxygen risk", abioticOxygen, ""),
+    ],
+    evidenceCodes: ["STELLAR_HISTORY_DOSE_CONTEXT"],
+    warningCodes: risky ? ["BOUNDED_STELLAR_HISTORY_SCREEN"] : [],
+  });
+}
+
 function addPhotochemicalHazeEra(eras, context, model) {
   const haze = photochemistryOf(model)?.haze;
   if (!isObject(haze)) return;
@@ -824,6 +999,162 @@ function addClimateChemistryEra(eras, context, model) {
       makeDriver("clouds", "Cloud term", `${formatNumber(forcing.cloudAlbedoDeltaK, 1)} K`, ""),
     ],
     evidenceCodes: ["CLIMATE_CHEMISTRY_FORCING"],
+  });
+}
+
+function addCo2ClimateTendencyEra(eras, context, model) {
+  const co2 = co2ClimateTendencyContextOf(model);
+  if (!co2) return;
+  const drawdown = firstString(co2.co2DrawdownTendency);
+  const buildup = firstString(co2.co2BuildupTendency);
+  const thermostatDeltaK = firstFinite(co2.thermostatAdjustmentK);
+  const recyclingLimit = firstString(co2.recyclingLimitReason);
+  const active =
+    !includesText(drawdown, "no drawdown") ||
+    !includesText(buildup, "no buildup") ||
+    Math.abs(thermostatDeltaK ?? 0) >= 0.5;
+  if (!active) return;
+  const buildupDominant =
+    includesText(buildup, "strong") ||
+    (thermostatDeltaK != null && thermostatDeltaK > 0.5 && !includesText(drawdown, "strong"));
+  const drawdownDominant =
+    includesText(drawdown, "strong") ||
+    (thermostatDeltaK != null && thermostatDeltaK < -0.5 && !includesText(buildup, "strong"));
+  addEra(eras, context, {
+    id: buildupDominant
+      ? "co2-buildup-climate-tendency"
+      : drawdownDominant
+        ? "co2-drawdown-climate-tendency"
+        : "co2-buffering-climate-tendency",
+    label: buildupDominant
+      ? "CO2 buildup climate tendency"
+      : drawdownDominant
+        ? "CO2 drawdown climate tendency"
+        : "CO2 buffering climate tendency",
+    category: "climate",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(co2.confidence, "medium"),
+    severity: buildupDominant || drawdownDominant ? "caution" : "info",
+    headline: "Carbon weathering and outgassing add a bounded CO2 climate tendency",
+    detail:
+      "This is a carbonate-silicate tendency annotation only; it does not mutate atmospheric composition or solve a CO2 reservoir.",
+    drivers: [
+      makeDriver("drawdown", "Drawdown", drawdown, ""),
+      makeDriver("buildup", "Buildup", buildup, ""),
+      makeDriver(
+        "thermostatDelta",
+        "Thermostat term",
+        thermostatDeltaK == null ? "" : `${formatNumber(thermostatDeltaK, 1)} K`,
+        "",
+      ),
+      makeDriver("recyclingLimit", "Recycling limit", recyclingLimit, ""),
+    ],
+    evidenceCodes: ["CO2_CLIMATE_TENDENCY_CONTEXT"],
+    warningCodes: ["NO_CO2_RESERVOIR_SOLVE"],
+  });
+}
+
+function addSmallBodyReservoirEra(eras, context, model) {
+  const reservoir = smallBodyReservoirContextOf(model);
+  if (!reservoir) return;
+  const outputs = isObject(reservoir.outputs) ? reservoir.outputs : {};
+  const impactClass = firstString(outputs.impactFluxClass);
+  const debrisClass = firstString(outputs.debrisFluxClass);
+  const oortClass = firstString(outputs.oortInjectionClass);
+  const cometClass = firstString(outputs.cometDeliveryClass);
+  const volatileClass = firstString(outputs.volatileDeliveryClass);
+  const bombardmentClass = firstString(outputs.bombardmentEpochClass);
+  const impactScore = firstFinite(outputs.impactFluxScore);
+  const volatileScore = firstFinite(outputs.volatileDeliveryScore);
+  const active =
+    impactClass ||
+    debrisClass ||
+    oortClass ||
+    cometClass ||
+    volatileClass ||
+    impactScore != null ||
+    volatileScore != null;
+  if (!active) return;
+  const elevated =
+    includesText(impactClass, "high") ||
+    includesText(impactClass, "moderate") ||
+    (impactScore != null && impactScore >= 0.35);
+  const volatileSupported =
+    includesText(volatileClass, "high") ||
+    includesText(volatileClass, "moderate") ||
+    (volatileScore != null && volatileScore >= 0.35);
+
+  addEra(eras, context, {
+    id: elevated ? "small-body-bombardment-context" : "small-body-background-context",
+    label: elevated ? "Small-body bombardment context" : "Small-body background context",
+    category: volatileSupported ? "hydrosphere" : "formation",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(reservoir.confidence, "medium"),
+    severity: elevated ? "caution" : volatileSupported ? "info" : "good",
+    headline: elevated
+      ? "Small-body reservoirs raise the current impact-context flag"
+      : "Small-body reservoirs are routed into impact and volatile context",
+    detail:
+      "This row summarizes debris, comet, and Oort reservoir context. It is not crater-count dating, an impact chronology, or guaranteed volatile retention.",
+    drivers: [
+      makeDriver("impact", "Impact flux", impactClass, ""),
+      makeDriver("debris", "Debris supply", debrisClass, ""),
+      makeDriver("oort", "Oort injection", oortClass, ""),
+      makeDriver("comets", "Comet delivery", cometClass, ""),
+      makeDriver("volatiles", "Volatile delivery", volatileClass, ""),
+      makeDriver("epoch", "Bombardment epoch", bombardmentClass, ""),
+    ],
+    evidenceCodes: ["SMALL_BODY_RESERVOIR_CONTEXT"],
+    warningCodes: ["NO_STOCHASTIC_IMPACT_CHRONOLOGY"],
+  });
+}
+
+function addInteriorEvolutionEra(eras, context, model) {
+  const interior = interiorEvolutionContextOf(model);
+  if (!interior) return;
+  const outputs = isObject(interior.outputs) ? interior.outputs : interior;
+  const cooling = firstString(outputs.secularCoolingClass);
+  const dynamo = firstString(outputs.dynamoLifetimeSupportClass);
+  const volcanism = firstString(outputs.volcanicLongevityClass);
+  const recycling = firstString(outputs.mantleRecyclingSupportClass);
+  if (!cooling && !dynamo && !volcanism && !recycling) return;
+  const weak =
+    includesText(cooling, "cooling-limited") ||
+    includesText(dynamo, "weak") ||
+    includesText(volcanism, "minimal") ||
+    includesText(volcanism, "waning");
+  addEra(eras, context, {
+    id: weak ? "interior-evolution-decline-context" : "interior-evolution-context",
+    label: weak ? "Interior evolution decline context" : "Interior evolution context",
+    category: "interior",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(interior.confidence, "medium"),
+    severity: weak ? "caution" : "info",
+    headline: weak
+      ? "Interior evolution limits long-term dynamo or outgassing support"
+      : "Interior heat and cooling context inform dynamo, volcanism, and recycling",
+    detail:
+      "This is a bounded heat-retention and core-cooling context. It does not reconstruct full mantle, core, or magnetic-field history.",
+    drivers: [
+      makeDriver("cooling", "Secular cooling", cooling, ""),
+      makeDriver("dynamo", "Dynamo support", dynamo, ""),
+      makeDriver("volcanism", "Volcanism", volcanism, ""),
+      makeDriver("recycling", "Mantle recycling", recycling, ""),
+      makeDriver(
+        "heatFlux",
+        "Heat flux",
+        outputs.heatFluxEarth == null ? "" : `${formatNumber(outputs.heatFluxEarth, 2)}x Earth`,
+        "",
+      ),
+    ],
+    evidenceCodes: ["INTERIOR_EVOLUTION_CONTEXT"],
+    warningCodes: ["NO_FULL_THERMAL_HISTORY_SOLVE"],
   });
 }
 
@@ -943,6 +1274,36 @@ function addBiosignatureContextEra(eras, context, model) {
     ],
     evidenceCodes: ["BIOSIGNATURE_CONTEXT"],
     warningCodes: ["NO_LIFE_DETECTION_CLAIM"],
+  });
+}
+
+function addDynamicalVariabilityEra(eras, context, model) {
+  const variability = dynamicalVariabilityContextOf(model);
+  const outputs = variability?.outputs || variability || {};
+  const warning = firstString(outputs.habitabilityVariabilityWarning, "none");
+  if (!variability || warning === "none") return;
+  const risk = firstString(outputs.dynamicalVariabilityRiskClass, "unknown");
+  const seasonal = firstString(outputs.seasonalStabilityClass, "unknown");
+  addEra(eras, context, {
+    id: "dynamical-variability-context-era",
+    label: "Long-cycle dynamical variability context",
+    category: "orbital",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(variability.confidence, "low"),
+    severity: risk === "high" ? "warning" : risk === "moderate" ? "caution" : "info",
+    headline: "Orbital variability is a bounded climate and persistence warning",
+    detail:
+      "Secular, precession, Cassini-state, and migration diagnostics can warn about variability, but they do not rewrite orbit, obliquity, or climate outputs.",
+    drivers: [
+      makeDriver("seasonal", "Seasonal stability", seasonal, ""),
+      makeDriver("eccentricity", "Eccentricity-cycle risk", outputs.eccentricityCycleRisk, ""),
+      makeDriver("obliquity", "Obliquity risk", outputs.obliquityVariabilityRisk, ""),
+      makeDriver("history", "Orbit-history confidence", outputs.orbitHistoryConfidence, ""),
+    ],
+    evidenceCodes: ["DYNAMICAL_VARIABILITY_CONTEXT"],
+    warningCodes: ["DIAGNOSTIC_ONLY_NO_ORBIT_REWRITE"],
   });
 }
 

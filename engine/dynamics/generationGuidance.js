@@ -123,6 +123,74 @@ function moonGuidance(body) {
   return { hardBlocks, softWarnings, repairSuggestions };
 }
 
+function longTermGuidance(context = {}) {
+  const softWarnings = [];
+  const repairSuggestions = [];
+  const outputs = context.longTermDynamicsContext?.outputs || {};
+  const kozaiClass = String(outputs.kozaiLidovClass || "unknown");
+
+  if (kozaiClass === "possible" || kozaiClass === "likely") {
+    softWarnings.push({
+      code: "long-term-kozai-lidov-susceptibility",
+      targetId: context.longTermDynamicsContext?.inputs?.hostFrameId || "system",
+      title: "Long-term Kozai-Lidov susceptibility",
+      detail:
+        "Hierarchical secular diagnostics indicate possible Kozai-Lidov cycling; this is a bounded warning, not an integrated orbital history.",
+    });
+    addSuggestion(repairSuggestions, {
+      code: "review-mutual-inclination",
+      targetId: context.longTermDynamicsContext?.inputs?.hostFrameId || "system",
+      label: "Review mutual inclination",
+      detail:
+        "Lowering mutual inclination or widening the hierarchy can reduce Kozai-Lidov susceptibility.",
+    });
+  }
+
+  for (const body of Object.values(context.bodies || {})) {
+    const trojan = body.longTermDynamicsContext?.trojanPopulationContext?.outputs || null;
+    if (!trojan) continue;
+    const linearlyStable = String(trojan.l45LinearStabilityClass || "");
+    const region = String(trojan.stabilityRegionClass || "");
+    if (linearlyStable !== "linearly-unstable" && region !== "eroded") continue;
+    softWarnings.push({
+      code: "trojan-reservoir-unstable",
+      targetId: body.bodyId,
+      title: "Trojan reservoir is not well supported",
+      detail:
+        "L4/L5 reservoir diagnostics are unstable or eroded for this body; do not assume a populated Trojan swarm.",
+      hostFrameId: body.hostFrameId,
+    });
+  }
+
+  for (const body of Object.values(context.bodies || {})) {
+    const variability = body.dynamicalVariabilityContext?.outputs || {};
+    const messages = Array.isArray(variability.generationGuardrailMessages)
+      ? variability.generationGuardrailMessages
+      : [];
+    const risk = String(variability.dynamicalVariabilityRiskClass || "unknown");
+    if (!messages.length && !["moderate", "high"].includes(risk)) continue;
+    softWarnings.push({
+      code: "dynamical-variability-guardrail",
+      targetId: body.bodyId,
+      title: "Long-cycle variability needs review",
+      detail:
+        messages[0] ||
+        "Long-term dynamical variability is a warning for guided generation, not an automatic orbit rewrite.",
+      hostFrameId: body.hostFrameId,
+    });
+    addSuggestion(repairSuggestions, {
+      code: "review-dynamical-variability",
+      targetId: body.bodyId,
+      label: "Review variability",
+      detail:
+        "Check eccentricity, inclination, and spin-orbit context before treating the orbit as climate-stable.",
+      hostFrameId: body.hostFrameId,
+    });
+  }
+
+  return { softWarnings, repairSuggestions };
+}
+
 export function buildGenerationGuidanceForContext(context = {}) {
   const hardBlocks = [];
   const softWarnings = [];
@@ -142,6 +210,10 @@ export function buildGenerationGuidanceForContext(context = {}) {
     softWarnings.push(...guidance.softWarnings);
     repairSuggestions.push(...guidance.repairSuggestions);
   }
+
+  const longTerm = longTermGuidance(context);
+  softWarnings.push(...longTerm.softWarnings);
+  repairSuggestions.push(...longTerm.repairSuggestions);
 
   return {
     modelVersion: "dynamical-generation-guidance-v1",

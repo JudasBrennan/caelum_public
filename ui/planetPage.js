@@ -37,7 +37,9 @@ import {
   hasLimitedSurfaceApplicability,
 } from "./planet/bodyClassificationSummary.js";
 import { buildPhotochemicalHazeOutputItems } from "./planet/photochemicalHazeOutputs.js";
+import { buildLongTermDynamicsSection } from "./planet/longTermDynamicsOutput.js";
 import {
+  buildGasGiantCoupledContextItems,
   buildGasGiantTemperatureItems as buildGasGiantTemps,
   buildGasGiantThermalDetailItems,
 } from "./planet/gasGiantOutputItems.js";
@@ -49,6 +51,7 @@ import {
   ROCKY_PHYSICAL_LABELS,
   ROCKY_SUMMARY_LABELS,
   ROCKY_SYSTEM_LABELS,
+  formatRockyTectonicProbabilities,
 } from "./planet/rockyOutputGroups.js";
 import {
   applyGasGiantGuidedRecommendation,
@@ -116,6 +119,7 @@ import {
   renderBodySelector,
   renderPlanetaryBodyClassificationSummary,
   renderMoonSection,
+  renderHint,
   renderPlanetEmptyState,
   renderPlanetSlotSelector,
   renderVegetationGrid,
@@ -133,6 +137,7 @@ import {
   renderPlanetResultSummary,
 } from "./planet/resultSummary.js";
 import { renderGasGiantInputForm, renderRockyInputForm } from "./planet/inputRender.js";
+import { vegGridOrbit, vegGridTwilightOrbit } from "./planet/vegetationGridModel.js";
 import { PLANET_TUTORIAL_STEPS as TUTORIAL_STEPS } from "./planet/tutorials.js";
 import { TIP_LABEL } from "./planet/tooltips.js";
 import {
@@ -440,13 +445,6 @@ export function initPlanetPage(mountEl, options = {}) {
       pendingOutputsOnly = true;
       render(oo);
     }, 0);
-  }
-
-  function renderHint(container, text) {
-    const hint = document.createElement("div");
-    hint.className = "hint";
-    hint.textContent = text;
-    container.replaceChildren(hint);
   }
 
   function solveRockyModelForWorld(world, { planetId, planetInputs }) {
@@ -1813,6 +1811,18 @@ export function initPlanetPage(mountEl, options = {}) {
       Number.isFinite(stellarWindRatio) &&
       stellarWindRatio > 0 &&
       (stellarWindRatio > 3 || stellarWindRatio < 0.3);
+    const interiorActivityItems = [
+      {
+        label: "Interior Evolution",
+        value: model.display.interiorEvolution,
+        meta: model.display.interiorDynamoSupport,
+      },
+      {
+        label: "Volcanic Longevity",
+        value: model.display.volcanicLongevity,
+        meta: model.display.mantleRecyclingSupport,
+      },
+    ];
 
     const allRockyItems = [
       {
@@ -1884,6 +1894,20 @@ export function initPlanetPage(mountEl, options = {}) {
             ? d.magnetosphereEnvironment.caveats.join(" ")
             : "",
       },
+      model.display.planetRadiation && {
+        label: "Surface Radiation",
+        value: model.display.planetRadiation,
+        meta: d.planetRadiationEnvironmentContext?.confidence
+          ? `${String(d.planetRadiationEnvironmentContext.confidence).toUpperCase()} confidence`
+          : "",
+      },
+      model.display.planetRadiationShielding && {
+        label: "Radiation Shielding",
+        value: model.display.planetRadiationShielding,
+        meta: model.display.planetRadiationAurora
+          ? `Aurora readiness ${model.display.planetRadiationAurora}`
+          : "",
+      },
       {
         label: "Avg Surface Temp",
         tipLabel: "Surface Temperature (Avg.)",
@@ -1898,7 +1922,9 @@ export function initPlanetPage(mountEl, options = {}) {
       {
         label: "Coupled Climate Tendency",
         value: model.display.coupledClimateTendency,
-        meta: `${model.display.photochemicalForcing} | baseline temperature unchanged`,
+        meta: `${model.display.photochemicalForcing} | ${
+          d.coupledClimatePass?.applied ? "effective state applied" : "baseline retained"
+        }`,
       },
       {
         label: "Photochemical Forcing",
@@ -1939,6 +1965,13 @@ export function initPlanetPage(mountEl, options = {}) {
           : "",
       },
       {
+        label: "Atmosphere Evolution",
+        value: model.display.atmosphereEvolution,
+        meta: d.atmosphereEvolutionContext?.manualOverrideProtected
+          ? "Manual values protected"
+          : model.display.atmosphereVolatileLoss || "",
+      },
+      {
         label: "Dominant Source",
         value: model.display.atmosphereDominantSource,
         meta:
@@ -1961,6 +1994,11 @@ export function initPlanetPage(mountEl, options = {}) {
           d.atmosphereLedger?.netBalance != null
             ? `net ${fmt(d.atmosphereLedger.netBalance, 2)}`
             : "",
+      },
+      {
+        label: "CO2 Tendency",
+        value: model.display.co2ClimateTendency,
+        meta: `${model.display.co2BuildupTendency || "no buildup tendency"} | ${model.display.co2ThermostatAdjustment || "0.0 K"}`,
       },
       {
         label: "Surface State",
@@ -2137,18 +2175,12 @@ export function initPlanetPage(mountEl, options = {}) {
         value: model.display.moonTidalHeating,
         meta: d.planetTidalFraction >= 0.1 ? "Significant for core/dynamo" : "Negligible for core",
       },
+      ...interiorActivityItems,
       {
         label: "Tectonic Regime",
         value: model.display.tectonicRegime + (model.display.tectonicIsAuto ? " (auto)" : ""),
         meta:
-          d.tectonicAdvisory +
-          "\n\n" +
-          ["stagnant", "mobile", "episodic", "plutonicSquishy"]
-            .map(
-              (r) =>
-                `${r === "plutonicSquishy" ? "Plut.-squishy" : r.charAt(0).toUpperCase() + r.slice(1)}: ${Math.round(d.tectonicProbabilities[r] * 100)}%`,
-            )
-            .join(" | "),
+          d.tectonicAdvisory + "\n\n" + formatRockyTectonicProbabilities(d.tectonicProbabilities),
       },
       {
         label: "Outgassing",
@@ -2475,29 +2507,6 @@ export function initPlanetPage(mountEl, options = {}) {
                 ]
               : []),
             {
-              label: "Atmosphere Trend",
-              value: model.display.atmosphereTrend,
-              meta: d.atmosphereLedger?.summary || "",
-            },
-            {
-              label: "Dominant Source",
-              value: model.display.atmosphereDominantSource,
-              meta: d.atmosphereLedger?.dominantSource?.reason || "",
-            },
-            {
-              label: "Dominant Sink",
-              value: model.display.atmosphereDominantSink,
-              meta: d.atmosphereLedger?.dominantSink?.reason || "",
-            },
-            {
-              label: "Stability Timescale",
-              value: model.display.atmosphereStabilityTimescale,
-              meta:
-                Array.isArray(d.atmosphereLedger?.caveats) && d.atmosphereLedger.caveats.length
-                  ? d.atmosphereLedger.caveats.join(" | ")
-                  : "",
-            },
-            {
               label: "Environment Forcing",
               value: model.display.environmentForcing,
               meta:
@@ -2524,7 +2533,9 @@ export function initPlanetPage(mountEl, options = {}) {
               value: model.display.coupledClimateTendency,
               meta:
                 d.climateChemistryForcing?.optInClimateState ||
-                "Derived-only diagnostic; baseline climate state retained",
+                (d.coupledClimatePass?.applied
+                  ? "Bounded effective state applied"
+                  : "Baseline climate state retained"),
             },
             {
               label: "Photochemical Forcing",
@@ -2718,18 +2729,14 @@ export function initPlanetPage(mountEl, options = {}) {
                   },
                 ]
               : []),
+            ...interiorActivityItems,
             {
               label: "Tectonic Regime",
               value: model.display.tectonicRegime + (model.display.tectonicIsAuto ? " (auto)" : ""),
               meta:
                 d.tectonicAdvisory +
                 " | " +
-                ["stagnant", "mobile", "episodic", "plutonicSquishy"]
-                  .map(
-                    (r) =>
-                      `${r === "plutonicSquishy" ? "Plut.-squishy" : r.charAt(0).toUpperCase() + r.slice(1)}: ${Math.round(d.tectonicProbabilities[r] * 100)}%`,
-                  )
-                  .join(" | "),
+                formatRockyTectonicProbabilities(d.tectonicProbabilities),
             },
             {
               label: "Outgassing",
@@ -2852,6 +2859,7 @@ export function initPlanetPage(mountEl, options = {}) {
       ],
       { title: "Derived Details" },
     );
+    const longTermDynamicsSection = buildLongTermDynamicsSection(world, planet.id);
     bodyOutputsEl.replaceChildren();
     renderKpiSections(bodyOutputsEl, [
       { id: "planet-summary", title: "Key Numbers", items: summaryItems },
@@ -2869,6 +2877,7 @@ export function initPlanetPage(mountEl, options = {}) {
         items: environmentItems,
       },
       { id: "planet-system", title: "System Context", density: "compact", items: systemItems },
+      longTermDynamicsSection,
       {
         id: "planet-activity",
         title: "Activity & Radiation",
@@ -3127,6 +3136,7 @@ export function initPlanetPage(mountEl, options = {}) {
       id: "planet-era-timeline",
     });
 
+    const longTermDynamicsSection = buildLongTermDynamicsSection(world, body?.id);
     bodyOutputsEl.replaceChildren();
     renderKpiSections(bodyOutputsEl, [
       { id: "volatile-summary", title: "Key Numbers", items: summaryItems },
@@ -3148,6 +3158,7 @@ export function initPlanetPage(mountEl, options = {}) {
         density: "compact",
         items: environmentItems,
       },
+      longTermDynamicsSection,
       { id: "volatile-detection", title: "Detection", density: "compact", items: detectionItems },
     ]);
     renderPlanetResultSummary(
@@ -3220,20 +3231,6 @@ export function initPlanetPage(mountEl, options = {}) {
     co2Pct: 0.04,
     arPct: 1,
   };
-
-  function vegGridOrbit(mass) {
-    if (mass < 0.3) return 0.05;
-    if (mass < 0.5) return 0.15;
-    if (mass < 0.7) return 0.5;
-    if (mass < 0.9) return 0.8;
-    return 1.0;
-  }
-
-  function vegGridTwilightOrbit(mass) {
-    if (mass < 0.3) return 0.03;
-    if (mass < 0.5) return 0.08;
-    return 0.15;
-  }
 
   function buildVegGridModel() {
     const headers = VEG_GRID_PRESSURES.map((pressureAtm) => ({
@@ -4169,6 +4166,7 @@ export function initPlanetPage(mountEl, options = {}) {
       { title: "Derived Details" },
     );
 
+    const longTermDynamicsSection = buildLongTermDynamicsSection(world, giant.id);
     bodyOutputsEl.replaceChildren();
     renderKpiSections(bodyOutputsEl, [
       { id: "gas-giant-summary", title: "Key Numbers", items: summaryItems },
@@ -4191,6 +4189,7 @@ export function initPlanetPage(mountEl, options = {}) {
         items: environmentItems,
       },
       { id: "gas-giant-system", title: "System Context", density: "compact", items: systemItems },
+      longTermDynamicsSection,
       {
         id: "gas-giant-activity",
         title: "Activity & Radiation",
@@ -4391,6 +4390,7 @@ export function initPlanetPage(mountEl, options = {}) {
       value: ringDisplay.value,
       meta: ringDisplay.meta,
     };
+    const coupledContextItems = buildGasGiantCoupledContextItems(m);
     const atmosphereItem = {
       label: "Atmosphere",
       tip: TIP_LABEL["GG Derived"] || "",
@@ -4531,6 +4531,7 @@ export function initPlanetPage(mountEl, options = {}) {
           environmentForcingItem,
           atmosphereItem,
           ringsItem,
+          coupledContextItems.ringArchitecture,
           surfaceApplicabilityItem,
         ];
     const systemItems = [
@@ -4541,11 +4542,13 @@ export function initPlanetPage(mountEl, options = {}) {
       fluxVariabilityItem,
       dynamicalStabilityItem,
       transitDepthItem,
+      coupledContextItems.observability,
       rvSemiAmplitudeItem,
     ];
     const activityItems = [
       magneticFieldItem,
       magnetosphereItem,
+      coupledContextItems.aurora,
       windCompressionItem,
       moonTidalHeatingItem,
       massLossItem,
@@ -4616,6 +4619,7 @@ export function initPlanetPage(mountEl, options = {}) {
       },
       { label: "Ring type", value: m.display.ringType },
       { label: "Ring details", value: m.display.ringDetails },
+      ...coupledContextItems.ringDetailItems,
     ];
     const systemDetailItems = [
       {
@@ -4650,6 +4654,7 @@ export function initPlanetPage(mountEl, options = {}) {
         value: m.display.transitDepth,
         meta: m.display.transitProbability,
       },
+      coupledContextItems.observabilityDetail,
       {
         label: "RV Semi-Amplitude",
         value: m.display.rvSemiAmplitude,
@@ -4683,6 +4688,7 @@ export function initPlanetPage(mountEl, options = {}) {
         value: m.display.magnetosphere,
         meta: m.display.windCompression || "",
       },
+      coupledContextItems.auroraDetail,
       { label: "Wind compression", value: m.display.windCompression || "Not evaluated" },
       { label: "Moon tidal heating", value: m.display.moonTidalHeating },
       { label: "Atmospheric sputtering", value: m.display.sputteringPlasma },
@@ -4726,6 +4732,7 @@ export function initPlanetPage(mountEl, options = {}) {
       { title: "Derived Details" },
     );
 
+    const longTermDynamicsSection = buildLongTermDynamicsSection(world, giant.id);
     bodyOutputsEl.replaceChildren();
     renderKpiSections(bodyOutputsEl, [
       { id: "gas-giant-summary", title: "Key Numbers", items: summaryItems },
@@ -4748,6 +4755,7 @@ export function initPlanetPage(mountEl, options = {}) {
         items: environmentItems,
       },
       { id: "gas-giant-system", title: "System Context", density: "compact", items: systemItems },
+      longTermDynamicsSection,
       {
         id: "gas-giant-activity",
         title: "Activity & Radiation",

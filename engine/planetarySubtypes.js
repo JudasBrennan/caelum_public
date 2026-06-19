@@ -66,6 +66,12 @@ const PLANET_FAMILIES = new Set([
   "iceGiant",
   "gasGiant",
 ]);
+const RADIUS_VALLEY_CONTEXT_FAMILIES = new Set([
+  "superEarth",
+  "radiusValley",
+  "volatileCandidate",
+  "miniNeptune",
+]);
 
 const PRIMARY_SUBTYPE_PRIORITY = Object.freeze({
   roguePlanet: 100,
@@ -232,6 +238,76 @@ function boundaryTraitsForFamily(family) {
   if (family === "radiusValley") traits.push(PLANETARY_BOUNDARY_TRAITS.RADIUS_VALLEY);
   if (family === "volatileCandidate") traits.push(PLANETARY_BOUNDARY_TRAITS.VOLATILE_CANDIDATE);
   return traits;
+}
+
+function radiusValleyBoundaryContext(inputs, family) {
+  if (!RADIUS_VALLEY_CONTEXT_FAMILIES.has(family)) return null;
+  const radius = finiteOrNull(inputs.radiusEarth);
+  const period = finiteOrNull(inputs.orbitalPeriodDays);
+  const insolation = finiteOrNull(inputs.insolationEarth);
+  const semiMajorAxis = finiteOrNull(inputs.semiMajorAxisAu);
+  const assumptions = [
+    "Radius-valley interpretation is population-level and does not determine one planet's origin.",
+  ];
+  const limitingFactors = [];
+  if (radius == null) limitingFactors.push("planet radius is missing");
+  if (period == null && insolation == null && semiMajorAxis == null) {
+    limitingFactors.push("orbital period, irradiation, and semi-major axis are missing");
+  }
+  const closeInByPeriod = period != null && period <= 100;
+  const highIrradiation = insolation != null && insolation >= 10;
+  const closeInByOrbit = semiMajorAxis != null && semiMajorAxis <= 0.5;
+  const boundarySized = radius != null && radius >= 1.3 && radius <= 2.6;
+  const envelopeLossRelevant =
+    boundarySized && (closeInByPeriod || highIrradiation || closeInByOrbit);
+  const weaklyConstrained =
+    boundarySized &&
+    period != null &&
+    period > 100 &&
+    (insolation == null || insolation < 10) &&
+    !closeInByOrbit;
+  const regimeClass = limitingFactors.length
+    ? "unknown"
+    : envelopeLossRelevant
+      ? "close-in-boundary-relevant"
+      : weaklyConstrained
+        ? "long-period-weakly-constrained"
+        : boundarySized
+          ? "boundary-sized-low-irradiation"
+          : "outside-boundary-size";
+
+  return compactObject({
+    modelVersion: "radius-valley-boundary-context-v1",
+    status: limitingFactors.length ? "unknown" : "supported",
+    confidence: period != null && insolation != null ? "medium" : "low",
+    inputs: compactObject({
+      radiusEarth: radius,
+      orbitalPeriodDays: period,
+      insolationEarth: insolation,
+      semiMajorAxisAu: semiMajorAxis,
+      family,
+    }),
+    outputs: {
+      regimeClass,
+      boundarySized,
+      closeInByPeriod,
+      highIrradiation,
+      envelopeLossRelevant,
+      interpretation:
+        regimeClass === "close-in-boundary-relevant"
+          ? "Period/irradiation context makes radius-valley envelope-loss interpretation relevant."
+          : regimeClass === "long-period-weakly-constrained"
+            ? "Long-period, lower-irradiation context weakens radius-valley envelope-loss interpretation."
+            : regimeClass === "boundary-sized-low-irradiation"
+              ? "Radius is boundary-sized, but close-in irradiation evidence is not strong."
+              : regimeClass === "outside-boundary-size"
+                ? "Radius is outside the small-planet boundary range used by this diagnostic."
+                : "Missing inputs prevent a bounded radius-valley interpretation.",
+    },
+    assumptions,
+    limitingFactors,
+    sourceKeys: ["radiusValleyBoundary"],
+  });
 }
 
 function makeSubtype({
@@ -611,6 +687,9 @@ export function derivePlanetaryDescriptors({
     solverFamily: classification?.solverFamily ?? inputs.solverFamily ?? null,
     scale,
     boundaryTraits,
+    boundaryContext: compactObject({
+      radiusValley: radiusValleyBoundaryContext(inputs, family),
+    }),
     physical: compactObject({
       massEarth: inputs.massEarth,
       massMjup: inputs.massMjup,

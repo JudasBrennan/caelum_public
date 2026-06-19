@@ -1783,6 +1783,7 @@ function buildMoonDiagnostics(
   const currentModel = solved?.model || {};
   const model = recommendedSolved?.model || currentModel;
   const usingHostFixPreview = !!parentPatch?.summary;
+  const derived = model.derived || {};
   const display = model.display || {};
   const atmosphere = model.atmosphere || {};
   const hydrosphere = model.hydrosphere || {};
@@ -2123,6 +2124,30 @@ function buildMoonDiagnostics(
     `The solve does not reach the stronger vegetation gate for this moon ${solvedPathLabel}.`,
     ["Treat this as a starting point and refine the system context."],
   );
+
+  const nitrogen = derived.nitrogenCycleContext?.outputs || {};
+  if (/strong|severe/i.test(String(nitrogen.nutrientLimitationClass || ""))) {
+    pushDiagnostic(
+      diagnostics,
+      "warning",
+      "nitrogen-nutrient-limited",
+      "Nitrogen nutrient context is limiting",
+      `The preview reports ${nitrogen.nutrientLimitationClass}; this affects nutrient context but does not imply biology.`,
+      [nitrogen.guidedAtmosphereRecommendation || "Review N2 pressure support on the Moon page."],
+    );
+  } else if (
+    nitrogen.guidedAtmosphereRecommendation &&
+    !/^No nitrogen-specific atmosphere change/i.test(nitrogen.guidedAtmosphereRecommendation)
+  ) {
+    pushDiagnostic(
+      diagnostics,
+      "info",
+      "nitrogen-atmosphere-guidance",
+      "Nitrogen atmosphere guidance",
+      nitrogen.guidedAtmosphereRecommendation,
+      ["Review N2 partial pressure after applying the recommendation."],
+    );
+  }
 
   if (
     answers.parent_context_policy === "strict" &&

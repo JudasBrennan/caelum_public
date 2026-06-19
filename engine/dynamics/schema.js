@@ -107,6 +107,8 @@ export function normalizeDynamicalContext(rawContext = {}) {
       },
       habitabilityBridge: source.habitabilityBridge || null,
       moonSystemContext: source.moonSystemContext || null,
+      longTermDynamicsContext: source.longTermDynamicsContext || null,
+      dynamicalVariabilityContext: source.dynamicalVariabilityContext || null,
       generationGuidance: source.generationGuidance || null,
       display: source.display || {},
     };
@@ -142,6 +144,7 @@ export function normalizeDynamicalContext(rawContext = {}) {
     hostFrames,
     bodies,
     moonSystems,
+    longTermDynamicsContext: raw.longTermDynamicsContext || null,
     systemSummary: {
       state: normalizeDynamicalSummaryState(summaryRaw.state),
       confidence: normalizeDynamicalConfidence(summaryRaw.confidence),

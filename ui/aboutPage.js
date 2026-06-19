@@ -9,7 +9,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.10.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.11.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, calendars, and exotic planetary subtype evidence. Explore your
@@ -53,7 +53,7 @@ export function initAboutPage(mountEl) {
         </ul>
 
         <div class="about-actions">
-          <a class="validation-action validation-action--accent" href="#/validation">View Validation Report</a>
+          <a class="validation-action validation-action--accent" href="#/validation">View Validation Matrix</a>
           <button class="btn btn--accent" id="openChangelog" type="button">View Changelog</button>
           <button class="btn" id="openLicense" type="button">View License</button>
         </div>
@@ -385,6 +385,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Used precise infrared observations of stellar orbits near the Milky Way's center to reveal hidden mass and system structure.",
   },
+  "2.11.0": {
+    name: "Abdus Salam",
+    born: 1926,
+    died: 1996,
+    country: "Pakistan",
+    summary:
+      "Co-developed electroweak unification, showing how apparently separate forces can be described by one tested physical framework.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -424,6 +432,18 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.11.0",
+      "(from 2.10.0)",
+      [
+        "<b>Science Verification Matrix</b> &mdash; Validation now shows a connected science matrix instead of a loose calibration table, with benchmark anchors, invariants, trend checks, boundary checks, coupling checks, formula oracles, browser coverage, and release gates in one place.",
+        "<b>Deeper Science Coupling</b> &mdash; Climate, atmosphere evolution, radiation, interiors, nitrogen context, small-body reservoirs, habitability, population, observability, and timelines now share more of the same bounded science context across pages.",
+        "<b>Habitable Moon Observer Frames</b> &mdash; Calendar and Apparent Size can now use modeled moons as reference worlds, including moon-local days, parent-planet phases, eclipses, parent apparent size, and sibling moon visibility where the data exists.",
+        "<b>Long-Term Dynamics</b> &mdash; Planetary systems now expose bounded diagnostics for secular and Kozai-Lidov susceptibility, precession, Cassini-state readiness, migration clues, and Trojan reservoir support without rewriting authored orbits.",
+        "<b>Validation Page Clarity</b> &mdash; The Validation page now explains what each matrix family means in plain language, highlights open gaps and release gates, and links to the generated standalone matrix artifacts.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.10.0",
       "(from 2.9.2)",
       [
@@ -433,7 +453,7 @@ function changelogHTML() {
         "<b>Shared Dynamical Context</b> &mdash; Generation checks, moon interiors, habitability persistence, parent ring/radiation notes, timelines, and page explanations now consume one bounded orbital/tidal context instead of separate private summaries.",
         "<b>System Slot Fixes</b> &mdash; Guided slot dragging now moves or swaps planets cleanly, manual-to-guided mode infers the nearest open slots from AU values, and the Planet page explains why Guided mode controls orbital distance.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.9.2",

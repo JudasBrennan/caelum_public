@@ -10,6 +10,8 @@ import {
 import { calcMagnetic } from "./gasGiant/magnetism.js";
 import { gasGiantK2, gasGiantTidalQ, totalGasGiantTidalHeating } from "./gasGiant/moonEffects.js";
 import { calcRingProperties } from "./gasGiant/rings.js";
+import { buildObservabilityContext } from "./contexts/observabilityContext.js";
+import { buildRingMagnetosphereContext } from "./contexts/ringMagnetosphereContext.js";
 import {
   calcAgeRadiusCorrection,
   calcInterior,
@@ -869,6 +871,7 @@ export function calcGasGiant({
   stellarMetallicityFeH,
   otherGiants,
   moons,
+  moonInfluenceSummaries,
   detailLevel = "full",
 }) {
   if (resolveGiantCompanionClass(companionClass, rawMass) === "brownDwarf") {
@@ -1148,6 +1151,7 @@ export function calcGasGiant({
     starLuminosityLsol: sLum,
     ageGyr: sAge,
     windPressureNPa: environmentForcing.wind?.ramPressureNPa,
+    moonInfluenceSummaries,
   });
 
   const dynamics = calcDynamics(massMjup, radiusKm, rot, tEffK);
@@ -1184,6 +1188,53 @@ export function calcGasGiant({
     orbit,
     Array.isArray(otherGiants) ? otherGiants : [],
   );
+  const ringSourceMoon =
+    giantMoons.find((moon) => {
+      const moonOrbitKm = toFinite(
+        moon?.semiMajorAxisKm ?? moon?.orbitKm ?? moon?.aKm ?? moon?.moonSemiMajorAxisKm,
+        NaN,
+      );
+      return Number.isFinite(moonOrbitKm) && moonOrbitKm <= rocheLimitIceKm * 8;
+    }) || null;
+  const gasScaleHeightKm =
+    gravityMs2 > 0 ? (8.314462618 * Math.max(teqK, 1)) / (0.0023 * gravityMs2) / 1000 : null;
+  const ringMagnetosphereContext = buildRingMagnetosphereContext({
+    ringProperties,
+    rocheLimitKm: rocheLimitIceKm,
+    ringSourceMoon,
+    resonanceContext: nearestResonance,
+    magnetosphereEnvironment: {
+      ...(magnetic.magnetosphereEnvironment || {}),
+      surfaceFieldEarths: magnetic.surfaceFieldEarths,
+    },
+    atmospherePressureAtm: 1,
+    atmosphereComposition: { dominantSpecies: "H2/He" },
+    rotationPeriodHours: rot,
+    axialTiltDeg,
+    parentPlasmaContext:
+      magnetic.moonPlasmaSourcePowerW > 0 || magnetic.magnetosphereEnvironment?.plasmaFactor > 1
+        ? {
+            sputteringPlasmaW: magnetic.sputteringPlasmaW,
+            plasmaSourcePowerW: magnetic.moonPlasmaSourcePowerW,
+            plasmaSourceClass: magnetic.moonPlasmaSourceClass,
+            plasmaSourceConfidence: magnetic.moonPlasmaSourceConfidence,
+            plasmaSourceMode: magnetic.moonPlasmaSourceMode,
+            plasmaFactor: magnetic.magnetosphereEnvironment?.plasmaFactor,
+          }
+        : null,
+  });
+  const observabilityContext = buildObservabilityContext({
+    bodyRadiusKm: radiusKm,
+    bodyMassEarth: massEarth,
+    starRadiusRsol,
+    starMassMsol: sMass,
+    semiMajorAxisAu: orbit,
+    orbitalPeriodDays,
+    atmosphereScaleHeightKm: gasScaleHeightKm,
+    baselineSurfaceTempK: teqK,
+    effectiveSurfaceTempK: tEffK,
+    cloudFraction: Array.isArray(clouds) && clouds.length ? 0.45 : 0.1,
+  });
 
   let jeansDisplay = `Atmospheric escape (T_exo ${fmt(round(ggExobaseTempK, 0), 0)} K, XUV ${fmt(round(massLoss.xuvFluxRatioEarth, 2), 2)}× Earth):`;
   const hostFrameCriticalOuterAu = Number(hostFrame?.stability?.criticalOuterAu);
@@ -1380,6 +1431,8 @@ export function calcGasGiant({
       resonanceRotationHours: resonanceRotationHours ? round(resonanceRotationHours, 2) : null,
     },
     ringProperties,
+    ringMagnetosphereContext,
+    observabilityContext,
 
     orbital: {
       periapsisAu: round(periapsisAu, 4),
@@ -1400,6 +1453,7 @@ export function calcGasGiant({
       transitDepthPpm: round(transitDepthPpm, 2),
       transitProbabilityFraction: round(transitProbabilityFraction, 6),
       rvSemiAmplitudeMs: round(rvSemiAmplitudeMs, 4),
+      observabilityContext,
     },
 
     appearance: {
@@ -1432,6 +1486,8 @@ export function calcGasGiant({
       magneticMorphology:
         magnetic.fieldMorphology.charAt(0).toUpperCase() + magnetic.fieldMorphology.slice(1),
       magnetosphere: `${fmt(magnetic.magnetopauseRp, 0)} Rp (${fmt(magnetic.magnetopauseKm, 0)} km)`,
+      auroraLikelihood: ringMagnetosphereContext.outputs.auroraLikelihood,
+      radiationBelts: ringMagnetosphereContext.outputs.radiationBeltClass,
       windCompression: magnetic.magnetosphereEnvironment
         ? `${magnetic.magnetosphereEnvironment.compressionClass} (${fmt(magnetic.magnetosphereEnvironment.windPressureEarthRatio, 2)}\u00d7 Earth wind)`
         : "Not evaluated",
@@ -1440,9 +1496,13 @@ export function calcGasGiant({
           ? `${moonTidalHeatingW.toExponential(2)} W (${fmt(moonTidalFraction * 100, 2)}% of internal heat)`
           : "No moons assigned",
       sputteringPlasma:
-        magnetic.sputteringPlasmaW > 0
-          ? `${magnetic.sputteringPlasmaW.toExponential(2)} W equiv. (atmospheric sputtering)`
+        magnetic.moonPlasmaSourcePowerW > 0
+          ? `${magnetic.moonPlasmaSourcePowerW.toExponential(2)} W equiv. (${magnetic.moonPlasmaSourceMode})`
           : "None",
+      moonPlasmaSource:
+        magnetic.moonPlasmaSourcePowerW > 0
+          ? `${magnetic.moonPlasmaSourceClass} (${magnetic.moonPlasmaSourceConfidence} confidence)`
+          : "Minimal",
       bands: `${dynamics.bandCount} bands, ${dynamics.windDirection} winds`,
       windSpeed: `${fmt(dynamics.equatorialWindMs, 0)} m/s`,
       orbitalPeriod: `${fmt(orbitalPeriodYears, 2)} yr (${fmt(orbitalPeriodDays, 1)} days)`,
@@ -1503,6 +1563,15 @@ export function calcGasGiant({
       radiusAgeNote: ageRadius.radiusAgeNote,
       ringType: `${ringProperties.ringType} — ${ringProperties.ringComposition}`,
       ringDetails: `τ ≈ ${fmt(ringProperties.opticalDepth, 2)} (${ringProperties.opticalDepthClass}), ${ringProperties.estimatedMassKg.toExponential(2)} kg`,
+      ringArchitecture: ringMagnetosphereContext.outputs.ringArchitectureClass,
+      ringLifetime: ringMagnetosphereContext.outputs.ringLifetimeClass,
+      ringSourcePersistence: ringMagnetosphereContext.outputs.sourcePersistenceClass,
+      observabilityTransitSnr: observabilityContext.outputs.transitSnrClass,
+      observabilityTransmission: observabilityContext.outputs.transmissionFeatureDetectabilityClass,
+      observabilityReadiness: observabilityContext.outputs.transmissionSpectrumReadinessClass,
+      observabilityAtmospherePersistence:
+        observabilityContext.outputs.atmospherePersistenceObservabilityClass,
+      observabilityActivityNoise: observabilityContext.outputs.stellarActivityNoiseClass,
       tidalLocking: `τ_lock = ${
         tidal.lockingTimescaleGyr >= 1e6 ? "≫ age" : `${fmt(tidal.lockingTimescaleGyr, 2)} Gyr`
       }${

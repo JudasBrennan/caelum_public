@@ -45,6 +45,94 @@ function retainedHeavySpeciesScore(jeansEscapeSpecies = {}) {
   return retained / keys.length;
 }
 
+function includesText(value, needle) {
+  return String(value || "")
+    .toLowerCase()
+    .includes(String(needle || "").toLowerCase());
+}
+
+function atmosphereEvolutionPersistenceScore(environment = {}) {
+  const pressureTrend = environment.atmosphereEvolutionPressureTrendClass;
+  const volatileLoss = environment.atmosphereEvolutionVolatileLossRiskClass;
+  const lifetime = environment.atmosphereEvolutionLifetimeClass;
+  const composition = environment.atmosphereEvolutionCompositionStabilityClass;
+  if (!pressureTrend && !volatileLoss && !lifetime && !composition) return null;
+
+  let score = 1;
+  if (includesText(pressureTrend, "rapid") || includesText(pressureTrend, "no durable")) {
+    score = Math.min(score, 0.25);
+  } else if (includesText(pressureTrend, "declin")) {
+    score = Math.min(score, 0.48);
+  } else if (includesText(pressureTrend, "balanced")) {
+    score = Math.min(score, 0.82);
+  }
+
+  if (includesText(volatileLoss, "high")) score = Math.min(score, 0.36);
+  else if (includesText(volatileLoss, "moderate")) score = Math.min(score, 0.65);
+  else if (includesText(volatileLoss, "low")) score = Math.min(score, 0.86);
+
+  if (includesText(lifetime, "none")) score = Math.min(score, 0.2);
+  else if (includesText(lifetime, "rapid") || includesText(lifetime, "transient")) {
+    score = Math.min(score, 0.45);
+  } else if (includesText(lifetime, "short")) {
+    score = Math.min(score, 0.58);
+  }
+
+  if (includesText(composition, "escape-sensitive")) score = Math.min(score, 0.68);
+  if (includesText(composition, "surface-buffered")) score = Math.max(score, 0.75);
+  return clamp(score, 0, 1);
+}
+
+function stellarHistoryPersistenceScore(environment = {}) {
+  const rawDose = Number(environment.stellarHistoryIntegratedXuvDoseEarth);
+  const hasDose = Number.isFinite(rawDose);
+  const dose = Math.max(hasDose ? rawDose : 1, 0);
+  const waterLossScore = clamp(toFinite(environment.stellarHistoryWaterLossRiskScore, 0), 0, 1);
+  const abioticOxygenScore = clamp(
+    toFinite(environment.stellarHistoryAbioticOxygenRiskScore, 0),
+    0,
+    1,
+  );
+  const waterLossClass = environment.stellarHistoryWaterLossRiskClass;
+  const abioticClass = environment.stellarHistoryAbioticOxygenRiskClass;
+  if (
+    !hasDose &&
+    !waterLossClass &&
+    !abioticClass &&
+    waterLossScore <= 0 &&
+    abioticOxygenScore <= 0
+  ) {
+    return null;
+  }
+
+  let score = 1 - 0.55 * waterLossScore - 0.3 * abioticOxygenScore;
+  if (dose > 1) score = Math.min(score, xuvPersistenceScore(dose));
+  if (includesText(waterLossClass, "high") || includesText(abioticClass, "high")) {
+    score = Math.min(score, 0.38);
+  } else if (includesText(waterLossClass, "moderate") || includesText(abioticClass, "moderate")) {
+    score = Math.min(score, 0.68);
+  }
+  return clamp(score, 0.15, 1);
+}
+
+function confidenceRank(value) {
+  return { high: 3, medium: 2, low: 1, unknown: 0 }[String(value || "unknown")] ?? 0;
+}
+
+function dynamicalVariabilityPersistenceScore(environment = {}) {
+  const riskClass = String(environment.dynamicalVariabilityRiskClass || "").toLowerCase();
+  const warning = String(environment.dynamicalVariabilityWarning || "").toLowerCase();
+  const confidence = String(environment.dynamicalVariabilityConfidence || "unknown");
+  const explicitModifier = Number(environment.dynamicalVariabilityPersistenceModifier);
+  if (!riskClass && !warning && !Number.isFinite(explicitModifier)) return null;
+  if (confidenceRank(confidence) < confidenceRank("medium")) return null;
+  if (Number.isFinite(explicitModifier)) return clamp(explicitModifier, 0, 1);
+  if (riskClass === "high" || warning.includes("high")) return 0.82;
+  if (riskClass === "moderate" || warning.includes("seasonal")) return 0.9;
+  if (riskClass === "low") return 0.96;
+  return 1;
+}
+
 function tidalPersistenceScore(tidalHeatingEarth) {
   const tidal = Math.max(toFinite(tidalHeatingEarth, 0), 0);
   if (tidal <= 0.05) return 1;
@@ -79,9 +167,30 @@ export function computeHabitabilityPersistenceModel(
       ? clamp(toFinite(climate.stabilityMultiplier, 0), 0, 1)
       : clamp(toFinite(pathwayPersistenceScore, 0), 0, 1);
   const tidalScore = tidalPersistenceScore(energy.tidalHeatingEarth);
+  const atmosphereEvolutionScore = atmosphereEvolutionPersistenceScore(environment);
+  const stellarHistoryScore = stellarHistoryPersistenceScore(environment);
+  const dynamicalVariabilityScore = dynamicalVariabilityPersistenceScore(environment);
   const multiplier = weightedMean(
-    [ageScore, xuvScore, escapeScore, resolvedPathwayPersistenceScore, tidalScore],
-    [0.2, 0.2, 0.25, 0.2, 0.15],
+    [
+      ageScore,
+      xuvScore,
+      escapeScore,
+      resolvedPathwayPersistenceScore,
+      tidalScore,
+      atmosphereEvolutionScore ?? escapeScore,
+      stellarHistoryScore ?? xuvScore,
+      dynamicalVariabilityScore ?? resolvedPathwayPersistenceScore,
+    ],
+    [
+      0.17,
+      0.15,
+      0.2,
+      0.17,
+      0.12,
+      atmosphereEvolutionScore == null ? 0 : 0.11,
+      stellarHistoryScore == null ? 0 : 0.08,
+      dynamicalVariabilityScore == null ? 0 : 0.05,
+    ],
   );
 
   return {
@@ -94,6 +203,9 @@ export function computeHabitabilityPersistenceModel(
       climatePersistenceScore: resolvedPathwayPersistenceScore,
       pathwayPersistenceScore: resolvedPathwayPersistenceScore,
       tidalScore,
+      atmosphereEvolutionScore,
+      stellarHistoryScore,
+      dynamicalVariabilityScore,
     },
   };
 }

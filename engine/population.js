@@ -261,6 +261,7 @@ export function calcPopulation({
   regionCount = 10,
   zipfExponent = 1.0,
   hydrosphere = null,
+  productivityContext = null,
   oceanPctOverride = null,
   habitablePctOverride = null,
   productivePctOverride = null,
@@ -297,7 +298,12 @@ export function calcPopulation({
   const habitableAreaKm2 = landAreaKm2 * (habitablePct / 100);
 
   // ── Productivity ──
-  const autoProd = productivityFraction(climateZones);
+  const productivityModifier = clamp(
+    toFinite(productivityContext?.outputs?.populationCarryingCapacityModifier, 1),
+    0.1,
+    1.15,
+  );
+  const autoProd = clamp(productivityFraction(climateZones) * productivityModifier, 0, 1);
   const productivePct =
     productivePctOverride != null
       ? clamp(toFinite(productivePctOverride, 50), 0, 100)
@@ -364,6 +370,7 @@ export function calcPopulation({
       habitableIsAuto: habitablePctOverride == null,
       productiveIsAuto: productivePctOverride == null,
       cropIsAuto: cropPctOverride == null,
+      productivityContextApplied: productivePctOverride == null && productivityContext != null,
     },
     population: {
       surfaceAreaKm2,

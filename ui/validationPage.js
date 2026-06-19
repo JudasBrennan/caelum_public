@@ -2,6 +2,16 @@ import { escapeHtml } from "./uiHelpers.js";
 
 const REPORT_CANDIDATES = Object.freeze([
   {
+    dataUrl: "reports/science-verification-matrix.json",
+    htmlUrl: "reports/science-verification-matrix.html",
+    markdownUrl: "reports/science-verification-matrix.md",
+  },
+  {
+    dataUrl: "test-results/science-verification-matrix.json",
+    htmlUrl: "test-results/science-verification-matrix.html",
+    markdownUrl: "test-results/science-verification-matrix.md",
+  },
+  {
     dataUrl: "reports/model-calibration-report.json",
     htmlUrl: "reports/model-calibration-report.html",
     markdownUrl: "reports/model-calibration-report.md",
@@ -14,22 +24,88 @@ const REPORT_CANDIDATES = Object.freeze([
 ]);
 
 const STATUS_LABELS = Object.freeze({
-  CHECK: "Needs calibration",
+  PASS: "Pass",
+  WARN: "Warning",
+  FAIL: "Failure",
   GAP: "Modeling gap",
   INFO: "Info",
-  OK: "OK",
+  BLOCKED: "Blocked",
+  OK: "Pass",
+  CHECK: "Needs calibration",
 });
 
-const VIEW_LABELS = Object.freeze({
-  all: "All rows",
-  issues: "Issues and gaps",
-  "hard-issue": "Hard calibration issues",
-  "semantic-mismatch": "Semantic mismatches",
-  "modeling-gap": "Modeling gaps",
-  watch: "High-uncertainty anchors",
-  resolved: "Resolved rows",
-  ok: "Passing rows",
+const FAMILY_LABELS = Object.freeze({
+  anchor: "Anchor",
+  invariant: "Invariant",
+  metamorphic: "Metamorphic",
+  boundary: "Boundary",
+  "cross-system": "Cross-system",
+  unit: "Unit",
+  oracle: "Oracle",
+  sensitivity: "Sensitivity",
+  population: "Population",
+  browser: "Browser",
+  "source-coverage": "Source coverage",
+  "release-gate": "Release gate",
 });
+
+const MATRIX_TERM_DEFINITIONS = Object.freeze([
+  {
+    term: "Benchmark anchors",
+    definition:
+      "Direct comparisons against trusted published reference values, such as NASA/JPL or peer-reviewed benchmark cases.",
+  },
+  {
+    term: "Invariants",
+    definition:
+      "Physical rules that should always hold, such as positive masses, normalized fractions, and stable unit relationships.",
+  },
+  {
+    term: "Trend checks",
+    definition:
+      "Metamorphic tests that confirm outputs move in the expected direction when one physical input is changed.",
+  },
+  {
+    term: "Boundary checks",
+    definition:
+      "Regime-edge tests around thresholds such as phase changes, stability limits, escape limits, and classification boundaries.",
+  },
+  {
+    term: "Cross-system coupling",
+    definition:
+      "Checks that one model's output is carried into downstream models that should physically depend on it.",
+  },
+  {
+    term: "Units",
+    definition:
+      "Dimensional and conversion checks that catch scale errors between AU, km, Earth units, solar units, SI units, years, and days.",
+  },
+  {
+    term: "Independent formula oracles",
+    definition:
+      "Small standalone calculations used to verify core equations without relying on the same implementation path as the engine.",
+  },
+  {
+    term: "Sensitivity",
+    definition:
+      "Perturbation checks that make sure small input changes produce bounded, explainable output changes.",
+  },
+  {
+    term: "Population sanity",
+    definition:
+      "Generated-world checks that catch unrealistic distributions, missing regimes, or guided outputs outside expected physical ranges.",
+  },
+  {
+    term: "Browser coverage",
+    definition:
+      "Production-bundle checks that confirm the user-visible app can load, render, import, export, and navigate with the matrix in place.",
+  },
+  {
+    term: "Release gate",
+    definition:
+      "A required command or review step that must pass before release, including regression tests, matrix generation, build, bundle budget, and browser smoke tests.",
+  },
+]);
 
 function normalize(value) {
   return String(value ?? "")
@@ -47,71 +123,19 @@ function optionHtml(value, label = value) {
   return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
 }
 
-function optionsHtml(values, allLabel) {
-  return [optionHtml("", allLabel), ...values.map((value) => optionHtml(value))].join("");
-}
-
-function rowIssueKind(row) {
-  if (row.issueKind) return row.issueKind;
-  if (row.comparisonSemantics === "semantic-mismatch") return "semantic-mismatch";
-  if (row.status === "CHECK") return "hard-issue";
-  if (row.status === "GAP") return "modeling-gap";
-  if (row.highUncertaintyWithinBroadTolerance) return "watch";
-  if (row.resolvedSincePreviousRun) return "resolved";
-  if (row.status === "INFO") return "info";
-  return "ok";
-}
-
-function rowIssueClass(row) {
-  if (row.issueClass) return row.issueClass;
-  const kind = rowIssueKind(row);
-  if (kind === "semantic-mismatch") return "row-semantic";
-  if (kind === "hard-issue") return "row-check";
-  if (kind === "modeling-gap") return "row-gap";
-  if (kind === "watch") return "row-watch";
-  return "row-ok";
-}
-
-function rowStatusLabel(row) {
-  return row.displayStatus || STATUS_LABELS[row.status] || row.status || "Unknown";
-}
-
-function rowSearchText(row) {
+function optionsHtml(values, allLabel, labels = {}) {
   return [
-    row.category,
-    row.object,
-    row.metric,
-    row.input,
-    row.output,
-    row.reference,
-    row.diffDisplay,
-    row.status,
-    row.displayStatus,
-    row.sourceCategory,
-    row.modelQuantityKind,
-    row.referenceQuantityKind,
-    row.comparisonSemantics,
-    row.uncertaintyKind,
-    row.calibrationAction,
-    row.source,
-    row.note,
-  ]
-    .map((value) => String(value ?? ""))
-    .join(" ")
-    .toLowerCase();
+    optionHtml("", allLabel),
+    ...values.map((value) => optionHtml(value, labels[value] || value)),
+  ].join("");
 }
 
-function anchorValue(row) {
-  return row.solarSystemAnchor ? "solar" : "non-solar";
+function statusLabel(status) {
+  return STATUS_LABELS[status] || status || "Unknown";
 }
 
-function viewMatches(row, view) {
-  const kind = rowIssueKind(row);
-  if (!view || view === "all") return true;
-  if (view === "issues") {
-    return kind === "hard-issue" || kind === "semantic-mismatch" || kind === "modeling-gap";
-  }
-  return kind === view;
+function familyLabel(family) {
+  return FAMILY_LABELS[family] || family || "Unknown";
 }
 
 function kpiHtml(label, value, className = "") {
@@ -121,39 +145,180 @@ function kpiHtml(label, value, className = "") {
   </div>`;
 }
 
-function formatWorst(summary) {
-  if (!summary?.worst) return "n/a";
-  return `${summary.worst.object} - ${summary.worst.metric} (${summary.worst.diffDisplay})`;
+function matrixTermDefinitionsHtml() {
+  return `<dl class="validation-term-list">
+    ${MATRIX_TERM_DEFINITIONS.map(
+      ({ term, definition }) => `<div class="validation-term-list__item">
+        <dt>${escapeHtml(term)}</dt>
+        <dd>${escapeHtml(definition)}</dd>
+      </div>`,
+    ).join("")}
+  </dl>`;
 }
 
-function summaryTableHtml(caption, summaries, labelHeader) {
-  if (!summaries?.length) return "";
-  const rows = summaries
+function rowSearchText(row, modelAreaLabel = "") {
+  return [
+    row.modelAreaId,
+    modelAreaLabel,
+    row.family,
+    row.subject,
+    row.metric,
+    row.inputSummary,
+    row.output,
+    row.expected,
+    row.tolerance,
+    row.status,
+    row.severity,
+    row.confidence,
+    row.comparisonSemantics,
+    row.sourceClass,
+    row.action,
+    ...(row.assumptions || []),
+    ...(row.limitations || []),
+    ...(row.downstreamConsumers || []),
+  ]
+    .map((value) => String(value ?? ""))
+    .join(" ")
+    .toLowerCase();
+}
+
+function previousIssueKind(row) {
+  if (row.issueKind) return row.issueKind;
+  if (row.status === "CHECK") return "hard-issue";
+  if (row.status === "GAP") return "modeling-gap";
+  if (row.status === "INFO") return "info";
+  return "ok";
+}
+
+function convertPreviousCalibrationReport(report) {
+  const previousRows = Array.isArray(report.rows) ? report.rows : [];
+  const rows = previousRows.map((row, index) => ({
+    id: `previous-calibration-${index}`,
+    modelAreaId: row.category || "Previous calibration",
+    family: "anchor",
+    subject: row.object || "",
+    metric: row.metric || "",
+    inputSummary: row.input || "",
+    output: row.output || "",
+    expected: row.reference || "",
+    tolerance: row.toleranceDisplay || "",
+    status: row.status === "OK" ? "PASS" : row.status === "CHECK" ? "FAIL" : row.status || "INFO",
+    severity: row.status === "CHECK" ? "high" : row.status === "GAP" ? "medium" : "info",
+    confidence: row.highUncertaintyWithinBroadTolerance ? "low" : "medium",
+    comparisonSemantics: row.comparisonSemantics || previousIssueKind(row),
+    sourceClass: row.solarSystemAnchor ? "NASA" : row.sourceCategory || "Previous calibration",
+    sourceUrls: [],
+    assumptions: [row.modelQuantityKind, row.referenceQuantityKind].filter(Boolean),
+    limitations: [row.uncertaintyKind, row.note].filter(Boolean),
+    downstreamConsumers: [],
+    action: row.calibrationAction || "",
+    userVisible: true,
+  }));
+  const modelAreaLabels = Object.fromEntries(
+    uniqueSorted(rows.map((row) => row.modelAreaId)).map((id) => [id, id]),
+  );
+  return {
+    schemaVersion: 1,
+    generatedAt: report.generatedAt,
+    generatedBy: report.generatedBy || "previous calibration report",
+    scope: report.scope || "Previous benchmark-only calibration report.",
+    interpretation:
+      report.interpretation ||
+      "These rows are benchmark anchors from the previous calibration report format.",
+    headlineCounts: {
+      modelAreas: Object.keys(modelAreaLabels).length,
+      verificationRows: rows.length,
+      passedRows: rows.filter((row) => row.status === "PASS").length,
+      warningRows: 0,
+      failedRows: rows.filter((row) => row.status === "FAIL").length,
+      gapRows: rows.filter((row) => row.status === "GAP").length,
+      blockedRows: 0,
+      infoRows: rows.filter((row) => row.status === "INFO").length,
+      releaseGatesPassed: 0,
+      releaseGatesFailed: 0,
+    },
+    filters: {
+      modelAreaLabels,
+      modelAreas: Object.keys(modelAreaLabels),
+      families: ["anchor"],
+      statuses: uniqueSorted(rows.map((row) => row.status)),
+      severities: uniqueSorted(rows.map((row) => row.severity)),
+      sourceClasses: uniqueSorted(rows.map((row) => row.sourceClass)),
+      confidences: uniqueSorted(rows.map((row) => row.confidence)),
+    },
+    modelAreas: Object.entries(modelAreaLabels).map(([id, label]) => ({
+      id,
+      label,
+      trustLevel: "bounded",
+      registryKeys: [],
+      coverageSummary: { anchor: true },
+    })),
+    verificationRows: rows,
+    rows,
+    releaseGates: [],
+    openGaps: rows.filter((row) => row.status === "GAP" || row.status === "FAIL"),
+    recommendations: [
+      {
+        priority: "transition",
+        text: "Regenerate the Science Verification Matrix to replace this previous report.",
+      },
+    ],
+  };
+}
+
+function normalizeReport(report) {
+  if (Array.isArray(report.verificationRows)) {
+    return {
+      ...report,
+      rows: report.verificationRows,
+      filters: {
+        ...report.filters,
+        modelAreaLabels:
+          report.filters?.modelAreaLabels ||
+          Object.fromEntries((report.modelAreas || []).map((area) => [area.id, area.label])),
+      },
+    };
+  }
+  return convertPreviousCalibrationReport(report);
+}
+
+function statusBadgeHtml(row) {
+  const status = String(row.status || "INFO").toLowerCase();
+  return `<span class="validation-status validation-status--${escapeHtml(status)}">${escapeHtml(
+    statusLabel(row.status),
+  )}</span>`;
+}
+
+function coverageBadges(area) {
+  const coverage = area.coverageSummary || {};
+  const families = Object.entries(coverage).filter(([, covered]) => covered);
+  if (!families.length) return `<span class="hint">No direct rows yet</span>`;
+  return families
+    .map(([family]) => `<span class="badge">${escapeHtml(familyLabel(family))}</span>`)
+    .join(" ");
+}
+
+function modelAreaTableHtml(modelAreas = []) {
+  if (!modelAreas.length) return "";
+  const rows = modelAreas
     .map(
-      (summary) => `<tr>
-        <td>${escapeHtml(summary.label || summary.category)}</td>
-        <td class="number">${escapeHtml(summary.rows)}</td>
-        <td class="number">${escapeHtml(summary.numeric)}</td>
-        <td class="number">${escapeHtml(summary.meanDisplay || "n/a")}</td>
-        <td class="number">${escapeHtml(summary.checks)}</td>
-        <td class="number">${escapeHtml(summary.gaps)}</td>
-        <td>${escapeHtml(formatWorst(summary))}</td>
+      (area) => `<tr>
+        <td>${escapeHtml(area.label || area.id)}</td>
+        <td>${escapeHtml(area.trustLevel || "bounded")}</td>
+        <td>${escapeHtml((area.registryKeys || []).join(", ") || "n/a")}</td>
+        <td>${coverageBadges(area)}</td>
       </tr>`,
     )
     .join("");
-
   return `<div class="validation-table-shell validation-table-shell--compact">
     <table>
-      <caption>${escapeHtml(caption)}</caption>
+      <caption>Model area coverage</caption>
       <thead>
         <tr>
-          <th>${escapeHtml(labelHeader)}</th>
-          <th>Rows</th>
-          <th>Numeric</th>
-          <th>Mean delta</th>
-          <th>Checks</th>
-          <th>Gaps</th>
-          <th>Worst numeric delta</th>
+          <th>Model area</th>
+          <th>Trust</th>
+          <th>Registry keys</th>
+          <th>Verification families</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -161,38 +326,58 @@ function summaryTableHtml(caption, summaries, labelHeader) {
   </div>`;
 }
 
-function statusBadgeHtml(row) {
-  const status = String(row.status || "INFO").toLowerCase();
-  return `<span class="validation-status validation-status--${escapeHtml(status)}">${escapeHtml(
-    rowStatusLabel(row),
-  )}</span>`;
+function releaseGateTableHtml(rows = []) {
+  if (!rows.length)
+    return `<p class="hint">No release gate rows were recorded in this artifact.</p>`;
+  const body = rows
+    .map(
+      (row) => `<tr>
+        <td>${escapeHtml(row.subject)}</td>
+        <td>${escapeHtml(row.inputSummary)}</td>
+        <td>${statusBadgeHtml(row)}</td>
+        <td>${escapeHtml(row.output)}</td>
+        <td>${escapeHtml(row.action)}</td>
+      </tr>`,
+    )
+    .join("");
+  return `<div class="validation-table-shell validation-table-shell--compact">
+    <table>
+      <caption>Release gates</caption>
+      <thead>
+        <tr>
+          <th>Gate</th>
+          <th>Command</th>
+          <th>Status</th>
+          <th>Recorded result</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>${body}</tbody>
+    </table>
+  </div>`;
 }
 
-function calibrationRowHtml(row) {
-  const searchText = rowSearchText(row);
-  const sourceCategory = row.sourceCategory || "Unclassified";
-  const anchor = anchorValue(row);
+function verificationRowHtml(row, modelAreaLabel) {
   return `<tr
-    class="validation-calibration-row ${escapeHtml(rowIssueClass(row))}"
-    data-search="${escapeHtml(searchText)}"
+    class="validation-calibration-row validation-verification-row"
+    data-search="${escapeHtml(rowSearchText(row, modelAreaLabel))}"
+    data-model-area="${escapeHtml(row.modelAreaId || "")}"
+    data-family="${escapeHtml(row.family || "")}"
     data-status="${escapeHtml(row.status || "")}"
-    data-issue-kind="${escapeHtml(rowIssueKind(row))}"
-    data-category="${escapeHtml(row.category || "")}"
-    data-source-category="${escapeHtml(sourceCategory)}"
-    data-anchor="${escapeHtml(anchor)}"
+    data-severity="${escapeHtml(row.severity || "")}"
+    data-source-class="${escapeHtml(row.sourceClass || "")}"
+    data-confidence="${escapeHtml(row.confidence || "")}"
   >
-    <td>${escapeHtml(row.category)}</td>
-    <td>${escapeHtml(row.object)}</td>
+    <td>${escapeHtml(modelAreaLabel || row.modelAreaId)}</td>
+    <td>${escapeHtml(familyLabel(row.family))}</td>
+    <td>${escapeHtml(row.subject)}</td>
     <td>${escapeHtml(row.metric)}</td>
     <td>${escapeHtml(row.output)}</td>
-    <td>${escapeHtml(row.reference)}</td>
-    <td class="number">${escapeHtml(row.diffDisplay || "n/a")}</td>
-    <td class="number">${escapeHtml(row.toleranceDisplay || "n/a")}</td>
+    <td>${escapeHtml(row.expected)}</td>
     <td>${statusBadgeHtml(row)}</td>
-    <td>${escapeHtml(sourceCategory)}</td>
-    <td>${escapeHtml(anchor === "solar" ? "Solar System" : "Non-Solar")}</td>
-    <td>${escapeHtml(row.calibrationAction || "")}</td>
-    <td>${escapeHtml(row.note || "")}</td>
+    <td>${escapeHtml(row.severity)}</td>
+    <td>${escapeHtml(row.sourceClass)}</td>
+    <td>${escapeHtml(row.action)}</td>
   </tr>`;
 }
 
@@ -205,22 +390,21 @@ function renderShell(root) {
           <span class="ws-icon icon--validation" aria-hidden="true"></span>
           <span>Validation</span>
         </h1>
-        <div class="badge">Calibration</div>
+        <div class="badge">Science Matrix</div>
       </div>
       <div class="panel__body">
         <p>
-          WorldSmith validates the generic engine against Solar System anchors,
-          benchmark-star observations, and selected non-Solar exoplanet anchors.
-          These checks are used to catch weak regimes without teaching the model
-          special rules for Sol.
+          WorldSmith verifies science with benchmark anchors, physical
+          invariants, trend checks, boundary checks, cross-system coupling,
+          unit checks, formula oracles, population checks, and release gates.
         </p>
         <p class="hint">
-          The release bundle includes this report as prebuilt static data; it is
-          refreshed during release verification.
+          The release bundle includes this matrix as prebuilt static data and
+          refreshes it during release preparation.
         </p>
         <div class="validation-actions">
-          <a class="validation-action validation-action--accent" data-validation-html href="reports/model-calibration-report.html" target="_blank" rel="noopener noreferrer">Standalone HTML</a>
-          <a class="validation-action" data-validation-markdown href="reports/model-calibration-report.md" target="_blank" rel="noopener noreferrer">Markdown</a>
+          <a class="validation-action validation-action--accent" data-validation-html href="reports/science-verification-matrix.html" target="_blank" rel="noopener noreferrer">Standalone HTML</a>
+          <a class="validation-action" data-validation-markdown href="reports/science-verification-matrix.md" target="_blank" rel="noopener noreferrer">Markdown</a>
           <a class="validation-action" href="#/science">Science &amp; Maths</a>
         </div>
       </div>
@@ -228,7 +412,7 @@ function renderShell(root) {
     <div class="validation-report" data-validation-content>
       <div class="panel">
         <div class="panel__body">
-          <p class="hint">Loading prebuilt calibration report...</p>
+          <p class="hint">Loading prebuilt science verification matrix...</p>
         </div>
       </div>
     </div>
@@ -242,24 +426,35 @@ function renderError(contentEl, error) {
         <h2 class="panel__title">Report Unavailable</h2>
       </div>
       <div class="panel__body">
-        <p>The prebuilt calibration report could not be loaded.</p>
+        <p>The prebuilt science verification matrix could not be loaded.</p>
         <p class="hint">${escapeHtml(error?.message || error)}</p>
-        <p class="hint">Run <code>npm run calibration:report</code> and rebuild the app to refresh the release artifact.</p>
+        <p class="hint">Run <code>npm run science:verify</code> and rebuild the app to refresh the release artifact.</p>
       </div>
     </div>
   `;
 }
 
-function renderReport(root, report) {
+function renderReport(root, rawReport) {
+  const report = normalizeReport(rawReport);
   const contentEl = root.querySelector("[data-validation-content]");
   const counts = report.headlineCounts || {};
   const rows = Array.isArray(report.rows) ? report.rows : [];
-  const categories = report.filters?.categories?.length
-    ? report.filters.categories
-    : uniqueSorted(rows.map((row) => row.category));
-  const sourceCategories = report.filters?.sourceCategories?.length
-    ? report.filters.sourceCategories
-    : uniqueSorted(rows.map((row) => row.sourceCategory));
+  const labels = report.filters?.modelAreaLabels || {};
+  const modelAreaIds = report.filters?.modelAreas?.length
+    ? report.filters.modelAreas
+    : uniqueSorted(rows.map((row) => row.modelAreaId));
+  const families = report.filters?.families?.length
+    ? report.filters.families
+    : uniqueSorted(rows.map((row) => row.family));
+  const statuses = report.filters?.statuses?.length
+    ? report.filters.statuses
+    : uniqueSorted(rows.map((row) => row.status));
+  const severities = report.filters?.severities?.length
+    ? report.filters.severities
+    : uniqueSorted(rows.map((row) => row.severity));
+  const sourceClasses = report.filters?.sourceClasses?.length
+    ? report.filters.sourceClasses
+    : uniqueSorted(rows.map((row) => row.sourceClass));
 
   const htmlLink = root.querySelector("[data-validation-html]");
   const markdownLink = root.querySelector("[data-validation-markdown]");
@@ -267,26 +462,29 @@ function renderReport(root, report) {
   if (markdownLink && report.artifactMarkdownUrl) markdownLink.href = report.artifactMarkdownUrl;
 
   contentEl.innerHTML = `
-    <div class="validation-kpis" aria-label="Calibration report headline counts">
-      ${kpiHtml("Calibration rows", counts.totalRows ?? rows.length)}
-      ${kpiHtml("Numeric rows", counts.numericRows ?? rows.filter((row) => Number.isFinite(row.diffPct)).length)}
-      ${kpiHtml("Needs attention", counts.checks ?? rows.filter((row) => row.status === "CHECK").length, "validation-kpi--check")}
-      ${kpiHtml("Hard physics issues", counts.hardIssues ?? rows.filter((row) => rowIssueKind(row) === "hard-issue").length, "validation-kpi--check")}
-      ${kpiHtml("Modeling gaps", counts.gaps ?? rows.filter((row) => row.status === "GAP").length, "validation-kpi--gap")}
-      ${kpiHtml("Resolved", counts.resolvedRows ?? rows.filter((row) => rowIssueKind(row) === "resolved").length, "validation-kpi--ok")}
+    <div class="validation-kpis" aria-label="Science verification headline counts">
+      ${kpiHtml("Model areas", counts.modelAreas ?? report.modelAreas?.length ?? 0)}
+      ${kpiHtml("Verification rows", counts.verificationRows ?? rows.length)}
+      ${kpiHtml("Pass", counts.passedRows ?? rows.filter((row) => row.status === "PASS").length, "validation-kpi--ok")}
+      ${kpiHtml("Warnings", counts.warningRows ?? rows.filter((row) => row.status === "WARN").length)}
+      ${kpiHtml("Failures", counts.failedRows ?? rows.filter((row) => row.status === "FAIL").length, "validation-kpi--check")}
+      ${kpiHtml("Modeling gaps", counts.gapRows ?? rows.filter((row) => row.status === "GAP").length, "validation-kpi--gap")}
+      ${kpiHtml("Blocked", counts.blockedRows ?? rows.filter((row) => row.status === "BLOCKED").length)}
+      ${kpiHtml("Release gates passed", counts.releaseGatesPassed ?? 0)}
     </div>
 
     <div class="panel validation-explainer">
       <div class="panel__body">
         <div class="validation-explainer__grid">
           <div>
-            <h2>What The Report Means</h2>
+            <h2>What The Matrix Means</h2>
             <p>${escapeHtml(report.scope || "")}</p>
             <p>${escapeHtml(report.interpretation || "")}</p>
+            ${matrixTermDefinitionsHtml()}
           </div>
           <div>
-            <h2>Generalization Coverage</h2>
-            ${summaryTableHtml("Anchor summary", report.anchorSummary || [], "Anchor group")}
+            <h2>Release Gates</h2>
+            ${releaseGateTableHtml(report.releaseGates || [])}
           </div>
         </div>
       </div>
@@ -294,84 +492,65 @@ function renderReport(root, report) {
 
     <div class="panel">
       <div class="panel__header">
-        <h2 class="panel__title">Calibration Rows</h2>
+        <h2 class="panel__title">Model Area Coverage</h2>
+      </div>
+      <div class="panel__body">
+        ${modelAreaTableHtml(report.modelAreas || [])}
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel__header">
+        <h2 class="panel__title">Verification Matrix</h2>
         <div class="badge" data-validation-count aria-live="polite">${escapeHtml(rows.length)} rows</div>
       </div>
       <div class="panel__body">
-        <div class="validation-controls" aria-label="Calibration report filters">
+        <div class="validation-controls" aria-label="Science verification filters">
           <label class="validation-field validation-field--search">
             <span>Search</span>
-            <input data-validation-search type="search" autocomplete="off" placeholder="planet, metric, source, action..." />
+            <input data-validation-search type="search" autocomplete="off" placeholder="model, metric, output, action..." />
           </label>
           <label class="validation-field">
-            <span>View</span>
-            <select data-validation-view>
-              ${Object.entries(VIEW_LABELS)
-                .map(([value, label]) => optionHtml(value, label))
-                .join("")}
-            </select>
+            <span>Model area</span>
+            <select data-validation-model-area>${optionsHtml(modelAreaIds, "All model areas", labels)}</select>
+          </label>
+          <label class="validation-field">
+            <span>Family</span>
+            <select data-validation-family>${optionsHtml(families, "All families", FAMILY_LABELS)}</select>
           </label>
           <label class="validation-field">
             <span>Status</span>
-            <select data-validation-status>
-              <option value="">All statuses</option>
-              ${Object.entries(STATUS_LABELS)
-                .map(([value, label]) => optionHtml(value, label))
-                .join("")}
-            </select>
+            <select data-validation-status>${optionsHtml(statuses, "All statuses", STATUS_LABELS)}</select>
           </label>
           <label class="validation-field">
-            <span>Category</span>
-            <select data-validation-category>${optionsHtml(categories, "All categories")}</select>
+            <span>Severity</span>
+            <select data-validation-severity>${optionsHtml(severities, "All severities")}</select>
           </label>
           <label class="validation-field">
-            <span>Anchor</span>
-            <select data-validation-anchor>
-              <option value="">All anchors</option>
-              <option value="solar">Solar System</option>
-              <option value="non-solar">Non-Solar</option>
-            </select>
-          </label>
-          <label class="validation-field">
-            <span>Source group</span>
-            <select data-validation-source>${optionsHtml(sourceCategories, "All source groups")}</select>
+            <span>Source</span>
+            <select data-validation-source-class>${optionsHtml(sourceClasses, "All sources")}</select>
           </label>
         </div>
         <div class="validation-table-shell">
           <table>
             <thead>
               <tr>
-                <th>Category</th>
-                <th>Object</th>
+                <th>Model area</th>
+                <th>Family</th>
+                <th>Subject</th>
                 <th>Metric</th>
-                <th>Model output</th>
-                <th>Reference</th>
-                <th>Delta</th>
-                <th>Tolerance</th>
+                <th>Output</th>
+                <th>Expected</th>
                 <th>Status</th>
-                <th>Source group</th>
-                <th>Anchor</th>
+                <th>Severity</th>
+                <th>Source</th>
                 <th>Action</th>
-                <th>Note</th>
               </tr>
             </thead>
-            <tbody>${rows.map(calibrationRowHtml).join("")}</tbody>
+            <tbody>${rows
+              .map((row) => verificationRowHtml(row, labels[row.modelAreaId] || row.modelAreaId))
+              .join("")}</tbody>
           </table>
-        </div>
-      </div>
-    </div>
-
-    <div class="validation-summary-grid">
-      <div class="panel">
-        <div class="panel__body">
-          <h2>Category Summary</h2>
-          ${summaryTableHtml("Category summary", report.categorySummary || [], "Category")}
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel__body">
-          <h2>Source Summary</h2>
-          ${summaryTableHtml("Source category summary", report.sourceCategorySummary || [], "Source group")}
         </div>
       </div>
     </div>
@@ -383,25 +562,24 @@ function renderReport(root, report) {
 function attachFilters(contentEl) {
   const controls = {
     search: contentEl.querySelector("[data-validation-search]"),
-    view: contentEl.querySelector("[data-validation-view]"),
+    modelArea: contentEl.querySelector("[data-validation-model-area]"),
+    family: contentEl.querySelector("[data-validation-family]"),
     status: contentEl.querySelector("[data-validation-status]"),
-    category: contentEl.querySelector("[data-validation-category]"),
-    anchor: contentEl.querySelector("[data-validation-anchor]"),
-    source: contentEl.querySelector("[data-validation-source]"),
+    severity: contentEl.querySelector("[data-validation-severity]"),
+    sourceClass: contentEl.querySelector("[data-validation-source-class]"),
   };
   const countEl = contentEl.querySelector("[data-validation-count]");
-  const rows = Array.from(contentEl.querySelectorAll(".validation-calibration-row"));
+  const rows = Array.from(contentEl.querySelectorAll(".validation-verification-row"));
 
   const matches = (row) => {
     const query = normalize(controls.search?.value);
     if (query && !normalize(row.dataset.search).includes(query)) return false;
-    if (!viewMatches({ issueKind: row.dataset.issueKind }, controls.view?.value || "all")) {
+    if (controls.modelArea?.value && row.dataset.modelArea !== controls.modelArea.value)
       return false;
-    }
+    if (controls.family?.value && row.dataset.family !== controls.family.value) return false;
     if (controls.status?.value && row.dataset.status !== controls.status.value) return false;
-    if (controls.category?.value && row.dataset.category !== controls.category.value) return false;
-    if (controls.anchor?.value && row.dataset.anchor !== controls.anchor.value) return false;
-    if (controls.source?.value && row.dataset.sourceCategory !== controls.source.value)
+    if (controls.severity?.value && row.dataset.severity !== controls.severity.value) return false;
+    if (controls.sourceClass?.value && row.dataset.sourceClass !== controls.sourceClass.value)
       return false;
     return true;
   };
@@ -422,7 +600,7 @@ function attachFilters(contentEl) {
   applyFilters();
 }
 
-async function loadCalibrationReport() {
+async function loadValidationReport() {
   const fetchImpl = globalThis.fetch;
   if (typeof fetchImpl !== "function") {
     throw new Error("This browser environment does not expose fetch().");
@@ -471,7 +649,7 @@ export function initValidationPage(mountEl, options = {}) {
     };
   }
 
-  void loadCalibrationReport()
+  void loadValidationReport()
     .then((report) => {
       if (active) renderReport(root, report);
     })

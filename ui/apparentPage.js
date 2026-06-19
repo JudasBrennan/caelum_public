@@ -6,18 +6,23 @@ import { bindNumberAndSlider } from "./bind.js";
 import {
   renderApparentBodyRows,
   renderApparentHomeSelector,
+  renderApparentObserverSelector,
   renderApparentKpis,
   renderApparentMoonRows,
   renderApparentSolRefRows,
   renderApparentStarRows,
 } from "./apparent/domRender.js";
+import {
+  listObserverFrameCandidates,
+  observerRefToSelectValue,
+} from "../engine/contexts/observerFrameContext.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { drawSkyCanvasNative, disposeSkyCanvasNative } from "./lazyApparentSkyNative.js";
 import { getSelectedPlanet, loadWorld } from "./store.js";
 import { createTutorial } from "./tutorial.js";
 
 const TIP_LABEL = {
-  "Home world": "Reference world used for apparent brightness and apparent size outputs.",
+  "Reference body": "Planet or moon used as the observer frame for apparent brightness and size.",
   "Moon phase":
     "Phase angle applied to all moons uniformly. 0\u00b0 = full (opposition), " +
     "180\u00b0 = new (conjunction, invisible).\n\n" +
@@ -188,6 +193,11 @@ export function initApparentPage(mountEl) {
 
   const state = {
     homePlanetId: selectedPlanet?.id || Object.keys(initialSnapshot.planetsById || {})[0] || "",
+    homeBodyRef: selectedPlanet?.id
+      ? { kind: "planet", id: selectedPlanet.id }
+      : Object.keys(initialSnapshot.planetsById || {})[0]
+        ? { kind: "planet", id: Object.keys(initialSnapshot.planetsById || {})[0] }
+        : null,
     moonPhaseDeg: 0,
     distanceByBodyId: {},
     skyMode: "night",
@@ -213,7 +223,7 @@ export function initApparentPage(mountEl) {
         <div class="panel__body">
           <div class="form-row">
             <div>
-              <div class="label">Home world ${tipIcon(TIP_LABEL["Home world"])}</div>
+              <div class="label">Reference body ${tipIcon(TIP_LABEL["Reference body"])}</div>
             </div>
             <select id="apparentHomePlanet"></select>
           </div>
@@ -373,6 +383,7 @@ export function initApparentPage(mountEl) {
   const skyHintEl = wrap.querySelector("#skyCanvasHint");
   const skyPairAnimationToggleEl = wrap.querySelector("#skyPairAnimationToggle");
   let skyRendererReady = true;
+  let observerCandidates = [];
 
   const skyUnmountObserver = new MutationObserver(() => {
     if (wrap.isConnected) return;
@@ -399,23 +410,44 @@ export function initApparentPage(mountEl) {
     const snapshot = buildWorldSnapshot(loadWorld(), {
       mode: SNAPSHOT_MODE_BUDGETS.apparentSelectors,
     });
+    observerCandidates = listObserverFrameCandidates(snapshot);
+    const selectedValue = renderApparentObserverSelector(
+      homeSelectEl,
+      observerCandidates,
+      observerRefToSelectValue(state.homeBodyRef),
+    );
+    const selectedCandidate = observerCandidates.find(
+      (candidate) => String(candidate?.selectValue || "") === String(selectedValue || ""),
+    );
+    if (selectedCandidate?.observerRef) {
+      state.homeBodyRef = { ...selectedCandidate.observerRef };
+      state.homePlanetId =
+        selectedCandidate.observerRef.kind === "moon"
+          ? selectedCandidate.observerRef.parentId || ""
+          : selectedCandidate.observerRef.id || "";
+      return;
+    }
     const planets = Object.values(snapshot.planetsById || {});
     state.homePlanetId = renderApparentHomeSelector(homeSelectEl, planets, state.homePlanetId);
+    state.homeBodyRef = state.homePlanetId ? { kind: "planet", id: state.homePlanetId } : null;
   }
 
   function render() {
     const latest = loadWorld();
     const snapshot = buildWorldSnapshot(latest, { mode: SNAPSHOT_MODE_BUDGETS.apparentPage });
     const sample = buildApparentSnapshotInputs(snapshot, {
+      homeBodyRef: state.homeBodyRef,
       homePlanetId: state.homePlanetId,
       distanceByBodyId: state.distanceByBodyId,
       moonPhaseDeg: state.moonPhaseDeg,
     });
+    state.homeBodyRef = sample.homeBodyRef || state.homeBodyRef;
+    state.homePlanetId = sample.homePlanetId || state.homePlanetId;
 
     const model = calcApparentModel({
       starMassMsol: sample.starMassMsol,
       homeOrbitAu: sample.homeOrbitAu,
-      orbitSamples: sample.orbitSamples.filter((row) => row.id !== `planet:${state.homePlanetId}`),
+      orbitSamples: sample.orbitSamples,
       bodySamples: sample.bodySamples,
       moonSamples: sample.moonSamples,
     });
@@ -502,7 +534,7 @@ export function initApparentPage(mountEl) {
         {
           label: "Moon count",
           value: String(model.moons.length),
-          meta: "assigned to home world",
+          meta: sample.isMoonObserver ? "shown as nearby bodies" : "assigned to reference body",
         },
         {
           label: "Visible suns",
@@ -555,7 +587,7 @@ export function initApparentPage(mountEl) {
 
     // Sky canvas
     const starModel = sample.starModel;
-    if (!state.homePlanetId) {
+    if (!sample.homeBodyRef) {
       // No home planet — show placeholder message on the canvas.
       const rect = skyWrapEl?.getBoundingClientRect?.();
       if (rect && skyCanvasEl) {
@@ -602,7 +634,16 @@ export function initApparentPage(mountEl) {
   }
 
   homeSelectEl?.addEventListener("change", () => {
-    state.homePlanetId = String(homeSelectEl.value || "");
+    const selectedCandidate = observerCandidates.find(
+      (candidate) => String(candidate?.selectValue || "") === String(homeSelectEl.value || ""),
+    );
+    state.homeBodyRef = selectedCandidate?.observerRef
+      ? { ...selectedCandidate.observerRef }
+      : null;
+    state.homePlanetId =
+      state.homeBodyRef?.kind === "moon"
+        ? state.homeBodyRef.parentId || ""
+        : state.homeBodyRef?.id || "";
     refreshSelectors();
     render();
   });

@@ -268,12 +268,31 @@ export function getPlanetTectonicContext(world) {
     massEarth: model.inputs?.massEarth || 1,
     ageGyr: Number(starConfig?.ageGyr) || 4.6,
     surfaceTempK: model.derived.surfaceTempK || 288,
-    h2oPct: model.inputs?.h2oPct || 0,
+    h2oPct:
+      model.derived.hydrosphere?.surfaceAccessibleLiquidFraction != null
+        ? model.derived.hydrosphere.surfaceAccessibleLiquidFraction * 100
+        : model.inputs?.h2oPct || 0,
     compositionClass: model.derived.compositionClass || "Earth-like",
     tidalHeatingWm2: model.derived.planetTidalHeatingWm2 || 0,
     radioisotopeAbundance: model.derived.radioisotopeAbundance ?? 1,
+    geodynamicsContext: model.derived.geodynamicsContext || null,
     limitedSurfaceMessage: pageApplicability?.status === "limited" ? subtypeMessage : "",
   };
+}
+
+function geodynamicsReadoutHTML(ctx) {
+  const geo = ctx?.geodynamicsContext;
+  if (!geo?.outputs) return "";
+  const out = geo.outputs;
+  const limits =
+    Array.isArray(geo.limitingFactors) && geo.limitingFactors.length
+      ? ` Limits: ${geo.limitingFactors.join("; ")}`
+      : "";
+  return `<div class="derived-readout">Geodynamics: ${escapeHtml(
+    out.tectonicRegime || "unknown",
+  )}; heat ${escapeHtml(out.internalHeatClass || "unknown")}; convection ${escapeHtml(
+    out.convectiveVigorClass || "unknown",
+  )}; weathering ${escapeHtml(out.weatheringFeedbackClass || "unknown")}.${escapeHtml(limits)}</div>`;
 }
 
 // ── Canvas drawing helpers ───────────────────────────────
@@ -1231,7 +1250,7 @@ export function initTectonicsPage(containerEl) {
 
     const el = containerEl.querySelector("#tecOutputs");
     if (!el) return;
-    el.innerHTML = `${pCtx.limitedSurfaceMessage ? `<div class="derived-readout">${escapeHtml(pCtx.limitedSurfaceMessage)}</div>` : ""}${outputsHTML(model, activeProfile, selIdx, arcDist)}`;
+    el.innerHTML = `${pCtx.limitedSurfaceMessage ? `<div class="derived-readout">${escapeHtml(pCtx.limitedSurfaceMessage)}</div>` : ""}${geodynamicsReadoutHTML(pCtx)}${outputsHTML(model, activeProfile, selIdx, arcDist)}`;
     attachTooltips(el);
     enableKpiInteractions(containerEl);
     drawOutputCanvases(el, model, activeProfile, arcDist);
@@ -1598,6 +1617,7 @@ export function initTectonicsPage(containerEl) {
                   ? `<div class="derived-readout">${escapeHtml(ctx.limitedSurfaceMessage)}</div>`
                   : ""
               }
+              ${geodynamicsReadoutHTML(ctx)}
               ${outputsHTML(model, activeProfile, selIdx, arcDist)}
             </div>
           </div>

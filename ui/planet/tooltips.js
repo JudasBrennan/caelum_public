@@ -119,9 +119,13 @@ export const TIP_LABEL = {
   "Environment Forcing":
     "Canonical host-frame forcing used by the body solver: bolometric light, XUV, prebiotic UV, stellar wind, companion contributions, and flux variability. Eccentric-orbit means are retained for science checks while baseline at-orbit values keep existing climate outputs stable.",
   "Coupled Climate Tendency":
-    "Phase 4 diagnostic showing how photochemical haze, methane, sulfur aerosols, and bounded feedbacks would tend to shift the climate label if the chemistry forcing were opted in. The baseline surface temperature is not changed.",
+    "Bounded second-pass climate tendency from photochemical haze, methane, sulfur aerosols, clouds, water vapour, and CO2 weathering/outgassing feedback. Baseline values are preserved; when confidence gates pass, an effective climate state is shown beside them.",
   "Photochemical Forcing":
     "Bounded diagnostic temperature delta from climate-chemistry coupling. Negative values usually mean organic haze or sulfur aerosol cooling; positive values usually mean methane greenhouse plus allowed water-vapour feedback.",
+  "Atmosphere Evolution":
+    "Bounded atmosphere source/sink tendency from pressure, escape, retained volatiles, and carbon-cycle context. This is not a reservoir time integration and it never rewrites manual atmosphere inputs.",
+  "CO2 Tendency":
+    "Carbonate-silicate and outgassing tendency for CO2 drawdown or buildup. It can add a small bounded climate tendency, but it does not mutate atmospheric composition.",
   "Cloud Regime":
     "Cloud and circulation context inferred from pressure, exposed water, temperature, rotation, tidal lock state, stellar flux, haze, and collapse risk. It is diagnostic and does not directly rewrite the baseline temperature solve.",
   "Heat Redistribution":

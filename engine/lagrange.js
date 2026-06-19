@@ -12,6 +12,31 @@ import { toFinite } from "./utils.js";
 /** Gascheau critical mass parameter for L4/L5 stability. */
 const MU_CRIT = (1 - Math.sqrt(69) / 9) / 2; // ≈ 0.03852
 
+function clamp01(value) {
+  const number = toFinite(value, 0);
+  return Math.min(1, Math.max(0, number));
+}
+
+export function classifyTrojanStabilityRegion({
+  mu,
+  eccentricity = 0,
+  inclinationDeg = 0,
+  neighboringPerturbationClass = "none",
+} = {}) {
+  const massParameter = toFinite(mu, NaN);
+  if (!Number.isFinite(massParameter)) return "unknown";
+  if (massParameter >= MU_CRIT) return "unstable";
+  const text = String(neighboringPerturbationClass || "").toLowerCase();
+  const perturbation = text.includes("strong") ? 0.55 : text.includes("moderate") ? 0.3 : 0;
+  const stress =
+    clamp01(toFinite(eccentricity, 0) / 0.25) +
+    clamp01(Math.abs(toFinite(inclinationDeg, 0)) / 45) +
+    perturbation;
+  if (stress >= 1.15) return "eroded";
+  if (stress >= 0.65) return "narrow";
+  return "broad";
+}
+
 /**
  * @param {object} params
  * @param {number} params.bodyAu       Semi-major axis of the body (AU)
@@ -31,10 +56,11 @@ export function calcLagrangePoints({ bodyAu, bodyMass, starMass, bodyAngleRad })
   const hillAu = a * (massRatio / 3) ** (1 / 3);
   const mu = mb / (mb + ms);
   const l45Stable = mu < MU_CRIT;
+  const l45Region = classifyTrojanStabilityRegion({ mu });
 
   return {
     hill: { au: hillAu },
-    stability: { mu, muCrit: MU_CRIT, l45Stable },
+    stability: { mu, muCrit: MU_CRIT, l45Stable, l45Region },
     points: {
       L1: { label: "L1", au: a - hillAu, angleRad: angle },
       L2: { label: "L2", au: a + hillAu, angleRad: angle },

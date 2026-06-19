@@ -1,5 +1,4 @@
 import { calcPopulation, TECH_ERAS } from "../engine/population.js";
-import { calcClimateZones } from "../engine/climate.js";
 import { fmt } from "../engine/utils.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { escapeHtml } from "./uiHelpers.js";
@@ -153,26 +152,17 @@ function getPopulationContext(world) {
 
   if (!model?.derived) return fallback;
 
-  const climate = calcClimateZones({
-    surfaceTempK: model.derived.surfaceTempK || 288,
-    axialTiltDeg: model.inputs?.axialTiltDeg ?? 23.44,
-    circulationCellCount: model.derived.circulationCellCount || "3",
-    circulationCellRanges: model.derived.circulationCellRanges || [],
-    h2oPct: model.inputs?.h2oPct || 0,
-    waterRegime: model.derived.waterRegime || "Extensive oceans",
-    pressureAtm: model.inputs?.pressureAtm ?? 1,
-    tidallyLockedToStar: !!model.derived.tidallyLockedToStar,
-    compositionClass: model.derived.compositionClass || "Earth-like",
-    liquidWaterPossible: !!model.derived.liquidWaterPossible,
-    climateState: model.derived.climateState || "Stable",
-    gravityG: model.derived.gravityG || 1,
-  });
+  const climateZones = Array.isArray(model.derived.surfaceClimateContext?.outputs?.zones)
+    ? model.derived.surfaceClimateContext.outputs.zones
+    : [];
 
   return {
     radiusKm: model.derived.radiusKm || 6371,
     waterRegime: model.derived.waterRegime || "Extensive oceans",
     hydrosphere: model.derived.hydrosphere || null,
-    climateZones: climate.zones || [],
+    surfaceClimateContext: model.derived.surfaceClimateContext || null,
+    productivityContext: model.derived.productivityContext || null,
+    climateZones,
     limitedSurfaceMessage: pageApplicability?.status === "limited" ? subtypeMessage : "",
   };
 }

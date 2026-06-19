@@ -1103,6 +1103,30 @@ function buildRockyDiagnostics(
     );
   }
 
+  const nitrogen = derived.nitrogenCycleContext?.outputs || {};
+  if (/strong|severe/i.test(String(nitrogen.nutrientLimitationClass || ""))) {
+    pushDiagnostic(
+      diagnostics,
+      "warning",
+      "nitrogen-nutrient-limited",
+      "Nitrogen nutrient context is limiting",
+      `The preview reports ${nitrogen.nutrientLimitationClass}; this affects productivity context but does not imply biology.`,
+      [nitrogen.guidedAtmosphereRecommendation || "Review N2 pressure support on the Planet page."],
+    );
+  } else if (
+    nitrogen.guidedAtmosphereRecommendation &&
+    !/^No nitrogen-specific atmosphere change/i.test(nitrogen.guidedAtmosphereRecommendation)
+  ) {
+    pushDiagnostic(
+      diagnostics,
+      "info",
+      "nitrogen-atmosphere-guidance",
+      "Nitrogen atmosphere guidance",
+      nitrogen.guidedAtmosphereRecommendation,
+      ["Review N2 partial pressure after applying the recommendation."],
+    );
+  }
+
   const solveError = solved?.error;
   if (solveError) {
     pushDiagnostic(

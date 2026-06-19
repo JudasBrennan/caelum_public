@@ -167,6 +167,17 @@ export function normalizeHabitabilityContext(rawContext = {}) {
       surfaceRadiationShieldingFactor: optionalFraction(
         environment.surfaceRadiationShieldingFactor,
       ),
+      planetRadiationSurfaceClass: String(environment.planetRadiationSurfaceClass || ""),
+      planetRadiationSurfaceHazardScore: optionalFraction(
+        environment.planetRadiationSurfaceHazardScore,
+      ),
+      planetRadiationSurfaceProtectionScore: optionalFraction(
+        environment.planetRadiationSurfaceProtectionScore,
+      ),
+      planetRadiationAuroraReadinessClass: String(
+        environment.planetRadiationAuroraReadinessClass || "",
+      ),
+      planetRadiationConfidence: String(environment.planetRadiationConfidence || ""),
       atmosphereTrendClass: String(environment.atmosphereTrendClass || ""),
       atmosphereTimescaleClass: String(environment.atmosphereTimescaleClass || ""),
       atmosphereSourceIndex: optionalFraction(environment.atmosphereSourceIndex),
@@ -175,6 +186,37 @@ export function normalizeHabitabilityContext(rawContext = {}) {
       atmosphereDominantSource: String(environment.atmosphereDominantSource || ""),
       atmosphereDominantSink: String(environment.atmosphereDominantSink || ""),
       atmosphereLedgerConfidence: String(environment.atmosphereLedgerConfidence || ""),
+      atmosphereEvolutionPressureTrendClass: String(
+        environment.atmosphereEvolutionPressureTrendClass || "",
+      ),
+      atmosphereEvolutionVolatileLossRiskClass: String(
+        environment.atmosphereEvolutionVolatileLossRiskClass || "",
+      ),
+      atmosphereEvolutionLifetimeClass: String(environment.atmosphereEvolutionLifetimeClass || ""),
+      atmosphereEvolutionCompositionStabilityClass: String(
+        environment.atmosphereEvolutionCompositionStabilityClass || "",
+      ),
+      atmosphereEvolutionConfidence: String(environment.atmosphereEvolutionConfidence || ""),
+      stellarHistoryIntegratedXuvDoseEarth: optionalFiniteNonNegative(
+        environment.stellarHistoryIntegratedXuvDoseEarth,
+      ),
+      stellarHistoryWaterLossRiskClass: String(environment.stellarHistoryWaterLossRiskClass || ""),
+      stellarHistoryWaterLossRiskScore: optionalFraction(
+        environment.stellarHistoryWaterLossRiskScore,
+      ),
+      stellarHistoryAbioticOxygenRiskClass: String(
+        environment.stellarHistoryAbioticOxygenRiskClass || "",
+      ),
+      stellarHistoryAbioticOxygenRiskScore: optionalFraction(
+        environment.stellarHistoryAbioticOxygenRiskScore,
+      ),
+      stellarHistoryPreMainSequenceExposureClass: String(
+        environment.stellarHistoryPreMainSequenceExposureClass || "",
+      ),
+      stellarHistoryWindErosionDoseClass: String(
+        environment.stellarHistoryWindErosionDoseClass || "",
+      ),
+      stellarHistoryConfidence: String(environment.stellarHistoryConfidence || ""),
       carbonCycleTendency: String(environment.carbonCycleTendency || ""),
       carbonCycleConfidence: String(environment.carbonCycleConfidence || ""),
       carbonCycleStabilityModifier: optionalFraction(environment.carbonCycleStabilityModifier),
@@ -192,6 +234,12 @@ export function normalizeHabitabilityContext(rawContext = {}) {
       o2O3FalsePositiveRisk: String(environment.o2O3FalsePositiveRisk || ""),
       methaneContext: String(environment.methaneContext || ""),
       coBuildupRisk: String(environment.coBuildupRisk || ""),
+      dynamicalVariabilityRiskClass: String(environment.dynamicalVariabilityRiskClass || ""),
+      dynamicalVariabilityWarning: String(environment.dynamicalVariabilityWarning || ""),
+      dynamicalVariabilityConfidence: String(environment.dynamicalVariabilityConfidence || ""),
+      dynamicalVariabilityPersistenceModifier: optionalFraction(
+        environment.dynamicalVariabilityPersistenceModifier,
+      ),
       cloudHeatRedistributionEfficiency: optionalFraction(
         environment.cloudHeatRedistributionEfficiency,
       ),

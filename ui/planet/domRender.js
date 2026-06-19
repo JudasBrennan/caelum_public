@@ -26,6 +26,11 @@ function hintNode(text) {
   return createElement("div", { className: "hint", text });
 }
 
+export function renderHint(container, text) {
+  if (!container) return;
+  container.replaceChildren(hintNode(text));
+}
+
 function tagNode(text, className = "veg-info-tag") {
   return createElement("span", { className, text });
 }

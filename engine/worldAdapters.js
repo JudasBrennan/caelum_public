@@ -1,10 +1,16 @@
 import { buildWorldHomeSystemContext, buildWorldSnapshot } from "./worldSnapshot.js";
+import { buildOrbitalEpochContext } from "./contexts/orbitalEpochContext.js";
+import {
+  buildObserverFrameContext,
+  observerRefToSelectValue,
+} from "./contexts/observerFrameContext.js";
 import {
   bondToGeometricAlbedo,
   calcStarAbsoluteMagnitude,
   calcStarApparentAtOrbit,
   classifyBodyType,
 } from "./apparent.js";
+import { auToKilometers } from "./physics/orbital.js";
 import { buildHomeSystemContext, resolveHostFrameContext } from "./homeSystem/context.js";
 import {
   listCompanionStarsForHostFrame,
@@ -31,6 +37,8 @@ import {
 } from "../ui/planet/subtypeVisualHints.js";
 
 const MOON_PHASE_INTEGRAL = 0.9;
+const AU_IN_KM = auToKilometers(1);
+const MOON_RADIUS_KM = 1738.1;
 export const SNAPSHOT_MODE_BUDGETS = Object.freeze({
   importPreview: "summary",
   systemPoster: "full",
@@ -176,6 +184,58 @@ function isObjectRecord(value) {
 function toFiniteOrNull(value) {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
+}
+
+function positiveOrNull(value) {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
+function normalizeHomeBodyRef(homeBodyRef, homePlanetId = "") {
+  if (homeBodyRef && typeof homeBodyRef === "object") {
+    const kind = String(homeBodyRef.kind || "").trim() === "moon" ? "moon" : "planet";
+    const id = String(homeBodyRef.id || "").trim();
+    if (id) {
+      return kind === "moon"
+        ? { kind, id, parentId: String(homeBodyRef.parentId || "").trim() || undefined }
+        : { kind, id };
+    }
+  }
+  const fallbackPlanetId = String(homePlanetId || "").trim();
+  return fallbackPlanetId ? { kind: "planet", id: fallbackPlanetId } : null;
+}
+
+function bodySampleIdForObserverParent(parentKind, parentId) {
+  if (!parentId) return "";
+  return parentKind === "gasGiant" ? `gas:${parentId}` : `planet:${parentId}`;
+}
+
+function snapshotParentBodyEntry(snapshot, parentId) {
+  const id = String(parentId || "").trim();
+  if (!id) return null;
+  return snapshot?.planetsById?.[id] || snapshot?.gasGiantsById?.[id] || null;
+}
+
+function moonOrbitKm(entry) {
+  return positiveOrNull(
+    entry?.model?.inputs?.semiMajorAxisKm ??
+      entry?.model?.orbit?.semiMajorAxisKm ??
+      entry?.orbitKm ??
+      entry?.source?.inputs?.semiMajorAxisKm,
+  );
+}
+
+function moonRadiusKm(entry) {
+  return (
+    positiveOrNull(entry?.model?.physical?.radiusKm) ||
+    positiveOrNull(entry?.model?.physical?.radiusMoon ?? entry?.radiusMoon) * MOON_RADIUS_KM ||
+    MOON_RADIUS_KM
+  );
+}
+
+function moonGeometricAlbedo(entry) {
+  const raw = entry?.source?.inputs || {};
+  return (Number(raw.albedo) || 0.11) / MOON_PHASE_INTEGRAL;
 }
 
 function titleCase(value) {
@@ -1032,14 +1092,20 @@ export function buildSystemPosterSnapshotInputs(
  * Apparent Size page.
  *
  * @param {object} snapshot
- * @param {{homePlanetId?: string, distanceByBodyId?: Record<string, number>, moonPhaseDeg?: number}} [options]
+ * @param {{homePlanetId?: string, homeBodyRef?: object, distanceByBodyId?: Record<string, number>, moonPhaseDeg?: number}} [options]
  * @returns {object}
  */
 export function buildApparentSnapshotInputs(
   snapshot,
-  { homePlanetId = "", distanceByBodyId = {}, moonPhaseDeg = 0 } = {},
+  { homePlanetId = "", homeBodyRef = null, distanceByBodyId = {}, moonPhaseDeg = 0 } = {},
 ) {
   const fullSnapshot = snapshot && typeof snapshot === "object" ? snapshot : {};
+  const requestedHomeRef = normalizeHomeBodyRef(homeBodyRef, homePlanetId);
+  const observerFrameContext = requestedHomeRef
+    ? buildObserverFrameContext(fullSnapshot, requestedHomeRef)
+    : null;
+  const resolvedHomeRef = observerFrameContext?.observerRef || requestedHomeRef;
+  const isMoonObserver = resolvedHomeRef?.kind === "moon";
   const planetEntries = getFullSnapshotPlanetEntries(fullSnapshot).map((entry) =>
     requireFullEntry(entry, "Planet adapter"),
   );
@@ -1103,6 +1169,9 @@ export function buildApparentSnapshotInputs(
           (volatileEntry ? "Mini-Neptune" : "Planet"),
         hostFrameId: entry.hostFrameId,
         orbitAu,
+        orbitalPeriodDays: Number(derived.orbitalPeriodEarthDays),
+        eccentricity: Number(raw.eccentricity ?? entry.model?.inputs?.eccentricity ?? 0),
+        inclinationDeg: Number(raw.inclinationDeg ?? entry.model?.inputs?.inclinationDeg ?? 0),
         radiusKm,
         geometricAlbedo: volatileEntry
           ? volatilePlanetGeometricAlbedo(entry)
@@ -1172,6 +1241,11 @@ export function buildApparentSnapshotInputs(
         classLabel,
         hostFrameId: entry.hostFrameId,
         orbitAu: Number(entry.model?.inputs?.orbitAu),
+        orbitalPeriodDays: Number(
+          entry.model?.orbital?.orbitalPeriodDays ?? entry.model?.orbit?.orbitalPeriodDays,
+        ),
+        eccentricity: Number(raw.eccentricity ?? entry.model?.inputs?.eccentricity ?? 0),
+        inclinationDeg: Number(raw.inclinationDeg ?? entry.model?.inputs?.inclinationDeg ?? 0),
         radiusKm: Number(entry.model?.physical?.radiusKm),
         geometricAlbedo: giantCompanionGeometricAlbedo(raw, entry.model),
         hasAtmosphere: true,
@@ -1194,12 +1268,31 @@ export function buildApparentSnapshotInputs(
   const allBodiesRaw = [...planets, ...gasGiants].sort(
     (left, right) => left.orbitAu - right.orbitAu,
   );
-  const selectedHomePlanet = planets.find((entry) => entry.id === `planet:${homePlanetId}`) || null;
-  const homeOrbitAu = selectedHomePlanet?.orbitAu || 1;
+  const resolvedHomePlanetId = isMoonObserver
+    ? String(resolvedHomeRef?.parentId || "")
+    : String(resolvedHomeRef?.id || homePlanetId || "");
+  const observerMoonEntry = isMoonObserver ? fullSnapshot.moonsById?.[resolvedHomeRef.id] : null;
+  const observerMoonOrbitKm = isMoonObserver ? moonOrbitKm(observerMoonEntry) : null;
+  const observerParentKind = isMoonObserver
+    ? fullSnapshot.gasGiantsById?.[resolvedHomePlanetId]
+      ? "gasGiant"
+      : "planet"
+    : "planet";
+  const parentBodySampleId = isMoonObserver
+    ? bodySampleIdForObserverParent(observerParentKind, resolvedHomePlanetId)
+    : "";
+  const selectedHomePlanet = !isMoonObserver
+    ? planets.find((entry) => entry.id === `planet:${resolvedHomePlanetId}`) || null
+    : null;
+  const selectedParentBody = isMoonObserver
+    ? allBodiesRaw.find((entry) => entry.id === parentBodySampleId) || null
+    : null;
+  const selectedHomeBody = isMoonObserver ? selectedParentBody : selectedHomePlanet;
+  const homeOrbitAu = selectedHomeBody?.orbitAu || 1;
   const fallbackHostFrameId =
     fullSnapshot.meta?.defaultHostFrameId || fullSnapshot.stellarSystem?.defaultHostFrameId || null;
   const homeHostFrameId = normalizeHostFrameId(
-    fullSnapshot.planetsById?.[homePlanetId]?.hostFrameId,
+    snapshotParentBodyEntry(fullSnapshot, resolvedHomePlanetId)?.hostFrameId,
     fallbackHostFrameId,
   );
   const homeSystemContext =
@@ -1261,43 +1354,157 @@ export function buildApparentSnapshotInputs(
     ? allBodiesRaw.filter(
         (entry) => normalizeHostFrameId(entry.hostFrameId, fallbackHostFrameId) === homeHostFrameId,
       )
-    : allBodiesRaw;
+    : selectedHomeBody
+      ? allBodiesRaw.filter(
+          (entry) =>
+            normalizeHostFrameId(entry.hostFrameId, fallbackHostFrameId) === homeHostFrameId,
+        )
+      : allBodiesRaw;
 
   const orbitSamples = allBodies
-    .filter((entry) => entry.id !== selectedHomePlanet?.id)
+    .filter((entry) => entry.id !== selectedHomeBody?.id)
     .map((entry) => ({
       id: entry.id,
       name: entry.name,
       orbitAu: entry.orbitAu,
     }));
 
-  const bodySamples = allBodies
-    .filter((entry) => entry.id !== selectedHomePlanet?.id)
+  let bodySamples = allBodies
+    .filter((entry) => (isMoonObserver ? true : entry.id !== selectedHomePlanet?.id))
     .map((entry) => {
       const currentDistanceAu = Number(distanceByBodyId?.[entry.id]);
+      const isObserverParent =
+        isMoonObserver && entry.id === parentBodySampleId && Number.isFinite(observerMoonOrbitKm);
+      const parentDistanceAu = isObserverParent ? observerMoonOrbitKm / AU_IN_KM : null;
       return {
         ...entry,
-        currentDistanceAu: Number.isFinite(currentDistanceAu) ? currentDistanceAu : undefined,
+        classLabel: isObserverParent ? `Parent ${entry.classLabel || "body"}` : entry.classLabel,
+        currentDistanceAu: isObserverParent
+          ? parentDistanceAu
+          : Number.isFinite(currentDistanceAu)
+            ? currentDistanceAu
+            : undefined,
+        minDistanceAu: isObserverParent ? parentDistanceAu : undefined,
+        maxDistanceAu: isObserverParent ? parentDistanceAu : undefined,
+        phaseAngleDeg:
+          isObserverParent && Number.isFinite(Number(moonPhaseDeg))
+            ? Number(moonPhaseDeg)
+            : undefined,
+        _moonObserverDistanceLocked: isObserverParent || undefined,
       };
     });
 
-  const moonIds = Array.isArray(fullSnapshot.moonsByParentId?.[homePlanetId])
-    ? fullSnapshot.moonsByParentId[homePlanetId]
+  const moonIds = Array.isArray(fullSnapshot.moonsByParentId?.[resolvedHomePlanetId])
+    ? fullSnapshot.moonsByParentId[resolvedHomePlanetId]
     : [];
 
-  const moonSamples = moonIds
+  const moonSamples = (isMoonObserver ? [] : moonIds)
     .map((moonId) => requireFullEntry(fullSnapshot.moonsById?.[moonId], "Moon adapter"))
     .map((entry) => {
       const raw = entry.source?.inputs || {};
       return {
         name: entry.name,
+        id: entry.id,
         semiMajorAxisKm: Number(entry.model?.inputs?.semiMajorAxisKm) || 384748,
+        synodicDays:
+          Number(entry.model?.orbit?.orbitalPeriodSynodicDays) ||
+          Number(entry.model?.inputs?.orbitalPeriodSynodicDays) ||
+          29.5306,
+        orbitalPeriodDays:
+          Number(entry.model?.orbit?.periodPlanetDays) ||
+          Number(entry.model?.orbit?.orbitalPeriodDays) ||
+          Number(entry.model?.inputs?.orbitalPeriodDays) ||
+          27.3217,
+        eccentricity: Number(
+          entry.model?.orbit?.eccentricity ?? entry.model?.inputs?.eccentricity ?? 0,
+        ),
+        inclinationDeg: Number(
+          entry.model?.orbit?.inclinationDeg ?? entry.model?.inputs?.inclinationDeg ?? 5.145,
+        ),
         radiusMoon: Number(entry.model?.physical?.radiusMoon) || 1,
         geometricAlbedo: (Number(raw.albedo) || 0.11) / MOON_PHASE_INTEGRAL,
         phaseDeg: moonPhaseDeg,
         moonCalc: entry.model,
       };
     });
+
+  if (isMoonObserver && Number.isFinite(observerMoonOrbitKm)) {
+    const siblingMoonSamples = moonIds
+      .filter((moonId) => String(moonId) !== String(resolvedHomeRef?.id || ""))
+      .map((moonId) => requireFullEntry(fullSnapshot.moonsById?.[moonId], "Moon adapter"))
+      .map((entry) => {
+        const siblingOrbitKm = moonOrbitKm(entry);
+        if (!Number.isFinite(siblingOrbitKm)) return null;
+        const minDistanceKm = Math.max(1, Math.abs(siblingOrbitKm - observerMoonOrbitKm));
+        const maxDistanceKm = Math.max(minDistanceKm, siblingOrbitKm + observerMoonOrbitKm);
+        const defaultDistanceKm = minDistanceKm + (maxDistanceKm - minDistanceKm) * 0.5;
+        const id = `moon:${entry.id}`;
+        const currentDistanceAu = Number(distanceByBodyId?.[id]);
+        return {
+          id,
+          kind: "moon",
+          name: entry.name,
+          classLabel: "Sibling Moon",
+          hostFrameId: homeHostFrameId,
+          orbitAu: homeOrbitAu,
+          orbitalPeriodDays: Number(entry.model?.orbit?.orbitalPeriodSiderealDays),
+          eccentricity: Number(
+            entry.model?.orbit?.eccentricity ?? entry.model?.inputs?.eccentricity ?? 0,
+          ),
+          inclinationDeg: Number(
+            entry.model?.orbit?.inclinationDeg ?? entry.model?.inputs?.inclinationDeg ?? 0,
+          ),
+          radiusKm: moonRadiusKm(entry),
+          geometricAlbedo: moonGeometricAlbedo(entry),
+          hasAtmosphere: false,
+          currentDistanceAu: Number.isFinite(currentDistanceAu)
+            ? currentDistanceAu
+            : defaultDistanceKm / AU_IN_KM,
+          minDistanceAu: minDistanceKm / AU_IN_KM,
+          maxDistanceAu: maxDistanceKm / AU_IN_KM,
+          phaseAngleDeg: Number.isFinite(Number(moonPhaseDeg)) ? Number(moonPhaseDeg) : undefined,
+          _moonObserverDistanceLocked: true,
+        };
+      })
+      .filter(Boolean);
+    bodySamples = [...bodySamples, ...siblingMoonSamples];
+  }
+
+  const orbitalEpochContext = buildOrbitalEpochContext({
+    epochDay: 0,
+    homeBody: {
+      id: isMoonObserver ? `moon:${resolvedHomeRef?.id || ""}` : selectedHomePlanet?.id,
+      orbitAu: homeOrbitAu,
+      orbitalPeriodDays: selectedHomeBody?.orbitalPeriodDays,
+      eccentricity: selectedHomeBody?.eccentricity,
+      inclinationDeg: selectedHomeBody?.inclinationDeg,
+    },
+    bodies: bodySamples,
+    moons: moonSamples,
+    manualDistanceByBodyId: distanceByBodyId,
+    manualMoonPhaseDeg:
+      Number.isFinite(Number(moonPhaseDeg)) && Number(moonPhaseDeg) !== 0 ? moonPhaseDeg : null,
+  });
+  bodySamples = bodySamples.map((entry) => {
+    if (entry._moonObserverDistanceLocked) return entry;
+    const geometry = orbitalEpochContext.outputs?.bodies?.[entry.id];
+    if (!geometry) return entry;
+    return {
+      ...entry,
+      currentDistanceAu: geometry.currentDistanceAu,
+      phaseAngleDeg: geometry.phaseAngleDeg,
+      _orbitalEpochGeometry: geometry,
+    };
+  });
+  const moonSamplesWithEpoch = moonSamples.map((entry) => {
+    const geometry = orbitalEpochContext.outputs?.moons?.[entry.id || entry.name];
+    if (!geometry) return entry;
+    return {
+      ...entry,
+      phaseDeg: geometry.phaseAngleDeg,
+      _orbitalEpochGeometry: geometry,
+    };
+  });
 
   return {
     starMassMsol: Number(
@@ -1325,12 +1532,20 @@ export function buildApparentSnapshotInputs(
     stellarSystem: fullSnapshot.stellarSystem || null,
     hostFramesById: fullSnapshot.hostFramesById || {},
     homeOrbitAu,
+    homeBodyRef: resolvedHomeRef || null,
+    homeBodySelectValue: observerRefToSelectValue(resolvedHomeRef),
+    homePlanetId: resolvedHomeRef?.kind === "planet" ? resolvedHomeRef.id : resolvedHomePlanetId,
+    isMoonObserver,
+    observerFrameContext,
+    selectedHomeBody,
     selectedHomePlanet,
+    selectedObserverMoon: observerMoonEntry || null,
     planets,
     allBodies,
     orbitSamples,
     bodySamples,
-    moonSamples,
+    moonSamples: moonSamplesWithEpoch,
+    orbitalEpochContext,
     homeSkyDayHex: selectedHomePlanet?.skyDayHex || null,
     homeSkyDayEdgeHex: selectedHomePlanet?.skyDayEdgeHex || null,
     homeSkyHorizonHex: selectedHomePlanet?.skyHorizonHex || null,

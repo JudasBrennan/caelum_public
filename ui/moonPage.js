@@ -235,6 +235,8 @@ const TIP_LABEL = {
     "Surface heat flux from tidal deformation of the moon by its parent body. Uses the Wisdom (2008) formula with higher-order eccentricity corrections that remain accurate up to e \u2248 0.8.\n\nHigher eccentricity and closer orbits produce more heating. Io: ~0.3\u20132 W/m\u00B2 (highest in the Solar System). Earth's geothermal flux: 0.09 W/m\u00B2.\n\nTidal-thermal feedback: for rocky moons (\u03C1 \u2265 3.2), when tidal flux exceeds ~0.02 W/m\u00B2 the model automatically lowers Q and \u03BC toward partially-molten values, modelling the positive feedback loop that drives Io-like volcanism in orbital resonances.",
   "Tidal Heating (\u00D7 Earth)":
     "Tidal surface heat flux normalised to Earth's mean geothermal heat flux (0.09 W/m\u00B2).\n\n<1 = less than Earth's internal heat. >1 = more. Io \u2248 4\u00D7 Earth (equilibrium model).",
+  "Stress Morphology":
+    "Analog-based terrain diagnostic from tidal heating, eccentricity, resonance support, hydrosphere, and resurfacing context. This is qualitative; it does not predict an exact fault map.",
   "Orbital Recession":
     "Rate of orbital migration due to tidal dissipation. Positive = outward (planet spins faster than moon orbits, like Earth\u2013Moon at +3.8 cm/yr). Negative = inward (planet spins slower, like Phobos spiralling toward Mars).\n\nDriven by two competing effects: the planet\u2019s tidal bulge transfers angular momentum, while the moon\u2019s own dissipation damps the orbit inward.",
   // Keep this tooltip aligned with the live orbital-fate solver.
@@ -270,9 +272,13 @@ const TIP_LABEL = {
     "High-level moon climate regime derived from the moon-specific climate model.\n\n" +
     "Stable, Snowball, Moist greenhouse, and Runaway greenhouse states reflect the modeled surface-water and temperature outcomes after planetshine, eclipses, and internal heating are considered.",
   "Coupled Climate Tendency":
-    "Phase 4 diagnostic showing how bounded chemistry forcing would tend to shift the moon climate label if opted in. The baseline moon surface temperature remains unchanged.",
+    "Bounded second-pass climate tendency from haze, methane, clouds, water vapour, and CO2 weathering/outgassing feedback. Baseline values are preserved; when confidence gates pass, an effective moon climate state is shown beside them.",
   "Photochemical Forcing":
     "Bounded diagnostic temperature delta from climate-chemistry coupling. For moons this is conservative because there is not yet a dedicated moon photochemistry solver.",
+  "Atmosphere Evolution":
+    "Bounded atmosphere source/sink tendency from pressure, escape, retained volatiles, and carbon-cycle context. This is not a reservoir time integration and it never rewrites manual atmosphere inputs.",
+  "CO2 Tendency":
+    "Carbonate-silicate and outgassing tendency for CO2 drawdown or buildup. It can add a small bounded climate tendency, but it does not mutate atmospheric composition.",
   "Cloud Regime":
     "Cloud and circulation context inferred from pressure, exposed water, temperature, rotation, host flux, haze, and atmospheric-collapse risk. Airless moons and subsurface-only oceans do not receive exposed-cloud benefits.",
   "Heat Redistribution":
@@ -309,6 +315,16 @@ const TIP_LABEL = {
   "Eclipse Cooling":
     "Fraction of the stellar energy budget lost to eclipses by the parent body.\n\n" +
     "Low-inclination close moons experience deeper eclipse forcing than high-inclination or distant moons.",
+  "Eclipse Timing":
+    "Whether the model has enough node, epoch, inclination, period, and radius data for exact eclipse scheduling. Without node and epoch data this remains a likelihood/readiness diagnostic.",
+  "Eclipse Frequency":
+    "Qualitative eclipse-season likelihood from inclination and angular-radius geometry. Phase alone is not enough for exact eclipse dates.",
+  "Laplace Regime":
+    "First-order Laplace-plane regime: whether parent oblateness or stellar tide dominates the moon orbit orientation. This is a bounded diagnostic, not a full secular integration.",
+  "Nodal Precession":
+    "Qualitative J2 nodal-precession class where parent J2 is available. Missing J2 keeps this partial.",
+  "Cassini Readiness":
+    "Readiness for Cassini-state or obliquity analysis. Exact spin-axis solutions need moment of inertia, obliquity, and precession inputs.",
   Atmosphere:
     "Derived moon atmosphere class from the retained volatile inventory.\n\n" +
     "Airless and exosphere states indicate no meaningful surface atmosphere. Thin, substantial, and dense volatile atmospheres represent retained or replenished gases near the surface.",
@@ -1875,6 +1891,13 @@ export function initMoonPage(mountEl, options = {}) {
               : "",
           ),
           buildMoonKpi(
+            "Atmosphere Evolution",
+            model.display.atmosphereEvolution,
+            model.environment?.atmosphereEvolutionContext?.manualOverrideProtected
+              ? "Manual values protected"
+              : model.display.atmosphereVolatileLoss || "",
+          ),
+          buildMoonKpi(
             "Dominant Source",
             model.display.atmosphereDominantSource,
             model.atmosphere?.ledger?.dominantSource?.reason || "",
@@ -1894,7 +1917,12 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi(
             "Coupled Climate Tendency",
             model.display.coupledClimateTendency,
-            `${model.display.photochemicalForcing} | baseline temperature unchanged`,
+            `${model.display.photochemicalForcing} | ${
+              model.environment?.coupledClimatePass?.applied ||
+              model.derived?.coupledClimatePass?.applied
+                ? "effective state applied"
+                : "baseline retained"
+            }`,
           ),
           buildMoonKpi(
             "Photochemical Forcing",
@@ -1916,6 +1944,13 @@ export function initMoonPage(mountEl, options = {}) {
             model.cloudCirculation?.substellarCloudDeckLikelihood != null
               ? `Substellar deck ${fmt(model.cloudCirculation.substellarCloudDeckLikelihood * 100, 0)}%`
               : "",
+          ),
+          buildMoonKpi(
+            "CO2 Tendency",
+            model.display.co2ClimateTendency,
+            `${model.display.co2BuildupTendency || "no buildup tendency"} | ${
+              model.display.co2ThermostatAdjustment || "0.0 K"
+            }`,
           ),
           buildMoonKpi("Atmosphere Lifetime", model.display.atmosphereLifetime),
           buildMoonKpi("Atmosphere Haze", model.display.atmosphereHaze),
@@ -1975,8 +2010,13 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Initial Rotation Period", model.display.initialRot),
           buildMoonKpi("Planetshine", model.display.planetshine),
           buildMoonKpi("Eclipse Cooling", model.display.eclipseCooling),
+          buildMoonKpi("Eclipse Timing", model.display.eclipseTimingReadiness),
+          buildMoonKpi("Eclipse Frequency", model.display.eclipseFrequency),
           buildMoonKpi("Nearest Resonance", model.display.nearestResonance),
           buildMoonKpi("Laplace Status", model.display.laplaceStatus),
+          buildMoonKpi("Laplace Regime", model.display.laplaceRegime),
+          buildMoonKpi("Nodal Precession", model.display.nodalPrecession),
+          buildMoonKpi("Cassini Readiness", model.display.cassiniReadiness),
           buildMoonKpi("Forced Eccentricity", model.display.forcedEccentricity),
           buildMoonKpi(
             "Eccentricity State",
@@ -2022,6 +2062,21 @@ export function initMoonPage(mountEl, options = {}) {
             model.display.tidalHeatingTotal,
           ),
           buildMoonKpi("Tidal Heating (\u00D7 Earth)", model.display.tidalHeatingXEarth),
+          buildMoonKpi(
+            "Stress Morphology",
+            model.display.stressMorphology || "Unknown",
+            model.display.stressTerrainNotes || model.display.stressConfidence || "",
+          ),
+          buildMoonKpi(
+            "Interior Evolution",
+            model.display.interiorEvolution,
+            model.display.interiorDynamoSupport,
+          ),
+          buildMoonKpi(
+            "Volcanic Longevity",
+            model.display.volcanicLongevity,
+            model.display.mantleRecyclingSupport,
+          ),
           buildMoonKpi(
             "Volcanic Activity",
             model.display.volcanicActivity,
@@ -2220,6 +2275,13 @@ export function initMoonPage(mountEl, options = {}) {
               meta: model.atmosphere?.ledger?.summary || "",
             },
             {
+              label: "Atmosphere Evolution",
+              value: model.display.atmosphereEvolution,
+              meta: model.environment?.atmosphereEvolutionContext?.manualOverrideProtected
+                ? "Manual values protected"
+                : model.display.atmosphereVolatileLoss || "",
+            },
+            {
               label: "Dominant Source",
               value: model.display.atmosphereDominantSource,
               meta: model.atmosphere?.ledger?.dominantSource?.reason || "",
@@ -2243,7 +2305,9 @@ export function initMoonPage(mountEl, options = {}) {
               value: model.display.coupledClimateTendency,
               meta:
                 model.climateChemistryForcing?.optInClimateState ||
-                "Derived-only diagnostic; baseline climate state retained",
+                (model.environment?.coupledClimatePass?.applied
+                  ? "Bounded effective state applied"
+                  : "Baseline climate state retained"),
             },
             {
               label: "Photochemical Forcing",
@@ -2278,6 +2342,13 @@ export function initMoonPage(mountEl, options = {}) {
                 model.cloudCirculation?.collapseRiskModifier != null
                   ? `Collapse risk modifier ${fmt(model.cloudCirculation.collapseRiskModifier, 2)}`
                   : "",
+            },
+            {
+              label: "CO2 Tendency",
+              value: model.display.co2ClimateTendency,
+              meta: `${model.display.co2BuildupTendency || "no buildup tendency"} | ${
+                model.display.co2ThermostatAdjustment || "0.0 K"
+              }`,
             },
             {
               label: "Cloud Albedo Effect",
@@ -2353,8 +2424,13 @@ export function initMoonPage(mountEl, options = {}) {
             { label: "Initial Rotation Period", value: model.display.initialRot },
             { label: "Planetshine", value: model.display.planetshine },
             { label: "Eclipse Cooling", value: model.display.eclipseCooling },
+            { label: "Eclipse Timing", value: model.display.eclipseTimingReadiness },
+            { label: "Eclipse Frequency", value: model.display.eclipseFrequency },
             { label: "Nearest Resonance", value: model.display.nearestResonance },
             { label: "Laplace Status", value: model.display.laplaceStatus },
+            { label: "Laplace Regime", value: model.display.laplaceRegime },
+            { label: "Nodal Precession", value: model.display.nodalPrecession },
+            { label: "Cassini Readiness", value: model.display.cassiniReadiness },
             { label: "Forced Eccentricity", value: model.display.forcedEccentricity },
             {
               label: "Eccentricity State",
@@ -2408,6 +2484,15 @@ export function initMoonPage(mountEl, options = {}) {
               meta: model.display.tidalHeatingTotal,
             },
             { label: "Tidal Heating (× Earth)", value: model.display.tidalHeatingXEarth },
+            {
+              label: "Stress Morphology",
+              value: model.display.stressMorphology || "Unknown",
+              meta:
+                model.display.stressTerrainNotes ||
+                (model.display.stressConfidence
+                  ? `${String(model.display.stressConfidence).toUpperCase()} confidence`
+                  : ""),
+            },
             {
               label: "Volcanic Activity",
               value: model.display.volcanicActivity,

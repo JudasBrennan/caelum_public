@@ -24,6 +24,7 @@ import {
   normalizeGiantCompanionClass,
   regimeDisplayLabel,
 } from "../../engine/substellarRegime.js";
+import { buildSmallBodyReservoirContextForWorld } from "../../engine/smallBodyReservoirRouting.js";
 import { clamp } from "../../engine/utils.js";
 import {
   GAS_GIANT_RADIUS_MAX_RJ,
@@ -536,6 +537,14 @@ export function buildVisualizerSnapshot(world, options = {}) {
     activeHostFrameId,
     fallbackHostFrameId,
   );
+  const smallBodyReservoirContext = buildSmallBodyReservoirContextForWorld(world, {
+    fallbackHostFrameId,
+    gasGiants: listSystemGasGiants(world),
+    hostFrameId: activeHostFrameId,
+    primaryStar,
+    starConfig,
+    starModel: starCalc,
+  });
   const orbitAuBySlot = system.orbitsAu || [];
   const planetNodes = planets
     .filter((planet) => {
@@ -641,6 +650,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
         gasGiants: systemGasGiants
           .filter((gasGiant) => gasGiant?.id !== planet.id)
           .map((gasGiant) => ({ id: gasGiant.id, name: gasGiant.name, au: gasGiant.au })),
+        smallBodyReservoirContext,
       };
       try {
         if (isVolatilePlanetClassification(classification)) {
@@ -708,6 +718,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
             gasGiants: systemGasGiants
               .filter((gasGiant) => gasGiant?.id !== planet.id)
               .map((gasGiant) => ({ name: gasGiant.name, au: gasGiant.au })),
+            smallBodyReservoirContext,
           });
           periodDays = Number(planetCalc?.derived?.orbitalPeriodEarthDays);
           if (!Number.isFinite(periodDays) || periodDays <= 0) periodDays = null;
@@ -870,6 +881,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
           companionPrebioticUvEarth,
           companionWindPressureEarth,
           fluxVariabilityFraction,
+          smallBodyReservoirContext,
           parentId: planet.id,
           parentInputs: planetCalc?.inputs || planetInputs,
           hashUnit,
@@ -898,6 +910,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
         companionPrebioticUvEarth,
         companionWindPressureEarth,
         fluxVariabilityFraction,
+        smallBodyReservoirContext,
         starOverrides,
         hashUnit,
       }),
@@ -1075,6 +1088,7 @@ function buildMoonNode(moon, context) {
     companionPrebioticUvEarth,
     companionWindPressureEarth,
     fluxVariabilityFraction,
+    smallBodyReservoirContext,
   } = context;
   const semiMajorAxisKm = Number(moon.inputs?.semiMajorAxisKm);
   let periodDays = null;
@@ -1100,6 +1114,7 @@ function buildMoonNode(moon, context) {
       companionPrebioticUvEarth,
       companionWindPressureEarth,
       fluxVariabilityFraction,
+      smallBodyReservoirContext,
       planet: parentInputs,
       moon: { ...moon.inputs },
     });
@@ -1164,6 +1179,7 @@ function buildGasGiantNode(gasGiant, idx, context) {
     companionPrebioticUvEarth,
     companionWindPressureEarth,
     fluxVariabilityFraction,
+    smallBodyReservoirContext,
     starOverrides,
     starRadiusRsol,
   } = context;
@@ -1258,6 +1274,7 @@ function buildGasGiantNode(gasGiant, idx, context) {
       companionPrebioticUvEarth,
       companionWindPressureEarth,
       fluxVariabilityFraction,
+      smallBodyReservoirContext,
     };
     const subtypeBody = {
       id: node.id,
@@ -1442,6 +1459,7 @@ function buildGasGiantNode(gasGiant, idx, context) {
             companionPrebioticUvEarth,
             companionWindPressureEarth,
             fluxVariabilityFraction,
+            smallBodyReservoirContext,
             moon: { ...moon.inputs },
             parentOverride,
           });

@@ -70,6 +70,60 @@ export function renderApparentHomeSelector(selectEl, planets = [], selectedPlane
   return nextValue;
 }
 
+function observerCandidateOption(candidate) {
+  const label =
+    candidate?.kind === "moon" && candidate?.parentName
+      ? `${candidate.label} (${candidate.parentName})`
+      : candidate?.label || candidate?.id || "Reference body";
+  return createElement("option", {
+    attrs: { value: candidate?.selectValue || "" },
+    text: label,
+  });
+}
+
+export function renderApparentObserverSelector(selectEl, candidates = [], selectedValue = "") {
+  const normalized = (Array.isArray(candidates) ? candidates : []).filter(
+    (candidate) => candidate && candidate.eligibilityClass !== "invalid",
+  );
+  if (!normalized.length) {
+    replaceSelectOptions(selectEl, [{ value: "", label: "No reference bodies" }]);
+    selectEl.value = "";
+    return "";
+  }
+
+  const byKind = {
+    planet: normalized.filter((candidate) => candidate.kind !== "moon"),
+    moon: normalized.filter((candidate) => candidate.kind === "moon"),
+  };
+  const nodes = [];
+  if (byKind.planet.length) {
+    nodes.push(
+      createElement(
+        "optgroup",
+        { attrs: { label: "Planets" } },
+        byKind.planet.map((candidate) => observerCandidateOption(candidate)),
+      ),
+    );
+  }
+  if (byKind.moon.length) {
+    nodes.push(
+      createElement(
+        "optgroup",
+        { attrs: { label: "Moons" } },
+        byKind.moon.map((candidate) => observerCandidateOption(candidate)),
+      ),
+    );
+  }
+
+  const availableValues = new Set(normalized.map((candidate) => candidate.selectValue));
+  const nextValue = availableValues.has(String(selectedValue || ""))
+    ? String(selectedValue || "")
+    : normalized[0]?.selectValue || "";
+  replaceChildren(selectEl, nodes);
+  selectEl.value = nextValue;
+  return nextValue;
+}
+
 export function renderApparentKpis(container, items = [], tipLabels = {}) {
   replaceChildren(
     container,

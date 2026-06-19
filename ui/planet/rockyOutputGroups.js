@@ -85,3 +85,15 @@ export const ROCKY_HABITABILITY_LABELS = new Set([
   "UV Shielding",
   "Prebiotic UV Window",
 ]);
+
+const TECTONIC_PROBABILITY_KEYS = ["stagnant", "mobile", "episodic", "plutonicSquishy"];
+
+export function formatRockyTectonicProbabilities(probabilities = {}) {
+  return TECTONIC_PROBABILITY_KEYS.map((regime) => {
+    const label =
+      regime === "plutonicSquishy"
+        ? "Plut.-squishy"
+        : regime.charAt(0).toUpperCase() + regime.slice(1);
+    return `${label}: ${Math.round((probabilities[regime] || 0) * 100)}%`;
+  }).join(" | ");
+}

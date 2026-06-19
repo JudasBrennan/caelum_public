@@ -231,6 +231,28 @@ export function buildPlanetHabitabilityContext(model = {}) {
     derived.atmosphereLedger && typeof derived.atmosphereLedger === "object"
       ? derived.atmosphereLedger
       : {};
+  const atmosphereEvolutionContext =
+    derived.atmosphereEvolutionContext && typeof derived.atmosphereEvolutionContext === "object"
+      ? derived.atmosphereEvolutionContext
+      : {};
+  const stellarHistoryDoseContext =
+    derived.stellarHistoryDoseContext && typeof derived.stellarHistoryDoseContext === "object"
+      ? derived.stellarHistoryDoseContext
+      : {};
+  const stellarHistoryDoseOutputs =
+    stellarHistoryDoseContext.outputs && typeof stellarHistoryDoseContext.outputs === "object"
+      ? stellarHistoryDoseContext.outputs
+      : stellarHistoryDoseContext;
+  const planetRadiationEnvironmentContext =
+    derived.planetRadiationEnvironmentContext &&
+    typeof derived.planetRadiationEnvironmentContext === "object"
+      ? derived.planetRadiationEnvironmentContext
+      : {};
+  const planetRadiationOutputs =
+    planetRadiationEnvironmentContext.outputs &&
+    typeof planetRadiationEnvironmentContext.outputs === "object"
+      ? planetRadiationEnvironmentContext.outputs
+      : planetRadiationEnvironmentContext;
   const climateChemistryForcing =
     derived.climateChemistryForcing && typeof derived.climateChemistryForcing === "object"
       ? derived.climateChemistryForcing
@@ -247,6 +269,14 @@ export function buildPlanetHabitabilityContext(model = {}) {
     derived.biosignatureContext && typeof derived.biosignatureContext === "object"
       ? derived.biosignatureContext
       : {};
+  const dynamicalVariabilityContext =
+    derived.dynamicalVariabilityContext && typeof derived.dynamicalVariabilityContext === "object"
+      ? derived.dynamicalVariabilityContext
+      : {};
+  const dynamicalVariabilityOutputs =
+    dynamicalVariabilityContext.outputs && typeof dynamicalVariabilityContext.outputs === "object"
+      ? dynamicalVariabilityContext.outputs
+      : dynamicalVariabilityContext;
   const cloudCirculation =
     derived.cloudCirculation && typeof derived.cloudCirculation === "object"
       ? derived.cloudCirculation
@@ -337,6 +367,12 @@ export function buildPlanetHabitabilityContext(model = {}) {
     environment: {
       magnetosphericRadRemDay: 0,
       radiationPenalty: 1,
+      surfaceRadiationPenalty: planetRadiationOutputs.surfaceRadiationPenalty,
+      atmosphereShielding: planetRadiationOutputs.atmosphereShieldingScore,
+      intrinsicFieldShielding: planetRadiationOutputs.magnetosphereShieldingScore,
+      magneticShielding: planetRadiationOutputs.magnetosphereShieldingScore,
+      combinedShielding: planetRadiationOutputs.surfaceProtectionScore,
+      surfaceRadiationClass: planetRadiationOutputs.surfaceRadiationClass,
       surfaceRadiationShieldingFactor: surfaceRadiationShieldingFactor({
         pressureAtm: inputs.pressureAtm,
         surfaceFieldEarths: derived.surfaceFieldEarths,
@@ -344,6 +380,11 @@ export function buildPlanetHabitabilityContext(model = {}) {
         magnetosphereRadiationShieldingFactor:
           derived.magnetosphereEnvironment?.radiationShieldingFactor,
       }),
+      planetRadiationSurfaceClass: planetRadiationOutputs.surfaceRadiationClass,
+      planetRadiationSurfaceHazardScore: planetRadiationOutputs.surfaceRadiationHazardScore,
+      planetRadiationSurfaceProtectionScore: planetRadiationOutputs.surfaceProtectionScore,
+      planetRadiationAuroraReadinessClass: planetRadiationOutputs.auroraReadinessClass,
+      planetRadiationConfidence: planetRadiationEnvironmentContext.confidence,
       atmosphereTrendClass: atmosphereLedger.trendClass,
       atmosphereTimescaleClass: atmosphereLedger.timescaleClass,
       atmosphereSourceIndex: atmosphereLedger.sourceIndex,
@@ -352,6 +393,21 @@ export function buildPlanetHabitabilityContext(model = {}) {
       atmosphereDominantSource: atmosphereLedger.dominantSource?.id,
       atmosphereDominantSink: atmosphereLedger.dominantSink?.id,
       atmosphereLedgerConfidence: atmosphereLedger.confidence,
+      atmosphereEvolutionPressureTrendClass: atmosphereEvolutionContext.pressureTrendClass,
+      atmosphereEvolutionVolatileLossRiskClass: atmosphereEvolutionContext.volatileLossRiskClass,
+      atmosphereEvolutionLifetimeClass: atmosphereEvolutionContext.atmosphereLifetimeClass,
+      atmosphereEvolutionCompositionStabilityClass:
+        atmosphereEvolutionContext.compositionStabilityClass,
+      atmosphereEvolutionConfidence: atmosphereEvolutionContext.confidence,
+      stellarHistoryIntegratedXuvDoseEarth: stellarHistoryDoseOutputs.integratedXuvDoseEarth,
+      stellarHistoryWaterLossRiskClass: stellarHistoryDoseOutputs.waterLossRiskClass,
+      stellarHistoryWaterLossRiskScore: stellarHistoryDoseOutputs.waterLossRiskScore,
+      stellarHistoryAbioticOxygenRiskClass: stellarHistoryDoseOutputs.abioticOxygenRiskClass,
+      stellarHistoryAbioticOxygenRiskScore: stellarHistoryDoseOutputs.abioticOxygenRiskScore,
+      stellarHistoryPreMainSequenceExposureClass:
+        stellarHistoryDoseOutputs.preMainSequenceExposureClass,
+      stellarHistoryWindErosionDoseClass: stellarHistoryDoseOutputs.windErosionDoseClass,
+      stellarHistoryConfidence: stellarHistoryDoseContext.confidence,
       carbonCycleTendency: carbonCycleContext.tendencyClass,
       carbonCycleConfidence: carbonCycleContext.confidence,
       carbonCycleStabilityModifier:
@@ -368,6 +424,10 @@ export function buildPlanetHabitabilityContext(model = {}) {
       o2O3FalsePositiveRisk: biosignatureContext.o2O3FalsePositiveRisk,
       methaneContext: biosignatureContext.methaneContext,
       coBuildupRisk: biosignatureContext.coBuildupRisk,
+      dynamicalVariabilityRiskClass: dynamicalVariabilityOutputs.dynamicalVariabilityRiskClass,
+      dynamicalVariabilityWarning: dynamicalVariabilityOutputs.habitabilityVariabilityWarning,
+      dynamicalVariabilityConfidence: dynamicalVariabilityContext.confidence,
+      dynamicalVariabilityPersistenceModifier: dynamicalVariabilityOutputs.persistenceModifier,
       cloudHeatRedistributionEfficiency: cloudCirculation.heatRedistributionEfficiency,
       stellarAgeGyr: toFinite(model.star?.inputs?.ageGyr ?? model.star?.ageGyr, 0),
       tidallyLockedToPrimary: false,
@@ -461,6 +521,30 @@ export function buildMoonHabitabilityContext(model = {}) {
   const intrinsicFieldKnown = Number.isFinite(model?.physical?.surfaceFieldEarths);
   const atmosphereLedger =
     atmosphere.ledger && typeof atmosphere.ledger === "object" ? atmosphere.ledger : {};
+  const atmosphereEvolutionContext =
+    model.atmosphereEvolutionContext && typeof model.atmosphereEvolutionContext === "object"
+      ? model.atmosphereEvolutionContext
+      : model.derived?.atmosphereEvolutionContext &&
+          typeof model.derived.atmosphereEvolutionContext === "object"
+        ? model.derived.atmosphereEvolutionContext
+        : model.environment?.atmosphereEvolutionContext &&
+            typeof model.environment.atmosphereEvolutionContext === "object"
+          ? model.environment.atmosphereEvolutionContext
+          : {};
+  const stellarHistoryDoseContext =
+    model.stellarHistoryDoseContext && typeof model.stellarHistoryDoseContext === "object"
+      ? model.stellarHistoryDoseContext
+      : model.derived?.stellarHistoryDoseContext &&
+          typeof model.derived.stellarHistoryDoseContext === "object"
+        ? model.derived.stellarHistoryDoseContext
+        : model.environment?.stellarHistoryDoseContext &&
+            typeof model.environment.stellarHistoryDoseContext === "object"
+          ? model.environment.stellarHistoryDoseContext
+          : {};
+  const stellarHistoryDoseOutputs =
+    stellarHistoryDoseContext.outputs && typeof stellarHistoryDoseContext.outputs === "object"
+      ? stellarHistoryDoseContext.outputs
+      : stellarHistoryDoseContext;
   const climateChemistryForcing =
     model.climateChemistryForcing && typeof model.climateChemistryForcing === "object"
       ? model.climateChemistryForcing
@@ -497,6 +581,20 @@ export function buildMoonHabitabilityContext(model = {}) {
       : model.derived?.biosignatureContext && typeof model.derived.biosignatureContext === "object"
         ? model.derived.biosignatureContext
         : {};
+  const dynamicalVariabilityContext =
+    model.dynamicalVariabilityContext && typeof model.dynamicalVariabilityContext === "object"
+      ? model.dynamicalVariabilityContext
+      : model.derived?.dynamicalVariabilityContext &&
+          typeof model.derived.dynamicalVariabilityContext === "object"
+        ? model.derived.dynamicalVariabilityContext
+        : model.dynamicalContext?.dynamicalVariabilityContext &&
+            typeof model.dynamicalContext.dynamicalVariabilityContext === "object"
+          ? model.dynamicalContext.dynamicalVariabilityContext
+          : {};
+  const dynamicalVariabilityOutputs =
+    dynamicalVariabilityContext.outputs && typeof dynamicalVariabilityContext.outputs === "object"
+      ? dynamicalVariabilityContext.outputs
+      : dynamicalVariabilityContext;
   const cloudCirculation =
     model.cloudCirculation && typeof model.cloudCirculation === "object"
       ? model.cloudCirculation
@@ -628,6 +726,21 @@ export function buildMoonHabitabilityContext(model = {}) {
       atmosphereDominantSource: atmosphereLedger.dominantSource?.id,
       atmosphereDominantSink: atmosphereLedger.dominantSink?.id,
       atmosphereLedgerConfidence: atmosphereLedger.confidence,
+      atmosphereEvolutionPressureTrendClass: atmosphereEvolutionContext.pressureTrendClass,
+      atmosphereEvolutionVolatileLossRiskClass: atmosphereEvolutionContext.volatileLossRiskClass,
+      atmosphereEvolutionLifetimeClass: atmosphereEvolutionContext.atmosphereLifetimeClass,
+      atmosphereEvolutionCompositionStabilityClass:
+        atmosphereEvolutionContext.compositionStabilityClass,
+      atmosphereEvolutionConfidence: atmosphereEvolutionContext.confidence,
+      stellarHistoryIntegratedXuvDoseEarth: stellarHistoryDoseOutputs.integratedXuvDoseEarth,
+      stellarHistoryWaterLossRiskClass: stellarHistoryDoseOutputs.waterLossRiskClass,
+      stellarHistoryWaterLossRiskScore: stellarHistoryDoseOutputs.waterLossRiskScore,
+      stellarHistoryAbioticOxygenRiskClass: stellarHistoryDoseOutputs.abioticOxygenRiskClass,
+      stellarHistoryAbioticOxygenRiskScore: stellarHistoryDoseOutputs.abioticOxygenRiskScore,
+      stellarHistoryPreMainSequenceExposureClass:
+        stellarHistoryDoseOutputs.preMainSequenceExposureClass,
+      stellarHistoryWindErosionDoseClass: stellarHistoryDoseOutputs.windErosionDoseClass,
+      stellarHistoryConfidence: stellarHistoryDoseContext.confidence,
       carbonCycleTendency: carbonCycleContext.tendencyClass,
       carbonCycleConfidence: carbonCycleContext.confidence,
       carbonCycleStabilityModifier:
@@ -644,6 +757,10 @@ export function buildMoonHabitabilityContext(model = {}) {
       o2O3FalsePositiveRisk: biosignatureContext.o2O3FalsePositiveRisk,
       methaneContext: biosignatureContext.methaneContext,
       coBuildupRisk: biosignatureContext.coBuildupRisk,
+      dynamicalVariabilityRiskClass: dynamicalVariabilityOutputs.dynamicalVariabilityRiskClass,
+      dynamicalVariabilityWarning: dynamicalVariabilityOutputs.habitabilityVariabilityWarning,
+      dynamicalVariabilityConfidence: dynamicalVariabilityContext.confidence,
+      dynamicalVariabilityPersistenceModifier: dynamicalVariabilityOutputs.persistenceModifier,
       cloudHeatRedistributionEfficiency: cloudCirculation.heatRedistributionEfficiency,
       surfaceExomoonCalibrationPenalty: surfaceExomoonCalibration.penalty,
       surfaceExomoonCalibrationApplicable: surfaceExomoonCalibration.applicable === true,

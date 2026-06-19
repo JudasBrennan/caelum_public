@@ -59,3 +59,69 @@ export function buildGasGiantThermalDetailItems(model, isBrownDwarf) {
     },
   ];
 }
+
+export function buildGasGiantCoupledContextItems(model) {
+  const ringMeta = [model.display.ringLifetime, model.display.ringSourcePersistence]
+    .filter(Boolean)
+    .join(" | ");
+  const transmissionMeta = model.display.observabilityTransmission
+    ? [
+        `Transmission features: ${model.display.observabilityTransmission}`,
+        model.display.observabilityReadiness
+          ? `Readiness: ${model.display.observabilityReadiness}`
+          : "",
+        model.display.observabilityActivityNoise
+          ? `Activity noise: ${model.display.observabilityActivityNoise}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" | ")
+    : "";
+  const radiationMeta = [
+    model.display.radiationBelts ? `Radiation belts: ${model.display.radiationBelts}` : "",
+    model.display.moonPlasmaSource ? `Moon plasma: ${model.display.moonPlasmaSource}` : "",
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+  return {
+    ringArchitecture: {
+      label: "Ring Architecture",
+      value: model.display.ringArchitecture || "Not evaluated",
+      meta: ringMeta,
+    },
+    observability: {
+      label: "Observability",
+      value: model.display.observabilityTransitSnr || "Not evaluated",
+      meta: transmissionMeta,
+    },
+    aurora: {
+      label: "Aurora",
+      value: model.display.auroraLikelihood || "Not evaluated",
+      meta: radiationMeta,
+    },
+    ringDetailItems: [
+      { label: "Ring architecture", value: model.display.ringArchitecture || "Not evaluated" },
+      { label: "Ring lifetime", value: model.display.ringLifetime || "Not evaluated" },
+      { label: "Ring source", value: model.display.ringSourcePersistence || "Not evaluated" },
+      { label: "Moon plasma source", value: model.display.moonPlasmaSource || "Minimal" },
+    ],
+    observabilityDetail: {
+      label: "Observability class",
+      value: model.display.observabilityTransitSnr || "Not evaluated",
+      meta: [
+        transmissionMeta,
+        model.display.observabilityAtmospherePersistence
+          ? `Atmosphere persistence: ${model.display.observabilityAtmospherePersistence}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" | "),
+    },
+    auroraDetail: {
+      label: "Aurora likelihood",
+      value: model.display.auroraLikelihood || "Not evaluated",
+      meta: radiationMeta,
+    },
+  };
+}

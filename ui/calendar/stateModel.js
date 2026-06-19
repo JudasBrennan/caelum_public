@@ -508,6 +508,31 @@ export function uniqIds(arr) {
   return out;
 }
 
+function normalizeObserverRefInput(raw, fallbackPlanetId = "") {
+  if (typeof raw === "string") {
+    const [rawKind, ...rest] = raw.includes(":") ? raw.split(":") : ["planet", raw];
+    const kind = rawKind === "moon" ? "moon" : "planet";
+    const id = String(rest.join(":") || raw || "").trim();
+    if (!id) return null;
+    return kind === "moon" ? { kind, id } : { kind, id };
+  }
+  if (raw && typeof raw === "object") {
+    const kind = String(raw.kind || "").trim() === "moon" ? "moon" : "planet";
+    const id = String(raw.id || raw.value || "").trim();
+    if (id) {
+      return kind === "moon"
+        ? {
+            kind,
+            id,
+            parentId: String(raw.parentId || "").trim() || undefined,
+          }
+        : { kind, id };
+    }
+  }
+  const fallbackId = String(fallbackPlanetId || "").trim();
+  return fallbackId ? { kind: "planet", id: fallbackId } : null;
+}
+
 export function normHolidayRule(raw, idx, monthsPerYear) {
   const h = raw && typeof raw === "object" ? raw : {};
   let attrs = { useDate: true, useWeekday: false, useMoonPhase: false };
@@ -1069,6 +1094,7 @@ export function createCalendarStateStoreBindings({
     return {
       inputs: {
         sourcePlanetId: p?.id || "",
+        observerRef: p?.id ? { kind: "planet", id: p.id } : null,
         primaryMoonId,
         extraMoonIds: ["", "", ""],
         monthsPerYear: null,
@@ -1173,6 +1199,7 @@ export function createCalendarStateStoreBindings({
       );
     }
     const sourcePlanetId = String(ri.sourcePlanetId || d.inputs.sourcePlanetId || "").trim();
+    const observerRef = normalizeObserverRefInput(ri.observerRef, sourcePlanetId);
     const legacyHolidayList = Array.isArray(ru.holidays)
       ? ru.holidays
       : Array.isArray(ru.specialDays)
@@ -1190,7 +1217,8 @@ export function createCalendarStateStoreBindings({
     const profile = {
       inputs: {
         ...d.inputs,
-        sourcePlanetId: String(ri.sourcePlanetId || d.inputs.sourcePlanetId || ""),
+        sourcePlanetId,
+        observerRef,
         primaryMoonId: String(ri.primaryMoonId || ri.sourceMoonId || d.inputs.primaryMoonId || ""),
         extraMoonIds: uniqIds(
           ri.extraMoonIds || ri.additionalMoonIds || d.inputs.extraMoonIds,

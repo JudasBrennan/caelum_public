@@ -189,11 +189,17 @@ export function calcCalendarModel({
   planetOrbitalPeriodDays,
   moonOrbitalPeriodDays,
   planetRotationPeriodHours,
+  yearPeriodDays,
+  monthCycleDays,
+  rotationPeriodHours,
+  frameKind = "planet-local",
+  phaseCycleKind = "moon-phase",
+  observerRef = null,
   weeksPerMonth = 4,
 }) {
-  const orbitalPlanet = positive(planetOrbitalPeriodDays, 365.2422);
-  const orbitalMoon = positive(moonOrbitalPeriodDays, 29.5306);
-  const rotationHours = positive(planetRotationPeriodHours, 24, 0.0001);
+  const orbitalPlanet = positive(yearPeriodDays ?? planetOrbitalPeriodDays, 365.2422);
+  const orbitalMoon = positive(monthCycleDays ?? moonOrbitalPeriodDays, 29.5306);
+  const rotationHours = positive(rotationPeriodHours ?? planetRotationPeriodHours, 24, 0.0001);
 
   const localDayScale = rotationHours / 24;
   const localMonthActual = orbitalMoon / localDayScale;
@@ -209,6 +215,12 @@ export function calcCalendarModel({
       planetOrbitalPeriodDays: orbitalPlanet,
       moonOrbitalPeriodDays: orbitalMoon,
       planetRotationPeriodHours: rotationHours,
+      yearPeriodDays: orbitalPlanet,
+      monthCycleDays: orbitalMoon,
+      rotationPeriodHours: rotationHours,
+      frameKind: String(frameKind || "planet-local"),
+      phaseCycleKind: String(phaseCycleKind || "moon-phase"),
+      observerRef: observerRef && typeof observerRef === "object" ? { ...observerRef } : null,
       weeksPerMonth: wpm,
     },
     actual: {

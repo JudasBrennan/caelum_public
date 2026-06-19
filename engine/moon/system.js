@@ -599,6 +599,7 @@ export function solveMoonSystem({
   parentOverride,
   moonEntries,
   habitabilityPolicy,
+  smallBodyReservoirContext = null,
   detailLevel = "full",
 }) {
   const detail = normalizeDetailLevel(detailLevel);
@@ -652,6 +653,7 @@ export function solveMoonSystem({
       moon: normalizedInputs,
       parentOverride,
       habitabilityPolicy,
+      smallBodyReservoirContext,
       detailLevel: detail,
       moonSystemContext: {
         siblingCount: moonEntries.length,

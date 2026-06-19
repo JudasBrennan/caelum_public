@@ -86,6 +86,15 @@ import {
 } from "./planet/temperature.js";
 import { computeLockedWorldAtmosphericCollapse } from "./planet/climate.js";
 import { calcClimateZones } from "./climate.js";
+import { buildGeodynamicsContext } from "./contexts/geodynamicsContext.js";
+import { buildImpactEnvironmentContext } from "./contexts/impactEnvironmentContext.js";
+import { buildInteriorEvolutionContext } from "./contexts/interiorEvolutionContext.js";
+import { buildObservabilityContext } from "./contexts/observabilityContext.js";
+import { buildProductivityContext } from "./contexts/productivityContext.js";
+import { buildPlanetRadiationEnvironmentContext } from "./contexts/planetRadiationEnvironmentContext.js";
+import { buildRingMagnetosphereContext } from "./contexts/ringMagnetosphereContext.js";
+import { buildStellarHistoryDoseContext } from "./contexts/stellarHistoryDoseContext.js";
+import { buildSurfaceClimateContext } from "./contexts/surfaceClimateContext.js";
 import {
   tectonicAdvisory,
   tectonicProbabilities as calcTectonicProbabilities,
@@ -102,14 +111,18 @@ import { EARTH_INTERNAL_HEAT_FLUX_WM2 } from "./habitability/constants.js";
 import { buildPlanetaryEraTimelineForPlanet } from "./planetaryEraTimeline.js";
 import {
   buildEnvironmentForcing,
+  buildAtmosphereEvolutionContext,
+  buildCo2ClimateTendencyContext,
   computeAtmosphereLedger,
   computeBiosignatureContext,
   computeCarbonCycleContext,
   computeClimateChemistryForcing,
   computeCloudCirculationContext,
+  buildNitrogenCycleContext,
   computeOceanChemistryContext,
   computeRockyMagnetosphereEnvironment,
   formatEnvironmentForcingSummary,
+  resolveCoupledClimatePassForPlanet,
 } from "./environment/index.js";
 
 export { tectonicProbabilities } from "./planet/tectonics.js";
@@ -221,6 +234,8 @@ function buildPlanetSummaryResult({
   ringScienceSupported,
   ringScienceReason,
   ringSourceMoonId,
+  baselineSurfaceTempK = surfaceTempK,
+  effectiveSurfaceTempK = surfaceTempK,
 }) {
   return {
     star,
@@ -239,7 +254,9 @@ function buildPlanetSummaryResult({
       densityGcm3,
       radiusEarth,
       gravityG,
+      baselineSurfaceTempK,
       surfaceTempK,
+      effectiveSurfaceTempK,
       orbitalPeriodEarthYears,
       orbitalPeriodEarthDays,
       localDaysPerYear,
@@ -313,6 +330,7 @@ export function calcPlanetExact({
   planet,
   moons,
   gasGiants,
+  smallBodyReservoirContext = null,
   habitabilityPolicy,
   detailLevel = "full",
 }) {
@@ -674,38 +692,6 @@ export function calcPlanetExact({
     bodyClass: bClass,
   });
 
-  if (detailLevel === "summary") {
-    return buildPlanetSummaryResult({
-      star,
-      hostFrameId,
-      massEarth,
-      cmfPct,
-      wmfPct,
-      rotationPeriodHours,
-      semiMajorAxisAu,
-      eccentricity,
-      pressureAtm,
-      radioisotopeAbundance,
-      densityGcm3,
-      radiusEarth,
-      gravityG,
-      surfaceTempK: tKel,
-      orbitalPeriodEarthYears,
-      orbitalPeriodEarthDays,
-      localDaysPerYear,
-      transitDepthFraction,
-      transitDepthPpm,
-      transitProbabilityFraction,
-      rvSemiAmplitudeMs,
-      oblateness,
-      surfaceState,
-      rocheLimitKm: rockyRingScience.rocheLimitKm,
-      ringScienceSupported: rockyRingScience.ringScienceSupported,
-      ringScienceReason: rockyRingScience.ringScienceReason,
-      ringSourceMoonId: rockyRingScience.ringSourceMoonId,
-    });
-  }
-
   // Moon tidal heating on the planet (Peale et al. 1979, reciprocal formula).
   // Tidal dissipation from orbiting moons heats the planet's interior,
   // potentially extending core liquid lifetime and sustaining the dynamo.
@@ -785,8 +771,6 @@ export function calcPlanetExact({
     geothermalFluxWm2: radiogenicHeatingWm2,
     tidalHeatFluxWm2: planetTidalHeatingWm2,
   });
-  const oceanPhaseDiagnostics = formatOceanPhaseDiagnostics(hydrosphere);
-
   // Sky colours (after gravity + temperature are known for column-density correction)
   const sky = skyColoursFromSpectralAndPressure({
     starTempK: star.tempK,
@@ -975,6 +959,49 @@ export function calcPlanetExact({
     pressureAtm,
     collapsePenalty: atmosphericCollapse.collapsePenalty,
   });
+  const baselineInteriorEvolutionContext = buildInteriorEvolutionContext({
+    bodyType: "planet",
+    massEarth,
+    radiusEarth,
+    densityGcm3,
+    ageGyr: starAgeGyr,
+    radiogenicHeatingWm2,
+    tidalHeatingWm2: planetTidalHeatingWm2,
+    coreMassFraction: cmf,
+    hydrosphere,
+    tectonicRegime: tecRegime,
+    tectonicProbabilities: tecProbs,
+    surfaceTempK: tKel,
+    magneticFieldContext: magField,
+  });
+  const baselineCarbonCycleContext = computeCarbonCycleContext({
+    surfaceTempK: tKel,
+    pressureAtm,
+    ppCO2Atm,
+    hydrosphere,
+    tectonicRegime: tecRegime,
+    outgassing: {
+      ...outgassing,
+      mantleOxidationKey: planet.mantleOxidation || "earth",
+    },
+    landFraction: hydrosphere.landFraction,
+    oceanFraction: hydrosphere.liquidOceanFraction,
+    stellarAgeGyr: starAgeGyr,
+    insolationEarth,
+    climateState,
+    interiorEvolutionContext: baselineInteriorEvolutionContext,
+  });
+  const co2ClimateTendencyContext = buildCo2ClimateTendencyContext({
+    carbonCycleContext: baselineCarbonCycleContext,
+    pressureAtm,
+    ppCO2Atm,
+    hydrosphere,
+    geology: {
+      volcanicActivityScore: tecProbs.mobile * 0.45 + tecProbs.episodic * 0.3,
+    },
+    surfaceTempK: tKel,
+    climateState,
+  });
   const atmosphereLedger = computeAtmosphereLedger({
     bodyType: "planet",
     pressureAtm,
@@ -1001,6 +1028,8 @@ export function calcPlanetExact({
     atmosphericEscapeEnabled: atmosphericEscape,
     photochemistry,
     hydrosphere,
+    carbonCycleContext: baselineCarbonCycleContext,
+    smallBodyReservoirContext,
     climateState,
     climate: {
       climateState,
@@ -1036,55 +1065,6 @@ export function calcPlanetExact({
     hydrosphere,
     ppH2OAtm,
   });
-  const carbonCycleContext = computeCarbonCycleContext({
-    surfaceTempK: tKel,
-    pressureAtm,
-    ppCO2Atm,
-    hydrosphere,
-    tectonicRegime: tecRegime,
-    outgassing: {
-      ...outgassing,
-      mantleOxidationKey: planet.mantleOxidation || "earth",
-    },
-    landFraction: hydrosphere.landFraction,
-    oceanFraction: hydrosphere.liquidOceanFraction,
-    stellarAgeGyr: starAgeGyr,
-    insolationEarth,
-    climateState,
-  });
-  const oceanChemistryContext = computeOceanChemistryContext({
-    hydrosphere,
-    pressureAtm,
-    ppCO2Atm,
-    carbonCycleContext,
-    geology: {
-      volcanicActivityScore: tecProbs.mobile * 0.45 + tecProbs.episodic * 0.3,
-      tidalHeatingEarth: planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2,
-    },
-    climateState,
-  });
-  const biosignatureContext = computeBiosignatureContext({
-    pressureAtm,
-    composition: {
-      o2: ppO2Atm,
-      co2: ppCO2Atm,
-      ar: ppArAtm,
-      n2: ppN2Atm,
-      h2o: ppH2OAtm,
-      ch4: ppCH4Atm,
-      h2: ppH2Atm,
-      he: ppHeAtm,
-      so2: ppSO2Atm,
-      nh3: ppNH3Atm,
-      co: 0,
-    },
-    photochemistry,
-    atmosphereLedger,
-    carbonCycleContext,
-    oceanChemistryContext,
-    environmentForcing,
-    hydrosphere,
-  });
   const climateChemistryForcing = computeClimateChemistryForcing({
     baselineSurfaceTempK: tKel,
     pressureAtm,
@@ -1105,8 +1085,402 @@ export function calcPlanetExact({
     hydrosphere,
     cloudContext: cloudCirculation,
     greenhouseTau: computedTau,
+    co2ClimateTendencyContext,
+  });
+  const coupledClimatePass = resolveCoupledClimatePassForPlanet({
+    baselineSurfaceTempK: tKel,
+    baselineClimateState: climateState,
+    baselineHydrosphere: hydrosphere,
+    climateChemistryForcing,
+    pressureAtm,
+    waterRegime: watRegime,
+    wmfPct,
+    massEarth,
+    radiusKm,
+    gravityG,
+    absorbedFluxWm2,
+    waterPresent: watRegime !== "Dry",
+    geothermalFluxWm2: radiogenicHeatingWm2,
+    tidalHeatFluxWm2: planetTidalHeatingWm2,
+    manualOverride: greenhouseMode === "manual" ? ["greenhouseEffect"] : false,
+    userMode: greenhouseMode === "manual" ? "manual" : "auto",
   });
   const coupledSurfaceTempK = climateChemistryForcing.coupledSurfaceTempK;
+  const effectiveSurfaceTempK = coupledClimatePass.effectiveSurfaceTempK;
+  const effectiveClimateState = coupledClimatePass.effectiveClimateState;
+  const effectiveHydrosphere = coupledClimatePass.effectiveHydrosphere || hydrosphere;
+  const effectiveOceanPhaseDiagnostics = formatOceanPhaseDiagnostics(effectiveHydrosphere);
+  const effectiveLiquidWaterPossible =
+    pressureAtm >= 0.006 &&
+    effectiveSurfaceTempK >= 273 &&
+    effectiveSurfaceTempK <= waterBoilingK(pressureAtm);
+  const effectiveClimateModel = calcClimateZones({
+    surfaceTempK: effectiveSurfaceTempK,
+    axialTiltDeg,
+    circulationCellCount: cellCount,
+    circulationCellRanges: cellRanges,
+    h2oPct,
+    waterRegime: watRegime,
+    pressureAtm,
+    tidallyLockedToStar,
+    compositionClass: compClass,
+    liquidWaterPossible: effectiveLiquidWaterPossible,
+    climateState: effectiveClimateState,
+    insolationEarth,
+    gravityG,
+  });
+  const effectiveClimateLivability = evaluateClimateLivability({
+    zones: effectiveClimateModel.zones,
+    climateState: effectiveClimateState,
+    tidallyLockedToStar,
+    pressureAtm,
+    collapsePenalty: atmosphericCollapse.collapsePenalty,
+  });
+  const effectiveSurfaceState = classifyRockySurfaceState({
+    surfaceTempK: effectiveSurfaceTempK,
+    tidallyLockedToStar,
+    bodyClass: bClass,
+  });
+
+  if (detailLevel === "summary") {
+    return buildPlanetSummaryResult({
+      star,
+      hostFrameId,
+      massEarth,
+      cmfPct,
+      wmfPct,
+      rotationPeriodHours,
+      semiMajorAxisAu,
+      eccentricity,
+      pressureAtm,
+      radioisotopeAbundance,
+      densityGcm3,
+      radiusEarth,
+      gravityG,
+      baselineSurfaceTempK: tKel,
+      surfaceTempK: effectiveSurfaceTempK,
+      effectiveSurfaceTempK,
+      orbitalPeriodEarthYears,
+      orbitalPeriodEarthDays,
+      localDaysPerYear,
+      transitDepthFraction,
+      transitDepthPpm,
+      transitProbabilityFraction,
+      rvSemiAmplitudeMs,
+      oblateness,
+      surfaceState: effectiveSurfaceState,
+      rocheLimitKm: rockyRingScience.rocheLimitKm,
+      ringScienceSupported: rockyRingScience.ringScienceSupported,
+      ringScienceReason: rockyRingScience.ringScienceReason,
+      ringSourceMoonId: rockyRingScience.ringSourceMoonId,
+    });
+  }
+  const interiorEvolutionContext = buildInteriorEvolutionContext({
+    bodyType: "planet",
+    massEarth,
+    radiusEarth,
+    densityGcm3,
+    ageGyr: starAgeGyr,
+    radiogenicHeatingWm2,
+    tidalHeatingWm2: planetTidalHeatingWm2,
+    coreMassFraction: cmf,
+    hydrosphere: effectiveHydrosphere,
+    tectonicRegime: tecRegime,
+    tectonicProbabilities: tecProbs,
+    surfaceTempK: effectiveSurfaceTempK,
+    magneticFieldContext: magField,
+  });
+  const carbonCycleContext = computeCarbonCycleContext({
+    surfaceTempK: effectiveSurfaceTempK,
+    pressureAtm,
+    ppCO2Atm,
+    hydrosphere: effectiveHydrosphere,
+    tectonicRegime: tecRegime,
+    outgassing: {
+      ...outgassing,
+      mantleOxidationKey: planet.mantleOxidation || "earth",
+    },
+    landFraction: effectiveHydrosphere.landFraction,
+    oceanFraction: effectiveHydrosphere.liquidOceanFraction,
+    stellarAgeGyr: starAgeGyr,
+    insolationEarth,
+    climateState: effectiveClimateState,
+    interiorEvolutionContext,
+  });
+  const stellarHistoryDoseContext = buildStellarHistoryDoseContext({
+    starMassMsol,
+    starAgeGyr,
+    starLuminosityLsol: star.luminosityLsol,
+    starEvolutionMode: starEvolutionMode || star.evolutionMode || star.inputs?.evolutionMode,
+    presentXuvEarthAtOrbit: environmentForcing.flux?.xuvEarthAtOrbit,
+    windPressureEarthAtOrbit: environmentForcing.wind?.ramPressureEarthRatio,
+    orbitAu: semiMajorAxisAu,
+    eccentricity,
+    massEarth,
+    gravityG,
+    escapeVelocityKms,
+    atmospherePressureAtm: pressureAtm,
+    hydrosphere: effectiveHydrosphere,
+  });
+  const preliminaryNitrogenCycleContext = buildNitrogenCycleContext({
+    pressureAtm,
+    n2Fraction: n2Pct / 100,
+    ppN2Atm,
+    composition: {
+      o2: ppO2Atm,
+      co2: ppCO2Atm,
+      ar: ppArAtm,
+      n2: ppN2Atm,
+      h2o: ppH2OAtm,
+      ch4: ppCH4Atm,
+      h2: ppH2Atm,
+      he: ppHeAtm,
+      so2: ppSO2Atm,
+      nh3: ppNH3Atm,
+    },
+    surfaceTempK: effectiveSurfaceTempK,
+    hydrosphere: effectiveHydrosphere,
+    geology: {
+      tectonicRegime: tecRegime,
+      volcanicActivityScore: tecProbs.mobile * 0.45 + tecProbs.episodic * 0.3,
+    },
+    outgassing,
+    interiorEvolutionContext,
+    lightningUvProxy: environmentForcing?.flux?.prebioticUvEarthAtOrbit,
+    environmentForcing,
+    photochemistry,
+    manualMode: greenhouseMode === "manual",
+  });
+  const atmosphereEvolutionContext = buildAtmosphereEvolutionContext({
+    atmosphereLedger,
+    pressureAtm,
+    composition: {
+      o2: ppO2Atm,
+      co2: ppCO2Atm,
+      ar: ppArAtm,
+      n2: ppN2Atm,
+      h2o: ppH2OAtm,
+      ch4: ppCH4Atm,
+      h2: ppH2Atm,
+      he: ppHeAtm,
+      so2: ppSO2Atm,
+      nh3: ppNH3Atm,
+    },
+    environmentForcing,
+    stellarHistoryDoseContext,
+    carbonCycleContext,
+    hydrosphere: effectiveHydrosphere,
+    interiorEvolutionContext,
+    nitrogenCycleContext: preliminaryNitrogenCycleContext,
+    manualMode: greenhouseMode === "manual",
+  });
+  const oceanChemistryContext = computeOceanChemistryContext({
+    hydrosphere: effectiveHydrosphere,
+    pressureAtm,
+    ppCO2Atm,
+    carbonCycleContext,
+    geology: {
+      volcanicActivityScore: tecProbs.mobile * 0.45 + tecProbs.episodic * 0.3,
+      tidalHeatingEarth: planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2,
+    },
+    climateState: effectiveClimateState,
+  });
+  const nitrogenCycleContext = buildNitrogenCycleContext({
+    pressureAtm,
+    n2Fraction: n2Pct / 100,
+    ppN2Atm,
+    composition: {
+      o2: ppO2Atm,
+      co2: ppCO2Atm,
+      ar: ppArAtm,
+      n2: ppN2Atm,
+      h2o: ppH2OAtm,
+      ch4: ppCH4Atm,
+      h2: ppH2Atm,
+      he: ppHeAtm,
+      so2: ppSO2Atm,
+      nh3: ppNH3Atm,
+    },
+    surfaceTempK: effectiveSurfaceTempK,
+    hydrosphere: effectiveHydrosphere,
+    geology: {
+      tectonicRegime: tecRegime,
+      volcanicActivityScore: tecProbs.mobile * 0.45 + tecProbs.episodic * 0.3,
+      tidalHeatingEarth: planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2,
+    },
+    outgassing,
+    interiorEvolutionContext,
+    oceanChemistryContext,
+    lightningUvProxy: environmentForcing?.flux?.prebioticUvEarthAtOrbit,
+    environmentForcing,
+    photochemistry,
+    atmosphereEvolutionContext,
+    manualMode: greenhouseMode === "manual",
+  });
+  const planetRadiationEnvironmentContext = buildPlanetRadiationEnvironmentContext({
+    environmentForcing,
+    stellarHistoryDoseContext,
+    pressureAtm,
+    composition: {
+      o2: ppO2Atm,
+      co2: ppCO2Atm,
+      ar: ppArAtm,
+      n2: ppN2Atm,
+      h2o: ppH2OAtm,
+      ch4: ppCH4Atm,
+      h2: ppH2Atm,
+      he: ppHeAtm,
+      so2: ppSO2Atm,
+      nh3: ppNH3Atm,
+    },
+    photochemistry,
+    magnetosphereEnvironment,
+    gravityG,
+    escapeVelocityKms,
+    hydrosphere: effectiveHydrosphere,
+  });
+  const biosignatureContext = computeBiosignatureContext({
+    pressureAtm,
+    composition: {
+      o2: ppO2Atm,
+      co2: ppCO2Atm,
+      ar: ppArAtm,
+      n2: ppN2Atm,
+      h2o: ppH2OAtm,
+      ch4: ppCH4Atm,
+      h2: ppH2Atm,
+      he: ppHeAtm,
+      so2: ppSO2Atm,
+      nh3: ppNH3Atm,
+      co: 0,
+    },
+    photochemistry,
+    atmosphereLedger,
+    atmosphereEvolutionContext,
+    stellarHistoryDoseContext,
+    planetRadiationEnvironmentContext,
+    carbonCycleContext,
+    oceanChemistryContext,
+    nitrogenCycleContext,
+    environmentForcing,
+    hydrosphere: effectiveHydrosphere,
+  });
+
+  const surfaceClimateContext = buildSurfaceClimateContext({
+    surfaceTempK: effectiveSurfaceTempK,
+    coupledSurfaceTempK,
+    axialTiltDeg,
+    circulationCellCount: cellCount,
+    circulationCellRanges: cellRanges,
+    h2oPct,
+    waterRegime: watRegime,
+    pressureAtm,
+    tidallyLockedToStar,
+    compositionClass: compClass,
+    liquidWaterPossible: effectiveLiquidWaterPossible,
+    climateState: effectiveClimateState,
+    insolationEarth,
+    gravityG,
+    hydrosphere: effectiveHydrosphere,
+    cloudCirculation,
+    climateChemistryForcing,
+    nitrogenCycleContext,
+    photochemistry,
+    atmosphericCollapse,
+    rotationPeriodHours,
+    initialClimateModel: effectiveClimateModel,
+  });
+  const geodynamicsContext = buildGeodynamicsContext({
+    massEarth,
+    gravityG,
+    densityGcm3,
+    ageGyr: starAgeGyr,
+    compositionClass: compClass,
+    surfaceTempK: effectiveSurfaceTempK,
+    hydrosphere: effectiveHydrosphere,
+    radiogenicHeatingWm2,
+    tidalHeatingWm2: planetTidalHeatingWm2,
+    tectonicRegime: tecRegime,
+    tectonicProbabilities: tecProbs,
+    carbonCycleContext,
+    oceanChemistryContext,
+    atmosphereLedger,
+    surfaceClimateContext,
+    interiorEvolutionContext,
+  });
+  const productivityContext = buildProductivityContext({
+    surfaceClimateContext,
+    hydrosphere: effectiveHydrosphere,
+    oceanChemistryContext,
+    nitrogenCycleContext,
+    carbonCycleContext,
+    biosignatureContext,
+    pressureAtm,
+    ppO2Atm,
+    ppCO2Atm,
+    ppN2Atm,
+    radiationClass: magnetosphereEnvironment.supported ? "shielded" : "unknown",
+    radiationShieldingFactor: magnetosphereEnvironment.radiationShieldingFactor,
+    planetRadiationEnvironmentContext,
+    surfaceLightFraction: 1 - clamp(photochemistry?.haze?.surfaceLightReductionFraction ?? 0, 0, 1),
+    solventPathway:
+      effectiveHydrosphere.surfaceAccessibleLiquidFraction > 0 ? "surface" : "subsurface-or-none",
+  });
+  const impactEnvironmentContext = buildImpactEnvironmentContext({
+    ageGyr: starAgeGyr,
+    atmospherePressureAtm: pressureAtm,
+    gravityG,
+    escapeVelocityKms,
+    gasGiantArchitecture: {
+      shieldingScore: Array.isArray(gasGiants) && gasGiants.length ? 0.45 : 0.15,
+      scatteringScore: Array.isArray(gasGiants) && gasGiants.length > 1 ? 0.35 : 0.12,
+    },
+    smallBodyReservoirContext,
+    geodynamicsContext,
+    hydrosphere: effectiveHydrosphere,
+    surfaceClimateContext,
+  });
+  const ringMagnetosphereContext = buildRingMagnetosphereContext({
+    ringScience: rockyRingScience,
+    rocheLimitKm: rockyRingScience.rocheLimitKm,
+    ringSourceMoon: rockyRingScience.ringSourceMoonId
+      ? (moons || []).find((moon) => moon?.id === rockyRingScience.ringSourceMoonId) || {
+          id: rockyRingScience.ringSourceMoonId,
+        }
+      : null,
+    exospherePressureAtm: pressureAtm < 1e-5 ? pressureAtm : 0,
+    impactEnvironmentContext,
+    smallBodyReservoirContext,
+    planetRadiationEnvironmentContext,
+    magnetosphereEnvironment,
+    atmospherePressureAtm: pressureAtm,
+    atmosphereComposition: { dominantSpecies: atmosphericCollapse.dominantSpeciesLabel },
+    rotationPeriodHours,
+    axialTiltDeg,
+  });
+  const observabilityContext = buildObservabilityContext({
+    bodyRadiusKm: radiusKm,
+    bodyMassEarth: massEarth,
+    starRadiusRsol: star.radiusRsol,
+    starMassMsol,
+    semiMajorAxisAu,
+    orbitalPeriodDays: orbitalPeriodEarthDays,
+    atmosphereScaleHeightKm:
+      atmWeightKgMol > 0 && gravityG > 0
+        ? (8.314 * effectiveSurfaceTempK) / (atmWeightKgMol * gravityG * 9.80665) / 1000
+        : null,
+    baselineSurfaceTempK: tKel,
+    effectiveSurfaceTempK,
+    coupledClimatePass,
+    cloudFraction: cloudCirculation.cloudFraction,
+    hazeReductionFraction: photochemistry?.haze?.surfaceLightReductionFraction,
+    atmosphereEvolutionContext,
+    stellarHistoryDoseContext,
+    planetRadiationEnvironmentContext,
+    environmentForcing,
+    biosignatureContext,
+    productivityContext,
+  });
 
   // Apparent size of star (Calculations C146)
   const apparentStarDeg = (star.radiusRsol / semiMajorAxisAu) * 0.5332;
@@ -1202,27 +1576,30 @@ export function calcPlanetExact({
       radiusEarth,
       densityGcm3,
       escapeVelocityVEarth,
-      surfaceTempK: tKel,
+      baselineSurfaceTempK: tKel,
+      surfaceTempK: effectiveSurfaceTempK,
       insolationEarth,
-      liquidWaterPossible,
-      climateState,
-      climateLivabilityFraction: climateLivability.climateLivabilityFraction,
-      climateLivabilityScore: climateLivability.climateLivabilityScore,
-      climateStatePenalty: climateLivability.climateStatePenalty,
-      collapsePenalty: climateLivability.collapsePenalty,
-      stabilityMultiplier: climateLivability.stabilityMultiplier,
+      liquidWaterPossible: effectiveLiquidWaterPossible,
+      baselineClimateState: climateState,
+      climateState: effectiveClimateState,
+      climateLivabilityFraction: effectiveClimateLivability.climateLivabilityFraction,
+      climateLivabilityScore: effectiveClimateLivability.climateLivabilityScore,
+      climateStatePenalty: effectiveClimateLivability.climateStatePenalty,
+      collapsePenalty: effectiveClimateLivability.collapsePenalty,
+      stabilityMultiplier: effectiveClimateLivability.stabilityMultiplier,
       atmosphereCollapseRisk: atmosphericCollapse.collapseRisk,
       atmosphereCollapseState: atmosphericCollapse.collapseState,
       atmosphereCollapseThresholdK: atmosphericCollapse.condensationThresholdK,
       nightsideMinK: atmosphericCollapse.nightsideMinK,
       dominantAtmosphereSpecies: atmosphericCollapse.dominantSpeciesLabel,
       waterRegime: watRegime,
-      hydrosphere,
-      liquidOceanFraction: hydrosphere.liquidOceanFraction,
-      landFraction: hydrosphere.landFraction,
-      permanentIceFraction: hydrosphere.permanentIceFraction,
-      steamFraction: hydrosphere.steamFraction,
-      surfaceAccessibleLiquidFraction: hydrosphere.surfaceAccessibleLiquidFraction,
+      baselineHydrosphere: hydrosphere,
+      hydrosphere: effectiveHydrosphere,
+      liquidOceanFraction: effectiveHydrosphere.liquidOceanFraction,
+      landFraction: effectiveHydrosphere.landFraction,
+      permanentIceFraction: effectiveHydrosphere.permanentIceFraction,
+      steamFraction: effectiveHydrosphere.steamFraction,
+      surfaceAccessibleLiquidFraction: effectiveHydrosphere.surfaceAccessibleLiquidFraction,
       planetTidalHeatingEarth: planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2,
       radiogenicHeatingWm2,
       radiogenicHeatingEarth,
@@ -1243,11 +1620,25 @@ export function calcPlanetExact({
       photochemistry,
       jeansEscape: { species: jeansSpecies, xuvFluxRatio: fXuvRatio },
       atmosphereLedger,
+      atmosphereEvolutionContext,
+      stellarHistoryDoseContext,
+      planetRadiationEnvironmentContext,
+      interiorEvolutionContext,
       cloudCirculation,
+      co2ClimateTendencyContext,
+      smallBodyReservoirContext,
       carbonCycleContext,
       oceanChemistryContext,
+      nitrogenCycleContext,
       biosignatureContext,
       climateChemistryForcing,
+      coupledClimatePass,
+      surfaceClimateContext,
+      geodynamicsContext,
+      productivityContext,
+      impactEnvironmentContext,
+      ringMagnetosphereContext,
+      observabilityContext,
       coupledSurfaceTempK,
     },
   });
@@ -1342,7 +1733,8 @@ export function calcPlanetExact({
       atmospherePreventsLocking,
       spinOrbitResonance: resonance ? resonance.ratio : null,
       resonanceRotationHours,
-      liquidWaterPossible,
+      baselineLiquidWaterPossible: liquidWaterPossible,
+      liquidWaterPossible: effectiveLiquidWaterPossible,
 
       skyColourDayHex: sky.dayHex,
       skyColourDayEdgeHex: sky.dayEdgeHex,
@@ -1361,29 +1753,37 @@ export function calcPlanetExact({
       tropics,
       polarCircles,
 
-      surfaceTempK: tKel,
-      surfaceTempC: tC,
+      baselineSurfaceTempK: tKel,
+      baselineSurfaceTempC: tC,
+      surfaceTempK: effectiveSurfaceTempK,
+      surfaceTempC: effectiveSurfaceTempK - 273.15,
+      effectiveSurfaceTempK,
+      effectiveSurfaceTempC: effectiveSurfaceTempK - 273.15,
       absorbedFluxWm2,
-      climateState,
-      climateLivabilityFraction: climateLivability.climateLivabilityFraction,
-      climateLivabilityScore: climateLivability.climateLivabilityScore,
-      climateStatePenalty: climateLivability.climateStatePenalty,
-      collapsePenalty: climateLivability.collapsePenalty,
-      stabilityMultiplier: climateLivability.stabilityMultiplier,
+      baselineClimateState: climateState,
+      climateState: effectiveClimateState,
+      effectiveClimateState,
+      climateLivabilityFraction: effectiveClimateLivability.climateLivabilityFraction,
+      climateLivabilityScore: effectiveClimateLivability.climateLivabilityScore,
+      climateStatePenalty: effectiveClimateLivability.climateStatePenalty,
+      collapsePenalty: effectiveClimateLivability.collapsePenalty,
+      stabilityMultiplier: effectiveClimateLivability.stabilityMultiplier,
       climateStabilityNotes: atmosphericCollapse.evaluated
-        ? [...climateLivability.notes, atmosphericCollapse.note]
-        : climateLivability.notes,
+        ? [...effectiveClimateLivability.notes, atmosphericCollapse.note]
+        : effectiveClimateLivability.notes,
       atmosphereCollapseRisk: atmosphericCollapse.collapseRisk,
       atmosphereCollapseState: atmosphericCollapse.collapseState,
       atmosphereCollapseThresholdK: atmosphericCollapse.condensationThresholdK,
       nightsideMinK: atmosphericCollapse.nightsideMinK,
       dominantAtmosphereSpecies: atmosphericCollapse.dominantSpeciesLabel,
-      hydrosphere,
-      liquidOceanFraction: hydrosphere.liquidOceanFraction,
-      landFraction: hydrosphere.landFraction,
-      permanentIceFraction: hydrosphere.permanentIceFraction,
-      steamFraction: hydrosphere.steamFraction,
-      surfaceAccessibleLiquidFraction: hydrosphere.surfaceAccessibleLiquidFraction,
+      baselineHydrosphere: hydrosphere,
+      hydrosphere: effectiveHydrosphere,
+      effectiveHydrosphere,
+      liquidOceanFraction: effectiveHydrosphere.liquidOceanFraction,
+      landFraction: effectiveHydrosphere.landFraction,
+      permanentIceFraction: effectiveHydrosphere.permanentIceFraction,
+      steamFraction: effectiveHydrosphere.steamFraction,
+      surfaceAccessibleLiquidFraction: effectiveHydrosphere.surfaceAccessibleLiquidFraction,
 
       horizonKm,
 
@@ -1425,11 +1825,24 @@ export function calcPlanetExact({
       ppNH3Atm,
       photochemistry,
       atmosphereLedger,
+      atmosphereEvolutionContext,
+      stellarHistoryDoseContext,
+      planetRadiationEnvironmentContext,
       cloudCirculation,
+      co2ClimateTendencyContext,
+      smallBodyReservoirContext,
       carbonCycleContext,
       oceanChemistryContext,
+      nitrogenCycleContext,
       biosignatureContext,
       climateChemistryForcing,
+      coupledClimatePass,
+      surfaceClimateContext,
+      geodynamicsContext,
+      productivityContext,
+      impactEnvironmentContext,
+      ringMagnetosphereContext,
+      observabilityContext,
       coupledSurfaceTempK,
       ppO2Kpa,
       ppCO2Kpa,
@@ -1473,7 +1886,8 @@ export function calcPlanetExact({
 
       // Classification & composition (Phase A)
       bodyClass: bClass,
-      surfaceState,
+      baselineSurfaceState: surfaceState,
+      surfaceState: effectiveSurfaceState,
       compositionClass: compClass,
       waterRegime: watRegime,
       coreRadiusFraction,
@@ -1499,6 +1913,11 @@ export function calcPlanetExact({
       planetTidalHeatingEarth: planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2,
       radiogenicHeatingWm2,
       radiogenicHeatingEarth,
+      interiorEvolutionContext,
+      interiorRadiogenicBudgetClass: interiorEvolutionContext.outputs.radiogenicBudgetClass,
+      interiorDynamoSupportClass: interiorEvolutionContext.outputs.dynamoLifetimeSupportClass,
+      interiorVolcanicLongevityClass: interiorEvolutionContext.outputs.volcanicLongevityClass,
+      interiorMantleRecyclingClass: interiorEvolutionContext.outputs.mantleRecyclingSupportClass,
 
       // Mantle & tectonics (Phase C)
       tectonicRegime: tecRegime,
@@ -1562,11 +1981,19 @@ export function calcPlanetExact({
       transitDepth:
         `${fmt(transitDepthFraction * 100, transitDepthFraction * 100 >= 0.1 ? 2 : 4)}%` +
         ` (${fmt(transitDepthPpm, 0)} ppm)`,
-      transitProbability: `${fmt(transitProbabilityFraction * 100, 2)}% geometric probability`,
+      transitProbability: `${fmt(transitProbabilityFraction * 100, 2)}% geometric probability | SNR ${observabilityContext.outputs.transitSnrClass}; transmission ${observabilityContext.outputs.transmissionSpectrumReadinessClass}`,
       rvSemiAmplitude:
         rvSemiAmplitudeMs >= 1000
           ? `${fmt(rvSemiAmplitudeMs / 1000, 3)} km/s`
           : `${fmt(rvSemiAmplitudeMs, rvSemiAmplitudeMs >= 10 ? 2 : 3)} m/s`,
+      observabilityTransitSnr: observabilityContext.outputs.transitSnrClass,
+      observabilityTransmission: observabilityContext.outputs.transmissionFeatureDetectabilityClass,
+      observabilityReadiness: observabilityContext.outputs.transmissionSpectrumReadinessClass,
+      observabilityAtmospherePersistence:
+        observabilityContext.outputs.atmospherePersistenceObservabilityClass,
+      observabilityActivityNoise: observabilityContext.outputs.stellarActivityNoiseClass,
+      biosignatureInterpretationConfidence:
+        observabilityContext.outputs.biosignatureInterpretationConfidence,
       pressureKpa: fmt(pressureKpa, 2) + " kPa",
       atmWeight: fmt(atmWeightKgMol, 5) + " kg/mol",
       atmDensity: fmt(atmDensityKgM3, 4) + " kg/m³",
@@ -1605,15 +2032,42 @@ export function calcPlanetExact({
       oceanAcidity: oceanChemistryContext.acidityClass,
       carbonateSaturation: oceanChemistryContext.carbonateSaturationClass,
       nutrientSupport: oceanChemistryContext.nutrientSupportClass,
+      nitrogenCycle: nitrogenCycleContext.outputs.n2ReservoirClass,
+      nitrogenPressureBuffer: nitrogenCycleContext.outputs.pressureBufferSupportClass,
+      nitrogenNutrientLimitation: nitrogenCycleContext.outputs.nutrientLimitationClass,
       biosignatureContext: biosignatureContext.interpretationClass,
       disequilibriumStrength: biosignatureContext.disequilibriumStrength,
       oxygenFalsePositiveRisk: biosignatureContext.o2O3FalsePositiveRisk,
       methaneContext: biosignatureContext.methaneContext,
       coBuildupRisk: biosignatureContext.coBuildupRisk,
       atmosphereTrend: atmosphereLedger.trendLabel,
+      atmosphereEvolution: atmosphereEvolutionContext.pressureTrendClass,
+      atmosphereVolatileLoss: atmosphereEvolutionContext.volatileLossRiskClass,
+      atmosphereCompositionStability: atmosphereEvolutionContext.compositionStabilityClass,
+      stellarHistoryWaterLoss:
+        stellarHistoryDoseContext.outputs?.waterLossRiskClass || "Not evaluated",
+      stellarHistoryAbioticOxygen:
+        stellarHistoryDoseContext.outputs?.abioticOxygenRiskClass || "Not evaluated",
+      planetRadiation: planetRadiationEnvironmentContext.outputs.surfaceRadiationClass,
+      planetRadiationShielding: planetRadiationEnvironmentContext.outputs.atmosphereShieldingClass,
+      planetRadiationAurora:
+        planetRadiationEnvironmentContext.outputs.auroraReadinessClass || "Not evaluated",
+      interiorEvolution: interiorEvolutionContext.outputs.secularCoolingClass,
+      interiorDynamoSupport: interiorEvolutionContext.outputs.dynamoLifetimeSupportClass,
+      volcanicLongevity: interiorEvolutionContext.outputs.volcanicLongevityClass,
+      mantleRecyclingSupport: interiorEvolutionContext.outputs.mantleRecyclingSupportClass,
       atmosphereDominantSource: atmosphereLedger.dominantSource?.label || "None",
       atmosphereDominantSink: atmosphereLedger.dominantSink?.label || "None",
       atmosphereStabilityTimescale: atmosphereLedger.timescaleLabel,
+      co2ClimateTendency: co2ClimateTendencyContext.co2DrawdownTendency,
+      co2BuildupTendency: co2ClimateTendencyContext.co2BuildupTendency,
+      co2ThermostatAdjustment: `${co2ClimateTendencyContext.thermostatAdjustmentK > 0 ? "+" : ""}${fmt(
+        co2ClimateTendencyContext.thermostatAdjustmentK,
+        1,
+      )} K`,
+      smallBodyReservoir: smallBodyReservoirContext?.outputs?.impactFluxClass || "Not evaluated",
+      smallBodyVolatileDelivery:
+        smallBodyReservoirContext?.outputs?.volatileDeliveryClass || "Not evaluated",
       insolation: fmt(insolationEarth, 3) + "× Earth",
       companionFlux:
         hostFrame?.frameKind === "pair"
@@ -1646,13 +2100,13 @@ export function calcPlanetExact({
         ? `${fmt(atmosphericCollapse.condensationThresholdK, 0)} K (${atmosphericCollapse.dominantSpeciesLabel})`
         : "Not evaluated",
       bodyClass: bClass,
-      surfaceState: surfaceState.label,
+      surfaceState: effectiveSurfaceState.label,
       compositionClass: compClass,
       waterRegime: watRegime,
-      meanOceanDepth: formatOceanDepthKm(hydrosphere.estimatedMeanOceanDepthKm),
-      oceanPhaseDiagnostics: oceanPhaseDiagnostics?.text ?? null,
-      oceanPhaseDiagnosticLines: oceanPhaseDiagnostics?.lines ?? [],
-      climateState,
+      meanOceanDepth: formatOceanDepthKm(effectiveHydrosphere.estimatedMeanOceanDepthKm),
+      oceanPhaseDiagnostics: effectiveOceanPhaseDiagnostics?.text ?? null,
+      oceanPhaseDiagnosticLines: effectiveOceanPhaseDiagnostics?.lines ?? [],
+      climateState: effectiveClimateState,
       absorbedFlux: fmt(absorbedFluxWm2, 1) + " W/m\u00b2",
       coreRadius: `${fmt(coreRadiusFraction, 2)} R (${fmt(coreRadiusKm, 0)} km)`,
       suggestedCmf: `~${fmt(suggestedCmfPct, 0)}%`,

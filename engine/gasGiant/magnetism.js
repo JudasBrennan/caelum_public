@@ -1,6 +1,7 @@
 import { clamp, round } from "../utils.js";
 import { computeGiantMagnetosphereEnvironment } from "../environment/magnetosphere.js";
 import { totalMoonSelfHeating, totalMoonSputteringPlasmaW } from "./moonEffects.js";
+import { summarizeMoonInfluenceSummaries } from "./moonInfluenceSummary.js";
 
 const JUPITER_MASS_KG = 1.8982e27;
 const P_SW_1AU = 2.0e-9;
@@ -53,6 +54,7 @@ export function calcMagnetic({
   starLuminosityLsol,
   ageGyr,
   windPressureNPa = null,
+  moonInfluenceSummaries = null,
 }) {
   const qTotal = internalFluxWm2 + moonTidalFluxWm2;
   const qEff = isIceGiant
@@ -72,8 +74,16 @@ export function calcMagnetic({
   const massKg = massMjup * JUPITER_MASS_KG;
   const moonHeat = totalMoonSelfHeating(moons, massKg);
   const sputterW = totalMoonSputteringPlasmaW(moons, starLuminosityLsol, orbitAu, ageGyr);
-  const totalPlasma = moonHeat + sputterW;
-  const hasPlasmaSource = sputterW > 0 || moonHeat >= PLASMA_H_THRESHOLD;
+  const solvedMoonInfluence = summarizeMoonInfluenceSummaries(moonInfluenceSummaries);
+  const hasSolvedMoonInfluence = solvedMoonInfluence.count > 0;
+  const fallbackPlasma = moonHeat + sputterW;
+  const totalPlasma = hasSolvedMoonInfluence
+    ? solvedMoonInfluence.totalPlasmaSourcePowerW
+    : fallbackPlasma;
+  const hasPlasmaSource =
+    totalPlasma >= PLASMA_H_THRESHOLD ||
+    sputterW > 0 ||
+    solvedMoonInfluence.plasmaSourceScore > 0.18;
   const fallbackWindPressureNPa = orbitAu > 0 ? (P_SW_1AU / (orbitAu * orbitAu)) * 1e9 : null;
   const magnetosphereEnvironment = computeGiantMagnetosphereEnvironment({
     surfaceFieldGauss: surfaceGauss,
@@ -111,5 +121,18 @@ export function calcMagnetic({
     magnetopauseRp: magnetosphereEnvironment.magnetopauseRp,
     magnetopauseKm: magnetosphereEnvironment.magnetopauseKm,
     sputteringPlasmaW: round(sputterW, 0),
+    moonPlasmaSourcePowerW: round(totalPlasma, 0),
+    moonPlasmaSourceMode: hasSolvedMoonInfluence
+      ? solvedMoonInfluence.mode
+      : "fallback-raw-moon-proxies",
+    moonPlasmaSourceClass: hasSolvedMoonInfluence
+      ? solvedMoonInfluence.plasmaSourceClass
+      : fallbackPlasma >= PLASMA_H_THRESHOLD
+        ? "strong"
+        : sputterW > 0 || moonHeat > 0
+          ? "weak"
+          : "minimal",
+    moonPlasmaSourceConfidence: hasSolvedMoonInfluence ? solvedMoonInfluence.confidence : "low",
+    moonInfluenceSummary: solvedMoonInfluence,
   };
 }

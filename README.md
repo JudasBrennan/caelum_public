@@ -1,4 +1,4 @@
-# WorldSmith Web 2.10.0
+# WorldSmith Web 2.11.0
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -11,7 +11,7 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Guided orbit slots and moon parent assignment are clearer in the Planetary System viewer, with drag-to-move slot swaps, manual-to-guided slot inference, and visible locked-parent guidance.
 - Stellar environment modelling now includes differential rotation, Rossby/activity coupling, stellar wind, UV bands, prebiotic UV context, and photochemical haze diagnostics.
 - Planet and moon environments now share coupled forcing, magnetosphere, radiation, atmosphere ledger, climate-chemistry, cloud, carbon-cycle, ocean-chemistry, and biosignature-context diagnostics.
-- The calibration suite now distinguishes hard issues, semantic mismatches, high-uncertainty anchors, resolved rows, and intentional modeling gaps, with non-Solar exoplanet benchmarks guarding against Solar System overfitting.
+- The Validation page now ships a Science Verification Matrix that combines benchmark anchors with invariants, trend checks, boundary checks, cross-system coupling checks, unit checks, formula oracles, population checks, and release gates.
 - Era timelines, visual auto-coverage, world snapshots, and visualizer summaries now consume the shared coupled-environment contexts instead of rebuilding separate science summaries.
 - Planet and Moon outputs now include a top-level Era Timeline that presents past, current, and future physical-history entries with confidence and driver context.
 - Planet and Moon output panels now use shared tabs, matching section names, Result Summaries, and an All view for users who prefer the original long-column scan.
@@ -179,19 +179,26 @@ npm install
 - `npm run format` - Apply Prettier formatting.
 - `npm run serve` - Serve the built `dist/` folder locally.
 - `npm run serve:dist` - Serve the built `dist/` folder locally for smoke testing.
+- `npm run deploy:ftp:dry-run` - Connect to the configured FTP webroot, compare remote file sizes, and report the `dist/` upload set without changing remote files.
+- `npm run deploy:ftp` - Upload changed files from the built `dist/` folder to the configured FTP webroot. Requires `WORLDSMITH_FTP_HOST`, `WORLDSMITH_FTP_USER`, and `WORLDSMITH_FTP_PASSWORD`.
 - `npm run dev` - Build, serve, and rebuild `dist/` automatically for local development.
 - `npm run test:engine` - Run engine-focused tests.
 - `npm run test:ui` - Run UI-focused tests.
 - `npm run test:browser:install` - Install the Playwright Chromium browser used by smoke tests.
-- `npm run test:browser` - Run Playwright smoke tests against the built production app.
+- `npm run test:browser` - Run Playwright smoke tests against the built production app, using `4174` by default and the next free local port if that port is busy.
 - `npm run test` - Run the full test suite with custom reporter output.
 - `npm run test:report` - Generate `test-results.md`.
+- `npm run test:json` - Generate machine-readable test results in `test-results/test-results.json`.
 - `npm run check` - Run repo integrity, syntax, runtime dependency, mojibake, maintainability, compatibility-boundary, compatibility-decommissioning, UX, lint, format, and test checks.
+- `npm run science:verify` - Generate the Science Verification Matrix artifacts in `test-results/`.
+- `npm run calibration:report` - Compatibility alias for `npm run science:verify`.
 - `npm run assets:runtime` - Sync KaTeX and Draco runtime assets into `assets/vendor/`.
 - `npm run build` - Bundle production files into `dist/`.
 - `npm run backup:live` - Create a zip backup of live deploy files in `Backup/`.
 - `npm run profile:engine` - Run the engine profiling harness and compare against the checked-in baseline.
-- `npm run release:verify` - Run checks, build, bundle budget verification, install Chromium if needed, and run browser smoke tests.
+- `npm run verify:science` - Run checks, regenerate the matrix, build, and verify bundle budgets.
+- `npm run verify:release` - Run checks, regenerate the matrix, build, verify bundle budgets, install Chromium if needed, and run browser smoke tests.
+- `npm run release:verify` - Compatibility alias for `npm run verify:release`.
 
 ## Build Output
 
@@ -202,6 +209,22 @@ npm install
 - `index.html` stamped with the current release and release-busted top-level runtime URLs
 - `build-summary.json` with machine-readable entry and chunk-budget metadata for release verification
 - `build-metafile.json` and `chunk-provenance.json` for chunk-level bundle analysis and provenance
+- `reports/science-verification-matrix.json`, `.md`, and `.html` for the bundled Validation page
+- transitional `reports/model-calibration-report.json`, `.md`, and `.html` compatibility artifacts
+
+## FTP Deployment
+
+`npm run deploy:ftp` uploads the current `dist/` folder to the live static webroot. The script never stores credentials in the repo; set them in the release shell:
+
+```powershell
+$env:WORLDSMITH_FTP_HOST = "145.223.89.28"
+$env:WORLDSMITH_FTP_USER = "<ftp-user>"
+$env:WORLDSMITH_FTP_PASSWORD = "<ftp-password>"
+$env:WORLDSMITH_FTP_PORT = "21"
+$env:WORLDSMITH_FTP_REMOTE_DIR = "/domains/thebrokenwheel.co.uk/public_html/worldsmith"
+```
+
+Run `npm run deploy:ftp:dry-run` before every upload. The normal deploy compares remote file sizes and uploads only files that are missing or changed, while leaving stale remote files in place. Use `npm run deploy:ftp -- --force` only when deliberately overwriting every `dist/` file, and use `npm run deploy:ftp -- --delete` only when pruning stale files after the release backup and dry-run have been checked.
 
 ## Data Storage and Safety
 
@@ -227,6 +250,8 @@ npm install
 - `npm run release:verify` now includes the compatibility-boundary guardrail through `npm run check`, so new legacy handling fails unless it lands in an approved boundary or an intentional transition budget.
 - `npm run release:verify` now includes the compatibility-decommissioning guardrail through `npm run check`, so old-save paths cannot disappear without an intentional support decision and updated tests.
 - `npm run release:verify` now includes the UX guardrail check, so live-region misuse, unlabeled shell controls, and overlay/help contract drift fail before release.
+- The release checklist runs `npm run science:verify` early, immediately after version metadata is updated, so the Science Verification Matrix is reviewed before the deeper release gate begins.
+- `npm run release:verify` regenerates the Science Verification Matrix so every release has current benchmark, invariant, trend, boundary, coupling, unit, oracle, population, browser, and release-gate evidence.
 - `npm run release:verify` is intended to work from a clean clone on Windows, macOS, and Linux without relying on machine-specific Git line-ending settings.
 - `RELEASE_CHECKLIST.md` covers the manual clean-install, build-output, and browser-pass steps.
 - `filed-plans/EXOTIC_PLANETARY_SUBTYPES_PLAN.md` includes the subtype-specific manual smoke pass for old-world import, canonical save/export, Planet mobile behavior, Visualiser, System poster, unsupported-page guidance, and browser validation.

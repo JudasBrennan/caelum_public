@@ -1,4 +1,10 @@
 import { calcCalendarModel } from "../../engine/calendar.js";
+import { buildOrbitalEpochContext } from "../../engine/contexts/orbitalEpochContext.js";
+import {
+  buildObserverFrameContext,
+  listObserverFrameCandidates,
+  observerRefToSelectValue,
+} from "../../engine/contexts/observerFrameContext.js";
 import {
   getCalendarBasisMetrics,
   normalizeLeapRules,
@@ -22,6 +28,7 @@ import {
   normWorkCycleRules,
   uniqIds,
 } from "./stateModel.js";
+import { buildWorldSnapshot } from "../../engine/worldSnapshot.js";
 import { solvePlanetaryBodyForWorld } from "../bodySolveHelpers.js";
 import { findPlanetaryBody, getSelectedPlanet, listMoons, listPlanets } from "../store.js";
 import {
@@ -46,23 +53,99 @@ const I = (v, f = 0) => {
 const clampI = (v, min, max) => Math.max(min, Math.min(max, I(v, min)));
 const mod = (v, b) => (b > 0 ? ((v % b) + b) % b : 0);
 
+function finiteOrFallback(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
 function findSourcePlanetaryBody(world, planet) {
   if (!planet?.id) return null;
   return findPlanetaryBody(world, `planet:${planet.id}`) || findPlanetaryBody(world, planet.id);
+}
+
+function snapshotParentEntry(snapshot, parentId) {
+  const id = String(parentId || "").trim();
+  if (!id) return null;
+  return snapshot?.planetsById?.[id] || snapshot?.gasGiantsById?.[id] || null;
+}
+
+function entryOrbitAu(entry) {
+  return finiteOrFallback(
+    entry?.orbitAu ??
+      entry?.model?.inputs?.semiMajorAxisAu ??
+      entry?.model?.inputs?.orbitAu ??
+      entry?.model?.orbit?.semiMajorAxisAu ??
+      entry?.source?.inputs?.semiMajorAxisAu ??
+      entry?.source?.au,
+    1,
+  );
+}
+
+function entryEccentricity(entry) {
+  return Number(
+    entry?.model?.inputs?.eccentricity ??
+      entry?.model?.orbit?.eccentricity ??
+      entry?.source?.inputs?.eccentricity ??
+      entry?.source?.eccentricity ??
+      entry?.source?.ecc ??
+      0,
+  );
+}
+
+function entryInclinationDeg(entry) {
+  return Number(
+    entry?.model?.inputs?.inclinationDeg ??
+      entry?.model?.orbit?.inclinationDeg ??
+      entry?.source?.inputs?.inclinationDeg ??
+      entry?.source?.inclinationDeg ??
+      entry?.source?.inclination ??
+      0,
+  );
+}
+
+function moonSynodicDaysFromSnapshot(snapshot, moonId, fallback = 29.5306) {
+  const moon = snapshot?.moonsById?.[moonId];
+  return finiteOrFallback(
+    moon?.model?.orbit?.orbitalPeriodSynodicDays ??
+      moon?.model?.inputs?.orbitalPeriodSynodicDays ??
+      moon?.orbitalPeriodSynodicDays,
+    fallback,
+  );
+}
+
+function candidateLabel(candidate, fallback = "Reference body") {
+  if (!candidate) return fallback;
+  if (candidate.kind === "moon" && candidate.parentName) {
+    return `${candidate.label} around ${candidate.parentName}`;
+  }
+  return candidate.label || fallback;
 }
 
 export function createCalendarContextBuilder({ buildMonthModel }) {
   function buildContext(world, state) {
     const planets = listPlanets(world);
     const allMoons = listMoons(world);
+    const snapshot = buildWorldSnapshot(world, { mode: "full" });
+    const observerCandidates = listObserverFrameCandidates(snapshot);
+    const requestedObserver =
+      state.inputs.observerRef ||
+      (state.inputs.sourcePlanetId ? { kind: "planet", id: state.inputs.sourcePlanetId } : null);
+    const observerFrameContext = buildObserverFrameContext(snapshot, requestedObserver);
+    const observerRef = observerFrameContext.observerRef;
+    const observerCandidate = observerFrameContext.candidate || null;
+    const isMoonObserver = observerRef?.kind === "moon";
+    const sourcePlanetId = isMoonObserver ? observerRef?.parentId || "" : observerRef?.id || "";
     const planet =
+      (!isMoonObserver && findById(planets, sourcePlanetId)) ||
       findById(planets, state.inputs.sourcePlanetId) ||
       getSelectedPlanet(world) ||
       planets[0] ||
       null;
-    const sourcePlanetId = planet?.id || "";
     const planetMoons = moonsForPlanet(allMoons, sourcePlanetId);
-    const sourceBody = findSourcePlanetaryBody(world, planet);
+    const parentEntry = isMoonObserver
+      ? snapshotParentEntry(snapshot, sourcePlanetId)
+      : snapshot?.planetsById?.[sourcePlanetId] || null;
+    const sourceBody = !isMoonObserver ? findSourcePlanetaryBody(world, planet) : null;
     const pageSourceBody = sourceBody
       ? solvePlanetaryBodyForWorld(world, sourceBody).model || sourceBody
       : null;
@@ -78,8 +161,10 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
     const limitedSourceMessage =
       sourceApplicability?.status === "limited" ? sourceSubtypeMessage : "";
 
-    let primaryMoon = findById(planetMoons, state.inputs.primaryMoonId);
-    if (!primaryMoon) primaryMoon = planetMoons[0] || null;
+    let primaryMoon = isMoonObserver
+      ? findById(planetMoons, observerRef?.id)
+      : findById(planetMoons, state.inputs.primaryMoonId);
+    if (!primaryMoon && !isMoonObserver) primaryMoon = planetMoons[0] || null;
 
     const extras = uniqIds(state.inputs.extraMoonIds)
       .filter((id) => id && id !== primaryMoon?.id)
@@ -92,18 +177,34 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
     while (extraMoonIds.length < 3) extraMoonIds.push("");
 
     state.inputs.sourcePlanetId = sourcePlanetId;
+    state.inputs.observerRef =
+      observerRef || (sourcePlanetId ? { kind: "planet", id: sourcePlanetId } : null);
     state.inputs.primaryMoonId = primaryMoon?.id || "";
     state.inputs.extraMoonIds = extraMoonIds;
 
-    const planetOrbitalPeriodDays = unsupportedSourceMessage
-      ? 365.2422
-      : derivePlanetPeriodDays(world, planet);
-    const planetRotationPeriodHours = unsupportedSourceMessage
-      ? 24
-      : Math.max(0.1, N(planet?.inputs?.rotationPeriodHours, 24));
+    const frameOutputs = observerFrameContext.outputs || {};
+    const planetOrbitalPeriodDays = isMoonObserver
+      ? finiteOrFallback(frameOutputs.hostStarYearDays, 365.2422)
+      : unsupportedSourceMessage
+        ? 365.2422
+        : derivePlanetPeriodDays(world, planet);
+    const planetRotationPeriodHours = isMoonObserver
+      ? finiteOrFallback(frameOutputs.localSiderealDayHours, 24)
+      : unsupportedSourceMessage
+        ? 24
+        : Math.max(0.1, N(planet?.inputs?.rotationPeriodHours, 24));
 
     const moonDefs = [];
-    if (primaryMoon) {
+    if (isMoonObserver) {
+      const parentName =
+        observerCandidate?.parentName || parentEntry?.name || sourcePlanetId || "Parent";
+      moonDefs.push({
+        id: `parent:${sourcePlanetId || "body"}`,
+        name: `${parentName} phase`,
+        synodicDays: finiteOrFallback(frameOutputs.primaryPhaseCycleDays, 29.5306),
+        phaseCycleKind: frameOutputs.primaryPhaseCycleKind || "parent-phase",
+      });
+    } else if (primaryMoon) {
       moonDefs.push({
         id: primaryMoon.id,
         name: primaryMoon.name || primaryMoon.inputs?.name || "Primary moon",
@@ -120,7 +221,9 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
       moonDefs.push({
         id: moon.id,
         name: moon.name || moon.inputs?.name || moon.id,
-        synodicDays: deriveMoonSynodicDays(world, planet, moon),
+        synodicDays: isMoonObserver
+          ? moonSynodicDaysFromSnapshot(snapshot, moon.id)
+          : deriveMoonSynodicDays(world, planet, moon),
       });
       if (moonDefs.length >= 4) break;
     }
@@ -153,12 +256,21 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
     const orbitalHours = planetOrbitalPeriodDaysClamped * 24;
     const siderealHours = planetRotationPeriodHoursClamped;
     const recipDiff = 1 / siderealHours - 1 / orbitalHours;
-    const solarDayHours = recipDiff > 1e-9 ? 1 / recipDiff : siderealHours;
+    const solarDayHours = isMoonObserver
+      ? finiteOrFallback(frameOutputs.localSolarDayHours, siderealHours)
+      : recipDiff > 1e-9
+        ? 1 / recipDiff
+        : siderealHours;
 
     const calendarModel = calcCalendarModel({
-      planetOrbitalPeriodDays: planetOrbitalPeriodDaysClamped,
-      moonOrbitalPeriodDays: primaryMoonSynodicDays,
-      planetRotationPeriodHours: solarDayHours,
+      yearPeriodDays: planetOrbitalPeriodDaysClamped,
+      monthCycleDays: primaryMoonSynodicDays,
+      rotationPeriodHours: solarDayHours,
+      frameKind:
+        frameOutputs.calendarFrameClass || (isMoonObserver ? "moon-local" : "planet-local"),
+      phaseCycleKind:
+        frameOutputs.primaryPhaseCycleKind || (isMoonObserver ? "parent-phase" : "moon-phase"),
+      observerRef,
       weeksPerMonth: 4,
     });
     const base = getCalendarBasisMetrics(calendarModel, state.ui.basis);
@@ -225,6 +337,28 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
     const monthLengthOverrides = state.ui.monthLengthOverridesEnabled
       ? normalizeMonthLengthOverrides(state.ui.monthLengthOverrides, metrics.monthsPerYear)
       : [];
+    const orbitalEpochFactory = (absoluteDay) =>
+      buildOrbitalEpochContext({
+        epochDay: N(absoluteDay, 0),
+        homeBody: {
+          id: sourcePlanetId || planet?.id || "",
+          orbitAu: isMoonObserver
+            ? entryOrbitAu(parentEntry)
+            : (planet?.inputs?.semiMajorAxisAu ?? planet?.semiMajorAxisAu ?? 1),
+          orbitalPeriodDays: planetOrbitalPeriodDaysClamped,
+          eccentricity: isMoonObserver
+            ? entryEccentricity(parentEntry)
+            : (planet?.inputs?.eccentricity ?? planet?.eccentricity ?? 0),
+          inclinationDeg: isMoonObserver
+            ? entryInclinationDeg(parentEntry)
+            : (planet?.inputs?.inclinationDeg ?? planet?.inclinationDeg ?? 0),
+        },
+        moons: moonDefs.map((moon) => ({
+          id: moon.id,
+          name: moon.name,
+          synodicDays: moon.synodicDays,
+        })),
+      });
     const monthModel = buildMonthModel({
       metrics,
       year: state.ui.year,
@@ -245,13 +379,24 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
       workCycles,
       weekendDayIndexes,
       holidayAlgorithmSupport,
+      orbitalEpochFactory,
     });
     state.ui.selectedDay = clampI(state.ui.selectedDay, 1, monthModel.monthLength);
+    const orbitalEpochContext = orbitalEpochFactory(
+      N(monthModel?.absoluteDayStart, 0) + state.ui.selectedDay - 1,
+    );
 
     return {
       planets,
       planetMoons,
       sourcePlanetId,
+      sourceObserverValue: observerRefToSelectValue(observerRef),
+      sourceObserverLabel: candidateLabel(observerCandidate),
+      observerRef,
+      observerCandidates,
+      observerFrameContext,
+      isMoonObserver,
+      sourceParentLabel: observerCandidate?.parentName || parentEntry?.name || "",
       unsupportedSourceMessage,
       limitedSourceMessage,
       moonDefs,
@@ -275,6 +420,7 @@ export function createCalendarContextBuilder({ buildMonthModel }) {
       leapRules,
       monthLengthOverrides,
       monthModel,
+      orbitalEpochContext,
       holidayIssueById: monthModel.holidayIssueById || {},
       holidayAlgorithmPresetScope,
       holidayAlgorithmSupport,

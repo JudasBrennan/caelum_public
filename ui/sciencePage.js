@@ -1203,6 +1203,38 @@ function buildOrbitalMechanics() {
     ),
 
     formula(
+      "Long-Term Dynamical History",
+      `<p>WorldSmith now composes secular/Kozai susceptibility, first-order precession, Cassini-state readiness, migration-history evidence, and Trojan-reservoir diagnostics into one read-only long-term dynamics layer. These outputs explain long-cycle risks and history clues; they do not change authored orbits, climate temperatures, calendar periods, or apparent-size geometry.</p>
+      <div class="sci-formula__eq">${eq("i_{\\text{crit}} = \\cos^{-1}\\!\\sqrt{3/5} = 39.23^\\circ")}</div>
+      <div class="sci-formula__eq">${eq("t_{KL} \\approx \\frac{8}{15\\pi}\\frac{M_{tot}}{M_{pert}}\\frac{P_{out}^2}{P_{in}}(1-e_{out}^2)^{3/2}")}</div>
+      <div class="sci-formula__eq">${eq("\\epsilon_{oct} = \\frac{a_{in}}{a_{out}}\\frac{e_{out}}{1-e_{out}^2}\\left|\\frac{m_1-m_2}{m_1+m_2}\\right|")}</div>
+      <p><b>Kozai-Lidov guard:</b> the app only reports possible/likely KL behaviour for hierarchical systems with enough inclination context. Missing inclination stays <b>unknown</b>; compact non-hierarchical systems do not use the KL timescale formula.</p>
+      <div class="sci-formula__eq">${eq("\\dot\\Omega_{J2} = -\\frac{3}{2}J_2 n\\left(\\frac{R}{a}\\right)^2\\frac{\\cos i}{(1-e^2)^2}")}</div>
+      <div class="sci-formula__eq">${eq("\\dot\\omega_{GR} = \\frac{3nGM}{c^2a(1-e^2)}")}</div>
+      <p><b>Precession guard:</b> J2 and relativistic precession are first-order diagnostics. The Mercury fixture is calibrated near 43 arcsec/century for GR perihelion precession, but ordinary calendar and climate calculations remain based on current authored periods.</p>
+      <div class="sci-formula__eq">${eq("\\alpha\\cos\\epsilon\\sin\\epsilon + g\\sin(\\epsilon-I)=0")}</div>
+      <p><b>Cassini-state guard:</b> without moment of inertia, obliquity, spin-axis state, orbit-plane precession, and dissipation context, WorldSmith reports readiness only. It does not assign named Cassini states or obliquity-tide heating from this screen.</p>
+      <p><b>Migration history guard:</b> hot giants, resonant chains, excited giant orbits, Trojan capture hints, and volatile/orbit tension are reported as <i>evidence consistent with</i> migration scenarios. Grand-Tack-like and Nice-model-like labels are analogy classes, not unique reconstructions.</p>
+      <p><b>Trojan reservoir guard:</b> L4/L5 linear stability is necessary but not sufficient. Eccentricity, inclination, neighboring perturbers, and supply/capture evidence decide whether the reservoir is sparse, possible, rich, eroded, or unsupported.</p>
+      ${cite("Naoz (2016); NASA Milankovitch overview; Ward & Hamilton (2004); Tremaine et al. (2009); Kley & Nelson (2012); Walsh et al. (2011); Tsiganis et al. (2005); NASA Lagrange point reference; Emery et al. (2015); Dvorak et al. (2005)")}`,
+    ),
+
+    formula(
+      "Habitable Moon Observer Frames",
+      `<p>Calendar and Apparent Size can use either a planet or a modeled moon as the observer/reference body. A moon frame is a physical viewpoint, not a habitability override: any surface-applicable modeled moon may be selected, and missing inputs produce partial diagnostics instead of invented precision.</p>
+      <p><b>Moon-local calendar:</b> the year is the parent planet's host-star orbital period unless a barycentric moon orbit is explicitly modeled. The local sidereal day comes from the moon spin state; a strongly synchronous moon may use its moon-parent period as the local sidereal rotation assumption. The primary phase cycle is the parent planet's phase as seen from the moon, not the observer moon's own appearance.</p>
+      <div class="sci-formula__eq">${eq("\\theta_{\\text{parent}} = 2\\,\\arctan\\!\\left(\\frac{R_p}{d_m}\\right)")}</div>
+      ${vars([
+        ["R_p", "Parent planet radius"],
+        ["d_m", "Moon-parent distance, normally the moon semi-major axis"],
+        ["\\theta_{\\text{parent}}", "Approximate parent angular diameter in the moon sky"],
+      ])}
+      <p><b>Eclipse readiness:</b> phase alone is insufficient for an eclipse. Exact schedules require orbital inclination, longitude of node, a reference epoch, periods, and the relevant body radii. Without those inputs, WorldSmith reports likelihood/readiness classes only.</p>
+      <p><b>Long-cycle orientation:</b> Laplace-plane, J2 nodal/apsidal precession, and Cassini-state outputs are bounded diagnostics. The first-order Laplace radius and J2 precession proxies indicate the likely regime, but they are not a coupled secular spin-orbit solution and should not be used as exact season or pole-star predictions.</p>
+      ${cite("NASA GSFC Eclipse; LPI Moon Phases; Heller & Barnes (2013); Forgan & Yotov (2014); Tremaine et al. (2009); Ward & Hamilton (2004); NASA Milankovitch overview")}`,
+    ),
+
+    formula(
       "Tidal-Thermal Feedback",
       `<p>Intense tidal heating partially melts a rocky interior, lowering rigidity ${iq("\\mu")} and quality factor ${iq("Q")}, which further amplifies dissipation &mdash; a positive feedback loop. This is the key mechanism behind Io&rsquo;s extreme volcanism in the Laplace resonance (Io&ndash;Europa&ndash;Ganymede 1:2:4).</p>
       <p>For rocky moons (${iq("\\rho \\ge 3.2")} g/cm&sup3;) without a manual composition override, the model first computes tidal flux with cold (density-derived) material properties. A melt fraction ${iq("f")} is then derived from the ratio of flux to a critical threshold:</p>
@@ -1372,7 +1404,9 @@ function buildLagrangePoints() {
       <p>Gascheau (1843) stability criterion: L4/L5 are linearly stable only when the
       secondary mass ratio &mu; is below &mu;<sub>crit</sub>. This simplifies to roughly
       ${iq("m/M_\\star < 1/25")} for planetary masses. In the visualiser, unstable Trojans
-      are shown as dimmed amber diamonds.</p>`,
+      are shown as dimmed amber diamonds. The long-term dynamics layer adds reservoir labels
+      only after checking eccentricity, inclination, neighboring perturbations, and source/capture
+      evidence; stable points do not guarantee populated Trojans.</p>`,
     ),
   ].join("");
 }
@@ -1495,6 +1529,26 @@ function buildAtmosphereColour() {
     formula(
       "Effective Pressure for Sky Colour",
       `<p>The scale-height-adjusted effective pressure is used to index a sky colour lookup table derived from PanoptesV atmospheric data. This accounts for the fact that a low-gravity world with 1 atm surface pressure has a thicker optical column than Earth at 1 atm.</p>`,
+    ),
+
+    formula(
+      "Rocky Planet Radiation Environment",
+      `<p>Rocky planets now report a bounded radiation-environment context that keeps three effects separate: high-energy stellar forcing, atmospheric/ozone UV shielding, and magnetosphere charged-particle shielding.</p>
+      <div class="sci-formula__eq">${eq("H_{\\text{surface}} = 0.56\\,H_{\\text{particle}} + 0.44\\,H_{\\text{UV}}")}</div>
+      <div class="sci-formula__eq">${eq("P_{\\text{rad}} = 1 - 0.88\\,H_{\\text{surface}}")}</div>
+      <p>${iq("P_{\\text{rad}}")} is a habitability multiplier, not a physical dose. Dense atmospheres can shield particles even without a strong dynamo, ozone/photochemistry is needed for UV shielding, and magnetic fields mainly affect charged particles and aurora readiness.</p>
+      ${cite("NASA magnetosphere overview; NASA Ozone Watch; NASA Planetary Fact Sheets")}`,
+    ),
+
+    formula(
+      "Coupled Science Contexts",
+      `<p>Several engine subsystems now share the same bounded context objects instead of rebuilding separate page-local heuristics. Baseline/manual values remain visible; effective values are used only when the source context has enough confidence.</p>
+      <div class="sci-formula__eq">${eq("T_{\\text{effective}} = T_{\\text{baseline}} + \\Delta T_{\\text{chem/cloud}}")}</div>
+      <p>The coupled climate pass can feed hydrosphere, habitability, productivity, population, atmosphere persistence, and observability. It is a single confidence-gated pass, not an iterative general circulation model.</p>
+      <p><b>Atmosphere and stellar history:</b> source/sink, carbon-cycle, XUV/wind history, and photochemistry contexts add lifetime, water-loss, CO&#8322; tendency, and abiotic oxygen caveats without changing authored gas percentages.</p>
+      <p><b>Small bodies:</b> debris disks, Oort-cloud injection, comets, and gas-giant architecture route into impact flux, crater retention, volatile delivery, ring/source persistence, and era timelines. These are source/tendency classes, not stochastic impact predictions.</p>
+      <p><b>Nitrogen:</b> atmospheric N&#8322; can support background pressure and pressure broadening, while fixed-nitrogen availability can limit productivity. This is a nutrient and pressure-buffer screen, not evidence for biology or a full nitrogen cycle.</p>
+      ${cite("Kopparapu et al. (2013); Walker, Hays & Kasting (1981); Luger & Barnes (2015); Zahnle & Catling (2017); NASA Planetary Fact Sheets; Vitousek & Howarth (1991)")}`,
     ),
 
     formula(
@@ -2241,6 +2295,31 @@ function buildInteriorComposition() {
       )}
       <p>Water regime labels: Dry (&lt; 0.01%), Shallow oceans (&lt; 0.1%), Extensive (&lt; 1%),
       Global ocean (&lt; 10%), Deep ocean (&lt; 30%), Ice world (&ge; 30%).</p>`,
+    ),
+
+    formula(
+      "Radius-Valley Boundary Context",
+      `<p>The super-Earth/sub-Neptune radius valley is treated as a <b>population-level boundary diagnostic</b>, not a deterministic single-planet origin label. WorldSmith records whether a boundary-family planet is boundary-sized and whether its orbital period or irradiation makes envelope-loss interpretation relevant.</p>
+      ${dataTable(
+        ["Context class", "Interpretation"],
+        [
+          [
+            "close-in-boundary-relevant",
+            "Radius is in the small-planet boundary range and period, irradiation, or orbit makes radius-valley envelope-loss context relevant.",
+          ],
+          [
+            "long-period-weakly-constrained",
+            "Radius is boundary-sized but long-period, lower-irradiation context weakens a photoevaporation/core-powered-loss reading.",
+          ],
+          [
+            "boundary-sized-low-irradiation",
+            "Radius is boundary-sized, but the close-in irradiation evidence is not strong.",
+          ],
+          ["unknown", "Radius or orbital/irradiation context is missing."],
+        ],
+      )}
+      <p>This context is surfaced beside boundary traits such as radiusValley and volatileCandidate, and it does not rewrite the selected planetary family.</p>
+      ${cite("Fulton et al. (2017), AJ 154, 109; Van Eylen et al. (2018), MNRAS 479, 4786")}`,
     ),
 
     formula(
@@ -3481,7 +3560,7 @@ function wireCalculators(root) {
 const SECTIONS = [
   { id: "stellar", title: "Stellar Physics", count: 9, builder: buildStellarPhysics },
   { id: "evolution", title: "Stellar Evolution", count: 7, builder: buildStellarEvolution },
-  { id: "planetary", title: "Planetary Physics", count: 12, builder: buildPlanetaryPhysics },
+  { id: "planetary", title: "Planetary Physics", count: 13, builder: buildPlanetaryPhysics },
   { id: "gasgiant", title: "Gas Giant Physics", count: 13, builder: buildGasGiantPhysics },
   {
     id: "interior",
@@ -3498,7 +3577,7 @@ const SECTIONS = [
   { id: "orbital", title: "Orbital Mechanics", count: 22, builder: buildOrbitalMechanics },
   { id: "lagrange", title: "Lagrange Points", count: 4, builder: buildLagrangePoints },
   { id: "photometry", title: "Photometry &amp; Magnitudes", count: 8, builder: buildPhotometry },
-  { id: "atmosphere", title: "Atmosphere &amp; Colour", count: 9, builder: buildAtmosphereColour },
+  { id: "atmosphere", title: "Atmosphere &amp; Colour", count: 10, builder: buildAtmosphereColour },
   { id: "climate", title: "Climate Classification", count: 8, builder: buildClimateClassification },
   { id: "activity", title: "Stellar Activity", count: 7, builder: buildStellarActivity },
   { id: "calendar", title: "Calendar Systems", count: 5, builder: buildCalendarSystems },
@@ -3549,8 +3628,8 @@ export function initSciencePage(mountEl) {
         <em>Divergences from Published Science</em>, documents every place where
         WorldSmith uses its own empirical fits or simplifications.</p>
         <div class="science-validation-link">
-          <a class="validation-action validation-action--accent" href="#/validation">Open Validation Report</a>
-          <span>Compare the current engine against NASA/JPL, benchmark-star, and non-Solar calibration anchors.</span>
+          <a class="validation-action validation-action--accent" href="#/validation">Open Validation Matrix</a>
+          <span>Review benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, and release gates.</span>
         </div>
         <div class="sci-search">
           <label class="sci-search__field" for="sciencePageSearch">

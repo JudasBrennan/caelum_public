@@ -130,6 +130,7 @@ export function computeClimateChemistryForcing({
   hydrosphere = null,
   cloudContext = null,
   greenhouseTau = null,
+  co2ClimateTendencyContext = null,
 } = {}) {
   const baseline = finiteNonNegative(baselineSurfaceTempK, 0);
   const pressure = finiteNonNegative(pressureAtm, 0);
@@ -151,8 +152,17 @@ export function computeClimateChemistryForcing({
   const sulfurAerosolDeltaK =
     volcanicPersistence >= 0.15 ? -sulfurCandidateK * clamp(volcanicPersistence, 0, 1) : 0;
   const cloudAlbedoDeltaKValue = cloudAlbedoDeltaK(cloudContext);
+  const co2ThermostatDeltaK = clamp(
+    toFinite(co2ClimateTendencyContext?.thermostatAdjustmentK, 0),
+    -5,
+    5,
+  );
   const preliminaryDeltaK =
-    hazeDeltaK + methaneGreenhouseDeltaKValue + sulfurAerosolDeltaK + cloudAlbedoDeltaKValue;
+    hazeDeltaK +
+    methaneGreenhouseDeltaKValue +
+    sulfurAerosolDeltaK +
+    cloudAlbedoDeltaKValue +
+    co2ThermostatDeltaK;
   const waterVaporFeedbackDeltaKValue = waterVaporFeedbackDeltaK({
     preliminaryDeltaK,
     pressureAtm: pressure,
@@ -173,7 +183,7 @@ export function computeClimateChemistryForcing({
     pressureAtm: pressure,
   });
   const notes = [
-    "Diagnostic only: baseline surface temperature remains unchanged.",
+    "Baseline surface temperature is preserved; the coupled climate pass may consume this bounded tendency as an effective state.",
     "Ozone is treated as UV shielding, not a large direct temperature forcing.",
   ];
   if (hazeDeltaK < 0) {
@@ -190,6 +200,9 @@ export function computeClimateChemistryForcing({
   } else if (cloudAlbedoDeltaKValue < 0) {
     notes.push("Cloud/circulation context contributes bounded albedo cooling.");
   }
+  if (co2ThermostatDeltaK !== 0) {
+    notes.push("CO2 weathering/outgassing tendency contributes a bounded thermostat term.");
+  }
 
   return {
     modelVersion: MODEL_VERSION,
@@ -200,6 +213,7 @@ export function computeClimateChemistryForcing({
     sulfurAerosolDeltaK: round(sulfurAerosolDeltaK, 2),
     volcanicPersistence: round(volcanicPersistence, 3),
     cloudAlbedoDeltaK: round(cloudAlbedoDeltaKValue, 2),
+    co2ThermostatDeltaK: round(co2ThermostatDeltaK, 2),
     waterVaporFeedbackDeltaK: round(waterVaporFeedbackDeltaKValue, 2),
     netDeltaK: round(netDeltaK, 2),
     coupledSurfaceTempK: round(coupledSurfaceTempK, 2),

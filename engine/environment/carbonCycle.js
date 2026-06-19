@@ -10,6 +10,11 @@ function fraction(value, fallback = 0) {
   return clamp(toFinite(value, fallback), 0, 1);
 }
 
+function optionalFraction(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? clamp(number, 0, 1) : NaN;
+}
+
 function logRangeScore(value, lower, upper) {
   const number = finiteNonNegative(value, 0);
   if (number <= lower) return 0;
@@ -154,6 +159,7 @@ export function computeCarbonCycleContext({
   stellarAgeGyr = 0,
   insolationEarth = 1,
   climateState = "",
+  interiorEvolutionContext = null,
 } = {}) {
   const pressure = finiteNonNegative(pressureAtm, 0);
   const co2Partial = finiteNonNegative(ppCO2Atm, 0);
@@ -182,7 +188,22 @@ export function computeCarbonCycleContext({
     0,
     1,
   );
-  const tectonicScore = tectonicRecyclingScore(tectonicRegime, volcanicActivity);
+  const interiorOutputs =
+    interiorEvolutionContext && typeof interiorEvolutionContext === "object"
+      ? interiorEvolutionContext.outputs || interiorEvolutionContext
+      : {};
+  const interiorRecyclingScore = optionalFraction(interiorOutputs.mantleRecyclingSupportScore);
+  const interiorVolcanicScore = optionalFraction(interiorOutputs.volcanicLongevityScore);
+  const baseTectonicScore = tectonicRecyclingScore(tectonicRegime, volcanicActivity);
+  const tectonicScore = Number.isFinite(interiorRecyclingScore)
+    ? clamp(0.72 * baseTectonicScore + 0.28 * interiorRecyclingScore, 0, 1)
+    : baseTectonicScore;
+  const explicitVolcanic = optionalFraction(volcanicActivity);
+  const volcanicActivityWithInterior = Number.isFinite(interiorVolcanicScore)
+    ? Number.isFinite(explicitVolcanic)
+      ? Math.max(explicitVolcanic, 0.75 * interiorVolcanicScore)
+      : interiorVolcanicScore
+    : volcanicActivity;
   const recyclingEfficiency = clamp(
     tectonicScore *
       (0.72 + 0.28 * logRangeScore(finiteNonNegative(stellarAgeGyr, 4.6), 0.2, 4.6)) *
@@ -190,7 +211,11 @@ export function computeCarbonCycleContext({
     0,
     1,
   );
-  const volcanicSupply = volcanicSupplyScore({ tectonicScore, outgassing, volcanicActivity });
+  const volcanicSupply = volcanicSupplyScore({
+    tectonicScore,
+    outgassing,
+    volcanicActivity: volcanicActivityWithInterior,
+  });
   const balance = 1 - Math.abs(weatheringEfficiency - volcanicSupply);
   const thermostatStrength = clamp(
     Math.min(weatheringEfficiency, recyclingEfficiency, volcanicSupply) *
@@ -237,6 +262,9 @@ export function computeCarbonCycleContext({
   if (finiteNonNegative(insolationEarth, 1) > 1.7) {
     notes.push("High insolation can outpace this lightweight weathering proxy.");
   }
+  if (interiorEvolutionContext) {
+    notes.push("Interior evolution context informs volcanic supply and recycling support.");
+  }
 
   return {
     modelVersion: MODEL_VERSION,
@@ -250,6 +278,9 @@ export function computeCarbonCycleContext({
     oceanFraction: round(exposure.ocean, 3),
     seafloorWeatheringPotential: round(exposure.seafloorWeathering, 3),
     rockOceanAccess: round(exposure.rockOceanAccess, 3),
+    interiorEvolutionModelVersion: interiorEvolutionContext?.modelVersion || null,
+    interiorVolcanicSupportClass: interiorOutputs.volcanicLongevityClass || "not-evaluated",
+    interiorRecyclingSupportClass: interiorOutputs.mantleRecyclingSupportClass || "not-evaluated",
     weatheringLimiter: limiter,
     recyclingLimiter,
     tendencyClass: tendency,

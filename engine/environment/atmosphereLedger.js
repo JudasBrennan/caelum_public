@@ -213,6 +213,7 @@ function buildSourceTerms({
   tectonics,
   volatileInventory,
   hydrosphere,
+  smallBodyReservoirContext,
   ageGyr,
 }) {
   const sources = [];
@@ -279,27 +280,50 @@ function buildSourceTerms({
         "ocean_buffering",
         clamp(oceanFraction * (pressureAtm >= 0.006 ? 0.7 : 0.35), 0, 0.7),
         "low",
-        "Liquid reservoirs buffer volatiles, but the carbonate-silicate cycle is deferred to a later phase.",
+        "Liquid reservoirs buffer volatiles; carbonate weathering is handled by the carbon-cycle context when available.",
       ),
     );
   }
 
+  const reservoirOutputs =
+    smallBodyReservoirContext && typeof smallBodyReservoirContext === "object"
+      ? smallBodyReservoirContext.outputs || {}
+      : {};
+  const reservoirImpactScore = fraction(reservoirOutputs.impactFluxScore, 0);
+  const reservoirVolatileScore = fraction(reservoirOutputs.volatileDeliveryScore, 0);
+  const reservoirCometScore = fraction(reservoirOutputs.cometDeliveryScore, 0);
+  const hasReservoirContext = !!smallBodyReservoirContext;
   const age = finiteNonNegative(ageGyr, 4.6);
-  const impactScore = age < 0.7 ? 0.16 : age < 1.5 ? 0.08 : 0.025;
+  const impactScore = Math.max(
+    age < 0.7 ? 0.16 : age < 1.5 ? 0.08 : 0.025,
+    hasReservoirContext
+      ? clamp(0.05 + 0.28 * reservoirImpactScore + 0.18 * reservoirVolatileScore, 0, 0.45)
+      : 0,
+  );
   sources.push(
     term(
       "impact_delivery",
       impactScore,
-      "low",
-      "Late impact delivery is retained only as a weak background volatile source.",
+      hasReservoirContext ? "medium" : "low",
+      hasReservoirContext
+        ? "Small-body reservoir context raises impact volatile delivery when debris, Oort, or comet supply is present."
+        : "Late impact delivery is retained only as a weak background volatile source.",
     ),
+  );
+  const cometDeliveryScore = Math.max(
+    bodyType === "moon" ? impactScore * 0.7 : impactScore * 0.8,
+    hasReservoirContext
+      ? clamp(0.04 + 0.34 * reservoirCometScore + 0.26 * reservoirVolatileScore, 0, 0.5)
+      : 0,
   );
   sources.push(
     term(
       "comet_delivery",
-      bodyType === "moon" ? impactScore * 0.7 : impactScore * 0.8,
-      "low",
-      "Cometary delivery is stochastic and treated as a minor source.",
+      cometDeliveryScore,
+      hasReservoirContext ? "medium" : "low",
+      hasReservoirContext
+        ? "Cometary delivery follows the scoped reservoir context and remains stochastic."
+        : "Cometary delivery is stochastic and treated as a minor source.",
     ),
   );
 
@@ -316,6 +340,7 @@ function buildSinkTerms({
   atmosphericEscapeEnabled,
   photochemistry,
   hydrosphere,
+  carbonCycleContext,
   climateState,
   climate,
   radiation,
@@ -452,20 +477,25 @@ function buildSinkTerms({
     );
   }
 
-  const weatheringScore = clamp(
-    fraction(hydrosphere?.surfaceAccessibleLiquidFraction, 0) *
-      (composition.co2 > 0.001 ? 0.28 : 0.14) *
-      (pressureAtm > 0.05 ? 1 : 0.5),
-    0,
-    0.35,
-  );
+  const hasCarbonContext = carbonCycleContext && typeof carbonCycleContext === "object";
+  const weatheringScore = hasCarbonContext
+    ? clamp(fraction(carbonCycleContext.weatheringEfficiency, 0) * 0.45, 0, 0.55)
+    : clamp(
+        fraction(hydrosphere?.surfaceAccessibleLiquidFraction, 0) *
+          (composition.co2 > 0.001 ? 0.28 : 0.14) *
+          (pressureAtm > 0.05 ? 1 : 0.5),
+        0,
+        0.35,
+      );
   if (weatheringScore > 0.01) {
     sinks.push(
       term(
         "weathering_sequestration",
         weatheringScore,
-        "low",
-        "Carbonate weathering is a placeholder sink until the dedicated carbon-cycle phase.",
+        hasCarbonContext ? carbonCycleContext.confidence || "medium" : "low",
+        hasCarbonContext
+          ? "Carbonate weathering follows the bounded carbon-cycle context."
+          : "Carbonate weathering is a placeholder sink until the dedicated carbon-cycle phase.",
       ),
     );
   }
@@ -588,6 +618,8 @@ export function computeAtmosphereLedger({
   atmosphericEscapeEnabled = true,
   photochemistry = null,
   hydrosphere = null,
+  carbonCycleContext = null,
+  smallBodyReservoirContext = null,
   climateState = "",
   climate = null,
   outgassing = null,
@@ -610,6 +642,7 @@ export function computeAtmosphereLedger({
     tectonics,
     volatileInventory,
     hydrosphere,
+    smallBodyReservoirContext,
     ageGyr,
   });
   const sinkTerms = buildSinkTerms({
@@ -622,6 +655,7 @@ export function computeAtmosphereLedger({
     atmosphericEscapeEnabled,
     photochemistry,
     hydrosphere,
+    carbonCycleContext,
     climateState,
     climate,
     radiation,
@@ -650,14 +684,26 @@ export function computeAtmosphereLedger({
     outgassing,
     tectonics,
     radiation,
+    smallBodyReservoirContext,
   ].filter(Boolean).length;
   const confidence = confidenceFromTerms(sourceTerms, sinkTerms, explicitInputs);
   const caveats = [
     "Atmosphere ledger is an order-of-magnitude source-sink diagnostic, not a mass-balance solver.",
     "Energy-limited escape and wind loss are reported as confidence-bounded tendencies.",
   ];
-  if (sourceTerms.some((entry) => entry.id === "weathering_sequestration")) {
+  if (
+    sourceTerms.some((entry) => entry.id === "weathering_sequestration") ||
+    sinkTerms.some((entry) => entry.id === "weathering_sequestration")
+  ) {
     caveats.push("Weathering is a placeholder until the dedicated carbon-cycle coupling phase.");
+  }
+  if (
+    carbonCycleContext &&
+    typeof carbonCycleContext === "object" &&
+    sinkTerms.some((entry) => entry.id === "weathering_sequestration")
+  ) {
+    caveats[caveats.length - 1] =
+      "Weathering sequestration is sourced from the bounded carbon-cycle context.";
   }
 
   return {

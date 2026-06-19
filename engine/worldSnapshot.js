@@ -2,6 +2,7 @@ import { calcStar } from "./star.js";
 import { calcSystem } from "./system.js";
 import { calcPlanetExact } from "./planet.js";
 import { calcGasGiant } from "./gasGiant.js";
+import { buildSolvedMoonInfluenceSummary } from "./gasGiant/moonInfluenceSummary.js";
 import { calcPlanetaryBody } from "./planetaryBody.js";
 import {
   buildGasGiantMoonParentOverride,
@@ -9,6 +10,7 @@ import {
   solveMoonSystem,
 } from "./moon/system.js";
 import { buildHomeSystemContext, resolveHostFrameContext } from "./homeSystem/context.js";
+import { buildSmallBodyReservoirContextForWorld } from "./smallBodyReservoirRouting.js";
 import { resolveWorldStarConfig } from "./worldStarConfig.js";
 
 function orderedItems(section) {
@@ -514,53 +516,74 @@ export function buildWorldSnapshot(world, options = {}) {
   const gasGiantMoonParentOverridesById = new Map();
   const planetSolveContextById = new Map();
   const gasGiantSolveContextById = new Map();
+  const smallBodyReservoirContextByHostFrameId = new Map();
   const fallbackHostFrameSolveContext = buildFallbackHostFrameSolveContext(
     context,
     defaultHostFrameId,
   );
+
+  function smallBodyReservoirContextForSolve(solveContext, hostFrameId) {
+    const resolvedHostFrameId = solveContext?.hostFrameId || hostFrameId || defaultHostFrameId;
+    const cacheKey = resolvedHostFrameId || "__default__";
+    if (smallBodyReservoirContextByHostFrameId.has(cacheKey)) {
+      return smallBodyReservoirContextByHostFrameId.get(cacheKey);
+    }
+    const reservoirContext = buildSmallBodyReservoirContextForWorld(world, {
+      fallbackHostFrameId: defaultHostFrameId,
+      gasGiants: gasGiantEntries,
+      hostFrameId: resolvedHostFrameId,
+      primaryStar: world?.star || null,
+      starConfig: solveContext?.starConfig ?? starConfig,
+      starModel: solveContext?.starModel ?? star,
+    });
+    smallBodyReservoirContextByHostFrameId.set(cacheKey, reservoirContext);
+    return reservoirContext;
+  }
 
   const gasGiantModels = gasGiantEntries.map((raw) => {
     const hostFrameId = normalizeHostFrameId(raw?.hostFrameId, defaultHostFrameId);
     const solveContext =
       resolveHostFrameContext(homeSystemContext, hostFrameId) || fallbackHostFrameSolveContext;
     gasGiantSolveContextById.set(raw.id, solveContext);
+    const args = {
+      ...raw,
+      orbitAu: Number(raw.au ?? 5.2),
+      starMassMsol: solveContext?.starConfig?.massMsol ?? starConfig.massMsol,
+      starLuminosityLsol: solveContext?.starModel?.luminosityLsol ?? star.luminosityLsol,
+      starAgeGyr: solveContext?.starConfig?.ageGyr ?? starConfig.ageGyr,
+      starRadiusRsol: solveContext?.starModel?.radiusRsol ?? star.radiusRsol,
+      hostFrameId: solveContext?.hostFrameId || hostFrameId,
+      hostFrame: solveContext?.hostFrame || null,
+      hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
+      hostPrebioticUvEarthAt1Au: solveContext?.hostPrebioticUvEarthAt1Au ?? null,
+      hostWindPressureEarthAt1Au: solveContext?.hostWindPressureEarthAt1Au ?? null,
+      companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
+      companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
+      companionPrebioticUvEarth: solveContext?.companionPrebioticUvEarth ?? 0,
+      companionWindPressureEarth: solveContext?.companionWindPressureEarth ?? 0,
+      fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
+      stellarMetallicityFeH: solveContext?.starConfig?.metallicityFeH ?? starConfig.metallicityFeH,
+      otherGiants: (otherGiantsById.get(raw.id) || []).filter(
+        (other) =>
+          normalizeHostFrameId(other?.hostFrameId, defaultHostFrameId) ===
+          (solveContext?.hostFrameId || hostFrameId),
+      ),
+      moons: moonInputsByParentId.get(raw.id) || [],
+      detailLevel,
+    };
     return {
       raw,
-      model: calcGasGiant({
-        ...raw,
-        orbitAu: Number(raw.au ?? 5.2),
-        starMassMsol: solveContext?.starConfig?.massMsol ?? starConfig.massMsol,
-        starLuminosityLsol: solveContext?.starModel?.luminosityLsol ?? star.luminosityLsol,
-        starAgeGyr: solveContext?.starConfig?.ageGyr ?? starConfig.ageGyr,
-        starRadiusRsol: solveContext?.starModel?.radiusRsol ?? star.radiusRsol,
-        hostFrameId: solveContext?.hostFrameId || hostFrameId,
-        hostFrame: solveContext?.hostFrame || null,
-        hostXuvFluxEarthAt1Au: solveContext?.hostXuvFluxEarthAt1Au ?? null,
-        hostPrebioticUvEarthAt1Au: solveContext?.hostPrebioticUvEarthAt1Au ?? null,
-        hostWindPressureEarthAt1Au: solveContext?.hostWindPressureEarthAt1Au ?? null,
-        companionFluxEarth: solveContext?.companionFluxEarth ?? 0,
-        companionXuvFluxEarth: solveContext?.companionXuvFluxEarth ?? 0,
-        companionPrebioticUvEarth: solveContext?.companionPrebioticUvEarth ?? 0,
-        companionWindPressureEarth: solveContext?.companionWindPressureEarth ?? 0,
-        fluxVariabilityFraction: solveContext?.fluxVariabilityFraction ?? 0,
-        stellarMetallicityFeH:
-          solveContext?.starConfig?.metallicityFeH ?? starConfig.metallicityFeH,
-        otherGiants: (otherGiantsById.get(raw.id) || []).filter(
-          (other) =>
-            normalizeHostFrameId(other?.hostFrameId, defaultHostFrameId) ===
-            (solveContext?.hostFrameId || hostFrameId),
-        ),
-        moons: moonInputsByParentId.get(raw.id) || [],
-        detailLevel,
-      }),
+      args,
+      model: calcGasGiant(args),
     };
   });
-  const gasGiantModelsById = new Map(gasGiantModels.map((entry) => [entry.raw.id, entry.model]));
+  let gasGiantModelsById = new Map(gasGiantModels.map((entry) => [entry.raw.id, entry.model]));
 
   const planetModels = planetEntries.map((raw) => {
     const hostFrameId = normalizeHostFrameId(raw?.hostFrameId, defaultHostFrameId);
     const solveContext =
       resolveHostFrameContext(homeSystemContext, hostFrameId) || fallbackHostFrameSolveContext;
+    const smallBodyReservoirContext = smallBodyReservoirContextForSolve(solveContext, hostFrameId);
     planetSolveContextById.set(raw.id, solveContext);
     return {
       raw,
@@ -591,6 +614,7 @@ export function buildWorldSnapshot(world, options = {}) {
             normalizeHostFrameId(entry?.hostFrameId, defaultHostFrameId) ===
             (solveContext?.hostFrameId || hostFrameId),
         ),
+        smallBodyReservoirContext,
         detailLevel,
       }),
     };
@@ -601,6 +625,10 @@ export function buildWorldSnapshot(world, options = {}) {
     ...planetEntries.map((raw, index) => {
       const hostFrameId = normalizeHostFrameId(raw?.hostFrameId, defaultHostFrameId);
       const solveContext = planetSolveContextById.get(raw.id) || fallbackHostFrameSolveContext;
+      const smallBodyReservoirContext = smallBodyReservoirContextForSolve(
+        solveContext,
+        hostFrameId,
+      );
       const body = toRockyUnifiedBody(raw, index + 1);
       return {
         raw,
@@ -631,6 +659,7 @@ export function buildWorldSnapshot(world, options = {}) {
               normalizeHostFrameId(entry?.hostFrameId, defaultHostFrameId) ===
               (solveContext?.hostFrameId || hostFrameId),
           ),
+          smallBodyReservoirContext,
           detailLevel,
         }),
       };
@@ -638,6 +667,10 @@ export function buildWorldSnapshot(world, options = {}) {
     ...gasGiantEntries.map((raw, index) => {
       const hostFrameId = normalizeHostFrameId(raw?.hostFrameId, defaultHostFrameId);
       const solveContext = gasGiantSolveContextById.get(raw.id) || fallbackHostFrameSolveContext;
+      const smallBodyReservoirContext = smallBodyReservoirContextForSolve(
+        solveContext,
+        hostFrameId,
+      );
       const body = toGasGiantUnifiedBody(raw, index + 1);
       return {
         raw,
@@ -664,6 +697,7 @@ export function buildWorldSnapshot(world, options = {}) {
               (solveContext?.hostFrameId || hostFrameId),
           ),
           moons: moonInputsByParentId.get(raw.id) || [],
+          smallBodyReservoirContext,
           detailLevel,
         }),
       };
@@ -675,6 +709,11 @@ export function buildWorldSnapshot(world, options = {}) {
     const fullMoonEntries = moonEntries.filter((entry) => entry.planetId === parentId);
     const rockyParentModel = planetModelsById.get(parentId);
     if (rockyParentModel) {
+      const solveContext = planetSolveContextById.get(parentId);
+      const smallBodyReservoirContext = smallBodyReservoirContextForSolve(
+        solveContext,
+        solveContext?.hostFrameId || defaultHostFrameId,
+      );
       if (!rockyMoonParentOverridesById.has(parentId)) {
         rockyMoonParentOverridesById.set(
           parentId,
@@ -726,6 +765,7 @@ export function buildWorldSnapshot(world, options = {}) {
           parentKind: "planet",
           parentOverride: rockyMoonParentOverridesById.get(parentId),
           moonEntries: fullMoonEntries,
+          smallBodyReservoirContext,
           detailLevel,
         }).map((entry) => ({
           raw: entry.raw,
@@ -738,6 +778,11 @@ export function buildWorldSnapshot(world, options = {}) {
 
     const gasParentModel = gasGiantModelsById.get(parentId);
     if (gasParentModel) {
+      const solveContext = gasGiantSolveContextById.get(parentId);
+      const smallBodyReservoirContext = smallBodyReservoirContextForSolve(
+        solveContext,
+        solveContext?.hostFrameId || defaultHostFrameId,
+      );
       if (!gasGiantMoonParentOverridesById.has(parentId)) {
         gasGiantMoonParentOverridesById.set(
           parentId,
@@ -790,6 +835,7 @@ export function buildWorldSnapshot(world, options = {}) {
           parentKind: "gasGiant",
           parentOverride: gasGiantMoonParentOverridesById.get(parentId),
           moonEntries: fullMoonEntries,
+          smallBodyReservoirContext,
           detailLevel,
         }).map((entry) => ({
           raw: entry.raw,
@@ -802,6 +848,29 @@ export function buildWorldSnapshot(world, options = {}) {
 
     throw new Error(`Moon system references unknown parent "${parentId}".`);
   }
+
+  const moonInfluenceSummariesByParentId = new Map();
+  for (const entry of moonModels) {
+    if (entry.parentKind !== "gasGiant") continue;
+    const parentId = entry.raw?.planetId;
+    if (!parentId) continue;
+    if (!moonInfluenceSummariesByParentId.has(parentId)) {
+      moonInfluenceSummariesByParentId.set(parentId, []);
+    }
+    moonInfluenceSummariesByParentId
+      .get(parentId)
+      .push(buildSolvedMoonInfluenceSummary(entry.model));
+  }
+  for (const entry of gasGiantModels) {
+    const moonInfluenceSummaries = moonInfluenceSummariesByParentId.get(entry.raw.id) || [];
+    if (!moonInfluenceSummaries.length) continue;
+    entry.args = {
+      ...entry.args,
+      moonInfluenceSummaries,
+    };
+    entry.model = calcGasGiant(entry.args);
+  }
+  gasGiantModelsById = new Map(gasGiantModels.map((entry) => [entry.raw.id, entry.model]));
 
   const planetsById = Object.fromEntries(
     planetModels.map((entry) => [

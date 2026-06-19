@@ -1,4 +1,5 @@
 import { calcClimateZones } from "../engine/climate.js";
+import { buildDynamicalContext } from "../engine/dynamics/context.js";
 import { fmt } from "../engine/utils.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import { bindNumberAndSlider } from "./bind.js";
@@ -121,6 +122,21 @@ function getClimateContext(world) {
   const { model } = solvePlanetExactForWorld(world, planet);
 
   if (!model?.derived) return fallback;
+  let dynamicalVariabilityContext = null;
+  try {
+    dynamicalVariabilityContext =
+      buildDynamicalContext({ world, detailLevel: "summary" }).bodies?.[planet.id]
+        ?.dynamicalVariabilityContext || null;
+  } catch {
+    dynamicalVariabilityContext = null;
+  }
+  const dynamicalVariabilityOutputs = dynamicalVariabilityContext?.outputs || {};
+  const climateVariabilityWarning =
+    dynamicalVariabilityOutputs.climateWarningMessages?.[0] ||
+    (dynamicalVariabilityOutputs.habitabilityVariabilityWarning &&
+    dynamicalVariabilityOutputs.habitabilityVariabilityWarning !== "none"
+      ? "Long-cycle orbital variability is a warning only; climate bands are not rewritten."
+      : "");
 
   return {
     surfaceTempK: model.derived.surfaceTempK || 288,
@@ -136,8 +152,48 @@ function getClimateContext(world) {
     climateState: model.derived.climateState || "Stable",
     insolationEarth: model.derived.insolationEarth || 1,
     gravityG: model.derived.gravityG || 1,
+    surfaceClimateContext: model.derived.surfaceClimateContext || null,
+    dynamicalVariabilityContext,
+    climateVariabilityWarning,
     limitedSurfaceMessage: pageApplicability?.status === "limited" ? subtypeMessage : "",
   };
+}
+
+function displayFromZones(zones = []) {
+  const counts = new Map();
+  for (const zone of zones) {
+    const key = zone?.master || "X";
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  let dominantClass = "X";
+  let dominantCount = -1;
+  for (const [key, count] of counts.entries()) {
+    if (count > dominantCount) {
+      dominantClass = key;
+      dominantCount = count;
+    }
+  }
+  return {
+    zoneCount: zones.length,
+    dominantClass,
+  };
+}
+
+function climateModelForContext(ctx, altitudeM = 0) {
+  if (ctx.unsupportedSurfaceMessage) return null;
+  if (Number(altitudeM) === 0 && ctx.surfaceClimateContext?.outputs) {
+    const outputs = ctx.surfaceClimateContext.outputs;
+    const zones = Array.isArray(outputs.zones) ? outputs.zones : [];
+    return {
+      zones,
+      advisory: outputs.advisory || null,
+      display: {
+        ...displayFromZones(zones),
+        ...(outputs.display || {}),
+      },
+    };
+  }
+  return calcClimateZones({ ...ctx, altitudeM });
 }
 
 // ── Canvas drawing ──────────────────────────────────────────
@@ -398,6 +454,9 @@ export function initClimatePage(containerEl) {
       model.advisory
         ? createElement("div", { className: "clim-advisory", text: model.advisory })
         : null,
+      ctx.climateVariabilityWarning
+        ? createElement("div", { className: "clim-advisory", text: ctx.climateVariabilityWarning })
+        : null,
       createElement("div", { className: "kpi-grid" }, [
         kpiNode("Zone Count", model.display.zoneCount, TIP_LABEL["Zone Count"]),
         kpiNode(
@@ -473,9 +532,7 @@ export function initClimatePage(containerEl) {
   function update() {
     const w = loadWorld();
     const ctx = getClimateContext(w);
-    const model = ctx.unsupportedSurfaceMessage
-      ? null
-      : calcClimateZones({ ...ctx, altitudeM: state.altitudeM });
+    const model = climateModelForContext(ctx, state.altitudeM);
 
     const dyn = containerEl.querySelector("#climDynamic");
     if (!dyn) return;
@@ -492,9 +549,7 @@ export function initClimatePage(containerEl) {
     const pList = listPlanets(w);
     const selected = getSelectedPlanet(w);
     const ctx = getClimateContext(w);
-    const model = ctx.unsupportedSurfaceMessage
-      ? null
-      : calcClimateZones({ ...ctx, altitudeM: state.altitudeM });
+    const model = climateModelForContext(ctx, state.altitudeM);
 
     containerEl.innerHTML = `
       <div class="page">

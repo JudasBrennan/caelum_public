@@ -134,6 +134,11 @@ function cloneSeedDefaults(seedCometDefaults) {
 
 function cloneOortModel(model) {
   const source = model && typeof model === "object" ? model : {};
+  const injectionRatePerYear = round(toFinite(source.injectionRatePerYear, 0), 3);
+  const injectionRatePerMyr = round(
+    toFinite(source.injectionRatePerMyr, injectionRatePerYear * 1_000_000),
+    3,
+  );
   return {
     present: !!source.present,
     formationClass: String(source.formationClass || "Negligible"),
@@ -142,7 +147,8 @@ function cloneOortModel(model) {
     innerBoundaryAu: round(toFinite(source.innerBoundaryAu, 0), 3),
     outerBoundaryAu: round(toFinite(source.outerBoundaryAu, 0), 3),
     estimatedMassMearth: round(toFinite(source.estimatedMassMearth, 0), 3),
-    injectionRatePerYear: round(toFinite(source.injectionRatePerYear, 0), 3),
+    injectionRatePerYear,
+    injectionRatePerMyr,
     seedCometDefaults: cloneSeedDefaults(source.seedCometDefaults),
   };
 }
@@ -344,6 +350,7 @@ export function calcOortCloud({
     outerBoundaryAu: round(outerBoundaryAu, 3),
     estimatedMassMearth: round(estimatedMassMearth, 3),
     injectionRatePerYear: round(injectionRatePerYear, 3),
+    injectionRatePerMyr: round(round(injectionRatePerYear, 3) * 1_000_000, 3),
     seedCometDefaults: {
       name: "New long-period comet",
       sourceReservoir: "oortCloud",
@@ -410,6 +417,7 @@ export function resolveOortCloudModel({ autoModel, config } = {}) {
             100,
           )
         : 0;
+    const resolvedInjectionRatePerYear = round(injectionRatePerYear, 3);
 
     resolved = {
       ...resolved,
@@ -419,7 +427,8 @@ export function resolveOortCloudModel({ autoModel, config } = {}) {
       innerBoundaryAu: round(innerBoundaryAu, 3),
       outerBoundaryAu: round(outerBoundaryAu, 3),
       estimatedMassMearth: round(estimatedMassMearth, 3),
-      injectionRatePerYear: round(injectionRatePerYear, 3),
+      injectionRatePerYear: resolvedInjectionRatePerYear,
+      injectionRatePerMyr: round(resolvedInjectionRatePerYear * 1_000_000, 3),
     };
   } else if (mode === "manual") {
     const innerBoundaryRaw = parseOptionalManualNumber(manual.innerBoundaryAu);
@@ -450,6 +459,7 @@ export function resolveOortCloudModel({ autoModel, config } = {}) {
       estimatedMassRaw == null ? baseline.estimatedMassMearth : clamp(estimatedMassRaw, 0, 200);
     const injectionRatePerYear =
       injectionRateRaw == null ? baseline.injectionRatePerYear : clamp(injectionRateRaw, 0, 100);
+    const resolvedInjectionRatePerYear = round(injectionRatePerYear, 3);
     const present = manual.present == null ? estimatedMassMearth >= 0.5 : !!manual.present;
 
     resolved = {
@@ -460,7 +470,8 @@ export function resolveOortCloudModel({ autoModel, config } = {}) {
       innerBoundaryAu: round(innerBoundaryAu, 3),
       outerBoundaryAu: round(outerBoundaryAu, 3),
       estimatedMassMearth: round(estimatedMassMearth, 3),
-      injectionRatePerYear: round(injectionRatePerYear, 3),
+      injectionRatePerYear: resolvedInjectionRatePerYear,
+      injectionRatePerMyr: round(resolvedInjectionRatePerYear * 1_000_000, 3),
     };
   }
 

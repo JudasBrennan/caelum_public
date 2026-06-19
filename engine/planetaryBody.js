@@ -244,6 +244,7 @@ export function buildRockyPlanetInputFromUnifiedBody(body, context = {}) {
     planet: buildRockyPlanetPayload(body),
     moons: normalizeMoonInputs(context.moons, body?.id),
     gasGiants: normalizeGasGiantPerturbers(context.gasGiants),
+    smallBodyReservoirContext: context.smallBodyReservoirContext || null,
   };
   if (typeof context.detailLevel === "string") args.detailLevel = context.detailLevel;
   if (context.habitabilityPolicy !== undefined)
@@ -348,6 +349,9 @@ export function buildGasGiantInputFromUnifiedBody(body, context = {}) {
     otherGiants: normalizeGasGiantPerturbers(context.otherGiants || context.gasGiants, body?.id),
     moons: normalizeMoonInputs(context.moons, body?.id),
   };
+  if (Array.isArray(context.moonInfluenceSummaries)) {
+    args.moonInfluenceSummaries = context.moonInfluenceSummaries;
+  }
   if (typeof context.detailLevel === "string") args.detailLevel = context.detailLevel;
   return args;
 }

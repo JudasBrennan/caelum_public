@@ -6,6 +6,7 @@ import { downloadCanvasPng, makeTimestampToken } from "./canvasExport.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
 import {
   renderManualBodyList,
+  renderLongTermDynamicsDiagnostics,
   renderOrbitalArchitectureDiagnostics,
   renderOrbitSlots,
   renderSystemKpis,
@@ -102,6 +103,14 @@ const TIP_LABEL = {
   "Multistar info panel":
     "Show or hide the multistar summary overlay on supported system-poster views.\n\n" +
     "This affects the in-canvas host-frame, hierarchy, and companion-branch information card.",
+  "Long-term dynamics":
+    "Read-only long-cycle diagnostics for secular/Kozai susceptibility, migration-history evidence, and Trojan reservoir support. These are bounded warnings and evidence classes, not an N-body integration or automatic orbit repair.",
+  "Secular Forcing":
+    "Qualitative long-cycle forcing from the selected host-frame architecture and hierarchical companions. Kozai-Lidov flags require a hierarchical perturber and inclination information.",
+  "Migration Evidence":
+    "Evidence-consistent migration history. A strong label is still not a unique reconstruction of the system's past.",
+  "Trojan Reservoir":
+    "L4/L5 Trojan reservoir support. Stable triangular points are necessary but not enough; source/capture history and perturbations still matter.",
 };
 
 /* ── System Poster ────────────────────────────────────── */
@@ -184,6 +193,11 @@ function formatHostFrameScopeLabel(hostFrame) {
 function formatHostFrameOptionLabel(hostFrame) {
   const label = hostFrame?.label || hostFrame?.id || "Host frame";
   return `${label} (${formatHostFrameScopeLabel(hostFrame)})`;
+}
+
+function titleCase(value) {
+  const text = String(value || "unknown").replace(/[-_]/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function formatHabitableZoneRange(habitableZoneAu) {
@@ -461,6 +475,7 @@ export function initSystemPage(mountEl) {
         <div class="panel__body">
           <div class="kpi-grid" id="kpis"></div>
           <div id="orbitalArchitectureDiagnostics" style="margin-top:12px"></div>
+          <div id="longTermDynamicsDiagnostics" style="margin-top:12px"></div>
 
           <div style="margin-top:14px">
             <div id="guidedOutputs">
@@ -526,6 +541,7 @@ export function initSystemPage(mountEl) {
 
   const kpisEl = wrap.querySelector("#kpis");
   const orbitalArchitectureEl = wrap.querySelector("#orbitalArchitectureDiagnostics");
+  const longTermDynamicsEl = wrap.querySelector("#longTermDynamicsDiagnostics");
   const unassignedEl = wrap.querySelector("#unassignedPlanets");
   const unassignedMoonsEl = wrap.querySelector("#unassignedMoons");
   const slotsUiEl = wrap.querySelector("#slotsUi");
@@ -811,6 +827,9 @@ export function initSystemPage(mountEl) {
       const model = activeHostFrame?.system || homeSystemContext.primarySystem;
       state.starMassMsol = Number(activeSolveContext?.starConfig?.massMsol || primaryStar.massMsol);
       const zoneLabel = getHostZoneLabel(activeHostFrame);
+      const dynamicalContext = buildDynamicalContext({ world: w0, detailLevel: "summary" });
+      const longTermDynamicsContext = dynamicalContext.longTermDynamicsContext || null;
+      const longTermOutputs = longTermDynamicsContext?.outputs || {};
 
       renderHostFrameSelector(homeSystemContext, activeSolveContext);
       massDisplay.textContent = buildSelectedHostReadout(activeSolveContext);
@@ -836,6 +855,21 @@ export function initSystemPage(mountEl) {
           meta: "AU",
         },
         { label: "Host Mass", value: fmt(state.starMassMsol, 4), meta: "Msol" },
+        {
+          label: "Secular Forcing",
+          value: titleCase(longTermOutputs.systemSecularClass),
+          meta: `KL ${titleCase(longTermOutputs.kozaiLidovClass)}`,
+        },
+        {
+          label: "Migration Evidence",
+          value: titleCase(longTermOutputs.migrationEvidenceClass),
+          meta: "evidence class",
+        },
+        {
+          label: "Trojan Reservoir",
+          value: titleCase(longTermOutputs.trojanReservoirClass),
+          meta: "L4/L5 support",
+        },
         {
           label: "Host Luminosity",
           value: fmt(Number(activeSolveContext?.starModel?.luminosityLsol) || 0, 3),
@@ -975,12 +1009,19 @@ export function initSystemPage(mountEl) {
         moonCountByPlanet.set(pid, list.length);
       }
       const renderCtx = { planetsById: moonParentsById, moonsByPlanet, moonCountByPlanet };
-      const dynamicalContext = buildDynamicalContext({ world: worldForUi, detailLevel: "summary" });
+      const renderedDynamicalContext = invalidAssignments.length
+        ? buildDynamicalContext({ world: worldForUi, detailLevel: "summary" })
+        : dynamicalContext;
       const orbitalArchitecture =
-        dynamicalContext.hostFrames?.[state.activeHostFrameId]?.orbitalArchitecture ||
-        dynamicalContext.hostFrames?.[fallbackHostFrameId]?.orbitalArchitecture ||
+        renderedDynamicalContext.hostFrames?.[state.activeHostFrameId]?.orbitalArchitecture ||
+        renderedDynamicalContext.hostFrames?.[fallbackHostFrameId]?.orbitalArchitecture ||
         null;
       renderOrbitalArchitectureDiagnostics(orbitalArchitectureEl, orbitalArchitecture);
+      renderLongTermDynamicsDiagnostics(
+        longTermDynamicsEl,
+        renderedDynamicalContext.longTermDynamicsContext,
+        state.activeHostFrameId || fallbackHostFrameId,
+      );
 
       // Unassigned list
       const unassigned = annotatedPlanetsForUi.filter((p) => p.slotIndex == null);

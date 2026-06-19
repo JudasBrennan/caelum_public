@@ -264,6 +264,8 @@ export function calcBodyAbsoluteMagnitude({ radiusKm, geometricAlbedo }) {
  * @param {number} params.geometricAlbedo      Geometric albedo (0–1)
  * @param {boolean} params.hasAtmosphere       Whether the body has an atmosphere
  * @param {number} [params.currentDistanceAu]  Current home-to-body distance (AU)
+ * @param {number} [params.minDistanceAu]      Explicit lower distance bound (AU)
+ * @param {number} [params.maxDistanceAu]      Explicit upper distance bound (AU)
  * @param {number} [params.phaseAngleDeg]      Phase angle override (degrees)
  * @param {number} params.starLuminosityLsol   Host star luminosity (L☉)
  * @returns {{absoluteMagnitude: number, apparentMagnitude: number,
@@ -279,6 +281,8 @@ export function calcBodyApparentFromHome({
   geometricAlbedo,
   hasAtmosphere,
   currentDistanceAu,
+  minDistanceAu,
+  maxDistanceAu,
   phaseAngleDeg,
   starLuminosityLsol,
 }) {
@@ -287,11 +291,21 @@ export function calcBodyApparentFromHome({
   const radius = Math.max(0.000001, toFinite(radiusKm, EARTH_RADIUS_KM));
   const starLum = Math.max(0.000001, toFinite(starLuminosityLsol, 1));
 
-  const minDistanceAu = Math.abs(orbit - home);
-  const maxDistanceAu = orbit + home;
+  const derivedMinDistanceAu = Math.abs(orbit - home);
+  const derivedMaxDistanceAu = orbit + home;
+  const explicitMinDistanceAu = Number(minDistanceAu);
+  const explicitMaxDistanceAu = Number(maxDistanceAu);
+  const distanceMin =
+    Number.isFinite(explicitMinDistanceAu) && explicitMinDistanceAu >= 0
+      ? explicitMinDistanceAu
+      : derivedMinDistanceAu;
+  const distanceMax =
+    Number.isFinite(explicitMaxDistanceAu) && explicitMaxDistanceAu >= distanceMin
+      ? explicitMaxDistanceAu
+      : derivedMaxDistanceAu;
 
   const rawCurrentDistance = toFinite(currentDistanceAu, defaultCurrentDistanceAu(orbit, home));
-  const distanceAu = clamp(rawCurrentDistance, minDistanceAu, maxDistanceAu);
+  const distanceAu = clamp(rawCurrentDistance, distanceMin, distanceMax);
 
   const defaultPhaseCos = (orbit ** 2 + distanceAu ** 2 - home ** 2) / (2 * orbit * distanceAu);
   const derivedPhaseDeg = angleFromCos(defaultPhaseCos);
@@ -330,8 +344,8 @@ export function calcBodyApparentFromHome({
     absoluteMagnitude,
     apparentMagnitude,
     orbitAu: orbit,
-    minDistanceAu,
-    maxDistanceAu,
+    minDistanceAu: distanceMin,
+    maxDistanceAu: distanceMax,
     currentDistanceAu: distanceAu,
     phaseAngleDeg: phaseDeg,
     elongationDeg,
@@ -367,6 +381,12 @@ function normalizeBodySample(item, index) {
     hasAtmosphere: Boolean(item?.hasAtmosphere),
     currentDistanceAu: Number.isFinite(Number(item?.currentDistanceAu))
       ? Number(item.currentDistanceAu)
+      : undefined,
+    minDistanceAu: Number.isFinite(Number(item?.minDistanceAu))
+      ? Number(item.minDistanceAu)
+      : undefined,
+    maxDistanceAu: Number.isFinite(Number(item?.maxDistanceAu))
+      ? Number(item.maxDistanceAu)
       : undefined,
     phaseAngleDeg: Number.isFinite(Number(item?.phaseAngleDeg))
       ? Number(item.phaseAngleDeg)
@@ -532,6 +552,8 @@ export function calcApparentModel({
       geometricAlbedo: body.geometricAlbedo,
       hasAtmosphere: body.hasAtmosphere,
       currentDistanceAu: body.currentDistanceAu,
+      minDistanceAu: body.minDistanceAu,
+      maxDistanceAu: body.maxDistanceAu,
       phaseAngleDeg: body.phaseAngleDeg,
       starLuminosityLsol: star.luminosityLsol,
     }),

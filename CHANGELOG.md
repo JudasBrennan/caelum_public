@@ -4,6 +4,208 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.11.0 - 2026-06-19
+
+### Added
+
+**Shared cross-system science contexts**
+(engine/contexts/\*, engine/planet.js, engine/moon.js, engine/gasGiant.js,
+engine/worldAdapters.js, ui/climatePage.js, ui/populationPage.js,
+ui/calendarPage.js, ui/tectonicsPage.js, ui/moonPage.js, ui/planetPage.js,
+ui/sciencePage.js, tests/systemCrossCouplingContexts.test.js,
+tests/contextScienceRegistry.test.js)
+
+WorldSmith now exposes shared context objects for surface climate,
+productivity potential, geodynamics, impact environment, orbital epoch
+geometry, rings and magnetospheres, secular/stress susceptibility, and
+observability. These contexts give pages a common science-backed source for
+cross-system outputs instead of duplicating private heuristics in individual
+UI modules.
+
+The new shared science registry records source links, assumptions, input
+bounds, output type, calibration requirements, and known limitations for every
+new context. The Science & Maths page now documents the new radius-valley
+boundary context as a diagnostic only, not a deterministic single-world
+classifier.
+
+**Habitable moon observer and reference frames**
+(engine/contexts/observerFrameContext.js,
+engine/contexts/eclipseTimingContext.js,
+engine/contexts/moonOrientationContext.js, engine/calendar.js,
+engine/apparent.js, engine/worldAdapters.js, engine/moon.js,
+ui/calendarPage.js, ui/apparentPage.js, ui/moonPage.js,
+tests/observerFrameContext.test.js, tests/calendarObserverFrameAliases.test.js,
+tests/apparent.test.js, tests/worldAdapters.test.js,
+tests/eclipseTimingContext.test.js, tests/moonOrientationContext.test.js,
+tests/moon.test.js)
+
+Calendar and Apparent Size can now use either planets or modeled moons as the
+reference body. Moon-local calendars use the parent planet's host-star year,
+the moon's local sidereal/solar day, and the parent-planet phase cycle instead
+of forcing inhabited moons through a planet-only frame.
+
+Apparent Size moon observers now show the parent planet at the moon-parent
+distance, exclude the observer moon from its own sky list, and include sibling
+moons with bounded separation estimates where orbital data exists.
+
+Moon pages now surface eclipse timing readiness, eclipse frequency, Laplace
+regime, nodal/apsidal precession classes, and Cassini-state readiness as
+bounded diagnostics. Exact eclipse schedules and full Cassini-state solutions
+remain gated behind the required node, epoch, moment-of-inertia, and spin-axis
+inputs.
+
+**Long-term dynamical history and resonant architecture**
+(engine/contexts/longTermDynamicsContext.js,
+engine/contexts/secularDynamicsContext.js,
+engine/contexts/precessionContext.js,
+engine/contexts/cassiniStateContext.js,
+engine/contexts/migrationHistoryContext.js,
+engine/contexts/trojanPopulationContext.js, engine/dynamics/context.js,
+engine/dynamics/generationGuidance.js, engine/lagrange.js,
+ui/systemPage.js, ui/system/domRender.js, ui/planetPage.js,
+ui/sciencePage.js, tests/longTermDynamicsContext.test.js,
+tests/secularDynamicsContext.test.js, tests/precessionContext.test.js,
+tests/cassiniStateContext.test.js, tests/migrationHistoryContext.test.js,
+tests/trojanPopulationContext.test.js, tests/dynamicalContext.test.js,
+tests/systemDomRender.test.js, tests/systemPageMultistar.ui.test.js,
+tests/inputDraftStability.ui.test.js, tests/lagrange.test.js)
+
+WorldSmith now builds a read-only long-term dynamics layer for secular/Kozai
+susceptibility, first-order precession, Cassini-state readiness, migration
+history evidence, and L4/L5 Trojan reservoir support. The new outputs are
+bounded diagnostics: they do not run an N-body integration, reconstruct a
+unique migration history, assign exact Cassini states, or rewrite authored
+orbits.
+
+The Planetary System page now shows long-term dynamics KPIs and a selected
+host-frame diagnostics band. Planet, volatile-body, gas-giant, and brown-dwarf
+outputs now include a compact Long-term Dynamics section sourced from the
+shared dynamical context.
+
+Generation guidance now surfaces KL-prone architectures and unsupported
+Trojan reservoirs as soft warnings only. Hard blocks remain reserved for
+existing physical impossibilities such as Roche, collision, Hill, and
+mutual-Hill failures.
+
+**Science coupling closure**
+(engine/environment/coupledClimatePass.js,
+engine/environment/atmosphereEvolutionContext.js,
+engine/environment/co2ClimateTendencyContext.js,
+engine/environment/nitrogenCycleContext.js,
+engine/contexts/stellarHistoryDoseContext.js,
+engine/contexts/planetRadiationEnvironmentContext.js,
+engine/contexts/interiorEvolutionContext.js,
+engine/smallBodyReservoirRouting.js, engine/planet.js, engine/moon.js,
+engine/worldSnapshot.js, ui/bodySolveHelpers.js,
+tests/scienceCouplingEndToEnd.test.js, tests/nitrogenCycleContext.test.js,
+tests/productivityContext.test.js)
+
+Climate chemistry, clouds, haze, and water-vapor feedback now flow into a
+confidence-gated coupled climate pass. Hydrosphere, habitability,
+productivity, population, observability, and atmosphere persistence can consume
+the bounded effective climate state while preserving the original baseline and
+any manual authored values.
+
+Atmosphere source/sink, carbon-cycle, stellar-history, rocky-radiation,
+interior-evolution, and nitrogen-cycle contexts now feed the downstream systems
+that physically depend on them. Nitrogen outputs remain pressure-buffer and
+nutrient-limitation diagnostics only; they do not imply biology.
+
+Debris disks, Oort-cloud injection, comets, and gas-giant architecture now
+route through a shared small-body reservoir helper for planet, moon, snapshot,
+and UI solve paths. Young debris-rich systems therefore report elevated impact
+and volatile-delivery context without rewriting authored orbits.
+
+**Science Verification Matrix**
+(scripts/generate-science-verification-matrix.mjs,
+scripts/science-verification/\*, scripts/test-reporter-json.mjs,
+scripts/build.mjs, ui/validationPage.js, ui/sciencePage.js, styles.css,
+tests/scienceVerificationMatrix.test.js, tests/validationPage.ui.test.js,
+tests/sciencePageReference.ui.test.js, README.md, RELEASE_CHECKLIST.md)
+
+The old benchmark-only calibration report has been replaced by a Science
+Verification Matrix that combines benchmark anchors, invariants, trend checks,
+boundary checks, cross-system coupling checks, unit checks, independent formula
+oracles, sensitivity checks, population sanity checks, browser coverage, and
+release gates in one generated artifact.
+
+The matrix is emitted as JSON, Markdown, and standalone HTML in `test-results/`
+and copied into `dist/reports/` during production builds. Temporary
+`model-calibration-report.*` compatibility artifacts are still generated for
+one transition release.
+
+The Validation page now renders the matrix directly with headline counts,
+model-area coverage, release gates, row filters, open gaps, recommendations,
+and a "What The Matrix Means" explainer defining each verification family in
+user-facing language.
+
+### Changed
+
+**Deeper science coupling across existing pages**
+(engine/population.js, engine/planetarySubtypes.js, ui/planet/gasGiantOutputItems.js,
+ui/calendar/renderContext.js, scripts/check-bundle-budget.mjs)
+
+Population, climate, tectonics, calendar, moon, planet, and gas-giant outputs
+now consume the shared contexts where available. Manual overrides remain
+preserved as authored values, while inferred values are surfaced as bounded
+diagnostics with confidence and limitation notes.
+
+Gas giants now surface ring architecture, ring lifetime/source persistence,
+aurora likelihood, radiation-belt class, and observability classes from the
+shared ring/magnetosphere and observability contexts.
+
+The largest app-owned lazy chunk budget was raised from 300,000 bytes to
+400,000 bytes to account for the new shared science-context engine baseline.
+Entry, vendor, largest-lazy, and lazy-chunk-count budgets remain unchanged.
+
+**Release verification workflow**
+(package.json, scripts/run-browser-tests.mjs, scripts/deploy-dist-ftp.mjs,
+scripts/build.mjs, RELEASE_CHECKLIST.md, README.md)
+
+Release preparation now includes `npm run science:verify`,
+`npm run verify:science`, `npm run verify:release`, and the compatibility
+alias `npm run release:verify`. The release checklist now requires regenerating
+and reviewing the Science Verification Matrix before version tagging,
+packaging, or publishing.
+
+The first Science Verification Matrix refresh now happens early in release
+metadata preparation, immediately after the candidate version is stamped, so
+science failures or surprising gaps are caught before the full release gate.
+
+Browser smoke tests now run through a small wrapper that keeps Playwright's
+fresh-server behavior but automatically selects the next free local port when
+the default `4174` is already occupied.
+
+The release checklist now includes direct FTP deployment of the built `dist/`
+folder to the live webroot, with a required dry-run step and credentials loaded
+from environment variables rather than committed files.
+
+FTP deployment now compares remote file sizes, skips unchanged files, and
+streams upload progress so interrupted deploys can be resumed without
+re-uploading the whole build.
+
+### Tests
+
+- Added shared-context engine regressions covering Earth-like climate and
+  productivity, airless bodies, impact retention, ring/magnetosphere behavior,
+  orbital epoch geometry, secular/stress diagnostics, and observability.
+- Added registry coverage requiring source metadata, bounds, assumptions, and
+  limitation text for every shared context.
+- Expanded moon, gas-giant, planetary-subtype, world-adapter, and Science page
+  tests for tidal-stress morphology, ring/aurora/observability outputs,
+  radius-valley boundary diagnostics, and shared-context import/export paths.
+- Added observer-frame, calendar, apparent-size, eclipse-readiness,
+  moon-orientation, and moon-page regressions for planet compatibility,
+  moon-local reference frames, parent apparent diameter, node/epoch timing
+  gates, Laplace regime classes, and Cassini-state readiness.
+- Added end-to-end science coupling fixtures covering Earth-like, Venus-like,
+  Mars-like, Europa-like, Titan-like, M-dwarf water-loss, and young
+  debris-rich worlds across climate, habitability, productivity, population,
+  observability, nitrogen, small-body, and timeline outputs.
+- Added Science Verification Matrix tests for schema validity, source-backed
+  model-area coverage, generated artifact integrity, release-gate visibility,
+  Validation page filtering, and Science page validation links.
+
 ## 2.10.0 - 2026-06-18
 
 ### Added

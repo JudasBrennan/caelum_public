@@ -128,8 +128,10 @@ const TIPS = {
   "New profile": "Create a new calendar profile.",
   "Duplicate profile": "Create a copy of the current calendar profile.",
   "Delete profile": "Delete the current calendar profile.",
-  "Source planet": "Planet used to derive orbital year length and day-length context.",
-  "Primary moon": "Main moon used for lunar cycle calculations and full/new moon summaries.",
+  "Reference body":
+    "Planet or moon whose local sky frame supplies the year, day, and phase-cycle context.",
+  "Primary phase cycle":
+    "Main visible phase cycle used for lunar/parent-phase calculations and full/new summaries.",
   "Extra moon":
     "Additional moon shown in day and detailed views; does not replace the primary moon.",
   "Planet orbital period": "Derived from the selected planet and star. Read-only.",
@@ -214,7 +216,7 @@ const TIPS = {
     "Calculate a recommended ±1-day leap cycle from the source planet orbital year and add it automatically.",
   "Apply inputs": "Apply current input selections and regenerate the calendar context.",
   "Use selected objects":
-    "Pull currently selected planet/moon from other pages into this calendar setup.",
+    "Use the currently selected moon as the reference body when available; otherwise use the selected planet.",
   "Apply names": "Apply custom day/week/month naming lists to the calendar.",
   "Reset names": "Clear custom naming lists and restore automatic default names.",
   "Add holiday": "Create a new holiday rule, or save changes while editing.",
@@ -492,6 +494,54 @@ function bodyOptions(items) {
     value: item?.id || "",
     label: item?.name || item?.inputs?.name || item?.id || "",
   }));
+}
+
+function observerCandidateOption(candidate) {
+  const label =
+    candidate?.kind === "moon" && candidate?.parentName
+      ? `${candidate.label} (${candidate.parentName})`
+      : candidate?.label || candidate?.id || "";
+  return createElement("option", {
+    attrs: { value: candidate?.selectValue || "" },
+    text: label,
+  });
+}
+
+function replaceObserverCandidateOptions(selectEl, candidates = []) {
+  const byKind = { planet: [], moon: [] };
+  for (const candidate of Array.isArray(candidates) ? candidates : []) {
+    if (!candidate || candidate.eligibilityClass === "invalid") continue;
+    if (candidate.kind === "moon") byKind.moon.push(candidate);
+    else byKind.planet.push(candidate);
+  }
+  const groups = [
+    ["planet", "Planets"],
+    ["moon", "Moons"],
+  ].flatMap(([kind, label]) =>
+    byKind[kind].length
+      ? [
+          createElement(
+            "optgroup",
+            { attrs: { label } },
+            byKind[kind].map((candidate) => observerCandidateOption(candidate)),
+          ),
+        ]
+      : [],
+  );
+  replaceChildren(selectEl, groups);
+}
+
+function observerRefFromCandidateValue(ctx, value) {
+  const selected = (ctx?.observerCandidates || []).find(
+    (candidate) => String(candidate?.selectValue || "") === String(value || ""),
+  );
+  if (selected?.observerRef) return { ...selected.observerRef };
+  const [rawKind, ...rest] = String(value || "").includes(":")
+    ? String(value || "").split(":")
+    : ["planet", String(value || "")];
+  const id = rest.join(":").trim();
+  if (!id) return null;
+  return rawKind === "moon" ? { kind: "moon", id } : { kind: "planet", id };
 }
 
 function moonSlotOptions(moons) {
@@ -922,21 +972,18 @@ function buildAstronomyMarkers(ctx) {
   }
 
   if (settings.eclipses) {
-    const cycleDays = 173.31;
-    const windowDays = 17;
-    const markerOffset = N(ctx?.absoluteDay, 0) + N(ctx?.moonEpochOffsetDays, 0);
-    const seasonPos = mod(markerOffset, cycleDays);
-    const inSeason = seasonPos <= windowDays || seasonPos >= cycleDays - windowDays;
-    if (inSeason) {
+    const epochMoons = ctx?.orbitalEpochContext?.outputs?.moons || null;
+    if (epochMoons) {
       for (let idx = 0; idx < moonStates.length; idx++) {
         const moonState = moonStates[idx] || {};
-        const phaseShort = String(moonState?.phase?.phaseShort || "");
         const sourceMoonName = String(moonState?.name || `Moon ${idx + 1}`).trim();
         const sourceMoonId = String(moonState?.id || "").trim();
+        const epochMoon = epochMoons[sourceMoonId] || epochMoons[sourceMoonName] || null;
+        if (!epochMoon) continue;
         const sourceMoonIndex = Number.isFinite(Number(moonState?.moonIndex))
           ? clampI(Number(moonState.moonIndex), 0, MOON_COLORS.length - 1)
           : clampI(idx, 0, MOON_COLORS.length - 1);
-        if (phaseShort === "N") {
+        if (epochMoon.solarEclipseWindow && epochMoon.solarEclipseWindow !== "unlikely") {
           out.push({
             key: "solar-eclipse-window",
             kind: "eclipse",
@@ -947,7 +994,7 @@ function buildAstronomyMarkers(ctx) {
             sourceMoonIndex,
           });
         }
-        if (phaseShort === "F") {
+        if (epochMoon.lunarEclipseWindow && epochMoon.lunarEclipseWindow !== "unlikely") {
           out.push({
             key: "lunar-eclipse-window",
             kind: "eclipse",
@@ -957,6 +1004,45 @@ function buildAstronomyMarkers(ctx) {
             sourceMoonId,
             sourceMoonIndex,
           });
+        }
+      }
+    } else {
+      const cycleDays = 173.31;
+      const windowDays = 17;
+      const markerOffset = N(ctx?.absoluteDay, 0) + N(ctx?.moonEpochOffsetDays, 0);
+      const seasonPos = mod(markerOffset, cycleDays);
+      const inSeason = seasonPos <= windowDays || seasonPos >= cycleDays - windowDays;
+      if (inSeason) {
+        for (let idx = 0; idx < moonStates.length; idx++) {
+          const moonState = moonStates[idx] || {};
+          const phaseShort = String(moonState?.phase?.phaseShort || "");
+          const sourceMoonName = String(moonState?.name || `Moon ${idx + 1}`).trim();
+          const sourceMoonId = String(moonState?.id || "").trim();
+          const sourceMoonIndex = Number.isFinite(Number(moonState?.moonIndex))
+            ? clampI(Number(moonState.moonIndex), 0, MOON_COLORS.length - 1)
+            : clampI(idx, 0, MOON_COLORS.length - 1);
+          if (phaseShort === "N") {
+            out.push({
+              key: "solar-eclipse-window",
+              kind: "eclipse",
+              name: "Solar Eclipse Window",
+              short: "SE",
+              sourceMoonName,
+              sourceMoonId,
+              sourceMoonIndex,
+            });
+          }
+          if (phaseShort === "F") {
+            out.push({
+              key: "lunar-eclipse-window",
+              kind: "eclipse",
+              name: "Lunar Eclipse Window",
+              short: "LE",
+              sourceMoonName,
+              sourceMoonId,
+              sourceMoonIndex,
+            });
+          }
         }
       }
     }
@@ -1207,6 +1293,7 @@ function buildMonthModel(params) {
     workCycles,
     weekendDayIndexes,
     holidayAlgorithmSupport = buildHolidayAlgorithmSupport("none"),
+    orbitalEpochFactory = null,
   } = params;
   const safeYear = Math.max(1, I(year, 1));
   const safeMonth = clampI(monthIndex, 0, metrics.monthsPerYear - 1);
@@ -1259,6 +1346,8 @@ function buildMonthModel(params) {
         absoluteDay,
         moonEpochOffsetDays,
         moonStates,
+        orbitalEpochContext:
+          typeof orbitalEpochFactory === "function" ? orbitalEpochFactory(absoluteDay) : null,
       });
       days.push({
         dayNumber,
@@ -2382,8 +2471,8 @@ export function initCalendarPage(mountEl) {
         <div class="calendar-drawer__body">
         <section data-drawer-section="structure" class="calendar-drawer__section">
         <div class="panel"><div class="panel__header"><h2>Inputs</h2></div><div class="panel__body">
-          <div class="form-row"><div><div class="label">Source planet ${tipIcon(TIPS["Source planet"] || "")}</div></div><select id="calSourcePlanet"></select></div>
-          <div class="form-row"><div><div class="label">Primary moon ${tipIcon(TIPS["Primary moon"] || "")}</div></div><select id="calPrimaryMoon"></select></div>
+          <div class="form-row"><div><div class="label">Reference body ${tipIcon(TIPS["Reference body"] || "")}</div></div><select id="calSourcePlanet"></select></div>
+          <div class="form-row"><div><div class="label">Primary phase cycle ${tipIcon(TIPS["Primary phase cycle"] || "")}</div></div><select id="calPrimaryMoon"></select></div>
           <div class="form-row"><div><div class="label">Extra moon 1 ${tipIcon(TIPS["Extra moon"] || "")}</div></div><select id="calExtraMoon1"></select></div>
           <div class="form-row"><div><div class="label">Extra moon 2 ${tipIcon(TIPS["Extra moon"] || "")}</div></div><select id="calExtraMoon2"></select></div>
           <div class="form-row"><div><div class="label">Extra moon 3 ${tipIcon(TIPS["Extra moon"] || "")}</div></div><select id="calExtraMoon3"></select></div>
@@ -2983,14 +3072,28 @@ export function initCalendarPage(mountEl) {
     els.profileSelect.value = state.profileId;
     els.profileDelete.disabled = state.profiles.length <= 1;
 
-    replaceSelectOptions(els.sourcePlanet, bodyOptions(ctx.planets));
-    els.sourcePlanet.value = ctx.sourcePlanetId;
-    const moonOptions = [{ value: "", label: "None" }, ...bodyOptions(ctx.planetMoons)];
-    replaceSelectOptions(els.primaryMoon, moonOptions);
+    replaceObserverCandidateOptions(els.sourcePlanet, ctx.observerCandidates);
+    els.sourcePlanet.value = ctx.sourceObserverValue || "";
+    const siblingMoons = ctx.isMoonObserver
+      ? (ctx.planetMoons || []).filter(
+          (moon) => String(moon?.id || "") !== String(ctx.observerRef?.id || ""),
+        )
+      : ctx.planetMoons;
+    const primaryOptions = ctx.isMoonObserver
+      ? [
+          {
+            value: ctx.observerRef?.id || "",
+            label: ctx.moonDefs[0]?.name || "Parent phase cycle",
+          },
+        ]
+      : [{ value: "", label: "None" }, ...bodyOptions(ctx.planetMoons)];
+    const moonOptions = [{ value: "", label: "None" }, ...bodyOptions(siblingMoons)];
+    replaceSelectOptions(els.primaryMoon, primaryOptions);
     replaceSelectOptions(els.extraMoon1, moonOptions);
     replaceSelectOptions(els.extraMoon2, moonOptions);
     replaceSelectOptions(els.extraMoon3, moonOptions);
     els.primaryMoon.value = state.inputs.primaryMoonId || "";
+    els.primaryMoon.disabled = !!ctx.isMoonObserver;
     els.extraMoon1.value = state.inputs.extraMoonIds[0] || "";
     els.extraMoon2.value = state.inputs.extraMoonIds[1] || "";
     els.extraMoon3.value = state.inputs.extraMoonIds[2] || "";
@@ -2999,11 +3102,17 @@ export function initCalendarPage(mountEl) {
     const ddp = clampI(state.ui.derivedDecimalPlaces ?? 6, 0, 6);
     const orbDp = roundOn ? ddp : 6;
     const rotDp = roundOn ? Math.min(ddp, 3) : 3;
+    const derivedWarnings = [
+      ...(ctx.observerFrameContext?.warnings || []),
+      ...(ctx.observerFrameContext?.limitingFactors || []),
+    ];
     const derivedTimingText =
-      `Planet orbital period: ${N(ctx.planetOrbitalPeriodDays).toFixed(orbDp)} days\n` +
-      `Moon orbital period: ${N(ctx.primaryMoonSynodicDays).toFixed(orbDp)} days\n` +
-      `Planet rotation: ${N(ctx.planetRotationPeriodHours).toFixed(rotDp)} hours (sidereal)\n` +
-      `Solar day: ${N(ctx.solarDayHours).toFixed(rotDp)} hours`;
+      `${ctx.isMoonObserver ? "Host-star year" : "Planet orbital period"}: ${N(ctx.planetOrbitalPeriodDays).toFixed(orbDp)} days\n` +
+      `${ctx.isMoonObserver ? "Parent phase cycle" : "Moon orbital period"}: ${N(ctx.primaryMoonSynodicDays).toFixed(orbDp)} days\n` +
+      `${ctx.isMoonObserver ? "Moon sidereal day" : "Planet rotation"}: ${N(ctx.planetRotationPeriodHours).toFixed(rotDp)} hours (sidereal)\n` +
+      `Local solar day: ${N(ctx.solarDayHours).toFixed(rotDp)} hours${
+        derivedWarnings.length ? `\n${derivedWarnings.join("\n")}` : ""
+      }`;
     els.derivedData.textContent = ctx.unsupportedSourceMessage
       ? `${ctx.unsupportedSourceMessage}\nCalendar timing is using neutral Earth-like defaults until you select a rocky, surface-applicable planet.`
       : `${ctx.limitedSourceMessage ? `${ctx.limitedSourceMessage}\n` : ""}${derivedTimingText}`;
@@ -3312,8 +3421,12 @@ export function initCalendarPage(mountEl) {
 
     const sourcePlanet = findById(ctx.planets, ctx.sourcePlanetId);
     const sourcePlanetLabel =
-      sourcePlanet?.name || sourcePlanet?.inputs?.name || sourcePlanet?.label || "No source planet";
-    const primaryMoonLabel = ctx.moonDefs[0]?.name || "Primary moon";
+      ctx.sourceObserverLabel ||
+      sourcePlanet?.name ||
+      sourcePlanet?.inputs?.name ||
+      sourcePlanet?.label ||
+      "No reference body";
+    const primaryMoonLabel = ctx.moonDefs[0]?.name || "Primary phase cycle";
     const profileNameLabel =
       String(state.profileName || state.ui.calendarName || "Calendar").trim() || "Calendar";
     const ruleCountsText = [
@@ -3333,7 +3446,7 @@ export function initCalendarPage(mountEl) {
       createContextSummaryCard(
         "Source Context",
         `${sourcePlanetLabel} -> ${primaryMoonLabel}`,
-        `${ctx.moonDefs.length} moon reference${ctx.moonDefs.length === 1 ? "" : "s"} available`,
+        `${ctx.moonDefs.length} phase reference${ctx.moonDefs.length === 1 ? "" : "s"} available`,
       ),
       createContextSummaryCard(
         "Rules",
@@ -3424,24 +3537,24 @@ export function initCalendarPage(mountEl) {
         tip: TIPS["Calendar name"] || "",
       },
       {
-        label: "Full Moon",
+        label: ctx.isMoonObserver ? "Full parent" : "Full Moon",
         value: model.fullMoonDays.length ? model.fullMoonDays.join(", ") : "None",
-        tip: "Primary moon full-phase days this month.",
+        tip: "Primary phase-cycle full-phase days this month.",
       },
       {
-        label: "New Moon",
+        label: ctx.isMoonObserver ? "New parent" : "New Moon",
         value: model.newMoonDays.length ? model.newMoonDays.join(", ") : "None",
-        tip: "Primary moon new-phase days this month.",
+        tip: "Primary phase-cycle new-phase days this month.",
       },
       {
-        label: "Primary moon",
-        value: ctx.moonDefs[0]?.name || "Primary moon",
-        tip: "Moon used as the main lunar reference for this calendar.",
+        label: "Primary phase",
+        value: ctx.moonDefs[0]?.name || "Primary phase cycle",
+        tip: "Visible body or phase cycle used as the main lunar-style reference for this calendar.",
       },
       {
-        label: "Moons shown",
+        label: "Phase refs",
         value: String(ctx.moonDefs.length),
-        tip: "Total moons currently displayed in selected-day and detailed views.",
+        tip: "Total phase references currently displayed in selected-day and detailed views.",
       },
       {
         label: "Festival days",
@@ -3475,24 +3588,24 @@ export function initCalendarPage(mountEl) {
           tip: TIPS["Calendar name"] || "",
         },
         {
-          label: "Full Moon",
+          label: ctx.isMoonObserver ? "Full parent" : "Full Moon",
           value: model.fullMoonDays.length ? model.fullMoonDays.join(", ") : "None",
-          tip: "Primary moon full-phase days this month.",
+          tip: "Primary phase-cycle full-phase days this month.",
         },
         {
-          label: "New Moon",
+          label: ctx.isMoonObserver ? "New parent" : "New Moon",
           value: model.newMoonDays.length ? model.newMoonDays.join(", ") : "None",
-          tip: "Primary moon new-phase days this month.",
+          tip: "Primary phase-cycle new-phase days this month.",
         },
         {
-          label: "Primary moon",
-          value: ctx.moonDefs[0]?.name || "Primary moon",
-          tip: "Moon used as the main lunar reference for this calendar.",
+          label: "Primary phase",
+          value: ctx.moonDefs[0]?.name || "Primary phase cycle",
+          tip: "Visible body or phase cycle used as the main lunar-style reference for this calendar.",
         },
         {
-          label: "Moons shown",
+          label: "Phase refs",
           value: String(ctx.moonDefs.length),
-          tip: "Total moons currently displayed in selected-day and detailed views.",
+          tip: "Total phase references currently displayed in selected-day and detailed views.",
         },
         {
           label: "Festival days",
@@ -3926,7 +4039,19 @@ export function initCalendarPage(mountEl) {
 
   // Live-update: read inputs and re-render without resetting view position
   function applyInputsLive() {
-    state.inputs.sourcePlanetId = els.sourcePlanet.value || "";
+    const latestCtx = runtime.lastCtx || readRenderSnapshot().ctx;
+    const observerRef = observerRefFromCandidateValue(latestCtx, els.sourcePlanet.value || "");
+    const selectedCandidate = (latestCtx?.observerCandidates || []).find(
+      (candidate) => String(candidate?.selectValue || "") === String(els.sourcePlanet.value || ""),
+    );
+    const resolvedObserverRef = selectedCandidate?.observerRef
+      ? { ...selectedCandidate.observerRef }
+      : observerRef;
+    state.inputs.observerRef = resolvedObserverRef;
+    state.inputs.sourcePlanetId =
+      resolvedObserverRef?.kind === "moon"
+        ? String(selectedCandidate?.observerRef?.parentId || resolvedObserverRef.parentId || "")
+        : String(resolvedObserverRef?.id || "");
     state.inputs.primaryMoonId = els.primaryMoon.value || "";
     state.inputs.extraMoonIds = [
       els.extraMoon1.value || "",
@@ -3970,8 +4095,23 @@ export function initCalendarPage(mountEl) {
 
   els.useSelected.addEventListener("click", () => {
     const w = loadWorld();
-    state.inputs.sourcePlanetId = getSelectedPlanet(w)?.id || "";
-    state.inputs.primaryMoonId = getSelectedMoon(w)?.id || "";
+    const selectedMoon = getSelectedMoon(w);
+    const selectedPlanet = getSelectedPlanet(w);
+    if (selectedMoon?.id) {
+      state.inputs.observerRef = {
+        kind: "moon",
+        id: selectedMoon.id,
+        parentId: selectedMoon.planetId || selectedPlanet?.id || undefined,
+      };
+      state.inputs.sourcePlanetId = selectedMoon.planetId || selectedPlanet?.id || "";
+      state.inputs.primaryMoonId = selectedMoon.id;
+    } else {
+      state.inputs.observerRef = selectedPlanet?.id
+        ? { kind: "planet", id: selectedPlanet.id }
+        : null;
+      state.inputs.sourcePlanetId = selectedPlanet?.id || "";
+      state.inputs.primaryMoonId = "";
+    }
     state.inputs.extraMoonIds = ["", "", ""];
     state.inputs.monthsPerYear = null;
     state.inputs.daysPerMonth = null;

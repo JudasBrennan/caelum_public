@@ -335,6 +335,16 @@ function architecturePairLabel(pair) {
   return `${pair?.innerName || pair?.innerId || "Inner"} -> ${pair?.outerName || pair?.outerId || "Outer"}: ${separation}`;
 }
 
+function titleCase(value) {
+  const text = String(value || "unknown").replace(/[-_]/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function longTermBodyLabel(bodyContext) {
+  const kind = titleCase(bodyContext?.bodyKind || "body");
+  return `${kind} ${bodyContext?.bodyId || ""}`.trim();
+}
+
 export function renderOrbitalArchitectureDiagnostics(container, architecture) {
   if (!container) return null;
   const bodyCount = Number(architecture?.bodyCount || 0);
@@ -380,6 +390,75 @@ export function renderOrbitalArchitectureDiagnostics(container, architecture) {
             text: `Confidence: ${summary.confidence || "unknown"} | Adjacent pairs: ${architecture.pairs.length}`,
           }),
           ...pairRows,
+        ]),
+      ]),
+    ]),
+  );
+}
+
+export function renderLongTermDynamicsDiagnostics(container, context, hostFrameId = null) {
+  if (!container) return null;
+  if (!context || context.status === "unknown") {
+    return replaceChildren(container);
+  }
+
+  const outputs = context.outputs || {};
+  const notes = Array.isArray(outputs.userFacingSummary) ? outputs.userFacingSummary : [];
+  const hostContext = hostFrameId ? context.hostFrameContexts?.[hostFrameId] : null;
+  const bodyRows = Object.values(context.bodyContextsByRef || {})
+    .filter((bodyContext) => !hostFrameId || bodyContext.hostFrameId === hostFrameId)
+    .slice(0, 4)
+    .map((bodyContext) =>
+      createElement("div", { className: "hint" }, [
+        createElement("b", { text: longTermBodyLabel(bodyContext) }),
+        ` - secular ${titleCase(bodyContext.summary?.secularClass)}; precession ${titleCase(
+          bodyContext.summary?.precessionClass,
+        )}; variability ${titleCase(
+          bodyContext.summary?.variabilityClass,
+        )}; Trojans ${titleCase(bodyContext.summary?.trojanReservoirClass)}.`,
+      ]),
+    );
+  const timelineNotes = (context.migrationHistoryContext?.outputs?.timelineAnnotations || []).slice(
+    0,
+    2,
+  );
+
+  return replaceChildren(
+    container,
+    createElement("div", { className: "system-architecture system-architecture--long-term" }, [
+      createElement("div", { className: "slot-row" }, [
+        createElement("div", {
+          className: "slot-title",
+          text: "Long-term dynamics",
+        }),
+        createElement("div", { className: "dropzone", attrs: { style: "cursor:default" } }, [
+          createElement("div", {
+            className: "hint",
+            text:
+              notes[0] ||
+              "Long-cycle diagnostics are read-only and do not rewrite authored orbits.",
+          }),
+          createElement("div", {
+            className: "planet-card__meta",
+            text: `KL: ${titleCase(outputs.kozaiLidovClass)} | Migration: ${titleCase(
+              outputs.migrationEvidenceClass,
+            )} | Variability: ${titleCase(
+              outputs.dynamicalVariabilityClass,
+            )} | Trojans: ${titleCase(outputs.trojanReservoirClass)}`,
+          }),
+          ...(hostContext
+            ? [
+                createElement("div", {
+                  className: "hint",
+                  text: `Selected host-frame secular forcing: ${titleCase(
+                    hostContext.secularForcingClass,
+                  )}.`,
+                }),
+              ]
+            : []),
+          ...notes.slice(1, 3).map((note) => createHint(note)),
+          ...timelineNotes.map((note) => createHint(note)),
+          ...bodyRows,
         ]),
       ]),
     ]),

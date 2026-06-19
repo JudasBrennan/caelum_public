@@ -174,6 +174,42 @@ export function computeHabitabilityRadiationModel(
     };
   }
 
+  const explicitPlanetRadiationAvailable =
+    normalized.bodyType === "planet" && Number.isFinite(environment.surfaceRadiationPenalty);
+  if (explicitPlanetRadiationAvailable) {
+    const useSubsurface = selectedPathway === "subsurface-water";
+    const iceShield = useSubsurface ? iceShieldFactor(surface.iceShellThicknessKm) : 0;
+    const basePenalty = clamp(environment.surfaceRadiationPenalty, 0, 1);
+    const pathwayPenalty = useSubsurface
+      ? clamp(basePenalty + (1 - basePenalty) * iceShield, 0, 1)
+      : basePenalty;
+    const multiplier = clamp(pathwayPenalty, 0, 1);
+    return {
+      multiplier,
+      modelVersion: "radiation-v3",
+      breakdown: {
+        pathwayPenalty,
+        surfaceRadiationPenalty: environment.surfaceRadiationPenalty,
+        surfaceRadiationClass: environment.surfaceRadiationClass,
+        planetRadiationSurfaceClass: environment.planetRadiationSurfaceClass,
+        planetRadiationSurfaceHazardScore: environment.planetRadiationSurfaceHazardScore,
+        planetRadiationSurfaceProtectionScore: environment.planetRadiationSurfaceProtectionScore,
+        atmosphereShielding: Number.isFinite(environment.atmosphereShielding)
+          ? environment.atmosphereShielding
+          : 0,
+        magneticShielding: Number.isFinite(environment.magneticShielding)
+          ? environment.magneticShielding
+          : 0,
+        combinedShielding: Number.isFinite(environment.combinedShielding)
+          ? environment.combinedShielding
+          : 0,
+        iceShieldFactor: iceShield,
+        directPlanetRadiation: true,
+        photochemicalShieldingScore: clamp(toFinite(photochemicalShieldingScore, 0), 0, 1),
+      },
+    };
+  }
+
   const effectiveIceShield =
     selectedPathway === "subsurface-water" ? iceShieldFactor(surface.iceShellThicknessKm) : 0;
   const effectiveMagnetosphericDose =

@@ -8,6 +8,7 @@ import {
   buildHabitabilityPersistenceBridge,
 } from "./habitabilityBridge.js";
 import { makeUnknownDynamicalContext, normalizeDynamicalContext } from "./schema.js";
+import { buildLongTermDynamicsContext } from "../contexts/longTermDynamicsContext.js";
 
 const EARTH_MASS_PER_MJUP = 317.828406;
 
@@ -451,6 +452,9 @@ function buildParentRadiationContext({ parent, moonEntries, moonSystem }) {
     compressionClass: magnetosphereEnvironment?.compressionClass || "unknown",
     magnetopauseRp: optionalFinite(magnetosphereEnvironment?.magnetopauseRp),
     sputteringPlasmaW: optionalFinite(magnetic.sputteringPlasmaW),
+    moonPlasmaSourcePowerW: optionalFinite(magnetic.moonPlasmaSourcePowerW),
+    moonPlasmaSourceClass: magnetic.moonPlasmaSourceClass || "unknown",
+    moonPlasmaSourceMode: magnetic.moonPlasmaSourceMode || "unknown",
     strongestMoonSurfaceRadiationClass: strongestRadiationClass(moonEntries),
     moonCount: moonSystem?.moons?.length || 0,
     netTorqueClass: moonSystem?.torqueBudget?.netTorqueClass || "unknown",
@@ -574,7 +578,7 @@ function buildMoonSystems(snapshot, bodyContexts) {
   return moonSystems;
 }
 
-function buildSystemSummary({ hostFrames, bodies, generationGuidance }) {
+function buildSystemSummary({ hostFrames, bodies, generationGuidance, longTermDynamicsContext }) {
   let state = "unknown";
   let confidence = "high";
   const limitingFactors = [];
@@ -596,9 +600,36 @@ function buildSystemSummary({ hostFrames, bodies, generationGuidance }) {
         userFacingNotes.push(reason);
       }
     }
+    const variability = body.dynamicalVariabilityContext?.outputs || {};
+    const variabilityWarning = String(variability.habitabilityVariabilityWarning || "none");
+    if (variabilityWarning !== "none") {
+      for (const note of variability.climateWarningMessages || []) {
+        userFacingNotes.push(note);
+      }
+      if (variabilityWarning === "high-orbital-variability") {
+        confidence = lowestConfidence(confidence, "medium");
+      }
+    }
   }
   for (const note of generationGuidance?.displayNotes || []) {
     userFacingNotes.push(note);
+  }
+  for (const note of longTermDynamicsContext?.outputs?.userFacingSummary || []) {
+    userFacingNotes.push(note);
+  }
+  const kozaiClass = String(longTermDynamicsContext?.outputs?.kozaiLidovClass || "");
+  if (kozaiClass === "possible" || kozaiClass === "likely") {
+    userFacingNotes.push(
+      "Long-term secular diagnostics indicate possible Kozai-Lidov cycling; treat this as a bounded warning, not an integrated orbit history.",
+    );
+  }
+  const variabilityClass = String(
+    longTermDynamicsContext?.outputs?.dynamicalVariabilityClass || "",
+  );
+  if (variabilityClass === "moderate" || variabilityClass === "high") {
+    userFacingNotes.push(
+      "Long-cycle dynamical variability is shown as a warning only; authored orbit values are unchanged.",
+    );
   }
 
   if (!Object.keys(hostFrames).length && !Object.keys(bodies).length) {
@@ -705,6 +736,52 @@ function buildContextFromSnapshot(snapshot, { includeGenerationGuidance }) {
 
   const moonSystems = buildMoonSystems(snapshot, bodies);
   attachParentMoonSystemContexts({ snapshot, bodies, moonSystems });
+  const longTermDynamicsContext = buildLongTermDynamicsContext({
+    snapshot,
+    hostFrames,
+    architectureByHostFrameId,
+  });
+  for (const bodyContext of Object.values(longTermDynamicsContext.bodyContextsByRef || {})) {
+    if (!bodyContext?.bodyId || !bodies[bodyContext.bodyId]) continue;
+    bodies[bodyContext.bodyId].longTermDynamicsContext = bodyContext;
+    bodies[bodyContext.bodyId].dynamicalVariabilityContext =
+      bodyContext.dynamicalVariabilityContext || null;
+    const variability = bodyContext.dynamicalVariabilityContext?.outputs || {};
+    const tidalCaveats = Array.isArray(variability.tidalPersistenceCaveats)
+      ? variability.tidalPersistenceCaveats
+      : [];
+    if (tidalCaveats.length) {
+      bodies[bodyContext.bodyId].tidalContext = {
+        ...bodies[bodyContext.bodyId].tidalContext,
+        reasons: [
+          ...new Set([
+            ...(bodies[bodyContext.bodyId].tidalContext?.reasons || []),
+            ...tidalCaveats,
+          ]),
+        ],
+      };
+    }
+    const variabilityPersistenceModifier = Number(variability.persistenceModifier);
+    if (
+      bodies[bodyContext.bodyId].habitabilityBridge &&
+      Number.isFinite(variabilityPersistenceModifier) &&
+      variabilityPersistenceModifier < 1
+    ) {
+      bodies[bodyContext.bodyId].habitabilityBridge = {
+        ...bodies[bodyContext.bodyId].habitabilityBridge,
+        persistenceModifier: Math.min(
+          bodies[bodyContext.bodyId].habitabilityBridge.persistenceModifier ?? 1,
+          variabilityPersistenceModifier,
+        ),
+        reasons: [
+          ...new Set([
+            ...(bodies[bodyContext.bodyId].habitabilityBridge.reasons || []),
+            ...(variability.climateWarningMessages || []),
+          ]),
+        ],
+      };
+    }
+  }
   const baseContext = normalizeDynamicalContext({
     confidence: "high",
     assumptions: [
@@ -718,6 +795,7 @@ function buildContextFromSnapshot(snapshot, { includeGenerationGuidance }) {
     hostFrames,
     bodies,
     moonSystems,
+    longTermDynamicsContext,
     systemSummary: {
       state: "unknown",
       limitingFactors: [],
@@ -732,6 +810,7 @@ function buildContextFromSnapshot(snapshot, { includeGenerationGuidance }) {
     hostFrames: baseContext.hostFrames,
     bodies: baseContext.bodies,
     generationGuidance,
+    longTermDynamicsContext: baseContext.longTermDynamicsContext,
   });
   const context = normalizeDynamicalContext({
     ...baseContext,

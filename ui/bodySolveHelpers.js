@@ -1,6 +1,7 @@
 import { calcMoon } from "../engine/moon.js";
 import { calcPlanetaryBody } from "../engine/planetaryBody.js";
 import { calcPlanetExact } from "../engine/planet.js";
+import { buildSmallBodyReservoirContextForWorld as buildEngineSmallBodyReservoirContextForWorld } from "../engine/smallBodyReservoirRouting.js";
 import {
   buildWorldHomeSystemContext,
   getProjectedPrimaryStar,
@@ -48,6 +49,25 @@ function buildResolvedStarConfig(primaryStar, solveContext) {
       : primaryStarOverrides.t,
     evolutionMode: starConfig.evolutionMode || primaryStarOverrides.ev,
   };
+}
+
+function buildScopedGasGiantInputs(gasGiants, fallbackHostFrameId, resolvedHostFrameId) {
+  return (gasGiants || [])
+    .filter(
+      (gasGiant) =>
+        normalizeBodyHostFrameId(gasGiant?.hostFrameId, fallbackHostFrameId) ===
+        resolvedHostFrameId,
+    )
+    .map((gasGiant) => ({
+      id: gasGiant.id,
+      name: gasGiant.name,
+      au: gasGiant.au,
+      massMjup: gasGiant.massMjup,
+    }));
+}
+
+export function buildSmallBodyReservoirContextForWorld(world = loadWorld(), options = {}) {
+  return buildEngineSmallBodyReservoirContextForWorld(world, options);
 }
 
 export function resolvePlanetWorldHostFrameContext(
@@ -117,18 +137,20 @@ export function buildPlanetSolveArgsForWorld(
           ...(moon.inputs || {}),
         }))
     : [];
-  const scopedGasGiants = includeGasGiants
-    ? (gasGiants || listSystemGasGiants(world))
-        .filter(
-          (gasGiant) =>
-            normalizeBodyHostFrameId(gasGiant?.hostFrameId, fallbackHostFrameId) ===
-            resolvedHostFrameId,
-        )
-        .map((gasGiant) => ({
-          name: gasGiant.name,
-          au: gasGiant.au,
-        }))
-    : [];
+  const systemGasGiants = gasGiants || listSystemGasGiants(world);
+  const reservoirGasGiants = buildScopedGasGiantInputs(
+    systemGasGiants,
+    fallbackHostFrameId,
+    resolvedHostFrameId,
+  );
+  const scopedGasGiants = includeGasGiants ? reservoirGasGiants : [];
+  const smallBodyReservoirContext = buildSmallBodyReservoirContextForWorld(world, {
+    fallbackHostFrameId,
+    gasGiants: systemGasGiants,
+    hostFrameId: resolvedHostFrameId,
+    primaryStar: resolvedPrimaryStar,
+    starConfig,
+  });
   const args = {
     starMassMsol: starConfig.massMsol,
     starAgeGyr: starConfig.ageGyr,
@@ -150,6 +172,7 @@ export function buildPlanetSolveArgsForWorld(
     planet: planetInputs,
     moons: siblingMoons,
     gasGiants: scopedGasGiants,
+    smallBodyReservoirContext,
   };
   if (typeof detailLevel === "string" && detailLevel) args.detailLevel = detailLevel;
   return {
@@ -223,6 +246,7 @@ export function buildMoonSolveArgsForWorld(
     fluxVariabilityFraction: planetBundle.solveContext?.fluxVariabilityFraction ?? 0,
     planet: planetLike?.inputs || planetLike || {},
     moon: moonLike?.inputs || moonLike || {},
+    smallBodyReservoirContext: planetBundle.args.smallBodyReservoirContext || null,
   };
   if (parentOverride) args.parentOverride = parentOverride;
   if (moonSystemContext) args.moonSystemContext = moonSystemContext;
