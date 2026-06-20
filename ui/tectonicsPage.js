@@ -21,6 +21,13 @@ import {
   updateWorld,
 } from "./store.js";
 import {
+  createDiagnosticCockpit,
+  createDiagnosticDependencyNotice,
+  createDiagnosticEmptyState,
+  createDiagnosticObjectSelector,
+  workflowHtml,
+} from "./workflow/diagnosticOrientation.js";
+import {
   buildSubtypeUnsupportedMessage,
   getSubtypePageApplicability,
 } from "./planet/bodyClassificationSummary.js";
@@ -995,20 +1002,151 @@ const TUTORIAL_STEPS = [
 
 // ── Page controller ──────────────────────────────────────
 
+function planetLabel(planet) {
+  return planet?.name || planet?.inputs?.name || planet?.id || "No compatible planet";
+}
+
+function planetSelectOptions(planets = [], selectedPlanet = null) {
+  return planets.map((planet) => ({
+    value: planet.id,
+    label: planetLabel(planet),
+    selected: planet.id === selectedPlanet?.id,
+  }));
+}
+
+function buildTectonicsCockpitMarkup({
+  selected,
+  ctx,
+  model,
+  regime = "",
+  unsupportedMessage = "",
+  empty = false,
+} = {}) {
+  return workflowHtml(
+    createDiagnosticCockpit({
+      id: "tectonicsCockpit",
+      title: "Tectonics",
+      summary: empty
+        ? "Create a rocky planet before reading tectonic and terrain limits."
+        : "Reads the selected rocky planet, then interprets terrain limits and local feature profiles.",
+      current: {
+        label: "Selected planet",
+        value: empty ? "No compatible planet" : planetLabel(selected),
+        meta: unsupportedMessage
+          ? "Tectonic output is unavailable for this body."
+          : "Tectonic diagnostic target.",
+      },
+      statusItems: [
+        {
+          label: "Reads from",
+          value: "Planets",
+          meta: "Mass, gravity, water, tectonic regime, geodynamics, and surface class.",
+        },
+        {
+          label: "Diagnostic only",
+          value: unsupportedMessage ? "Unsupported" : model?.display?.maxPeakHeight || "Waiting",
+          meta: regime ? `Regime: ${regime}. Local feature profiles save to Tectonics.` : "",
+          tone: unsupportedMessage ? "warn" : "",
+        },
+        {
+          label: "Authoring override",
+          value: ctx?.authoredOceanOverrideDisplay || "Auto",
+          meta: ctx?.authoredOceanOverrideActive
+            ? "Population/visual override; inferred science coverage remains separate."
+            : "Auto follows inferred coverage.",
+        },
+      ],
+      source: {
+        label: "Source",
+        value: "Reads from Planets",
+        meta: "Change inputs on Planets. This page is diagnostic only for planet science.",
+      },
+      details: {
+        id: "tectonicsContextDisclosure",
+        title: "What this reads",
+        summary: "Planet mass, water, tectonic regime, geodynamics, and ocean coverage context.",
+        items: [
+          "Reads from Planets: mass, gravity, age, water, geodynamics, tectonic regime, and surface classification.",
+          "Change inputs on Planets: edit mass, water coverage, radioisotopes, tidal heating, and tectonic regime there.",
+          "Diagnostic only: terrain profile controls here do not rewrite planet science context.",
+          "Authoring override: population/visual ocean overrides remain separate from inferred surface-ocean coverage.",
+        ],
+      },
+      nextStep: {
+        id: "tectonicsNextStepStrip",
+        recommendation: empty
+          ? "Create a rocky planet, then return here to inspect terrain limits."
+          : "Edit mass, water, or tectonic regime on Planets when these limits need to change.",
+        actions: [
+          { label: "Edit planet", href: "#/planet", primary: true },
+          { label: "Open Climate", href: "#/climate" },
+          { label: "Open Population", href: "#/population" },
+        ],
+      },
+    }),
+  );
+}
+
+function buildTectonicsDependencyNoticeMarkup() {
+  return workflowHtml(
+    createDiagnosticDependencyNotice({
+      id: "tectonicsDependencyNotice",
+      title: "Reads from Planets",
+      body: "Reads from the selected rocky planet's mass, water coverage, geodynamics, and tectonic regime. Change inputs on Planets.",
+      source:
+        "Diagnostic only for planet science. Authoring override ocean values stay separate from inferred tectonic and climate coverage.",
+      actions: [{ label: "Change inputs on Planets", href: "#/planet" }],
+    }),
+  );
+}
+
+function buildTectonicsObjectSelectorMarkup(planets, selected, ctx) {
+  return workflowHtml(
+    createDiagnosticObjectSelector({
+      id: "tectonicsObjectSelector",
+      title: "Planet selection",
+      summary:
+        "Choose the rocky planet whose terrain limits and tectonic context should be interpreted.",
+      selectedLabel: "Selected planet",
+      selectedValue: planetLabel(selected),
+      selectedMeta: ctx?.unsupportedSurfaceMessage
+        ? "No compatible tectonic output for this body."
+        : "Tectonic diagnostic target.",
+      selectId: "tecPlanetSelect",
+      selectLabel: "Planet",
+      selectOptions: planetSelectOptions(planets, selected),
+    }),
+  );
+}
+
+function buildTectonicsEmptyPageMarkup(planets, selected) {
+  return `
+      <div class="page">
+        <div class="panel">
+          <div class="panel__header"><h1 class="panel__title">Tectonics</h1></div>
+          <div class="panel__body">
+            ${buildTectonicsCockpitMarkup({ selected, empty: true })}
+            ${buildTectonicsDependencyNoticeMarkup()}
+            ${workflowHtml(
+              createDiagnosticEmptyState({
+                id: "tectonicsEmptyState",
+                title: "No compatible rocky planet",
+                body: "Tectonics needs a rocky planet before it can read gravity, water, geodynamics, and terrain limits.",
+                actions: [{ label: "Create a planet", href: "#/planet" }],
+              }),
+            )}
+            ${planets.length ? buildTectonicsObjectSelectorMarkup(planets, selected, {}) : ""}
+          </div>
+        </div>
+      </div>`;
+}
+
 export function initTectonicsPage(containerEl) {
   const world = loadWorld();
   const planets = listPlanets(world);
 
   if (!planets.length) {
-    containerEl.innerHTML = `
-      <div class="page">
-        <div class="panel">
-          <div class="panel__header"><h1 class="panel__title">Tectonics</h1></div>
-          <div class="panel__body">
-            <p class="hint">Create a planet on the <a href="#/planet">Planets</a> page first.</p>
-          </div>
-        </div>
-      </div>`;
+    containerEl.innerHTML = buildTectonicsEmptyPageMarkup(planets, null);
     return;
   }
 
@@ -1044,8 +1182,8 @@ export function initTectonicsPage(containerEl) {
   /** Generate the HTML content for the outputs panel. */
   function outputsHTML(model, activeProfile, selIdx, arcDist, pCtx) {
     return `
-              <div class="subsection">
-                <h3>Summary</h3>
+              <section class="kpi-section" id="tectonicsSummary">
+                <div class="kpi-section__header"><h3 class="kpi-section__title">Summary</h3></div>
                 <div class="kpi-grid" style="margin-top:8px">
                   <div class="kpi-wrap"><div class="kpi">
                     <div class="kpi__label">Max Peak Height ${tipIcon(TIP_LABEL["Max Peak Height"])}</div>
@@ -1074,7 +1212,7 @@ export function initTectonicsPage(containerEl) {
                     <div class="kpi__value">${fmt(model.tectonics.margin.totalWidthKm, 0)} km</div>
                   </div></div>
                 </div>
-              </div>
+              </section>
               ${
                 activeProfile
                   ? `
@@ -1343,11 +1481,21 @@ export function initTectonicsPage(containerEl) {
             <button id="tecTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
           </div>
           <div class="panel__body">
-            <div class="form-row">
-              <div><div class="label">Planet</div></div>
-              <select id="tecPlanetSelect"></select>
-            </div>
-            <div class="derived-readout">${escapeHtml(ctx.unsupportedSurfaceMessage)}</div>
+            ${buildTectonicsCockpitMarkup({
+              selected: selectedPlanet,
+              ctx,
+              unsupportedMessage: ctx.unsupportedSurfaceMessage,
+            })}
+            ${buildTectonicsDependencyNoticeMarkup()}
+            ${buildTectonicsObjectSelectorMarkup(planets, selectedPlanet, ctx)}
+            ${workflowHtml(
+              createDiagnosticEmptyState({
+                id: "tectonicsUnsupportedState",
+                title: "No compatible tectonic output",
+                body: ctx.unsupportedSurfaceMessage,
+                actions: [{ label: "Change inputs on Planets", href: "#/planet" }],
+              }),
+            )}
           </div>
         </div>
       </div>`;
@@ -1406,6 +1554,13 @@ export function initTectonicsPage(containerEl) {
           <div class="panel__body">
             <div class="hint">Model mountain ranges, ocean depth, continental margins, shield volcanoes, and rift valleys.</div>
             <p style="margin-top:8px">For an interactive 3D plate simulator with climate, erosion, and more, see <a href="https://the-world-crucible.fagothey.net/" target="_blank" rel="noopener noreferrer" style="text-decoration:underline">The World Crucible</a>.</p>
+            ${buildTectonicsCockpitMarkup({
+              selected: selectedPlanet,
+              ctx,
+              model,
+              regime,
+            })}
+            ${buildTectonicsDependencyNoticeMarkup()}
           </div>
         </div>
 
@@ -1414,10 +1569,7 @@ export function initTectonicsPage(containerEl) {
             <div class="panel__header"><h2>Inputs</h2></div>
             <div class="panel__body" id="tecInputs">
 
-              <div class="form-row">
-                <div><div class="label">Planet</div></div>
-                <select id="tecPlanetSelect"></select>
-              </div>
+              ${buildTectonicsObjectSelectorMarkup(planets, selectedPlanet, ctx)}
 
               <div class="kpi-grid">
                 <div class="kpi-wrap"><div class="kpi">

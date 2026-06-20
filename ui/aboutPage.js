@@ -1,66 +1,103 @@
+import { APP_NAME, APP_SLOGAN, APP_SLOGAN_TRANSLATION, APP_VERSION } from "./appIdentity.js";
+
 export function initAboutPage(mountEl) {
   const el = document.createElement("div");
   el.className = "page";
   el.innerHTML = `
     <div class="panel">
       <div class="panel__header">
-        <h1 class="panel__title"><span class="ws-icon icon--about" aria-hidden="true"></span><span>About WorldSmith</span></h1>
+        <h1 class="panel__title"><span class="ws-icon icon--about" aria-hidden="true"></span><span>About ${APP_NAME}</span></h1>
         <div class="badge">Reference</div>
       </div>
       <div class="panel__body">
-        <p>
-          <b>WorldSmith Web 2.12.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
-          Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
-          Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
-          atmospheres, populations, calendars, and exotic planetary subtype evidence. Explore your
-          creations in an interactive 3D visualiser with procedural textures, or study the underlying
-          science through a living Science &amp; Maths reference and a 20-lesson curriculum.
-        </p>
+        <section class="about-hero" aria-labelledby="aboutIdentityTitle">
+          <div>
+            <h2 id="aboutIdentityTitle">${APP_NAME} ${APP_VERSION}</h2>
+            <p>
+              ${APP_NAME} is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+              <i>${APP_SLOGAN}</i> means "${APP_SLOGAN_TRANSLATION}": a tool for building fictional worlds
+              from first principles, then carrying them through stars, systems, planets, moons,
+              climate, calendars, cultures, and visual form.
+            </p>
+          </div>
+          <div class="about-hero__slogan" aria-label="${APP_SLOGAN}">
+            <span>${APP_SLOGAN}</span>
+            <small>${APP_SLOGAN_TRANSLATION}</small>
+          </div>
+        </section>
 
-        <p>
-          Inspired by the <b>WorldSmith 8.0</b> spreadsheet by <b>Artifexian</b>, though the science,
-          code, and feature set have since been built from scratch. The corrected temperature-dependent
-          habitable-zone implementation is adapted from the Desmos model by <b>Chromant</b>.
-        </p>
+        <div class="about-section-grid">
+          <section class="about-section" aria-labelledby="aboutPurposeTitle">
+            <h2 id="aboutPurposeTitle">What It Helps You Do</h2>
+            <p>
+              ${APP_NAME} is for writers, game masters, artists, and worldbuilders who want invented
+              worlds to feel physically connected. Model stars, brown dwarfs, multi-star systems,
+              rocky planets, gas giants, moons, comets, debris disks, Oort clouds, atmospheres,
+              climates, tectonics, populations, calendars, apparent skies, and 3D system visualisations.
+            </p>
+          </section>
 
-        <div class="page-title" style="margin-top:18px">Credits</div>
-        <ul>
-          <li>Artifexian YouTube: <a href="https://www.youtube.com/c/Artifexian" target="_blank" rel="noopener noreferrer">https://www.youtube.com/c/Artifexian</a></li>
-          <li>WorldSmith 8.0 spreadsheet: <a href="https://docs.google.com/spreadsheets/d/1AML0mIQcWDrrEHj-InXoYsV_QlhlFVuUalE3o-TwQco/copy" target="_blank" rel="noopener noreferrer">https://docs.google.com/spreadsheets/d/1AML0mIQcWDrrEHj-InXoYsV_QlhlFVuUalE3o-TwQco/copy</a></li>
-          <li>Chromant Desmos model (Star System Visualizer 1.1.0): <a href="https://www.desmos.com/calculator/gcgvefvuc7" target="_blank" rel="noopener noreferrer">https://www.desmos.com/calculator/gcgvefvuc7</a></li>
-          <li>&#x1D539;&#x1D55A;&#x1D55D;&#x1D55D; &#x2115;&#x1D56A;&#x1D556; the Science Guy*: style improvements <br><span style="font-size:12px;color:var(--muted)">*Not THAT Bill Nye</span></li>
-        </ul>
+          <section class="about-section" aria-labelledby="aboutScienceTitle">
+            <h2 id="aboutScienceTitle">Science And Validation</h2>
+            <p>
+              ${APP_NAME} uses real astrophysics and planetary-science relationships where they are useful,
+              with bounded approximations where real systems are too complex or uncertain for a browser tool.
+              The Science &amp; Maths reference explains equations and assumptions, and the Validation Matrix
+              tracks tested outputs, source classes, limits, and known gaps.
+            </p>
+            <p>
+              ${APP_NAME} is a worldbuilding instrument, not a scientific simulator. Its goal is coherent,
+              inspectable, creatively useful worlds.
+            </p>
+          </section>
 
-        <div class="page-title" style="margin-top:18px">Community</div>
-        <ul>
-          <li>Judas Brennan Discord: <a href="https://discord.gg/f63SfkW7vh" target="_blank" rel="noopener noreferrer">https://discord.gg/f63SfkW7vh</a></li>
-          <li>Artifexian Discord: <a href="https://discord.com/invite/hPvqDBPkhg" target="_blank" rel="noopener noreferrer">https://discord.com/invite/hPvqDBPkhg</a></li>
-        </ul>
+          <section class="about-section" aria-labelledby="aboutDataTitle">
+            <h2 id="aboutDataTitle">Data And Output</h2>
+            <p>
+              ${APP_NAME} runs as a static web app in your browser. Your active world is stored locally in
+              browser storage unless you export it. Use Import/Export regularly to back up worlds as JSON
+              or move them between devices.
+            </p>
+            <p>
+              Worlds, images, charts, posters, calendars, and other generated output belong to you.
+              The app source code is licensed separately under MPL-2.0.
+            </p>
+          </section>
 
-        <div class="page-title" style="margin-top:18px">Tips</div>
-        <ul>
-          <li>Hover over any <b>(i)</b> icon next to a label to see a tooltip explaining what the field does, valid ranges, and real-world context.</li>
-          <li>If something looks wrong, use <b>Refresh</b> on the visualiser to redraw from latest data.</li>
-          <li>Most inputs support both a <b>slider</b> and a <b>text box</b> for precision.</li>
-          <li>Use <b>Import/Export</b> to save your world as JSON and reload it later, or import a WorldSmith 8.x spreadsheet directly.</li>
-          <li>Try the <b>Sol</b>, <b>Arrakis</b>, or <b>Realmspace</b> presets on the Import/Export page to explore a fully configured system. Sol includes dwarf planets (Ceres, Pluto) and Charon.</li>
-          <li>Use the <b>Splash</b> toggle at the bottom of the sidebar to skip the loading screen on startup.</li>
-          <li>Switch between <b>light</b> and <b>dark</b> themes with the toggle at the bottom of the sidebar.</li>
-          <li>Turn on <b>Atmospheric escape filter</b> on the Planet page to automatically remove gases the body is too small or warm to retain. The model includes non-thermal losses for H&#x2082; and He.</li>
-          <li>Use the <b>Radioisotope Abundance</b> slider (or Per-Isotope mode) to model worlds with more or less internal heat than Earth, affecting volcanism, lithosphere thickness, and dynamo lifetime.</li>
-          <li>Your work is stored locally in your browser storage (IndexedDB plus small browser settings keys). Use <b>Export</b> regularly to back up your world. Clearing site data will reset the tool.</li>
-          <li>Click the <b>Tutorials</b> button in any page header for a step-by-step guide to that page&rsquo;s workflow. Your position is remembered across sessions.</li>
-        </ul>
+          <section class="about-section" aria-labelledby="aboutCreditsTitle">
+            <h2 id="aboutCreditsTitle">Credits</h2>
+            <p>
+              ${APP_NAME} began as a browser-based successor inspired by the <b>WorldSmith 8.0</b>
+              spreadsheet by <b>Artifexian</b>. The science, code, interface, and feature set have since
+              been rebuilt for ${APP_NAME}.
+            </p>
+            <ul class="about-list">
+              <li><b>Judas Brennan</b>: creator and maintainer</li>
+              <li><b>Artifexian</b>: original WorldSmith 8.0 spreadsheet inspiration</li>
+              <li><b>Chromant</b>: corrected temperature-dependent habitable-zone Desmos model</li>
+              <li><b>&#x1D539;&#x1D55A;&#x1D55D;&#x1D55D; &#x2115;&#x1D56A;&#x1D556; the Science Guy</b>: style improvements <span class="about-muted">*Not THAT Bill Nye</span></li>
+            </ul>
+            <ul class="about-list about-list--links">
+              <li><a href="https://www.youtube.com/c/Artifexian" target="_blank" rel="noopener noreferrer">Artifexian YouTube</a></li>
+              <li><a href="https://docs.google.com/spreadsheets/d/1AML0mIQcWDrrEHj-InXoYsV_QlhlFVuUalE3o-TwQco/copy" target="_blank" rel="noopener noreferrer">WorldSmith 8.0 spreadsheet</a></li>
+              <li><a href="https://www.desmos.com/calculator/gcgvefvuc7" target="_blank" rel="noopener noreferrer">Chromant Desmos model</a></li>
+            </ul>
+          </section>
+        </div>
+
+        <section class="about-section about-section--community" aria-labelledby="aboutCommunityTitle">
+          <h2 id="aboutCommunityTitle">Community</h2>
+          <ul class="about-list about-list--links">
+            <li>Judas Brennan Discord: <a href="http://discord.gg/aZzaR3DjsG" target="_blank" rel="noopener noreferrer">http://discord.gg/aZzaR3DjsG</a></li>
+            <li>Artifexian Discord: <a href="https://discord.com/invite/hPvqDBPkhg" target="_blank" rel="noopener noreferrer">https://discord.com/invite/hPvqDBPkhg</a></li>
+          </ul>
+        </section>
 
         <div class="about-actions">
           <a class="validation-action validation-action--accent" href="#/validation">View Validation Matrix</a>
           <button class="btn btn--accent" id="openChangelog" type="button">View Changelog</button>
           <button class="btn" id="openLicense" type="button">View License</button>
         </div>
-
-        <p class="hint" style="margin-top:14px">
-          This is a static web app (HTML/CSS/JS) and can be hosted anywhere that serves static files.
-        </p>
       </div>
     </div>
   `;
@@ -401,6 +438,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Revealed the atomic nucleus through particle-scattering experiments, turning invisible interactions into measurable physical structure.",
   },
+  "3.0.0": {
+    name: "Maria Mitchell",
+    born: 1818,
+    died: 1889,
+    country: "United States",
+    summary:
+      "Discovered a telescopic comet and helped open astronomy to a wider public, connecting careful observation with a more welcoming scientific culture.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -440,6 +485,19 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "3.0.0",
+      "(from 2.12.0)",
+      [
+        "<b>Caelum Release</b> &mdash; Browser chrome, splash, first-run guidance, About copy, README, export metadata, and visible product surfaces now use the Caelum name and <i>Ex Nihilo, Astra</i> slogan while older WorldSmith saves and imports remain supported.",
+        "<b>Cross-page UX Pass</b> &mdash; Star, Planet, Moon, Calendar, diagnostic, and utility routes now share a more consistent workflow shell with compact context, clearer source guidance, and less repeated setup copy.",
+        "<b>Compact Authoring Controls</b> &mdash; Create-this sections, planet setup context, Apparent Size inputs, Local Cluster guidance, and visualiser controls have been tightened so the useful controls sit higher on the page.",
+        "<b>About Page Rewrite</b> &mdash; About now focuses on purpose, science stance, data ownership, credits, community links, and the changelog action without duplicating operational guidance from other pages.",
+        "<b>UI Review Coverage</b> &mdash; Browser review now captures desktop/mobile, dark/light spot checks, and critical horizontal-overflow guardrails across the main authoring, diagnostic, reference, and visualiser routes.",
+        "<b>Science Verification Matrix</b> &mdash; The matrix and calibration artifacts were regenerated for this release and are available to the dev server and production build outputs.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.12.0",
       "(from 2.11.0)",
       [
@@ -448,8 +506,9 @@ function changelogHTML() {
         "<b>Shared Water Context</b> &mdash; Hydrosphere, climate, carbon cycle, ocean chemistry, productivity, tectonics, visuals, timelines, and visualizer summaries now use the same inferred surface-water context.",
         "<b>Validation Closure</b> &mdash; The Science Verification Matrix now checks Earth surface-ocean coverage and Europa sputtered oxygen directly instead of treating them as accepted modeling gaps.",
         "<b>Validation Readability</b> &mdash; Dark-mode dropdowns on the Validation page now have stronger contrast while filtering the matrix.",
+        "<b>Caelum Identity</b> &mdash; Browser chrome, splash, first-run guidance, About copy, README, and new export metadata now use the Caelum name and <i>Ex Nihilo, Astra</i> slogan while WorldSmith import paths remain supported.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.11.0",
@@ -901,12 +960,12 @@ function openLicense() {
     "License",
     `<div class="about-license">
       <p>
-        <b>WorldSmith Web source code</b>, including its rendering and image-generation code,
+        <b>${APP_NAME} source code</b>, including its rendering and image-generation code,
         is released under the <b>Mozilla Public License 2.0 (MPL-2.0)</b>.
       </p>
       <p>
         The MPL-2.0 applies to the software code itself. <b>Generated output</b>, such as worlds,
-        images, charts, and exports created with WorldSmith, is user output and is not automatically
+        images, charts, and exports created with ${APP_NAME}, is user output and is not automatically
         licensed under the MPL-2.0 just because the app created it.
       </p>
       <p>
@@ -917,8 +976,8 @@ function openLicense() {
         third-party notices, see the public repository:
       </p>
       <ul>
-        <li><a href="https://github.com/JudasBrennan/worldsmith_public/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MPL-2.0 License</a></li>
-        <li><a href="https://github.com/JudasBrennan/worldsmith_public/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener noreferrer">Third-Party Notices</a></li>
+        <li><a href="https://github.com/JudasBrennan/caelum_public/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MPL-2.0 License</a></li>
+        <li><a href="https://github.com/JudasBrennan/caelum_public/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener noreferrer">Third-Party Notices</a></li>
       </ul>
     </div>`,
   );

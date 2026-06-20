@@ -20,6 +20,8 @@ import { attachTooltips, tipIcon } from "./tooltip.js";
 import { drawSkyCanvasNative, disposeSkyCanvasNative } from "./lazyApparentSkyNative.js";
 import { getSelectedPlanet, loadWorld } from "./store.js";
 import { createTutorial } from "./tutorial.js";
+import { createDiagnosticEmptyState, workflowHtml } from "./workflow/diagnosticOrientation.js";
+import { createObjectSelectorPanel } from "./workflow/objectSelectorPanel.js";
 
 const TIP_LABEL = {
   "Reference body": "Planet or moon used as the observer frame for apparent brightness and size.",
@@ -184,6 +186,32 @@ const TUTORIAL_STEPS = [
   },
 ];
 
+function buildApparentObjectSelectorMarkup() {
+  return workflowHtml(
+    createObjectSelectorPanel({
+      id: "apparentObjectSelector",
+      title: "Observer selection",
+      summary: "Choose the planet or moon whose sky should be interpreted.",
+      select: {
+        id: "apparentHomePlanet",
+        label: "Reference body",
+        options: [],
+      },
+    }),
+  );
+}
+
+function buildApparentEmptyStateMarkup() {
+  return workflowHtml(
+    createDiagnosticEmptyState({
+      id: "apparentEmptyState",
+      title: "No observer body available",
+      body: "Apparent Size needs a planet or moon observer before it can compare sky brightness, angular size, and visibility.",
+      actions: [{ label: "Create a planet", href: "#/planet" }],
+    }),
+  );
+}
+
 export function initApparentPage(mountEl) {
   const world = loadWorld();
   const initialSnapshot = buildWorldSnapshot(world, {
@@ -207,35 +235,36 @@ export function initApparentPage(mountEl) {
   const wrap = document.createElement("div");
   wrap.className = "page";
   wrap.innerHTML = `
-    <div class="panel">
+    <div class="panel apparent-workbench">
       <div class="panel__header">
         <h1 class="panel__title"><span class="ws-icon icon--apparent" aria-hidden="true"></span><span>Apparent Size</span></h1>
         <button id="apparentTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        <div class="hint">Estimate star, planetary-object, and moon apparent brightness/size from a selected home world.</div>
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <div class="panel">
-        <div class="panel__header"><h2>Inputs</h2></div>
-        <div class="panel__body">
-          <div class="form-row">
-            <div>
-              <div class="label">Reference body ${tipIcon(TIP_LABEL["Reference body"])}</div>
+        <div class="hint">Compare apparent brightness and angular size from the selected observer. The current world snapshot supplies the data; viewing controls stay local.</div>
+        <div class="apparent-workbench__grid">
+          <section class="apparent-workbench__section" aria-labelledby="apparentInputsTitle">
+            <div class="apparent-workbench__section-header">
+              <h2 id="apparentInputsTitle">Inputs</h2>
+              <p>Choose the observer and local viewing phase.</p>
             </div>
-            <select id="apparentHomePlanet"></select>
-          </div>
+            ${buildApparentObjectSelectorMarkup()}
+            <div id="apparentEmptyStateHost" hidden>
+              ${buildApparentEmptyStateMarkup()}
+            </div>
+            <div class="apparent-local-note">Moon phase and per-row distances affect this view only.</div>
+            ${numWithSlider("apparentMoonPhase", "Moon phase angle", "deg", 0, 180, 1, TIP_LABEL["Moon phase"])}
+          </section>
 
-          ${numWithSlider("apparentMoonPhase", "Moon phase angle", "deg", 0, 180, 1, TIP_LABEL["Moon phase"])}
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel__header"><h2>Outputs</h2></div>
-        <div class="panel__body">
-          <div class="kpi-grid" id="apparentKpis"></div>
+          <section class="apparent-workbench__section" aria-labelledby="apparentOutputsTitle">
+            <div class="apparent-workbench__section-header">
+              <h2 id="apparentOutputsTitle">Outputs</h2>
+              <p id="apparentSummaryMeta">Current snapshot summary.</p>
+            </div>
+            <section class="kpi-section" id="apparentSummary" aria-label="Apparent size summary">
+              <div class="kpi-grid" id="apparentKpis"></div>
+            </section>
+          </section>
         </div>
       </div>
     </div>
@@ -243,7 +272,7 @@ export function initApparentPage(mountEl) {
     <div class="panel">
       <div class="panel__header"><h2>Angular Size Comparison ${tipIcon(TIP_LABEL["Sky canvas"])}</h2></div>
       <div class="panel__body">
-        <div class="pill-toggle-wrap" style="margin-bottom:12px">
+        <div class="pill-toggle-wrap apparent-sky-toggle">
           <div class="physics-duo-toggle">
             <input type="radio" name="skyBg" id="skyNight" value="night" checked />
             <label for="skyNight">Night</label>
@@ -252,12 +281,11 @@ export function initApparentPage(mountEl) {
             <span></span>
           </div>
           <button
-            class="small"
+            class="small apparent-sky-toggle__animate"
             id="skyPairAnimationToggle"
             type="button"
             aria-pressed="false"
             hidden
-            style="margin-left:8px"
           >
             Animate primary suns
           </button>
@@ -265,7 +293,7 @@ export function initApparentPage(mountEl) {
         <div class="sky-canvas-wrap" id="skyCanvasWrap">
           <canvas id="skyCanvas" width="800" height="320"></canvas>
         </div>
-        <div class="hint" id="skyCanvasHint" style="margin-top:10px" hidden></div>
+        <div class="hint flow-stack-gap" id="skyCanvasHint" hidden></div>
       </div>
     </div>
 
@@ -273,7 +301,7 @@ export function initApparentPage(mountEl) {
       <div class="panel__header"><h2>Star Apparent Table</h2></div>
       <div class="panel__body">
         <div class="hint">${TIP_LABEL["Star apparent table"]}</div>
-        <div class="cluster-table-wrap" style="max-height:360px">
+        <div class="cluster-table-wrap cluster-table-wrap--tall">
           <table class="cluster-table">
             <thead>
               <tr>
@@ -295,7 +323,7 @@ export function initApparentPage(mountEl) {
       <div class="panel__header"><h2>Body Apparent Table</h2></div>
       <div class="panel__body">
         <div class="hint">${TIP_LABEL["Body apparent table"]}</div>
-        <div class="cluster-table-wrap" style="max-height:430px">
+        <div class="cluster-table-wrap cluster-table-wrap--x-tall">
           <table class="cluster-table">
             <thead>
               <tr>
@@ -319,7 +347,7 @@ export function initApparentPage(mountEl) {
       <div class="panel__header"><h2>Moon Apparent Table</h2></div>
       <div class="panel__body">
         <div class="hint">${TIP_LABEL["Moon apparent table"]}</div>
-        <div class="cluster-table-wrap" style="max-height:320px">
+        <div class="cluster-table-wrap cluster-table-wrap--standard">
           <table class="cluster-table">
             <thead>
               <tr>
@@ -342,7 +370,7 @@ export function initApparentPage(mountEl) {
       <div class="panel__header"><h2>Sol System References ${tipIcon(TIP_LABEL["Sol references"])}</h2></div>
       <div class="panel__body">
         <div class="hint">Familiar Solar System objects for comparison.</div>
-        <div class="cluster-table-wrap" style="max-height:260px">
+        <div class="cluster-table-wrap cluster-table-wrap--compact">
           <table class="cluster-table">
             <thead>
               <tr>
@@ -371,6 +399,8 @@ export function initApparentPage(mountEl) {
 
   const homeSelectEl = wrap.querySelector("#apparentHomePlanet");
   const moonPhaseEl = wrap.querySelector("#apparentMoonPhase");
+  const apparentSummaryMetaEl = wrap.querySelector("#apparentSummaryMeta");
+  const apparentEmptyStateHostEl = wrap.querySelector("#apparentEmptyStateHost");
 
   const kpisEl = wrap.querySelector("#apparentKpis");
   const starRowsEl = wrap.querySelector("#apparentStarRows");
@@ -384,6 +414,21 @@ export function initApparentPage(mountEl) {
   const skyPairAnimationToggleEl = wrap.querySelector("#skyPairAnimationToggle");
   let skyRendererReady = true;
   let observerCandidates = [];
+
+  function setText(node, text) {
+    if (node) node.textContent = text == null ? "" : String(text);
+  }
+
+  function renderApparentWorkbenchChrome(sample, model) {
+    const bodyCount = Array.isArray(model?.bodiesFromHome) ? model.bodiesFromHome.length : 0;
+    const moonCount = Array.isArray(model?.moons) ? model.moons.length : 0;
+    const sunCount = Number(sample?.visibleSunsCount ?? 1 + (sample?.companionStars?.length || 0));
+    setText(
+      apparentSummaryMetaEl,
+      `Current snapshot: ${bodyCount} body rows, ${moonCount} moon rows, ${sunCount} visible suns.`,
+    );
+    if (apparentEmptyStateHostEl) apparentEmptyStateHostEl.hidden = !!sample?.homeBodyRef;
+  }
 
   const skyUnmountObserver = new MutationObserver(() => {
     if (wrap.isConnected) return;
@@ -498,6 +543,8 @@ export function initApparentPage(mountEl) {
     const brightestMoon = [...model.moons]
       .filter((m) => Number.isFinite(m.apparentMagnitude))
       .sort((a, b) => a.apparentMagnitude - b.apparentMagnitude)[0];
+
+    renderApparentWorkbenchChrome(sample, model);
 
     renderApparentKpis(
       kpisEl,

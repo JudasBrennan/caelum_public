@@ -221,7 +221,7 @@ export function createWorldStorageClearOperations({
       if (clearResult?.error) {
         restoreWorldStorageClearSnapshot(snapshot);
         emitStorageError(
-          "Could not clear saved WorldSmith data from browser storage.",
+          "Could not clear saved Caelum data from browser storage.",
           clearResult.error?.message || String(clearResult.error),
         );
         return {

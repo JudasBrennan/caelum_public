@@ -15,6 +15,13 @@ import {
 } from "./store.js";
 import { createTutorial } from "./tutorial.js";
 import {
+  createDiagnosticCockpit,
+  createDiagnosticDependencyNotice,
+  createDiagnosticEmptyState,
+  createDiagnosticObjectSelector,
+  workflowHtml,
+} from "./workflow/diagnosticOrientation.js";
+import {
   buildSubtypeUnsupportedMessage,
   getSubtypePageApplicability,
 } from "./planet/bodyClassificationSummary.js";
@@ -422,20 +429,161 @@ const TUTORIAL_STEPS = [
 
 // ── Page init ───────────────────────────────────────────────
 
+function planetLabel(planet) {
+  return planet?.name || planet?.inputs?.name || planet?.id || "No compatible planet";
+}
+
+function planetSelectOptions(planets = [], selectedPlanet = null) {
+  return planets.map((planet) => ({
+    value: planet.id,
+    label: planetLabel(planet),
+    selected: planet.id === selectedPlanet?.id,
+  }));
+}
+
+function populationOverrideCount(state = {}) {
+  return [
+    state.oceanPctOverride,
+    state.habitablePctOverride,
+    state.productivePctOverride,
+    state.cropPctOverride,
+  ].filter((value) => value != null && value !== "").length;
+}
+
+function buildPopulationCockpitMarkup({
+  selected,
+  state,
+  model,
+  unsupportedMessage = "",
+  empty = false,
+} = {}) {
+  const overrideCount = populationOverrideCount(state);
+  return workflowHtml(
+    createDiagnosticCockpit({
+      id: "populationCockpit",
+      title: "Population",
+      summary: empty
+        ? "Create a rocky planet before modelling settlement capacity."
+        : "Reads the selected rocky planet's surface context, then applies population-only civilization assumptions.",
+      current: {
+        label: "Selected planet",
+        value: empty ? "No compatible planet" : planetLabel(selected),
+        meta: unsupportedMessage
+          ? "Population output is unavailable for this body."
+          : "Population diagnostic target.",
+      },
+      statusItems: [
+        {
+          label: "Reads from",
+          value: "Planets",
+          meta: "Radius, climate zones, water regime, and hydrosphere context.",
+        },
+        {
+          label: "Diagnostic only",
+          value: unsupportedMessage
+            ? "Unsupported"
+            : model
+              ? model.display.currentPopulation
+              : "Waiting",
+          meta: "Planet science is not rewritten from this page.",
+          tone: unsupportedMessage ? "warn" : "",
+        },
+        {
+          label: "Authoring override",
+          value: overrideCount ? `${overrideCount} active` : "Auto",
+          meta: "Ocean, habitability, productivity, and crop assumptions save only to Population.",
+        },
+      ],
+      source: {
+        label: "Source",
+        value: "Reads from Planets",
+        meta: "Change inputs on Planets. Local civilization assumptions stay on Population.",
+      },
+      details: {
+        id: "populationContextDisclosure",
+        title: "What this reads",
+        summary: "Planet surface, climate, hydrosphere, and optional population assumptions.",
+        items: [
+          "Reads from Planets: radius, climate zones, water regime, hydrosphere, and surface classification.",
+          "Change inputs on Planets: edit climate, water, orbit, and habitability assumptions upstream.",
+          "Diagnostic only: population outputs do not rewrite planet science context.",
+          "Authoring override: local ocean, habitability, productivity, and crop percentages affect population outputs only.",
+        ],
+      },
+      nextStep: {
+        id: "populationNextStepStrip",
+        recommendation: empty
+          ? "Create a rocky planet before modelling population."
+          : "Edit habitability or climate assumptions on Planets when capacity looks wrong.",
+        actions: [
+          { label: "Edit planet", href: "#/planet", primary: true },
+          { label: "Open Climate", href: "#/climate" },
+          { label: "Open Calendar", href: "#/calendar" },
+        ],
+      },
+    }),
+  );
+}
+
+function buildPopulationDependencyNoticeMarkup() {
+  return workflowHtml(
+    createDiagnosticDependencyNotice({
+      id: "populationDependencyNotice",
+      title: "Reads from Planets",
+      body: "Reads from the selected rocky planet's radius, water regime, climate zones, and hydrosphere context. Change inputs on Planets.",
+      source:
+        "Diagnostic only for planet science. Authoring override sliders here affect population outputs without rewriting inferred climate or ocean coverage.",
+      actions: [{ label: "Change inputs on Planets", href: "#/planet" }],
+    }),
+  );
+}
+
+function buildPopulationObjectSelectorMarkup(planets, selected, unsupportedMessage = "") {
+  return workflowHtml(
+    createDiagnosticObjectSelector({
+      id: "populationObjectSelector",
+      title: "Planet selection",
+      summary: "Choose the rocky planet whose settlement model should read upstream science from.",
+      selectedLabel: "Selected planet",
+      selectedValue: planetLabel(selected),
+      selectedMeta: unsupportedMessage
+        ? "No compatible population output for this body."
+        : "Population diagnostic target.",
+      selectId: "popPlanetSelect",
+      selectLabel: "Planet",
+      selectOptions: planetSelectOptions(planets, selected),
+    }),
+  );
+}
+
+function buildPopulationEmptyPageMarkup(planets, selected) {
+  return `
+      <div class="page">
+        <div class="panel">
+          <div class="panel__header"><h1 class="panel__title">Population</h1></div>
+          <div class="panel__body">
+            ${buildPopulationCockpitMarkup({ selected, empty: true })}
+            ${buildPopulationDependencyNoticeMarkup()}
+            ${workflowHtml(
+              createDiagnosticEmptyState({
+                id: "populationEmptyState",
+                title: "No compatible rocky planet",
+                body: "Population needs a rocky planet before it can read climate, hydrosphere, and surface-area context.",
+                actions: [{ label: "Create a planet", href: "#/planet" }],
+              }),
+            )}
+            ${planets.length ? buildPopulationObjectSelectorMarkup(planets, selected) : ""}
+          </div>
+        </div>
+      </div>`;
+}
+
 export function initPopulationPage(containerEl) {
   const world = loadWorld();
   const planets = listPlanets(world);
 
   if (!planets.length) {
-    containerEl.innerHTML = `
-      <div class="page">
-        <div class="panel">
-          <div class="panel__header"><h1 class="panel__title">Population</h1></div>
-          <div class="panel__body">
-            <p class="hint">Create a planet on the <a href="#/planet">Planets</a> page first.</p>
-          </div>
-        </div>
-      </div>`;
+    containerEl.innerHTML = buildPopulationEmptyPageMarkup(planets, null);
     return;
   }
 
@@ -467,15 +615,6 @@ export function initPopulationPage(containerEl) {
     const limitedMessage = pCtx.limitedSurfaceMessage || "";
     const model = unsupportedMessage ? null : calcPopulation({ ...pCtx, ...state });
 
-    // Planet selector
-    const planetOptions = pList
-      .map((p) => {
-        const name = escapeHtml(p.name || p.inputs?.name || p.id);
-        const sel = p.id === selected?.id ? " selected" : "";
-        return `<option value="${escapeHtml(p.id)}"${sel}>${name}</option>`;
-      })
-      .join("");
-
     if (unsupportedMessage) {
       containerEl.innerHTML = `
       <div class="page">
@@ -485,11 +624,21 @@ export function initPopulationPage(containerEl) {
             <button id="popTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
           </div>
           <div class="panel__body">
-            <div class="form-row">
-              <label for="popPlanetSelect">Planet</label>
-              <select id="popPlanetSelect">${planetOptions}</select>
-            </div>
-            <div class="derived-readout">${escapeHtml(unsupportedMessage)}</div>
+            ${buildPopulationCockpitMarkup({
+              selected,
+              state,
+              unsupportedMessage,
+            })}
+            ${buildPopulationDependencyNoticeMarkup()}
+            ${buildPopulationObjectSelectorMarkup(pList, selected, unsupportedMessage)}
+            ${workflowHtml(
+              createDiagnosticEmptyState({
+                id: "populationUnsupportedState",
+                title: "No compatible population output",
+                body: unsupportedMessage,
+                actions: [{ label: "Change inputs on Planets", href: "#/planet" }],
+              }),
+            )}
           </div>
         </div>
       </div>`;
@@ -521,32 +670,37 @@ export function initPopulationPage(containerEl) {
             <button id="popTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
           </div>
           <div class="panel__body">
-
-            <div class="form-row">
-              <label for="popPlanetSelect">Planet</label>
-              <select id="popPlanetSelect">${planetOptions}</select>
-            </div>
+            ${buildPopulationCockpitMarkup({
+              selected,
+              state,
+              model,
+            })}
+            ${buildPopulationDependencyNoticeMarkup()}
+            ${buildPopulationObjectSelectorMarkup(pList, selected)}
 
             ${limitedMessage ? `<div class="derived-readout">${escapeHtml(limitedMessage)}</div>` : ""}
 
-            <div class="kpi-grid">
-              <div class="kpi-wrap"><div class="kpi">
-                <div class="kpi__label">Population ${tipIcon(TIP_LABEL["Current Population"])}</div>
-                <div class="kpi__value">${escapeHtml(model.display.currentPopulation)}</div>
-              </div></div>
-              <div class="kpi-wrap"><div class="kpi">
-                <div class="kpi__label">Carrying Capacity ${tipIcon(TIP_LABEL["Carrying Capacity"])}</div>
-                <div class="kpi__value">${escapeHtml(model.display.carryingCapacity)}</div>
-              </div></div>
-              <div class="kpi-wrap"><div class="kpi">
-                <div class="kpi__label">Saturation ${tipIcon(TIP_LABEL["Saturation"])}</div>
-                <div class="kpi__value">${escapeHtml(model.display.saturation)}</div>
-              </div></div>
-              <div class="kpi-wrap"><div class="kpi">
-                <div class="kpi__label">Habitable Density ${tipIcon(TIP_LABEL["Habitable Density"])}</div>
-                <div class="kpi__value">${escapeHtml(model.display.habitableDensity)}</div>
-              </div></div>
-            </div>
+            <section class="kpi-section" id="populationSummary">
+              <div class="kpi-section__header"><h3 class="kpi-section__title">Summary</h3></div>
+              <div class="kpi-grid">
+                <div class="kpi-wrap"><div class="kpi">
+                  <div class="kpi__label">Population ${tipIcon(TIP_LABEL["Current Population"])}</div>
+                  <div class="kpi__value">${escapeHtml(model.display.currentPopulation)}</div>
+                </div></div>
+                <div class="kpi-wrap"><div class="kpi">
+                  <div class="kpi__label">Carrying Capacity ${tipIcon(TIP_LABEL["Carrying Capacity"])}</div>
+                  <div class="kpi__value">${escapeHtml(model.display.carryingCapacity)}</div>
+                </div></div>
+                <div class="kpi-wrap"><div class="kpi">
+                  <div class="kpi__label">Saturation ${tipIcon(TIP_LABEL["Saturation"])}</div>
+                  <div class="kpi__value">${escapeHtml(model.display.saturation)}</div>
+                </div></div>
+                <div class="kpi-wrap"><div class="kpi">
+                  <div class="kpi__label">Habitable Density ${tipIcon(TIP_LABEL["Habitable Density"])}</div>
+                  <div class="kpi__value">${escapeHtml(model.display.habitableDensity)}</div>
+                </div></div>
+              </div>
+            </section>
 
             <div class="grid-2" style="margin-top:12px">
               <div class="subsection">

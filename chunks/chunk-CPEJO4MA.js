@@ -1,1 +1,0 @@
-import{a as t,b as l,c as n,d as h}from"./chunk-24KHYB4L.js";var r=null,o=null;function u(){return r||(r=t().then(e=>{if(!e?.WebGLRenderer)throw new Error("Three.js core module did not expose WebGLRenderer");return e}).catch(e=>{throw r=null,e}),r)}function p(){return o||(o=Promise.all([u(),l(),n(),h()]).catch(e=>{throw o=null,e}),o)}export{u as a,p as b};

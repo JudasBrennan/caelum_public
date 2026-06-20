@@ -231,6 +231,24 @@ export function normalizeWeekendRule(raw) {
   return HOLIDAY_WEEKEND_RULES.some(([v]) => v === value) ? value : "none";
 }
 
+const CALENDAR_TASK_SECTION_ALIASES = Object.freeze({
+  overview: "overview",
+  structure: "structure",
+  identity: "structure",
+  events: "events",
+  rules: "events",
+  preview: "preview",
+  export: "export",
+  output: "export",
+});
+
+function normalizeCalendarDrawerSection(raw, fallback = "overview") {
+  const key = String(raw || "")
+    .trim()
+    .toLowerCase();
+  return CALENDAR_TASK_SECTION_ALIASES[key] || fallback;
+}
+
 export function parseIntList(raw, min = 1, max = 1000000) {
   if (Array.isArray(raw)) {
     const seen = new Set();
@@ -1164,7 +1182,7 @@ export function createCalendarStateStoreBindings({
           cycles: true,
         },
         drawerOpen: true,
-        drawerSection: "structure",
+        drawerSection: "overview",
         rulesTab: "holidays",
       },
     };
@@ -1341,9 +1359,7 @@ export function createCalendarStateStoreBindings({
               : true,
         },
         drawerOpen: !!(ru.drawerOpen ?? d.ui.drawerOpen),
-        drawerSection: ["structure", "identity", "rules", "output"].includes(ru.drawerSection)
-          ? ru.drawerSection
-          : d.ui.drawerSection,
+        drawerSection: normalizeCalendarDrawerSection(ru.drawerSection, d.ui.drawerSection),
         rulesTab: ["holidays", "festivals", "intercalary", "leap", "cycles"].includes(ru.rulesTab)
           ? ru.rulesTab
           : d.ui.rulesTab,

@@ -77,7 +77,7 @@ export function buildLesson07(mode) {
       adjacent planets are separated by at least ${iq("\\Delta > 2\\sqrt{3}")},
       roughly 3.46 mutual Hill radii. Most observed multi-planet systems
       have ${iq("\\Delta \\approx 10{-}30 R_H")}.</p>
-      <p>WorldSmith turns that same boundary into a conservative authoring
+      <p>Caelum turns that same boundary into a conservative authoring
       diagnostic for the selected host frame:</p>
       ${dataTable(
         ["Label", "Mutual-Hill separation", "Interpretation"],
@@ -91,7 +91,7 @@ export function buildLesson07(mode) {
       <p>Eccentric or strongly inclined pairs are more complicated than this
       one-number test, so the app lowers confidence and explains the limiting
       pair instead of certifying the system as definitely safe.</p>
-      <p>That architecture diagnostic is now part of WorldSmith's
+      <p>That architecture diagnostic is now part of Caelum's
       <strong>shared dynamical context</strong>. Generation checks, repair
       suggestions, timelines, and system-page explanations consume the same
       bounded state rather than recalculating private stability stories.</p>
@@ -109,7 +109,7 @@ export function buildLesson07(mode) {
       "Multistar Host Frames",
       `<p>Not every planetary system orbits a single lonely star. Many systems are
       binaries or higher-order multiples, and that changes what &ldquo;the host&rdquo;
-      means. In WorldSmith, planets can orbit either a <strong>single star</strong>
+      means. In Caelum, planets can orbit either a <strong>single star</strong>
       in a circumstellar <strong>S-type</strong> frame, or a <strong>bound pair</strong>
       in a circumbinary <strong>P-type</strong> frame.</p>
       <p>That distinction matters because each host frame has its own orbit ladder,
@@ -125,7 +125,7 @@ export function buildLesson07(mode) {
       `<p>The classic binary-stability fits of Holman & Wiegert (1999) give the rough
       allowed regions:</p>
       ${eq("a_{\\text{S-type}} \\lesssim 0.2\\text{--}0.3\\;a_{\\text{bin}}, \\qquad a_{\\text{P-type}} \\gtrsim 3\\text{--}5\\;a_{\\text{bin}}")}
-      <p>WorldSmith uses the full coefficient fits rather than just these rules of thumb,
+      <p>Caelum uses the full coefficient fits rather than just these rules of thumb,
       and it also carries a hierarchical outer-pair guardrail for triples and quads so
       outer branches do not crowd inner binaries.</p>
       <p>Companion stars are not just gravitational nuisances. Their light is sampled across

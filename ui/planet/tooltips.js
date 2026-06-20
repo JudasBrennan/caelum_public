@@ -115,7 +115,7 @@ export const TIP_LABEL = {
   "Earth Similarity Index":
     "Earth Similarity Index (ESI) is a 0-1 Earth-likeness score based on radius, density, escape velocity, and average surface temperature.\n\n1.0 = Earth-like across those four inputs. Lower values indicate a less Earth-like rocky world.\n\nESI is not a direct habitability verdict.",
   "Habitability Index":
-    "WorldSmith comparative habitability model for rocky worlds.\n\nThis is PHI-inspired, not a direct literature PHI implementation. The score depends on the selected solvent pathway and the active solvent-policy support for surface water, subsurface water, and alternative solvents.\n\nUse the expanded KPI details to see the current pathway, policy version, and term breakdown.",
+    "Caelum comparative habitability model for rocky worlds.\n\nThis is PHI-inspired, not a direct literature PHI implementation. The score depends on the selected solvent pathway and the active solvent-policy support for surface water, subsurface water, and alternative solvents.\n\nUse the expanded KPI details to see the current pathway, policy version, and term breakdown.",
   "UV Shielding":
     "Estimated surface-UV protection from the combined ozone column, atmospheric pressure support, and XUV environment. Shielded indicates an Earth-like to stronger photochemical UV screen, Partial indicates incomplete coverage, and Unshielded indicates weak protection.",
   "Prebiotic UV Window":

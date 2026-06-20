@@ -1,7 +1,153 @@
 import { buildPageIntroHtml } from "../pageIntro.js";
 import { getGuidedEntryModeTooltip } from "../guidedCreation/tooltips.js";
-import { tipAttr, tipIcon } from "../tooltip.js";
+import { createElement } from "../domHelpers.js";
+import { tipIcon } from "../tooltip.js";
+import { createContextCockpit } from "../workflow/contextCockpit.js";
+import { createCreationModeStrip } from "../workflow/creationModeStrip.js";
+import { createNextStepStrip } from "../workflow/nextStepStrip.js";
 import { TIP_LABEL } from "./constants.js";
+
+function nodesFromHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = String(html || "").trim();
+  return Array.from(template.content.childNodes);
+}
+
+function createCurrentStatePanel() {
+  return createElement(
+    "div",
+    {
+      className: "context-summary",
+      attrs: { id: "starCurrentStatePanel", "aria-label": "Current star system context" },
+    },
+    [
+      createElement("div", { className: "context-summary__header" }, [
+        createElement("div", {}, [
+          createElement("div", {
+            className: "context-summary__title",
+            text: "Current System Context",
+          }),
+          createElement("div", {
+            className: "context-summary__copy",
+            attrs: { id: "starCurrentStateCopy" },
+          }),
+        ]),
+      ]),
+      createElement("div", {
+        className: "context-summary__grid",
+        attrs: { id: "starCurrentStateGrid" },
+      }),
+      createElement("div", {
+        className: "context-summary__notes",
+        attrs: { id: "starCurrentStateNotes" },
+      }),
+    ],
+  );
+}
+
+function buildStarCockpitMarkup() {
+  const workflowContextIntro = nodesFromHtml(
+    buildPageIntroHtml({
+      summary:
+        "Define the home-system layout and shared stellar context before editing later body pages.",
+      controls:
+        "The system topology, default orbit host, and whichever star or shared pair is currently selected.",
+      affects:
+        "System slots, host-frame context, stellar flux, and stability assumptions used across planet and moon workflows.",
+      primaryAction:
+        "Choose the topology first, then confirm the default orbit host before tuning stellar properties.",
+    }),
+  );
+
+  const modeStrip = createCreationModeStrip({
+    id: "starCreateEntry",
+    className: "star-cockpit__entry",
+    title: "Create This Star",
+    summaryId: "starCreateEntryHint",
+    summary: "Quick starts an archetype; Guided fits targets; Advanced edits directly.",
+    selectedMode: "advanced",
+    modes: [
+      {
+        id: "quick",
+        elementId: "starCreateQuickBtn",
+        attrs: { "data-tip": getGuidedEntryModeTooltip("quick") },
+      },
+      {
+        id: "guided",
+        elementId: "starCreateGuidedBtn",
+        attrs: { "data-tip": getGuidedEntryModeTooltip("guided") },
+      },
+      {
+        id: "advanced",
+        currentMarker: true,
+        attrs: { "data-tip": getGuidedEntryModeTooltip("advanced") },
+      },
+    ],
+  });
+
+  const cockpit = createContextCockpit({
+    id: "starCockpit",
+    className: "star-cockpit",
+    ariaLabel: "Star authoring cockpit",
+    eyebrow: "Star setup",
+    summaryId: "starCockpitSummary",
+    summary: "Define the home system layout, then tune the active star or pair.",
+    statusItems: [
+      {
+        label: "Editing",
+        value: "Star A",
+        meta: "Manual editor target",
+        valueId: "starCockpitTargetValue",
+        metaId: "starCockpitTargetMeta",
+      },
+      {
+        label: "Topology",
+        value: "Single",
+        meta: "One host frame",
+        valueId: "starCockpitTopologyValue",
+        metaId: "starCockpitTopologyMeta",
+      },
+      {
+        label: "Default Host",
+        value: "Star A",
+        meta: "Future orbit host",
+        valueId: "starCockpitHostValue",
+        metaId: "starCockpitHostMeta",
+      },
+      {
+        id: "starCockpitHealthCard",
+        label: "Hierarchy Health",
+        value: "Good",
+        meta: "Stable hierarchy",
+        valueId: "starCockpitHealthValue",
+        metaId: "starCockpitHealthMeta",
+        hidden: true,
+      },
+    ],
+    details: {
+      id: "starContextDisclosure",
+      className: "star-context-disclosure",
+      bodyClassName: "star-context-disclosure__body",
+      title: "How this affects other pages",
+      summaryId: "starContextDisclosureSummary",
+      summary: "Topology, default host, and stellar context feed later workflows.",
+      content: [...workflowContextIntro, createCurrentStatePanel()],
+    },
+  });
+
+  const disclosure = cockpit.querySelector("#starContextDisclosure");
+  cockpit.insertBefore(modeStrip, disclosure);
+  cockpit.appendChild(
+    createNextStepStrip({
+      id: "starNextStepStrip",
+      className: "star-cockpit__next-step",
+      recommendation:
+        "Single star ready. Arrange planets next, or use the topology controls to add a companion.",
+      recommendationId: "starNextStepRecommendation",
+    }),
+  );
+  return cockpit.outerHTML;
+}
 
 export function buildStarPageMarkup({ hostComponentMassMinText }) {
   return `
@@ -11,85 +157,7 @@ export function buildStarPageMarkup({ hostComponentMassMinText }) {
         <button id="starTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        <div id="starCockpit" class="star-cockpit" aria-label="Star authoring cockpit">
-          <div class="star-cockpit__overview">
-            <div>
-              <div class="star-cockpit__eyebrow">Star setup</div>
-              <p id="starCockpitSummary" class="star-cockpit__summary">
-                Define the home system layout, then tune the active star or pair.
-              </p>
-            </div>
-            <div class="star-cockpit__status-grid" aria-label="Current star setup status">
-              <div class="star-cockpit__status-card">
-                <div class="star-cockpit__status-label">Editing</div>
-                <div id="starCockpitTargetValue" class="star-cockpit__status-value">Star A</div>
-                <div id="starCockpitTargetMeta" class="star-cockpit__status-meta">Manual editor target</div>
-              </div>
-              <div class="star-cockpit__status-card">
-                <div class="star-cockpit__status-label">Topology</div>
-                <div id="starCockpitTopologyValue" class="star-cockpit__status-value">Single</div>
-                <div id="starCockpitTopologyMeta" class="star-cockpit__status-meta">One host frame</div>
-              </div>
-              <div class="star-cockpit__status-card">
-                <div class="star-cockpit__status-label">Default Host</div>
-                <div id="starCockpitHostValue" class="star-cockpit__status-value">Star A</div>
-                <div id="starCockpitHostMeta" class="star-cockpit__status-meta">Future orbit host</div>
-              </div>
-              <div id="starCockpitHealthCard" class="star-cockpit__status-card" hidden>
-                <div class="star-cockpit__status-label">Hierarchy Health</div>
-                <div id="starCockpitHealthValue" class="star-cockpit__status-value">Good</div>
-                <div id="starCockpitHealthMeta" class="star-cockpit__status-meta">Stable hierarchy</div>
-              </div>
-            </div>
-          </div>
-
-          <div id="starCreateEntry" class="guided-entry-strip star-cockpit__entry">
-            <div class="guided-entry-strip__title">Create This Star</div>
-            <div id="starCreateEntryHint" class="guided-entry-strip__copy">
-              Quick applies an archetype, Guided recommends a fit, and Manual keeps the direct editor visible.
-            </div>
-            <div class="guided-entry-strip__modes">
-              <button id="starCreateQuickBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("quick"))}>
-                Quick
-              </button>
-              <button id="starCreateGuidedBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("guided"))}>
-                Guided
-              </button>
-              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page" ${tipAttr(getGuidedEntryModeTooltip("advanced"))}>
-                Manual
-              </span>
-            </div>
-          </div>
-
-          <details id="starContextDisclosure" class="star-context-disclosure">
-            <summary>
-              <span>How this affects other pages</span>
-              <span id="starContextDisclosureSummary">Topology, default host, and stellar context feed later workflows.</span>
-            </summary>
-            <div class="star-context-disclosure__body">
-              ${buildPageIntroHtml({
-                summary:
-                  "Define the home-system layout and shared stellar context before editing later body pages.",
-                controls:
-                  "The system topology, default orbit host, and whichever star or shared pair is currently selected.",
-                affects:
-                  "System slots, host-frame context, stellar flux, and stability assumptions used across planet and moon workflows.",
-                primaryAction:
-                  "Choose the topology first, then confirm the default orbit host before tuning stellar properties.",
-              })}
-              <div id="starCurrentStatePanel" class="context-summary" aria-label="Current star system context">
-                <div class="context-summary__header">
-                  <div>
-                    <div class="context-summary__title">Current System Context</div>
-                    <div id="starCurrentStateCopy" class="context-summary__copy"></div>
-                  </div>
-                </div>
-                <div id="starCurrentStateGrid" class="context-summary__grid"></div>
-                <div id="starCurrentStateNotes" class="context-summary__notes"></div>
-              </div>
-            </div>
-          </details>
-        </div>
+        ${buildStarCockpitMarkup()}
       </div>
     </div>
 

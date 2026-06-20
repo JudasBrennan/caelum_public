@@ -81,7 +81,7 @@ export function buildLesson20(mode) {
         ["\\rho_s", "satellite or debris aggregate density"],
       ])}
       <p>Inside this limit, disrupted material can survive as a ring because particle collisions damp relative motion faster than the material can re-assemble into a moon. Outside the Roche limit, reaccretion becomes much easier, so long-lived solid satellites are favoured.</p>
-      <p>WorldSmith uses the same Roche-limit framing when it explains planetary rings: ring-supporting cases come from debris staying inside the disruption zone, while surviving moons occupy stable orbits outside it.</p>
+      <p>Caelum uses the same Roche-limit framing when it explains planetary rings: ring-supporting cases come from debris staying inside the disruption zone, while surviving moons occupy stable orbits outside it.</p>
       ${cite("Roche (1849); Murray & Dermott (1999), Solar System Dynamics, Ch. 4; Charnoz et al. (2010, Nature 465, 752)")}`,
       mode,
     ),

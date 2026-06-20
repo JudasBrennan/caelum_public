@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://thebrokenwheel.co.uk/worldsmith/sitemap.xml
+Sitemap: https://thebrokenwheel.co.uk/caelum/sitemap.xml

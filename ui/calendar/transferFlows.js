@@ -599,7 +599,7 @@ export function createCalendarTransferFlows({
     const lines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//WorldSmith Web//Calendar Export//EN",
+      "PRODID:-//Caelum//Calendar Export//EN",
       "CALSCALE:GREGORIAN",
       `X-WORLDSMITH-CALENDAR:${escapeIcsText(calName)}`,
       `X-WORLDSMITH-YEAR:${escapeIcsText(String(yearLabel))}`,

@@ -99,7 +99,7 @@ export function buildLesson03(mode) {
       ])}
       <p>In solar units, this simplifies to:</p>
       ${eq("\\frac{L}{L_\\odot} = \\left(\\frac{R}{R_\\odot}\\right)^{\\!2} \\left(\\frac{T_{\\text{eff}}}{T_{\\odot}}\\right)^{\\!4}")}
-      <p>This is the basis for the WorldSmith engine's temperature derivation:
+      <p>This is the basis for the Caelum engine's temperature derivation:
         given mass-derived ${iq("L")} and ${iq("R")}, the effective
         temperature is solved as
         ${iq("T_{\\text{eff}} = (L / R^2)^{0.25} \\times 5776\\;\\text{K}")}.</p>

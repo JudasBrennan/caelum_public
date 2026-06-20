@@ -141,7 +141,7 @@ export { __getWorldSnapshotCacheStatsForTests } from "./store/worldSnapshotCache
 // Shared World Model store (local-only).
 // This keeps Star/System/Planet pages consistent.
 
-export const TOOL_ID = "WorldSmith Web";
+export const TOOL_ID = "Caelum";
 
 let worldLoadFailure = null;
 let worldLoadFailureSignature = "";
@@ -193,8 +193,8 @@ function toWorldLoadFailure({ stage, sourceKey, raw, error }) {
   const cause = error?.message || String(error || "");
   const message =
     stage === "parse"
-      ? "WorldSmith could not parse the saved world data."
-      : "WorldSmith could not migrate the saved world data to the current format.";
+      ? "Caelum could not parse the saved world data."
+      : "Caelum could not migrate the saved world data to the current format.";
   return {
     stage,
     sourceKey: sourceKey || null,
@@ -212,8 +212,8 @@ function toCachedWorldLoadFailure({ stage, sourceKey, raw, cause }) {
     raw: typeof raw === "string" ? raw : null,
     message:
       stage === "parse"
-        ? "WorldSmith could not parse the saved world data."
-        : "WorldSmith could not migrate the saved world data to the current format.",
+        ? "Caelum could not parse the saved world data."
+        : "Caelum could not migrate the saved world data to the current format.",
     cause: String(cause || ""),
     detectedAt: new Date().toISOString(),
   };

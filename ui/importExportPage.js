@@ -61,7 +61,7 @@ const TIP_LABEL = {
   "Copy to clipboard": "Copy the current export JSON to your clipboard.",
   "Refresh view": "Regenerate the export preview from current saved data.",
   "Clear saved data":
-    "Remove all WorldSmith saved data from this browser, including backups. This cannot be undone.",
+    "Remove all Caelum saved data from this browser, including backups. This cannot be undone.",
   "Start fresh":
     "Remove only the current saved world. Browser backups remain available for restore.",
   "Create backup now": "Create a manual backup of the current saved world.",
@@ -191,7 +191,7 @@ function rawWorldToExportEnvelope(raw) {
     };
   }
   return {
-    tool: store.TOOL_ID || "WorldSmith Web",
+    tool: store.TOOL_ID || "Caelum",
     schemaVersion: getSchemaVersion(),
     exportedUtc: new Date().toISOString(),
     world: parsed,
@@ -577,7 +577,7 @@ export function initImportExportPage(root) {
           <ul class="bullets">
             <li>Current saved world means the single world the app loads from this browser.</li>
             <li>Backup library means restore points stored separately from the current saved world.</li>
-            <li>WorldSmith Web stores your data in browser storage, not cookies. It does not follow you to another browser or device unless you export and import.</li>
+            <li>Caelum stores your data in browser storage, not cookies. It does not follow you to another browser or device unless you export and import.</li>
             <li>Imported files are validated and migrated to the latest format automatically where possible.</li>
             <li>Moon atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs are derived from saved moon inputs and survive save/load/import/export by recomputation.</li>
             <li>XLSX imports identify Star/System/Planet/Moon tabs by sheet structure, so tab order changes and duplicated tab copies are supported.</li>
@@ -733,8 +733,8 @@ export function initImportExportPage(root) {
         ok: false,
         reason: valid.ok ? "normalization-failed" : "unsupported-world-shape",
         message: valid.ok
-          ? "WorldSmith could parse the backup, but could not normalize it for preview."
-          : "The backup JSON does not match a supported WorldSmith world shape.",
+          ? "Caelum could parse the backup, but could not normalize it for preview."
+          : "The backup JSON does not match a supported Caelum world shape.",
         details: [...details, error?.message || String(error || "World normalization failed.")],
       };
     }
@@ -746,7 +746,7 @@ export function initImportExportPage(root) {
       return {
         ok: false,
         reason: "summary-failed",
-        message: "WorldSmith could read the backup, but could not build the preview summary.",
+        message: "Caelum could read the backup, but could not build the preview summary.",
         details: [error?.message || String(error || "Preview summary failed.")],
       };
     }
@@ -1039,7 +1039,7 @@ export function initImportExportPage(root) {
               : null,
             createElement("p", {
               className: "hint",
-              text: "Export may still work if the raw backup payload exists, but restore is not recommended until the backup can be read as a valid WorldSmith world.",
+              text: "Export may still work if the raw backup payload exists, but restore is not recommended until the backup can be read as a valid Caelum world.",
             }),
           ]),
         ]);
@@ -1356,7 +1356,7 @@ export function initImportExportPage(root) {
       return;
     }
 
-    setStatus(statusExport, "All saved WorldSmith data has been cleared.", "ok");
+    setStatus(statusExport, "All saved Caelum data has been cleared.", "ok");
     setStatus(statusImport, "Saved data cleared.", "info");
     setStatus(statusBackups, "Backup library cleared.", "info");
   });

@@ -677,7 +677,7 @@ export function buildRemoveClusterCompanionPlan({
 export function buildClearSavedDataPlan({ hasBackups = true } = {}) {
   return {
     actionKey: "clear-saved-data",
-    title: "Clear saved WorldSmith data?",
+    title: "Clear saved Caelum data?",
     description: "This removes the saved world state from this browser.",
     confirmLabel: "Clear saved data",
     consequences: [

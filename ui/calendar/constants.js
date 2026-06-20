@@ -155,13 +155,13 @@ export const CALENDAR_TUTORIAL_STEPS = [
     title: "Getting Started",
     body:
       "The Calendar page turns your planet and moon data into a working calendar. " +
-      "Use the settings drawer on the left to configure structure, identity, rules, " +
-      "and output. The month view on the right updates live as you make changes.",
+      "Use the task tabs to choose Structure, Events, Preview, or Export work. " +
+      "Overview keeps the source context and calendar-only transfer boundary visible.",
   },
   {
     title: "Choose a Source Planet and Moon",
     body:
-      "Open the Structure tab in the drawer. Select a source planet to set the " +
+      "Open the Structure task tab. Select a source planet to set the " +
       "year length, then pick a primary moon to drive lunar cycles. You can add " +
       "up to three extra moons for multi-moon phase displays.",
   },
@@ -179,20 +179,20 @@ export const CALENDAR_TUTORIAL_STEPS = [
       "week. By default these are derived from orbital data. Override any slider " +
       "for a custom calendar. Enable Month lengths to set irregular authored month " +
       "day counts (like Earth's 31/28/31/30 pattern). Use Intercalary Periods in " +
-      "the Rules tab for structural extra days before months, after months, or at " +
+      "the Events tab for structural extra days before months, after months, or at " +
       "year end. The structure readout shows the resolved year length.",
   },
   {
     title: "Naming Days, Months, and Eras",
     body:
-      "Switch to the Identity tab to name your weekdays and months (one per line). " +
+      "Use the Structure tab to name your weekdays and months (one per line). " +
       "Set a year display mode: plain numeric, named eras, or pre/post-calendar " +
       "eras like BCE/CE. Add era rules to mark ages of your world's history.",
   },
   {
     title: "Intercalary Periods",
     body:
-      "In the Rules tab, open Intercalary to add structural extra days before " +
+      "In the Events tab, open Intercalary to add structural extra days before " +
       "months, after months, at year end, or appended into a month. Keep Month " +
       "lengths for true month lengths, and use intercalaries when extra days " +
       "should be placed explicitly instead of silently lengthening a month.",
@@ -200,14 +200,14 @@ export const CALENDAR_TUTORIAL_STEPS = [
   {
     title: "Leap Rules",
     body:
-      "Still in the Rules tab, open Leap Years to add rules that insert or remove " +
+      "Still in the Events tab, open Leap Years to add rules that insert or remove " +
       "days on cycle years. Use the Suggest button to auto-generate rules that " +
       "minimize calendar drift from the true orbital year.",
   },
   {
     title: "Holidays and Festivals",
     body:
-      "Still in the Rules tab, add holidays by date, weekday, or moon phase. " +
+      "Still in the Events tab, add holidays by date, weekday, or moon phase. " +
       "Holidays can recur weekly, monthly, or yearly, and festivals are multi-day " +
       "events inside resolved months. Use Advanced mode in Holidays when " +
       "you need explicit anchor overrides, linked holidays, astronomy markers, " +
@@ -217,7 +217,7 @@ export const CALENDAR_TUTORIAL_STEPS = [
   {
     title: "Exporting Your Calendar",
     body:
-      "Open the Output tab in the drawer. Open month or year print views and use " +
+      "Open the Export tab. Open month or year print views and use " +
       "your browser to print or Save as PDF, download an ICS file for real " +
       "calendar apps, or use JSON import/export to save and share your full " +
       "calendar configuration.",

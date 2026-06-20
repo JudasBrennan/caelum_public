@@ -34,6 +34,18 @@ const STATUS_LABELS = Object.freeze({
   CHECK: "Needs calibration",
 });
 
+const VALIDATION_PAGE_SIZE = 100;
+
+const QUICK_FILTERS = Object.freeze([
+  { id: "issues", label: "Issues" },
+  { id: "failures", label: "Failures" },
+  { id: "warnings", label: "Warnings" },
+  { id: "gaps", label: "Gaps" },
+  { id: "release-gates", label: "Release gates" },
+  { id: "nasa-anchors", label: "NASA anchors" },
+  { id: "user-visible", label: "User-visible" },
+]);
+
 const FAMILY_LABELS = Object.freeze({
   anchor: "Anchor",
   invariant: "Invariant",
@@ -156,6 +168,49 @@ function matrixTermDefinitionsHtml() {
   </dl>`;
 }
 
+function quickFilterChipsHtml() {
+  return `<div class="validation-quick-filters" aria-label="Quick filters">
+    ${QUICK_FILTERS.map(
+      (filter) =>
+        `<button type="button" class="validation-filter-chip" data-validation-quick-filter="${escapeHtml(filter.id)}">${escapeHtml(filter.label)}</button>`,
+    ).join("")}
+    <button type="button" class="validation-filter-chip validation-filter-chip--clear" data-validation-quick-filter="">All rows</button>
+  </div>`;
+}
+
+function listBlockHtml(label, values = []) {
+  const normalized = (Array.isArray(values) ? values : [values])
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+  return `<div class="validation-row-detail__block">
+    <div class="validation-row-detail__label">${escapeHtml(label)}</div>
+    ${
+      normalized.length
+        ? `<ul>${normalized.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul>`
+        : `<p class="hint">None recorded.</p>`
+    }
+  </div>`;
+}
+
+function sourceUrlsHtml(urls = []) {
+  const normalized = (Array.isArray(urls) ? urls : [urls])
+    .map((url) => String(url ?? "").trim())
+    .filter(Boolean);
+  return `<div class="validation-row-detail__block">
+    <div class="validation-row-detail__label">Source URLs</div>
+    ${
+      normalized.length
+        ? `<ul>${normalized
+            .map(
+              (url) =>
+                `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></li>`,
+            )
+            .join("")}</ul>`
+        : `<p class="hint">No source URL attached to this row.</p>`
+    }
+  </div>`;
+}
+
 function rowSearchText(row, modelAreaLabel = "") {
   return [
     row.modelAreaId,
@@ -173,6 +228,7 @@ function rowSearchText(row, modelAreaLabel = "") {
     row.comparisonSemantics,
     row.sourceClass,
     row.action,
+    ...(row.sourceUrls || []),
     ...(row.assumptions || []),
     ...(row.limitations || []),
     ...(row.downstreamConsumers || []),
@@ -289,6 +345,31 @@ function statusBadgeHtml(row) {
   )}</span>`;
 }
 
+function rowDetailsHtml(row) {
+  return `<div class="validation-row-detail">
+    <div class="validation-row-detail__summary">
+      <div>
+        <div class="validation-row-detail__label">Input summary</div>
+        <p>${escapeHtml(row.inputSummary || "No input summary recorded.")}</p>
+      </div>
+      <div>
+        <div class="validation-row-detail__label">Tolerance</div>
+        <p>${escapeHtml(row.tolerance || "No tolerance recorded.")}</p>
+      </div>
+      <div>
+        <div class="validation-row-detail__label">Action</div>
+        <p>${escapeHtml(row.action || "No action recorded.")}</p>
+      </div>
+    </div>
+    <div class="validation-row-detail__grid">
+      ${sourceUrlsHtml(row.sourceUrls || [])}
+      ${listBlockHtml("Assumptions", row.assumptions || [])}
+      ${listBlockHtml("Limitations", row.limitations || [])}
+      ${listBlockHtml("Downstream consumers", row.downstreamConsumers || [])}
+    </div>
+  </div>`;
+}
+
 function coverageBadges(area) {
   const coverage = area.coverageSummary || {};
   const families = Object.entries(coverage).filter(([, covered]) => covered);
@@ -357,9 +438,12 @@ function releaseGateTableHtml(rows = []) {
   </div>`;
 }
 
-function verificationRowHtml(row, modelAreaLabel) {
+function verificationRowHtml(row, modelAreaLabel, index) {
+  const rowId = `validation-row-${index}`;
+  const detailId = `${rowId}-details`;
   return `<tr
     class="validation-calibration-row validation-verification-row"
+    data-row-index="${index}"
     data-search="${escapeHtml(rowSearchText(row, modelAreaLabel))}"
     data-model-area="${escapeHtml(row.modelAreaId || "")}"
     data-family="${escapeHtml(row.family || "")}"
@@ -367,17 +451,32 @@ function verificationRowHtml(row, modelAreaLabel) {
     data-severity="${escapeHtml(row.severity || "")}"
     data-source-class="${escapeHtml(row.sourceClass || "")}"
     data-confidence="${escapeHtml(row.confidence || "")}"
+    data-user-visible="${row.userVisible ? "true" : "false"}"
   >
+    <td>
+      <button
+        type="button"
+        class="validation-row-toggle"
+        data-validation-row-toggle="${index}"
+        aria-expanded="false"
+        aria-controls="${escapeHtml(detailId)}"
+      >Details</button>
+    </td>
     <td>${escapeHtml(modelAreaLabel || row.modelAreaId)}</td>
     <td>${escapeHtml(familyLabel(row.family))}</td>
     <td>${escapeHtml(row.subject)}</td>
     <td>${escapeHtml(row.metric)}</td>
-    <td>${escapeHtml(row.output)}</td>
-    <td>${escapeHtml(row.expected)}</td>
     <td>${statusBadgeHtml(row)}</td>
     <td>${escapeHtml(row.severity)}</td>
     <td>${escapeHtml(row.sourceClass)}</td>
-    <td>${escapeHtml(row.action)}</td>
+  </tr>
+  <tr
+    id="${escapeHtml(detailId)}"
+    class="validation-verification-details-row"
+    data-row-details="${index}"
+    hidden
+  >
+    <td colspan="8">${rowDetailsHtml(row)}</td>
   </tr>`;
 }
 
@@ -394,7 +493,7 @@ function renderShell(root) {
       </div>
       <div class="panel__body">
         <p>
-          WorldSmith verifies science with benchmark anchors, physical
+          Caelum verifies science with benchmark anchors, physical
           invariants, trend checks, boundary checks, cross-system coupling,
           unit checks, formula oracles, population checks, and release gates.
         </p>
@@ -473,38 +572,13 @@ function renderReport(root, rawReport) {
       ${kpiHtml("Release gates passed", counts.releaseGatesPassed ?? 0)}
     </div>
 
-    <div class="panel validation-explainer">
-      <div class="panel__body">
-        <div class="validation-explainer__grid">
-          <div>
-            <h2>What The Matrix Means</h2>
-            <p>${escapeHtml(report.scope || "")}</p>
-            <p>${escapeHtml(report.interpretation || "")}</p>
-            ${matrixTermDefinitionsHtml()}
-          </div>
-          <div>
-            <h2>Release Gates</h2>
-            ${releaseGateTableHtml(report.releaseGates || [])}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel__header">
-        <h2 class="panel__title">Model Area Coverage</h2>
-      </div>
-      <div class="panel__body">
-        ${modelAreaTableHtml(report.modelAreas || [])}
-      </div>
-    </div>
-
-    <div class="panel">
+    <div class="panel validation-matrix-panel">
       <div class="panel__header">
         <h2 class="panel__title">Verification Matrix</h2>
         <div class="badge" data-validation-count aria-live="polite">${escapeHtml(rows.length)} rows</div>
       </div>
       <div class="panel__body">
+        ${quickFilterChipsHtml()}
         <div class="validation-controls" aria-label="Science verification filters">
           <label class="validation-field validation-field--search">
             <span>Search</span>
@@ -535,23 +609,56 @@ function renderReport(root, rawReport) {
           <table>
             <thead>
               <tr>
+                <th>Details</th>
                 <th>Model area</th>
                 <th>Family</th>
                 <th>Subject</th>
                 <th>Metric</th>
-                <th>Output</th>
-                <th>Expected</th>
                 <th>Status</th>
                 <th>Severity</th>
                 <th>Source</th>
-                <th>Action</th>
               </tr>
             </thead>
             <tbody>${rows
-              .map((row) => verificationRowHtml(row, labels[row.modelAreaId] || row.modelAreaId))
+              .map((row, index) =>
+                verificationRowHtml(row, labels[row.modelAreaId] || row.modelAreaId, index),
+              )
               .join("")}</tbody>
           </table>
         </div>
+        <div class="validation-pagination" data-validation-pagination hidden>
+          <button type="button" data-validation-page-prev>Previous</button>
+          <span data-validation-page-status></span>
+          <button type="button" data-validation-page-next>Next</button>
+        </div>
+      </div>
+    </div>
+
+    <details class="panel validation-explainer">
+      <summary class="validation-explainer__summary">
+        <span>What The Matrix Means</span>
+        <span>${escapeHtml(report.scope || "Science verification methodology and release evidence.")}</span>
+      </summary>
+      <div class="panel__body">
+        <div class="validation-explainer__grid">
+          <div>
+            <p>${escapeHtml(report.interpretation || "")}</p>
+            ${matrixTermDefinitionsHtml()}
+          </div>
+          <div>
+            <h2>Release Gates</h2>
+            ${releaseGateTableHtml(report.releaseGates || [])}
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <div class="panel">
+      <div class="panel__header">
+        <h2 class="panel__title">Model Area Coverage</h2>
+      </div>
+      <div class="panel__body">
+        ${modelAreaTableHtml(report.modelAreas || [])}
       </div>
     </div>
   `;
@@ -569,7 +676,41 @@ function attachFilters(contentEl) {
     sourceClass: contentEl.querySelector("[data-validation-source-class]"),
   };
   const countEl = contentEl.querySelector("[data-validation-count]");
+  const quickFilterButtons = Array.from(
+    contentEl.querySelectorAll("[data-validation-quick-filter]"),
+  );
+  const pagination = contentEl.querySelector("[data-validation-pagination]");
+  const prevButton = contentEl.querySelector("[data-validation-page-prev]");
+  const nextButton = contentEl.querySelector("[data-validation-page-next]");
+  const pageStatus = contentEl.querySelector("[data-validation-page-status]");
   const rows = Array.from(contentEl.querySelectorAll(".validation-verification-row"));
+  const detailRows = new Map(
+    Array.from(contentEl.querySelectorAll("[data-row-details]")).map((row) => [
+      row.dataset.rowDetails,
+      row,
+    ]),
+  );
+  let activeQuickFilter = "";
+  let pageIndex = 0;
+
+  const matchesQuickFilter = (row) => {
+    const status = String(row.dataset.status || "").toUpperCase();
+    const family = normalize(row.dataset.family);
+    const sourceClass = normalize(row.dataset.sourceClass);
+    if (!activeQuickFilter) return true;
+    if (activeQuickFilter === "issues") {
+      return ["FAIL", "WARN", "GAP", "BLOCKED", "CHECK"].includes(status);
+    }
+    if (activeQuickFilter === "failures") return status === "FAIL" || status === "CHECK";
+    if (activeQuickFilter === "warnings") return status === "WARN";
+    if (activeQuickFilter === "gaps") return status === "GAP";
+    if (activeQuickFilter === "release-gates") return family === "release-gate";
+    if (activeQuickFilter === "nasa-anchors") {
+      return family === "anchor" && sourceClass.includes("nasa");
+    }
+    if (activeQuickFilter === "user-visible") return row.dataset.userVisible === "true";
+    return true;
+  };
 
   const matches = (row) => {
     const query = normalize(controls.search?.value);
@@ -581,22 +722,94 @@ function attachFilters(contentEl) {
     if (controls.severity?.value && row.dataset.severity !== controls.severity.value) return false;
     if (controls.sourceClass?.value && row.dataset.sourceClass !== controls.sourceClass.value)
       return false;
+    if (!matchesQuickFilter(row)) return false;
     return true;
   };
 
-  const applyFilters = () => {
-    let visible = 0;
-    for (const row of rows) {
-      const show = matches(row);
-      row.hidden = !show;
-      if (show) visible += 1;
+  const collapseDetails = (row) => {
+    const index = row.dataset.rowIndex;
+    const detail = detailRows.get(index);
+    const button = row.querySelector("[data-validation-row-toggle]");
+    row.classList.remove("is-expanded");
+    if (detail) detail.hidden = true;
+    if (button) {
+      button.setAttribute("aria-expanded", "false");
+      button.textContent = "Details";
     }
-    if (countEl) countEl.textContent = `${visible} of ${rows.length} rows`;
+  };
+
+  const applyFilters = ({ resetPage = false } = {}) => {
+    const matchedRows = rows.filter(matches);
+    if (resetPage) pageIndex = 0;
+    const shouldPaginate = matchedRows.length > 300;
+    const pageCount = shouldPaginate
+      ? Math.max(1, Math.ceil(matchedRows.length / VALIDATION_PAGE_SIZE))
+      : 1;
+    pageIndex = Math.min(pageIndex, pageCount - 1);
+    const pageStart = shouldPaginate ? pageIndex * VALIDATION_PAGE_SIZE : 0;
+    const pageEnd = shouldPaginate ? pageStart + VALIDATION_PAGE_SIZE : matchedRows.length;
+    const visibleSet = new Set(matchedRows.slice(pageStart, pageEnd));
+
+    for (const row of rows) {
+      const show = visibleSet.has(row);
+      row.hidden = !show;
+      if (!show) collapseDetails(row);
+    }
+
+    if (countEl) {
+      countEl.textContent = shouldPaginate
+        ? `${matchedRows.length} of ${rows.length} rows, page ${pageIndex + 1} of ${pageCount}`
+        : `${matchedRows.length} of ${rows.length} rows`;
+    }
+    if (pagination) pagination.hidden = !shouldPaginate;
+    if (pageStatus) {
+      pageStatus.textContent = shouldPaginate
+        ? `Showing ${pageStart + 1}-${Math.min(pageEnd, matchedRows.length)} of ${matchedRows.length}`
+        : "";
+    }
+    if (prevButton) prevButton.disabled = pageIndex <= 0;
+    if (nextButton) nextButton.disabled = pageIndex >= pageCount - 1;
   };
 
   Object.values(controls).forEach((control) => {
-    control?.addEventListener("input", applyFilters);
+    control?.addEventListener("input", () => applyFilters({ resetPage: true }));
   });
+
+  quickFilterButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      activeQuickFilter = button.dataset.validationQuickFilter || "";
+      quickFilterButtons.forEach((other) => {
+        const active = (other.dataset.validationQuickFilter || "") === activeQuickFilter;
+        other.classList.toggle("is-active", active);
+        other.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      applyFilters({ resetPage: true });
+    });
+  });
+
+  prevButton?.addEventListener("click", () => {
+    pageIndex = Math.max(0, pageIndex - 1);
+    applyFilters();
+  });
+  nextButton?.addEventListener("click", () => {
+    pageIndex += 1;
+    applyFilters();
+  });
+
+  contentEl.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-validation-row-toggle]");
+    if (!button) return;
+    const row = button.closest(".validation-verification-row");
+    const index = button.dataset.validationRowToggle;
+    const detail = detailRows.get(index);
+    if (!row || !detail) return;
+    const expanded = button.getAttribute("aria-expanded") === "true";
+    row.classList.toggle("is-expanded", !expanded);
+    detail.hidden = expanded;
+    button.setAttribute("aria-expanded", expanded ? "false" : "true");
+    button.textContent = expanded ? "Details" : "Hide";
+  });
+
   applyFilters();
 }
 

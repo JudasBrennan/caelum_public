@@ -102,13 +102,17 @@ import { createElement, replaceChildren } from "./domHelpers.js";
 import { createTutorial } from "./tutorial.js";
 import { beginCelestialPerfDuration } from "./celestialPerfDebug.js";
 import { buildSystemRenderProfile, selectBodyMeshWarmSubset } from "./visualizer/renderBudget.js";
+import {
+  buildVisualizerEmptyStateMarkup,
+  syncVisualizerEmptyState,
+} from "./visualizer/emptyState.js";
 
 export function initVisualiserPage(root, options = {}) {
   root.innerHTML = `
     <div class="page">
       <div class="viz-layout">
-        <div class="panel">
-          <div class="panel__header">
+        <div class="panel viz-panel">
+          <div class="panel__header viz-panel__header">
             <h1 class="panel__title"><span class="ws-icon icon--visualiser" aria-hidden="true"></span><span id="viz-title">System Visualiser</span></h1>
             <button id="vizTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
             <div class="viz-canvas-actions">
@@ -120,7 +124,6 @@ export function initVisualiserPage(root, options = {}) {
               <button id="btn-help-overlay" type="button" class="small" aria-label="Controls help" ${tipAttr(TIP_LABEL["Controls help"] || "")}>?</button>
             </div>
           </div>
-
           <div class="viz-canvas-area">
           <div id="viz-controls-dropdown" class="viz-controls-dropdown" style="display:none">
             <div id="viz-controls-system">
@@ -133,9 +136,8 @@ export function initVisualiserPage(root, options = {}) {
                 <span id="txt-speed" class="viz-speed__value">0.5 d/s</span>
               </div>
             </div>
-
             <div id="view-mode-row" class="viz-controls-dropdown__row" style="display:none">
-              <div class="pill-toggle-wrap" style="width:100%; margin-bottom:0">
+              <div class="pill-toggle-wrap viz-view-mode-wrap">
                 <div class="viz-view-mode">
                   <span class="viz-speed__label">View mode ${tipIcon(TIP_LABEL["View mode"] || "")}</span>
                   <div class="physics-duo-toggle" data-toggle="view-mode">
@@ -148,7 +150,6 @@ export function initVisualiserPage(root, options = {}) {
                 </div>
               </div>
             </div>
-
             <div id="body-scale-row" class="viz-controls-dropdown__row">
               <div class="viz-speed">
                 <span class="viz-speed__label">Body scale ${tipIcon(TIP_LABEL["Body scale"] || "")}</span>
@@ -156,9 +157,8 @@ export function initVisualiserPage(root, options = {}) {
                 <span id="txt-body-scale" class="viz-speed__value">40%</span>
               </div>
             </div>
-
             <div id="host-frame-row" class="viz-controls-dropdown__row" style="display:none">
-              <div class="viz-speed" style="width:100%">
+              <div class="viz-speed viz-speed--fill">
                 <span class="viz-speed__label"><span id="viz-host-frame-label">Host frame</span> <span id="viz-host-frame-tip">${tipIcon(TIP_LABEL["Host frame"] || "")}</span></span>
                 <select id="viz-host-frame" aria-label="Visualizer host frame"></select>
               </div>
@@ -166,7 +166,6 @@ export function initVisualiserPage(root, options = {}) {
             <div id="host-frame-hint-row" class="viz-controls-dropdown__row" style="display:none">
               <div id="viz-host-frame-hint" class="hint"></div>
             </div>
-
             <div class="viz-controls-dropdown__row viz-controls-dropdown__toggles">
               <div class="pill-toggle-wrap">
                 <div class="physics-duo-toggle" data-toggle="distance">
@@ -258,7 +257,7 @@ export function initVisualiserPage(root, options = {}) {
 
           <div class="viz-wrap">
             <canvas id="viz" width="1200" height="600"></canvas>
-            <canvas id="viz-overlay" width="1200" height="600"></canvas>
+            <canvas id="viz-overlay" width="1200" height="600"></canvas>${buildVisualizerEmptyStateMarkup()}
           </div>
 
           <div id="viz-native-transition" class="viz-native-transition" aria-hidden="true" style="display:none">
@@ -1550,6 +1549,7 @@ export function initVisualiserPage(root, options = {}) {
         : getSnapshot();
     syncSystemViewModeControls(snapshot);
     syncHostFrameControls(snapshot);
+    syncVisualizerEmptyState(root.querySelector("#vizEmptyState"), { mode: state.mode, snapshot });
     if (isSystemOverviewMode(snapshot)) {
       return drawSystemOverview(snapshot);
     }
@@ -4396,6 +4396,7 @@ export function initVisualiserPage(root, options = {}) {
 
   function drawNativeClusterMode() {
     if (!nativeThree) return false;
+    syncVisualizerEmptyState(root.querySelector("#vizEmptyState"), { mode: state.mode });
     hideOffscaleZoneNotice();
     nativeThree.systemGroup.visible = false;
     nativeThree.clusterGroup.visible = false;

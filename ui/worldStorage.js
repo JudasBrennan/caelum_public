@@ -182,7 +182,7 @@ async function migrateLegacyStateToIndexedDb(db) {
     return true;
   } catch (error) {
     emitStorageError(
-      "Could not migrate existing local WorldSmith data into IndexedDB.",
+      "Could not migrate existing local Caelum data into IndexedDB.",
       error?.message,
     );
     markDriver("localStorage");

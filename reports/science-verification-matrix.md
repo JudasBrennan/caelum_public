@@ -1,8 +1,8 @@
-# WorldSmith Science Verification Matrix
+# Caelum Science Verification Matrix
 
-Generated: 2026-06-20T13:18:04.440Z
+Generated: 2026-06-20T20:48:35.003Z
 
-App version: 2.12.0
+App version: 3.0.0
 
 Science verification matrix covering benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, units, independent formula oracles, sensitivity, population sanity, browser coverage, and release gates.
 
@@ -404,7 +404,7 @@ observability-user-facing | population | Science calibration fixture set | Fixtu
 habitability-biosignatures | population | Hostile calibration fixtures | Hostile worlds do not bypass habitability guardrails | PASS | low | Guardrails hold | No obvious hostile world with high habitability index | Review habitability penalties if this fails.
 moons | population | Moon calibration fixture availability | Europa-like and Titan-like worlds exist for downstream suites | PASS | low | Europa-like calibration; Titan-like calibration | Moon fixture worlds present | Keep moon fixtures updated when moon schema changes.
 observability-user-facing | browser | Validation page | Browser regression suite coverage | INFO | info | Covered by npm run test:browser during release verification | Validation page loads matrix artifact and filters rows | Run browser tests before release; investigate any Validation page failure.
-observability-user-facing | release-gate | science:verify | Release verification command | PASS | info | Recorded at 2026-06-20T13:18:04.440Z | PASS before release | No action required.
+observability-user-facing | release-gate | science:verify | Release verification command | PASS | info | Recorded at 2026-06-20T20:48:35.003Z | PASS before release | No action required.
 observability-user-facing | release-gate | check | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | build | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | bundle | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.

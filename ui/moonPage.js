@@ -54,7 +54,6 @@ import {
   renderMoonParentSelector,
   renderMoonSelector,
 } from "./moon/domRender.js";
-import { buildPageIntroHtml } from "./pageIntro.js";
 import {
   loadWorld,
   updateWorld,
@@ -77,8 +76,14 @@ import {
   buildWorldHomeSystemContext,
   getProjectedPrimaryStar,
 } from "./store.js";
-import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
+import { attachTooltips, tipIcon } from "./tooltip.js";
 import { createTutorial } from "./tutorial.js";
+import { createContextCockpit } from "./workflow/contextCockpit.js";
+import { createCreationModeStrip } from "./workflow/creationModeStrip.js";
+import { createDependencyNotice } from "./workflow/dependencyNotice.js";
+import { createEmptyState } from "./workflow/emptyState.js";
+import { createNextStepStrip } from "./workflow/nextStepStrip.js";
+import { createObjectSelectorPanel } from "./workflow/objectSelectorPanel.js";
 
 const TIP_LABEL = {
   "Star Mass": "Host star mass in solar masses.\n\nSun = 1 Msol.",
@@ -141,7 +146,7 @@ const TIP_LABEL = {
   "Planet locked to Moon?":
     "Checks whether the planet is tidally locked to the moon.\n\nThis is shown as a rough lock-timescale category rather than a strict Yes/No result, so the output is necessarily imprecise. 'Very Likely Locked' means the estimated planet-to-moon lock time is extremely short; the longer 'Maybe' categories indicate progressively weaker or less plausible locking. Adjust the moon's semi-major axis to change the result.",
   "Planet locked to Star?":
-    'Checks whether the planet is expected to be tidally locked to its star.\n\nWorldSmith Web uses a user-friendly rule: this shows "Yes" when the computed Planet\u2192Star lock time is less than or equal to the current star age.\n\nFor an Earth-like setup, this should usually remain "No".',
+    'Checks whether the planet is expected to be tidally locked to its star.\n\nCaelum uses a user-friendly rule: this shows "Yes" when the computed Planet\u2192Star lock time is less than or equal to the current star age.\n\nFor an Earth-like setup, this should usually remain "No".',
   "Derived Data":
     "Read-only parent and host-frame context used for moon calculations. In binary systems this includes which star-centered frame the parent world belongs to, plus any extra companion heating or stability pressure inherited from that frame.",
   "Environment Forcing":
@@ -474,7 +479,7 @@ const TIP_LABEL = {
   Appearance:
     "Physics-driven visual of the moon from space. Surface texture, ice, clouding, haze, and ocean cues are derived from the current solved moon state.\n\nThis preview is now read-only. Use Create This Moon in the Inputs column for Quick, Guided, or Recipes.",
   "Habitability Index":
-    "WorldSmith comparative habitability model for moons." +
+    "Caelum comparative habitability model for moons." +
     "\n\nThis is PHI-inspired, not a direct literature PHI implementation. The score depends on the selected solvent pathway and the active solvent-policy support for surface water, subsurface water, and alternative solvents." +
     "\n\nUse the expanded KPI details to see the current pathway, policy version, and term breakdown.",
   "Surface Radiation":
@@ -660,6 +665,165 @@ function buildMoonResultSummary({
   };
 }
 
+function buildMoonCockpitMarkup() {
+  const cockpit = createContextCockpit({
+    id: "moonCockpit",
+    className: "moon-cockpit",
+    ariaLabel: "Moon authoring cockpit",
+    eyebrow: "Moon setup",
+    summaryId: "moonCockpitSummary",
+    summary: "Select a moon, confirm its parent, then tune orbit and science depth.",
+    statusItems: [
+      {
+        label: "Current Moon",
+        value: "Moon",
+        meta: "Editing target",
+        valueId: "moonCockpitMoonValue",
+        metaId: "moonCockpitMoonMeta",
+      },
+      {
+        label: "Parent",
+        value: "Unassigned",
+        meta: "Assign before strict fitting",
+        valueId: "moonCockpitParentValue",
+        metaId: "moonCockpitParentMeta",
+      },
+      {
+        label: "Science Modes",
+        value: "Core",
+        meta: "Hydrosphere / atmosphere / orbit",
+        valueId: "moonCockpitScienceValue",
+        metaId: "moonCockpitScienceMeta",
+      },
+      {
+        label: "Orbit",
+        value: "Pending",
+        meta: "Semi-major axis and eccentricity",
+        valueId: "moonCockpitOrbitValue",
+        metaId: "moonCockpitOrbitMeta",
+      },
+    ],
+    source: {
+      label: "Source",
+      value: "Parent context + authored inputs",
+      meta: "Parent host-frame context updates with assignment.",
+      valueId: "moonCockpitSourceValue",
+      metaId: "moonCockpitSourceMeta",
+    },
+    details: {
+      id: "moonContextDisclosure",
+      title: "Parent Context",
+      summaryId: "moonContextDisclosureSummary",
+      summary: "Parent, host-frame, and forcing context.",
+      content: [
+        createElement("div", {
+          className: "derived-readout derived-readout--context",
+          attrs: { id: "context" },
+        }),
+      ],
+    },
+    footer: createNextStepStrip({
+      id: "moonNextStepStrip",
+      recommendationId: "moonNextStepRecommendation",
+      recommendation:
+        "Assign a parent first; then inspect habitability, calendar timing, or visuals.",
+      actions: [
+        { label: "Habitability", href: "#/moon", primary: true },
+        { label: "Calendar", href: "#/calendar" },
+        { label: "Visualiser", href: "#/viz" },
+      ],
+    }),
+  });
+  return cockpit.outerHTML;
+}
+
+function buildMoonSelectorMarkup() {
+  const selector = createObjectSelectorPanel({
+    id: "moonObjectSelector",
+    className: "moon-object-selector",
+    title: "Moon Selection",
+    summary: "Choose the current moon and assign it to a planet or giant companion.",
+    selected: {
+      label: "Selected",
+      value: "Moon",
+      meta: "Parent assignment controls the context below.",
+      valueId: "moonSelectedValue",
+      metaId: "moonSelectedMeta",
+    },
+    select: {
+      id: "moonSelect",
+      ariaLabel: "Editing moon",
+    },
+    parentSelect: {
+      id: "moonPlanetSelect",
+      ariaLabel: "Belongs to planet",
+    },
+    actions: [
+      { id: "moonNew", label: "New" },
+      { id: "moonDelete", label: "Delete", danger: true },
+    ],
+  });
+  return selector.outerHTML;
+}
+
+function buildMoonCreationModeMarkup() {
+  return createCreationModeStrip({
+    id: "moonCreateEntry",
+    className: "moon-create-entry",
+    title: "Create This Moon",
+    summary:
+      "Quick starts an archetype; Guided fits targets; Recipes apply presets; Advanced edits directly.",
+    selectedMode: "advanced",
+    modes: [
+      {
+        id: "quick",
+        elementId: "moonCreateQuickBtn",
+        attrs: { "data-tip": getGuidedEntryModeTooltip("quick") },
+      },
+      {
+        id: "guided",
+        elementId: "moonCreateGuidedBtn",
+        attrs: { "data-tip": getGuidedEntryModeTooltip("guided") },
+      },
+      {
+        id: "recipes",
+        elementId: "moonCreateRecipesBtn",
+        attrs: { "data-tip": getGuidedEntryModeTooltip("recipes") },
+      },
+      {
+        id: "advanced",
+        currentMarker: true,
+        attrs: { "data-tip": getGuidedEntryModeTooltip("advanced") },
+      },
+    ],
+  }).outerHTML;
+}
+
+function buildMoonScienceModeNoticeMarkup() {
+  return createDependencyNotice({
+    id: "moonScienceModeNotice",
+    tone: "info-only",
+    title: "Science mode guidance",
+    body: "Core keeps a lightweight compact path, Full enables richer coupled moon-world science, and Manual reveals extra physical inputs without hard-overwriting solver context.",
+  }).outerHTML;
+}
+
+function buildMoonEmptyStateMarkup() {
+  return createEmptyState({
+    id: "moonEmptyState",
+    className: "moon-empty-state",
+    eyebrow: "Moons",
+    title: "No moon created yet",
+    body: "Create a moon when you are ready to model tides, sky phases, and moon habitability. Assigning a parent planet first gives the solver better context.",
+    dependencyNote: "Parent planets and giant companions are authored on the Planet page.",
+    actions: [
+      { label: "Create parent planet", href: "#/planet", primary: true },
+      { label: "Create moon", dataset: { moonEmptyAction: "new" } },
+      { label: "Open visualiser", href: "#/viz" },
+    ],
+  }).outerHTML;
+}
+
 export function initMoonPage(mountEl, options = {}) {
   const guidedRoute = options?.routeContext?.guided || null;
   const world = loadWorld();
@@ -690,20 +854,7 @@ export function initMoonPage(mountEl, options = {}) {
         <button id="moonTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        ${buildPageIntroHtml({
-          summary:
-            "Author moons for selected planets and gas giants, then validate their orbit and environment outputs.",
-          controls:
-            "The selected moon, its parent assignment, and the orbit, interior, atmosphere, and coupling inputs.",
-          affects:
-            "Planet tides, calendar moon phases, and moon-specific habitability and visual outputs.",
-          primaryAction:
-            "Choose a parent world or leave the moon unassigned, then set orbit distance before fine-tuning the deeper modes.",
-          compact: true,
-          detailsTitle: "Moon workflow context",
-          detailsSummary:
-            "Parent, orbit, and environment choices feed tides, calendars, and visuals.",
-        })}
+        ${buildMoonCockpitMarkup()}
       </div>
     </div>
 
@@ -712,33 +863,8 @@ export function initMoonPage(mountEl, options = {}) {
         <div class="panel__header"><h2>Inputs</h2></div>
         <div class="panel__body">
 
-          <div class="label">Parent Context ${tipIcon(TIP_LABEL["Derived Data"] || "")}</div>
-          <div class="derived-readout derived-readout--context" id="context"></div>
-
-          <div style="height:12px"></div>
-
-          <div class="label">Moon selection ${tipIcon(TIP_LABEL["Moon selection"] || "")}</div>
-          <div class="form-row">
-            <div>
-              <div class="label">Editing moon ${tipIcon(TIP_LABEL["Editing moon"] || "")}</div>
-              <div class="hint">Create multiple moons and assign each to a planet.</div>
-            </div>
-            <div class="select-stack">
-              <select id="moonSelect"></select>
-              <div class="select-actions">
-                <button id="moonNew" class="small" type="button">New</button>
-                <button id="moonDelete" class="small danger" type="button">Delete</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div>
-              <div class="label">Belongs to planet ${tipIcon(TIP_LABEL["Belongs to planet"] || "")}</div>
-              <div class="hint">Set a parent planet or leave this moon unassigned.</div>
-            </div>
-            <select id="moonPlanetSelect"></select>
-          </div>
+          ${buildMoonSelectorMarkup()}
+          ${buildMoonEmptyStateMarkup()}
           <div id="moonParentLockNotice" class="moon-parent-lock" hidden>
             <div>
               <div class="moon-parent-lock__title">Parent assignment locked</div>
@@ -749,34 +875,14 @@ export function initMoonPage(mountEl, options = {}) {
             <button id="moonParentUnlock" class="small" type="button">Unlock parent</button>
           </div>
 
-          <div style="height:10px"></div>
+          <div class="flow-spacer"></div>
 
-          <div class="guided-entry-strip" id="moonCreateEntry">
-            <div class="guided-entry-strip__title">Create This Moon</div>
-            <div class="guided-entry-strip__copy">
-              Quick applies a moon archetype, Guided walks you to a recommendation, and Advanced
-              is the direct editor below. Use Recipes alongside Advanced when you want a preset
-              starting point: Recipes will override the current moon inputs.
-            </div>
-            <div class="guided-entry-strip__modes">
-              <button id="moonCreateQuickBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("quick"))}>
-                Quick
-              </button>
-              <button id="moonCreateGuidedBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("guided"))}>
-                Guided
-              </button>
-              <button id="moonCreateRecipesBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("recipes"))}>
-                Recipes
-              </button>
-              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page" ${tipAttr(getGuidedEntryModeTooltip("advanced"))}>
-                Advanced
-              </span>
-            </div>
-          </div>
+          ${buildMoonCreationModeMarkup()}
 
-          <div style="height:10px"></div>
+          <div class="flow-spacer"></div>
 
           <div class="label">Moon Science Modes ${tipIcon(TIP_LABEL["Moon Science Modes"] || "")}</div>
+          ${buildMoonScienceModeNoticeMarkup()}
           ${modeToggleRow(
             "hydModePills",
             "hydMode",
@@ -814,9 +920,9 @@ export function initMoonPage(mountEl, options = {}) {
             "orbModeHint",
           )}
 
-          <div style="height:10px"></div>
+          <div class="flow-spacer"></div>
 
-<div class="label">Identity ${tipIcon(TIP_LABEL["Identity"] || "")}</div>
+          <div class="label">Identity ${tipIcon(TIP_LABEL["Identity"] || "")}</div>
           <div class="form-row">
             <div>
               <div class="label">Name ${tipIcon(TIP_LABEL["Name"] || "")}</div>
@@ -825,14 +931,14 @@ export function initMoonPage(mountEl, options = {}) {
             <input id="name" type="text" />
           </div>
 
-          <div style="height:8px"></div>
+          <div class="flow-spacer flow-spacer--sm"></div>
           <div class="label">Orbit ${tipIcon(TIP_LABEL["Orbit"] || "")}</div>
 
           ${numWithSlider("a", "Semi-Major Axis", "km", "", 10, 1e9, 100, "Semi-Major Axis")}
           ${numWithSlider("e", "Eccentricity", "", "", 0, 0.99, 0.001, "Eccentricity")}
           ${numWithSlider("inc", "Inclination", "°", "", 0, 180, 0.1, "Inclination")}
 
-          <div style="height:8px"></div>
+          <div class="flow-spacer flow-spacer--sm"></div>
           <div class="label">Physical ${tipIcon(TIP_LABEL["Physical"] || "")}</div>
 
           ${numWithSlider("m", "Mass", "MMoon", "", 1e-8, 1000, 1e-8, "Mass")}
@@ -855,11 +961,11 @@ export function initMoonPage(mountEl, options = {}) {
             </select>
           </div>
 
-          <div style="height:8px"></div>
+          <div class="flow-spacer flow-spacer--sm"></div>
           <div class="label">Dynamics ${tipIcon(TIP_LABEL["Dynamics"] || "")}</div>
           ${numWithSlider("initRot", "Initial Rotation Period", "hours", "", 2, 1000, 0.1, "Initial Rotation Period")}
 
-          <div style="height:8px"></div>
+          <div class="flow-spacer flow-spacer--sm"></div>
           <div class="label">Bulk & Interior ${tipIcon(TIP_LABEL["Bulk & Interior"] || "")}</div>
           <div id="moonHydrosphereSection">
             ${numWithSlider("wmf", "Water Mass Fraction", "%", "", 0, 60, 0.1, "Water Mass Fraction")}
@@ -900,7 +1006,7 @@ export function initMoonPage(mountEl, options = {}) {
             </div>
           </div>
 
-          <div style="height:8px"></div>
+          <div class="flow-spacer flow-spacer--sm"></div>
           <div class="label">Atmosphere ${tipIcon(TIP_LABEL["Atmosphere Controls"] || "")}</div>
           <div id="moonAtmosphereSection">
             ${numWithSlider("manualPressure", "Manual Surface Pressure", "atm", "", 0, 10, 0.01, "Manual Surface Pressure")}
@@ -917,7 +1023,7 @@ export function initMoonPage(mountEl, options = {}) {
             ${simpleNumberRow("nh3Pct", "Ammonia (NH3)", "%", "")}
           </div>
 
-          <div style="height:8px"></div>
+          <div class="flow-spacer flow-spacer--sm"></div>
           <div class="label">Resonance & Rotation ${tipIcon(TIP_LABEL["Resonance & Rotation"] || "")}</div>
           <div id="moonOrbitalSection">
             ${numWithSlider("forcedEcc", "Forced Eccentricity", "", "", 0, 0.2, 0.0001, "Forced Eccentricity")}
@@ -932,7 +1038,7 @@ export function initMoonPage(mountEl, options = {}) {
             ${simpleNumberRow("resonanceRatio", "Resonance Ratio", "", "Use 2 for a 2:1-style manual chain, 1.5 for 3:2, etc.")}
           </div>
 
-          <div style="height:8px"></div>
+          <div class="flow-spacer flow-spacer--sm"></div>
           <div class="label">Surface & Habitability ${tipIcon(TIP_LABEL["Surface & Habitability"] || "")}</div>
           <div class="hint">Core mode keeps the page compact. Full and Manual reveal the deeper moon-environment controls above.</div>
 
@@ -940,7 +1046,7 @@ export function initMoonPage(mountEl, options = {}) {
             <button id="btn-default">Reset to Defaults</button>
           </div>
 
-          <div class="hint" style="margin-top:10px">
+          <div class="hint flow-stack-gap">
             Radius, gravity, and escape velocity are derived from Mass + Density.
           </div>
         </div>
@@ -976,11 +1082,24 @@ export function initMoonPage(mountEl, options = {}) {
   const moonSelectEl = wrap.querySelector("#moonSelect");
   const moonNewEl = wrap.querySelector("#moonNew");
   const moonDeleteEl = wrap.querySelector("#moonDelete");
+  const moonEmptyStateEl = wrap.querySelector("#moonEmptyState");
   const moonPlanetSelectEl = wrap.querySelector("#moonPlanetSelect");
   const moonParentLockNoticeEl = wrap.querySelector("#moonParentLockNotice");
   const moonParentUnlockEl = wrap.querySelector("#moonParentUnlock");
 
   const contextEl = wrap.querySelector("#context");
+  const moonCockpitMoonValueEl = wrap.querySelector("#moonCockpitMoonValue");
+  const moonCockpitMoonMetaEl = wrap.querySelector("#moonCockpitMoonMeta");
+  const moonCockpitParentValueEl = wrap.querySelector("#moonCockpitParentValue");
+  const moonCockpitParentMetaEl = wrap.querySelector("#moonCockpitParentMeta");
+  const moonCockpitScienceValueEl = wrap.querySelector("#moonCockpitScienceValue");
+  const moonCockpitScienceMetaEl = wrap.querySelector("#moonCockpitScienceMeta");
+  const moonCockpitOrbitValueEl = wrap.querySelector("#moonCockpitOrbitValue");
+  const moonCockpitOrbitMetaEl = wrap.querySelector("#moonCockpitOrbitMeta");
+  const moonCockpitSourceMetaEl = wrap.querySelector("#moonCockpitSourceMeta");
+  const moonSelectedValueEl = wrap.querySelector("#moonSelectedValue");
+  const moonSelectedMetaEl = wrap.querySelector("#moonSelectedMeta");
+  const moonNextStepRecommendationEl = wrap.querySelector("#moonNextStepRecommendation");
   const nameEl = wrap.querySelector("#name");
 
   const aEl = wrap.querySelector("#a");
@@ -1174,7 +1293,7 @@ export function initMoonPage(mountEl, options = {}) {
     if (hydModeHintEl)
       hydModeHintEl.textContent =
         hydMode === "core"
-          ? "Compatibility heuristics."
+          ? "Fallback heuristics."
           : hydMode === "full"
             ? "Inventory-driven moon water and ice solving."
             : "Direct water/interior inputs with computed outputs.";
@@ -1340,6 +1459,7 @@ export function initMoonPage(mountEl, options = {}) {
     const w = loadWorld();
     const moons = listMoons(w);
     renderMoonSelector(moonSelectEl, moons, w.moons.selectedId);
+    if (moonEmptyStateEl) moonEmptyStateEl.hidden = moons.length > 0;
   }
 
   function applyPreviewSiblingPatch(siblingEntries, siblingPatch, requestedPlanetId) {
@@ -1670,6 +1790,63 @@ export function initMoonPage(mountEl, options = {}) {
     };
   }
 
+  function setText(node, value) {
+    if (node) node.textContent = value == null ? "" : String(value);
+  }
+
+  function modeLabel(value) {
+    const key = String(value || "core");
+    if (key === "full") return "Full";
+    if (key === "manual") return "Manual";
+    return "Core";
+  }
+
+  function renderMoonWorkflowChrome(solved) {
+    const parentInfo = solved?.parentInfo || {};
+    const parentAssigned = parentInfo.assigned !== false && !!parentInfo.parentId;
+    const parentName = parentAssigned ? parentInfo.parentName || parentInfo.parentId : "Unassigned";
+    const parentKind =
+      solved?.parentType === "gasGiant"
+        ? parentInfo.parentClassLabel || "Giant companion"
+        : "Planet parent";
+    const hydMode = modeLabel(state.moon.hydrosphereMode);
+    const atmMode = modeLabel(state.moon.atmosphereMode);
+    const orbMode = modeLabel(state.moon.orbitalCouplingMode);
+    const scienceValue =
+      hydMode === atmMode && atmMode === orbMode ? hydMode : `${hydMode} / ${atmMode} / ${orbMode}`;
+    const orbitKm = Number(state.moon.semiMajorAxisKm);
+    const eccentricity = Number(state.moon.eccentricity);
+    const orbitValue = Number.isFinite(orbitKm) ? `${fmt(orbitKm, 0)} km` : "Pending";
+    const orbitMeta = Number.isFinite(eccentricity)
+      ? `e ${fmt(eccentricity, 3)}`
+      : "Eccentricity pending";
+    const selectedMeta = parentAssigned
+      ? `${parentKind}; ${orbitValue}.`
+      : "Assign this moon to a parent before strict guided fitting.";
+
+    setText(moonCockpitMoonValueEl, state.moonName || state.moon.name || "Moon");
+    setText(moonCockpitMoonMetaEl, state.moonId || "Current moon");
+    setText(moonCockpitParentValueEl, parentName);
+    setText(moonCockpitParentMetaEl, parentAssigned ? parentKind : "No parent assigned");
+    setText(moonCockpitScienceValueEl, scienceValue);
+    setText(moonCockpitScienceMetaEl, "Hydrosphere / atmosphere / orbit");
+    setText(moonCockpitOrbitValueEl, orbitValue);
+    setText(moonCockpitOrbitMetaEl, orbitMeta);
+    setText(
+      moonCockpitSourceMetaEl,
+      parentAssigned
+        ? `Parent host-frame context: ${parentInfo.hostFrameId || "default"}.`
+        : "Parent host-frame context appears after assignment.",
+    );
+    setText(moonSelectedValueEl, state.moonName || state.moon.name || "Moon");
+    setText(moonSelectedMetaEl, selectedMeta);
+
+    if (!moonNextStepRecommendationEl) return;
+    moonNextStepRecommendationEl.textContent = parentAssigned
+      ? "Parent context is assigned. Inspect habitability, calendar timing, or visuals."
+      : "Assign a parent world first, then inspect habitability, calendar timing, or visuals.";
+  }
+
   function render() {
     syncFromWorld();
     const solved = solveMoonModelForWorld(loadWorld(), {
@@ -1678,6 +1855,7 @@ export function initMoonPage(mountEl, options = {}) {
       planetId: state.moonPlanetId,
     });
     contextEl.textContent = solved.contextText;
+    renderMoonWorkflowChrome(solved);
     const model = solved.model;
 
     const moonProfile = computeMoonVisualProfile(model);
@@ -2869,6 +3047,15 @@ export function initMoonPage(mountEl, options = {}) {
     createMoonFromInputs(baseInputs, { name: "New Moon", planetId: w.planets.selectedId });
     loadIntoInputs();
     render();
+  });
+
+  moonEmptyStateEl?.addEventListener("click", (event) => {
+    const action = event.target.closest?.("[data-moon-empty-action]");
+    if (!action) return;
+    if (action.dataset.moonEmptyAction === "new") {
+      event.preventDefault();
+      moonNewEl?.click();
+    }
   });
 
   moonDeleteEl.addEventListener("click", async (e) => {

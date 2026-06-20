@@ -47,6 +47,54 @@ function formula(name, body) {
   return `<div class="sci-formula"><h3 class="sci-formula__name">${name}</h3>${body}</div>`;
 }
 
+const RELATED_APP_LINKS = Object.freeze({
+  stellar: [{ label: "Star", href: "#/star" }],
+  evolution: [{ label: "Star", href: "#/star" }],
+  activity: [{ label: "Star", href: "#/star" }],
+  planetary: [
+    { label: "Planet", href: "#/planet" },
+    { label: "Climate", href: "#/climate" },
+  ],
+  interior: [{ label: "Planet", href: "#/planet" }],
+  tectonics: [
+    { label: "Planet", href: "#/planet" },
+    { label: "Tectonics", href: "#/tectonics" },
+  ],
+  atmosphere: [
+    { label: "Planet", href: "#/planet" },
+    { label: "Climate", href: "#/climate" },
+  ],
+  climate: [
+    { label: "Climate", href: "#/climate" },
+    { label: "Planet", href: "#/planet" },
+  ],
+  gasgiant: [
+    { label: "Planet", href: "#/planet" },
+    { label: "Moon", href: "#/moon" },
+  ],
+  orbital: [
+    { label: "Moon", href: "#/moon" },
+    { label: "System", href: "#/system" },
+  ],
+  calendar: [{ label: "Calendar", href: "#/calendar" }],
+  system: [
+    { label: "System", href: "#/system" },
+    { label: "Star", href: "#/star" },
+  ],
+  divergences: [{ label: "Validation", href: "#/validation" }],
+});
+
+function relatedAppPagesHtml(sectionId) {
+  const links = RELATED_APP_LINKS[sectionId] || [];
+  if (!links.length) return "";
+  return `<nav class="sci-related-pages" aria-label="Related app pages">
+    <span>Related app pages</span>
+    ${links
+      .map((link) => `<a class="sci-related-pages__link" href="${link.href}">${link.label}</a>`)
+      .join("")}
+  </nav>`;
+}
+
 function dataTable(headers, rows) {
   return `<table class="sci-data"><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
@@ -218,7 +266,7 @@ function renderOceanFloorPhaseDiagram() {
     .join("");
 
   return `<div class="sci-phase-diagram-wrap">
-    <svg class="sci-phase-diagram" viewBox="0 0 700 360" role="img" aria-label="WorldSmith ocean-floor water phase diagram">
+    <svg class="sci-phase-diagram" viewBox="0 0 700 360" role="img" aria-label="Caelum ocean-floor water phase diagram">
       <rect x="${left}" y="${top}" width="${plotWidth}" height="${plotHeight}" class="sci-phase-liquid" />
       <path d="${denseIcePath}" class="sci-phase-ice" />
       <rect x="${left}" y="${top}" width="${fmt(oceanPhaseDiagramX(251.165) - left, 1)}" height="${plotHeight}" class="sci-phase-unsupported" />
@@ -234,7 +282,7 @@ function renderOceanFloorPhaseDiagram() {
     <div class="sci-phase-legend" aria-label="Diagram legend">
       <span><i class="sci-phase-swatch sci-phase-swatch--liquid"></i>Liquid estimate</span>
       <span><i class="sci-phase-swatch sci-phase-swatch--ice"></i>Dense ice stable</span>
-      <span><i class="sci-phase-swatch sci-phase-swatch--curve"></i>IAPWS liquidus used by WorldSmith</span>
+      <span><i class="sci-phase-swatch sci-phase-swatch--curve"></i>IAPWS liquidus used by Caelum</span>
     </div>
   </div>`;
 }
@@ -438,7 +486,7 @@ function buildStellarPhysics() {
       `<div class="sci-formula__eq">${eq("Ro = P_{\\text{rot}} / \\tau_c")}</div>
       <div class="sci-formula__eq">${eq("P_{\\text{wind}}(r) = P_{\\text{wind},1\\text{AU}} / r^2")}</div>
       <div class="sci-formula__eq">${eq("F_{200-280}(r) = F_{200-280,1\\text{AU}} / r^2")}</div>
-      <p>WorldSmith groups rotation, wind, and UV into a shared stellar-environment layer so Star, Planet, Moon, and visualiser views use the same host diagnostics.</p>
+      <p>Caelum groups rotation, wind, and UV into a shared stellar-environment layer so Star, Planet, Moon, and visualiser views use the same host diagnostics.</p>
       <p><b>Gyrochronology limits:</b> the rotation estimate is a differentially rotating surface model. The representative gyrochronology period is best calibrated for FGK main-sequence stars; young stars, evolved stars, hot stars, M dwarfs, and brown dwarfs carry lower confidence or unsupported labels.</p>
       <p><b>Wind scaling:</b> stellar-wind mass loss, speed, and ram pressure are order-of-magnitude environment diagnostics. Planet pages dilute host wind by orbital distance and add wide companion wind from the selected host frame, but this is not yet a full magnetopause or atmospheric-erosion solver.</p>
       <p><b>Prebiotic UV window:</b> the 200&ndash;280 nm band is a photospheric blackbody estimate. It supports a bounded starter-chemistry diagnostic after atmospheric shielding, haze attenuation, surface-liquid, and temperature checks; it does not imply abiogenesis, life, or biosignatures, and it does not explicitly solve flare-driven UV bursts from active cool stars.</p>
@@ -601,7 +649,7 @@ function buildPlanetaryPhysics() {
       `${renderOceanFloorPhaseDiagram()}
       <div class="sci-formula__eq">${eq("P_{\\text{floor}} \\approx \\rho_{\\text{eff}}\\,g\\,d")}</div>
       <div class="sci-formula__eq">${eq("P_{\\text{floor}} > P_{\\text{liquidus}}(T_b) \\Rightarrow \\text{dense ice stable at the ocean floor}")}</div>
-      <p>WorldSmith uses this reduced phase diagram for ocean-world and moon-ocean dense-ice warnings. The model compares local seafloor pressure against the pure-water liquidus pressure at the estimated bottom-ocean temperature ${iq("T_b")}.</p>
+      <p>Caelum uses this reduced phase diagram for ocean-world and moon-ocean dense-ice warnings. The model compares local seafloor pressure against the pure-water liquidus pressure at the estimated bottom-ocean temperature ${iq("T_b")}.</p>
       <p>That is why pressure alone is not enough: a 0.52 GPa, 288 K ocean floor is below the modeled ice VI boundary, while a colder or higher-pressure floor can cross into dense-ice stability. Hot deep oceans can remain liquid at pressures that sound enormous because the ice VI and ice VII liquidus curves rise steeply with temperature.</p>
       ${dataTable(
         ["Boundary used", "Temperature range", "Anchor in model"],
@@ -616,7 +664,7 @@ function buildPlanetaryPhysics() {
           ],
         ],
       )}
-      <p>The chart is intentionally tailored to WorldSmith&rsquo;s current model: it focuses on the high-pressure liquid/dense-ice boundary relevant to ocean floors, not the full low-pressure vapour field. Salinity, ammonia, mixing, and long-term thermal structure are represented as uncertainty, so the app may show a pressure-only caution when bottom-ocean temperature is not constrained.</p>
+      <p>The chart is intentionally tailored to Caelum&rsquo;s current model: it focuses on the high-pressure liquid/dense-ice boundary relevant to ocean floors, not the full low-pressure vapour field. Salinity, ammonia, mixing, and long-term thermal structure are represented as uncertainty, so the app may show a pressure-only caution when bottom-ocean temperature is not constrained.</p>
       ${cite("IAPWS R14-08(2011), Revised Release on the Pressure along the Melting and Sublimation Curves of Ordinary Water Substance; Wagner, Riethmann, Feistel &amp; Harvey (2011), JPCRD 40, 043103.")}`,
     ),
 
@@ -635,7 +683,7 @@ function buildPlanetaryPhysics() {
         ["H_{\\text{Earth}}", "Earth-hypsometry basin-capacity proxy"],
         ["f_{\\text{ocean}}", "Inferred liquid-ocean surface fraction before climate transfer"],
       ])}
-      <p>WorldSmith now estimates surface-ocean coverage from water inventory and basin capacity instead of mapping each water-regime label to a fixed ocean percentage. Earth-like WMF at Earth mass/radius fills an Earth-hypsometry proxy to about 71% ocean coverage, while climate transfer can turn the same basin fill into permanent ice or steam for snowball and runaway greenhouse cases.</p>
+      <p>Caelum now estimates surface-ocean coverage from water inventory and basin capacity instead of mapping each water-regime label to a fixed ocean percentage. Earth-like WMF at Earth mass/radius fills an Earth-hypsometry proxy to about 71% ocean coverage, while climate transfer can turn the same basin fill into permanent ice or steam for snowball and runaway greenhouse cases.</p>
       <p>Manual visual or population overrides remain authoring controls. They can change displayed land/ocean split for those pages, but they do not rewrite the inferred science context used by climate, carbon-cycle, productivity, tectonics, and validation outputs.</p>
       ${cite("NASA Space Place water inventory notes; NASA/JPL planetary fact sheets; NOAA/NCEI ETOPO global relief data; Cowan &amp; Abbot (2014), ApJ 781, 27; Pedersen et al. (2024), A&amp;A 685, A162")}`,
     ),
@@ -759,7 +807,7 @@ function buildGasGiantPhysics() {
       `<div class="sci-formula__eq">${eq("T_{\\text{eq}} = 279\\,K \\left(\\frac{L_\\star}{a^2}\\right)^{1/4}(1-A_B)^{1/4}")}</div>
       <div class="sci-formula__eq">${eq("T_{\\text{eff}} = \\left(T_{\\text{eq}}^4 + T_{\\text{int}}^4\\right)^{1/4}")}</div>
       <div class="sci-formula__eq">${eq("F_{\\text{int}} = \\sigma T_{\\text{int}}^4")}</div>
-      <p>Gas and ice giants emit absorbed starlight plus retained internal heat from Kelvin-Helmholtz cooling and interior transport. WorldSmith reports equilibrium temperature (${iq("T_{\\text{eq}}")}) and effective temperature (${iq("T_{\\text{eff}}")}) separately so cold, self-luminous giants are not treated like rocky surfaces.</p>
+      <p>Gas and ice giants emit absorbed starlight plus retained internal heat from Kelvin-Helmholtz cooling and interior transport. Caelum reports equilibrium temperature (${iq("T_{\\text{eq}}")}) and effective temperature (${iq("T_{\\text{eff}}")}) separately so cold, self-luminous giants are not treated like rocky surfaces.</p>
       ${vars([
         ["A_B", "Bond albedo from Sudarsky/cloud class or ice-giant haze class"],
         [
@@ -957,7 +1005,7 @@ function buildOrbitalMechanics() {
       "Roche Limit",
       `<div class="sci-formula__eq">${eq("d_{\\text{Roche}} = 2.44 \\, R_p \\left(\\frac{\\rho_p}{\\rho_m}\\right)^{1/3}")}</div>
       <p>Orbital distance inside which tidal forces exceed the satellite&rsquo;s self-gravity, causing disruption. The classical fluid-body result is appropriate for gravity-dominated, weak aggregate bodies.</p>
-      <p>Very small moons below roughly 20 km across can be strength-dominated rather than self-gravity-dominated. For those bodies, material cohesion, porosity, fracture history, and rubble-pile structure can let the moon survive inside the classical fluid Roche limit, so WorldSmith treats the Roche boundary as a caveated warning rather than an automatic disruption rule.</p>`,
+      <p>Very small moons below roughly 20 km across can be strength-dominated rather than self-gravity-dominated. For those bodies, material cohesion, porosity, fracture history, and rubble-pile structure can let the moon survive inside the classical fluid Roche limit, so Caelum treats the Roche boundary as a caveated warning rather than an automatic disruption rule.</p>`,
     ),
 
     formula(
@@ -975,7 +1023,7 @@ function buildOrbitalMechanics() {
         ["m_1, m_2", "Adjacent body masses"],
         ["M_\\star", "Selected host-frame mass"],
       ])}
-      <p>WorldSmith applies this diagnostic to planets, gas giants, and brown-dwarf companions in the selected host frame. It is a conservative architecture warning, not an N-body integration.</p>
+      <p>Caelum applies this diagnostic to planets, gas giants, and brown-dwarf companions in the selected host frame. It is a conservative architecture warning, not an N-body integration.</p>
       ${dataTable(
         ["Label", "Separation", "Meaning"],
         [
@@ -1137,7 +1185,7 @@ function buildOrbitalMechanics() {
     formula(
       "Eccentricity Pump-Damp Context",
       `<div class="sci-formula__eq">${eq("e_{\\text{eff}} = \\max(e_{\\text{authored}}, e_{\\text{forced}})")}</div>
-      <p>WorldSmith uses the existing resonance and forced-eccentricity context to classify whether tidal heating is likely to persist. This is a qualitative pump-versus-damp diagnostic, not a full resonant Hamiltonian or de/dt integration.</p>
+      <p>Caelum uses the existing resonance and forced-eccentricity context to classify whether tidal heating is likely to persist. This is a qualitative pump-versus-damp diagnostic, not a full resonant Hamiltonian or de/dt integration.</p>
       ${dataTable(
         ["State", "Model meaning"],
         [
@@ -1213,7 +1261,7 @@ function buildOrbitalMechanics() {
 
     formula(
       "Shared Dynamical Context",
-      `<p>WorldSmith now routes orbital architecture, moon synchronous-orbit state, pump-damp context, moon-system torque budget, ring context, and parent radiation context through one shared dynamical context. Pages and generation checks read that context instead of rebuilding private versions of the same physics.</p>
+      `<p>Caelum now routes orbital architecture, moon synchronous-orbit state, pump-damp context, moon-system torque budget, ring context, and parent radiation context through one shared dynamical context. Pages and generation checks read that context instead of rebuilding private versions of the same physics.</p>
       <p><b>Science bound:</b> the shared layer is a coupling and explanation layer, not a new N-body integrator. It preserves the upstream owners for mutual-Hill spacing, Roche and Hill limits, synchronous orbit, tidal migration, resonance pump-damp state, magnetosphere environment, and ring science.</p>
       <p><b>Sustained tidal heating:</b> moon interiors and timelines distinguish current tidal heat from sustained tidal support. A moon can be currently heated, likely sustained, damping, overdriven, or uncertain; none of those labels claims that an ocean is permanent.</p>
       <p><b>Dynamical persistence confidence:</b> habitability receives visible persistence reasons and confidence labels before any direct habitability-score penalty. Missing inputs produce <b>unknown</b> or no-op context rather than hidden scoring changes.</p>
@@ -1224,7 +1272,7 @@ function buildOrbitalMechanics() {
 
     formula(
       "Long-Term Dynamical History",
-      `<p>WorldSmith now composes secular/Kozai susceptibility, first-order precession, Cassini-state readiness, migration-history evidence, and Trojan-reservoir diagnostics into one read-only long-term dynamics layer. These outputs explain long-cycle risks and history clues; they do not change authored orbits, climate temperatures, calendar periods, or apparent-size geometry.</p>
+      `<p>Caelum now composes secular/Kozai susceptibility, first-order precession, Cassini-state readiness, migration-history evidence, and Trojan-reservoir diagnostics into one read-only long-term dynamics layer. These outputs explain long-cycle risks and history clues; they do not change authored orbits, climate temperatures, calendar periods, or apparent-size geometry.</p>
       <div class="sci-formula__eq">${eq("i_{\\text{crit}} = \\cos^{-1}\\!\\sqrt{3/5} = 39.23^\\circ")}</div>
       <div class="sci-formula__eq">${eq("t_{KL} \\approx \\frac{8}{15\\pi}\\frac{M_{tot}}{M_{pert}}\\frac{P_{out}^2}{P_{in}}(1-e_{out}^2)^{3/2}")}</div>
       <div class="sci-formula__eq">${eq("\\epsilon_{oct} = \\frac{a_{in}}{a_{out}}\\frac{e_{out}}{1-e_{out}^2}\\left|\\frac{m_1-m_2}{m_1+m_2}\\right|")}</div>
@@ -1233,7 +1281,7 @@ function buildOrbitalMechanics() {
       <div class="sci-formula__eq">${eq("\\dot\\omega_{GR} = \\frac{3nGM}{c^2a(1-e^2)}")}</div>
       <p><b>Precession guard:</b> J2 and relativistic precession are first-order diagnostics. The Mercury fixture is calibrated near 43 arcsec/century for GR perihelion precession, but ordinary calendar and climate calculations remain based on current authored periods.</p>
       <div class="sci-formula__eq">${eq("\\alpha\\cos\\epsilon\\sin\\epsilon + g\\sin(\\epsilon-I)=0")}</div>
-      <p><b>Cassini-state guard:</b> without moment of inertia, obliquity, spin-axis state, orbit-plane precession, and dissipation context, WorldSmith reports readiness only. It does not assign named Cassini states or obliquity-tide heating from this screen.</p>
+      <p><b>Cassini-state guard:</b> without moment of inertia, obliquity, spin-axis state, orbit-plane precession, and dissipation context, Caelum reports readiness only. It does not assign named Cassini states or obliquity-tide heating from this screen.</p>
       <p><b>Migration history guard:</b> hot giants, resonant chains, excited giant orbits, Trojan capture hints, and volatile/orbit tension are reported as <i>evidence consistent with</i> migration scenarios. Grand-Tack-like and Nice-model-like labels are analogy classes, not unique reconstructions.</p>
       <p><b>Trojan reservoir guard:</b> L4/L5 linear stability is necessary but not sufficient. Eccentricity, inclination, neighboring perturbers, and supply/capture evidence decide whether the reservoir is sparse, possible, rich, eroded, or unsupported.</p>
       ${cite("Naoz (2016); NASA Milankovitch overview; Ward & Hamilton (2004); Tremaine et al. (2009); Kley & Nelson (2012); Walsh et al. (2011); Tsiganis et al. (2005); NASA Lagrange point reference; Emery et al. (2015); Dvorak et al. (2005)")}`,
@@ -1249,7 +1297,7 @@ function buildOrbitalMechanics() {
         ["d_m", "Moon-parent distance, normally the moon semi-major axis"],
         ["\\theta_{\\text{parent}}", "Approximate parent angular diameter in the moon sky"],
       ])}
-      <p><b>Eclipse readiness:</b> phase alone is insufficient for an eclipse. Exact schedules require orbital inclination, longitude of node, a reference epoch, periods, and the relevant body radii. Without those inputs, WorldSmith reports likelihood/readiness classes only.</p>
+      <p><b>Eclipse readiness:</b> phase alone is insufficient for an eclipse. Exact schedules require orbital inclination, longitude of node, a reference epoch, periods, and the relevant body radii. Without those inputs, Caelum reports likelihood/readiness classes only.</p>
       <p><b>Long-cycle orientation:</b> Laplace-plane, J2 nodal/apsidal precession, and Cassini-state outputs are bounded diagnostics. The first-order Laplace radius and J2 precession proxies indicate the likely regime, but they are not a coupled secular spin-orbit solution and should not be used as exact season or pole-star predictions.</p>
       ${cite("NASA GSFC Eclipse; LPI Moon Phases; Heller & Barnes (2013); Forgan & Yotov (2014); Tremaine et al. (2009); Ward & Hamilton (2004); NASA Milankovitch overview")}`,
     ),
@@ -1279,7 +1327,7 @@ function buildOrbitalMechanics() {
       <p>Total surface temperature adds tidal heating flux and radiogenic heating flux as additional energy inputs. Radiogenic flux:</p>
       <div class="sci-formula__eq">${eq("F_{\\text{radio}} = \\frac{44\\;\\text{TW} \\times (M_m / M_\\oplus) \\times A}{4\\,\\pi\\,R_m^2}")}</div>
       <div class="sci-formula__eq">${eq("T_{\\text{observable}} \\in [T_{\\text{cold}},\\,T_{\\text{warm}}]")}</div>
-      <p>Airless moons also report an observable thermal envelope for brightness-style or local-temperature comparisons. That range broadens with low thermal inertia, slow rotation, roughness, eclipses, and inferred albedo. If only geometric or visual albedo is available, WorldSmith estimates Bond albedo through a phase-integral proxy and lowers confidence instead of tuning the object.</p>
+      <p>Airless moons also report an observable thermal envelope for brightness-style or local-temperature comparisons. That range broadens with low thermal inertia, slow rotation, roughness, eclipses, and inferred albedo. If only geometric or visual albedo is available, Caelum estimates Bond albedo through a phase-integral proxy and lowers confidence instead of tuning the object.</p>
       ${vars([
         ["L_\\star", "Star luminosity (W)"],
         ["a", "Moon Bond albedo"],
@@ -1312,18 +1360,18 @@ function buildOrbitalMechanics() {
       <p>Magnetopause shadowing: energetic particle drift orbits that intersect the magnetopause are lost, depleting the outer radiation belts. Applied as a logistic attenuation factor:</p>
       <div class="sci-formula__eq">${eq("D_{\\text{eff}} = \\frac{D}{1 + e^{25(L/L_{\\text{mp}} - 0.3)}} ")}</div>
       <p>where ${iq("L/L_{\\text{mp}}")} is the moon&rsquo;s L-shell as a fraction of the magnetopause distance. The rolloff onset at 30% matches observed radiation depletion at Callisto (${iq("L/L_{\\text{mp}} \\approx 0.35")}).</p>
-      <p>WorldSmith then converts the parent-belt term into separate surface and subsurface exposure classes with simple shielding factors:</p>
+      <p>Caelum then converts the parent-belt term into separate surface and subsurface exposure classes with simple shielding factors:</p>
       <div class="sci-formula__eq">${eq("D_{\\text{surface}} = (D_{\\text{eff}} + D_{\\text{XUV}})\\,(1 - S_{\\text{atm}})\\,(1 - S_{\\text{mag}})")}</div>
       <div class="sci-formula__eq">${eq("D_{\\text{sub}} = D_{\\text{surface}} \\times f_{\\text{ice}}")}</div>
       <p>Here ${iq("S_{\\text{atm}}")} is atmosphere shielding, ${iq("S_{\\text{mag}}")} combines intrinsic and induced magnetic shielding, and ${iq("f_{\\text{ice}}")} reduces dose below an ice shell. Ganymede-like intrinsic dynamos and salty-ocean induced fields are treated as partial shields rather than total immunity. Thick atmospheres often dominate surface protection, while buried oceans or thick ice shells are much safer than the surface.</p>
-      <p>This is why WorldSmith can classify the same moon as a <b>radiation-limited surface ocean</b> but still keep <b>subsurface ocean plausible</b>.</p>
+      <p>This is why Caelum can classify the same moon as a <b>radiation-limited surface ocean</b> but still keep <b>subsurface ocean plausible</b>.</p>
       <p><b>Calibration note:</b> the parent-belt term remains a comparative, Europa-anchored radiation model rather than a full first-principles particle-transport solution. The output is most reliable as a relative moon-environment classifier, not as an absolute dose forecast for arbitrary exomoon systems.</p>
       ${cite("Paranicas et al. (2009); Divine & Garrett (1983) — Jupiter radiation environment")}`,
     ),
 
     formula(
       "Icy Moon Sputtered Oxygen Exospheres",
-      `<p>Europa-like icy moons can carry an abiotic O<sub>2</sub>/H<sub>2</sub> exosphere without having breathable air. WorldSmith treats this as a surface-boundary context: parent magnetospheric particles dissociate exposed water ice, sputtering and radiolysis release neutrals, and pickup ions plus surface trapping remove them.</p>
+      `<p>Europa-like icy moons can carry an abiotic O<sub>2</sub>/H<sub>2</sub> exosphere without having breathable air. Caelum treats this as a surface-boundary context: parent magnetospheric particles dissociate exposed water ice, sputtering and radiolysis release neutrals, and pickup ions plus surface trapping remove them.</p>
       <div class="sci-formula__eq">${eq("Q_{O_2} \\approx 12\\;\\frac{R_m^2}{R_E^2}\\;S_{ice}\\;S_{particles}\\;S_{pressure}\\;\\text{kg s}^{-1}")}</div>
       ${vars([
         ["Q_{O_2}", "Global O2 production proxy"],
@@ -1340,7 +1388,7 @@ function buildOrbitalMechanics() {
     formula(
       "Volatile Inventory &amp; Atmospheric Retention",
       `<p>Identifies surface ices and thin atmospheres on airless moons via three checks per species:</p>
-      <p><b>1. Presence:</b> In <b>Core</b> mode, species availability falls back to the older bulk-density guard (${iq("\\rho < \\rho_{\\text{max}}")}) for that ice. In <b>Full</b> and <b>Manual</b> modes, WorldSmith instead folds in explicit water inventory, ammonia fraction, composition override, and manual gas-mix requests before deciding whether a species reservoir is available. Exception: SO&#8322; still requires active tidal feedback or a manual atmospheric request.</p>
+      <p><b>1. Presence:</b> In <b>Core</b> mode, species availability falls back to the older bulk-density guard (${iq("\\rho < \\rho_{\\text{max}}")}) for that ice. In <b>Full</b> and <b>Manual</b> modes, Caelum instead folds in explicit water inventory, ammonia fraction, composition override, and manual gas-mix requests before deciding whether a species reservoir is available. Exception: SO&#8322; still requires active tidal feedback or a manual atmospheric request.</p>
       <p><b>2. Sublimation:</b> Vacuum sublimation onset when ${iq("T_{\\text{surf}} \\geq T_{\\text{sub}}")} (temperature
       at which vapor pressure &asymp; 1 Pa). These thresholds are lower than the triple-point temperatures
       used for planets because moons exist in near-vacuum.</p>
@@ -1380,10 +1428,10 @@ function buildOrbitalMechanics() {
     ),
 
     formula(
-      "Moon Worlds in WorldSmith",
-      `<p>WorldSmith&rsquo;s moon-world outputs are built as a layered model rather than a single published formula. The Moon page combines atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs into one reference state for each moon.</p>
+      "Moon Worlds in Caelum",
+      `<p>Caelum&rsquo;s moon-world outputs are built as a layered model rather than a single published formula. The Moon page combines atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs into one reference state for each moon.</p>
       <p><b>Science modes:</b> the Moon page now exposes separate <b>Hydrosphere</b>, <b>Atmosphere</b>, and <b>Orbital Coupling</b> modes. <b>Core</b> preserves the lighter heuristic path, <b>Full</b> enables the richer moon-world and coupled-system science, and <b>Manual</b> accepts extra physical inputs while still solving the outputs rather than hard-overriding them.</p>
-      <p><b>ESI vs. Habitability Index:</b> ESI is the standard four-term Earth Similarity Index (radius, density, escape velocity, temperature). WorldSmith&rsquo;s <i>Habitability Index</i> is a custom comparative metric: PHI-inspired, but not a direct implementation of the published literature PHI. It chooses a solvent pathway first (surface water, subsurface water, or alternative solvent when enabled), then scores substrate, solvent, energy, chemistry, stability, radiation, and persistence under that pathway.</p>
+      <p><b>ESI vs. Habitability Index:</b> ESI is the standard four-term Earth Similarity Index (radius, density, escape velocity, temperature). Caelum&rsquo;s <i>Habitability Index</i> is a custom comparative metric: PHI-inspired, but not a direct implementation of the published literature PHI. It chooses a solvent pathway first (surface water, subsurface water, or alternative solvent when enabled), then scores substrate, solvent, energy, chemistry, stability, radiation, and persistence under that pathway.</p>
       <ul style="font-size:13px;color:var(--muted);margin:4px 0 4px 18px">
         <li><b>Atmosphere</b> combines volatile availability, escape, source type, and greenhouse or anti-greenhouse behaviour.</li>
         <li><b>Hydrosphere</b> separates dry, surface-ocean, frozen-surface, subsurface-ocean, and steam states, including high-pressure-ice barriers where applicable.</li>
@@ -1393,17 +1441,17 @@ function buildOrbitalMechanics() {
         <li><b>Habitability</b> can score both exposed surface solvent and buried subsurface solvent, so a moon can rate as chemically or physically promising without supporting an exposed biosphere.</li>
       </ul>
       <p><b>Five-gate outcome:</b> the current moon-world stack effectively behaves like a five-gate habitability screen: stellar-zone context for exposed-surface cases, stable circumplanetary orbit, combined energy budget, atmosphere retention, and radiation shielding. A moon does not need to pass all five to remain scientifically interesting, but exposed surface-biosphere outcomes require the full set.</p>
-      <p><b>Orbit stability policy:</b> WorldSmith now treats the full Hill sphere as only the formal outer bound. The long-term stable moon zone is kept more conservatively inside it: roughly one-third of the Hill radius for prograde moons and about one-half for retrograde moons, with an additional comfort margin before the outer edge.</p>
+      <p><b>Orbit stability policy:</b> Caelum now treats the full Hill sphere as only the formal outer bound. The long-term stable moon zone is kept more conservatively inside it: roughly one-third of the Hill radius for prograde moons and about one-half for retrograde moons, with an additional comfort margin before the outer edge.</p>
       <p><b>Coupled moon systems:</b> in Full and Manual orbital-coupling modes, the moon solver can incorporate sibling-moon resonances, Laplace-chain tagging, forced eccentricity floors, a derived tidal-habitable-zone diagnostic, and formation classification before the final moon-world outputs are derived.</p>
       <p><b>Surface vs. subsurface:</b> a buried ocean below an ice shell can raise the moon&rsquo;s internal or comparative habitability score, but it does <em>not</em> by itself imply surface life, plant life, or an Earth-like surface environment. Surface biosphere outputs remain tied to exposed surface conditions, while the moon summary can now separate <i>surface ocean plausible</i>, <i>radiation-limited surface ocean</i>, and <i>subsurface ocean plausible</i> outcomes.</p>
-      <p><b>Radiation and shielding:</b> moon results now track parent-belt exposure, stellar high-energy input, atmospheric attenuation, intrinsic dynamo shielding, induced salty-ocean shielding, and ice-shell attenuation together. This lets WorldSmith flag a moon as surface-wet but radiation-limited without discarding its deeper subsurface potential.</p>
+      <p><b>Radiation and shielding:</b> moon results now track parent-belt exposure, stellar high-energy input, atmospheric attenuation, intrinsic dynamo shielding, induced salty-ocean shielding, and ice-shell attenuation together. This lets Caelum flag a moon as surface-wet but radiation-limited without discarding its deeper subsurface potential.</p>
       <p><b>Beyond the stellar habitable zone:</b> the star&rsquo;s habitable zone mainly matters for <em>surface</em> liquid-water cases. Outside the stellar HZ, moons can still remain scientifically plausible life candidates through buried oceans sustained by tides, chemistry, and internal heat.</p>
       <p><b>Stellar-HZ context:</b> exposed surface cases now use the star engine&rsquo;s actual habitable-zone output when available, then apply moon-specific caution for very low-mass stars where the habitable zone sits so close in that circumplanetary stability and early XUV exposure become harder constraints.</p>
       <p><b>Cool-star surface calibration:</b> exposed surface-habitable moons around cool stars now pass through a paper-informed calibration layer rather than a pure temperature check. The current layer weighs moon mass, host giant mass, parent orbital distance, bulk composition, and spin state so that a merely warm moon is not automatically treated as a defensible surface-life candidate.</p>
       <p><b>Mass floor and giant-host regime:</b> the calibration is intentionally selective. Surface atmosphere-bearing moons around cool stars become harder below the current moon-mass floor, and the model treats more massive giant hosts as a more favorable regime than weak giant hosts. This is a calibration layer, not a first-principles exomoon climate proof.</p>
       <p><b>Spin-state nuance:</b> the tidal path can now distinguish strict 1:1 synchronous lock from 3:2 resonance and from non-resonant states. A justified 3:2 state modestly softens permanent day-night contrast relative to 1:1 lock, so it can slightly improve exposed-surface plausibility without acting as a free habitability override.</p>
       <p><b>Calibration scope:</b> this cool-star surface calibration only constrains exposed surface-ocean and surface-biosphere outcomes. Subsurface-ocean and buried-life candidates remain available outside the stellar HZ and are not blocked by the surface calibration alone.</p>
-      <p><b>Reference inputs:</b> this moon-world layer sits on top of the tidal heating, moon temperature, magnetospheric radiation, volatile-retention, magnetosphere, and atmosphere-stability blocks documented above, then adds WorldSmith&rsquo;s own hydrosphere, geology, biosphere, and integrated habitability policy layers.</p>`,
+      <p><b>Reference inputs:</b> this moon-world layer sits on top of the tidal heating, moon temperature, magnetospheric radiation, volatile-retention, magnetosphere, and atmosphere-stability blocks documented above, then adds Caelum&rsquo;s own hydrosphere, geology, biosphere, and integrated habitability policy layers.</p>`,
     ),
   ].join("");
 }
@@ -1606,7 +1654,7 @@ function buildAtmosphereColour() {
         ["\\omega", "CO&#8322;&ndash;H&#8322;O band overlap factor (see next formula)"],
       ])}
       <p><b>Functional forms.</b> CO&#8322; and H&#8322;O use logarithmic scaling (band saturation at high concentrations; Myhre 1998, Pierrehumbert 2010 ch. 4). CH&#8324; uses square-root scaling (weaker absorber; IPCC TAR Table 6.2). The ${iq("P^{0.684}")} exponent captures Lorentz pressure broadening of molecular absorption lines.</p>
-      <p><b>Calibration.</b> The numerical coefficients (0.503, 0.336, 0.45) are <em>WorldSmith-derived fits</em> calibrated against NASA Planetary Fact Sheet surface temperatures, not taken from a single published source. They reproduce:</p>
+      <p><b>Calibration.</b> The numerical coefficients (0.503, 0.336, 0.45) are <em>Caelum-derived fits</em> calibrated against NASA Planetary Fact Sheet surface temperatures, not taken from a single published source. They reproduce:</p>
       ${dataTable(
         [
           "Body",
@@ -1624,7 +1672,7 @@ function buildAtmosphereColour() {
         ],
       )}
       <p>The greenhouse effect parameter used by the energy-balance model is ${iq("G_h = \\tau / 0.5841")}.</p>
-      ${cite("Robinson &amp; Catling (2012) pressure broadening; Myhre (1998) CO&#8322; band saturation; IPCC TAR (2001) CH&#8324; square-root law. Coefficients: WorldSmith calibration.")}`,
+      ${cite("Robinson &amp; Catling (2012) pressure broadening; Myhre (1998) CO&#8322; band saturation; IPCC TAR (2001) CH&#8324; square-root law. Coefficients: Caelum calibration.")}`,
     ),
 
     formula(
@@ -1637,7 +1685,7 @@ function buildAtmosphereColour() {
         ["k", "Half-saturation constant = 6"],
       ])}
       <p>At Earth conditions (${iq("\\tau_{\\text{CO}_2} \\approx 0.18")}), ${iq("\\omega \\approx 0.97")} &mdash; almost no suppression. At Venus conditions (${iq("\\tau_{\\text{CO}_2} \\approx 126")}), ${iq("\\omega \\approx 0.045")} &mdash; H&#8322;O contribution reduced by 95%.</p>
-      <p><b>This is a WorldSmith-derived model.</b> The half-saturation form ${iq("1/(1 + x/k)")} and the value ${iq("k = 6")} were chosen to reproduce Venus&rsquo;s 737 K surface temperature when trace H&#8322;O (30 ppm) is included. The H&#8322;O coefficient was then re-fitted from 0.327 to 0.336 to recover Earth&rsquo;s 288 K. The physics justification is spectral band overlap, but the specific parameterisation is an empirical fit, not from a published radiative-transfer study.</p>`,
+      <p><b>This is a Caelum-derived model.</b> The half-saturation form ${iq("1/(1 + x/k)")} and the value ${iq("k = 6")} were chosen to reproduce Venus&rsquo;s 737 K surface temperature when trace H&#8322;O (30 ppm) is included. The H&#8322;O coefficient was then re-fitted from 0.327 to 0.336 to recover Earth&rsquo;s 288 K. The physics justification is spectral band overlap, but the specific parameterisation is an empirical fit, not from a published radiative-transfer study.</p>`,
     ),
 
     formula(
@@ -1663,8 +1711,8 @@ function buildAtmosphereColour() {
       <p><b>SO&#8322;</b> has strong absorption bands at 7.3 and 8.7 &mu;m. Logarithmic scaling (like CO&#8322;) but with a weaker coefficient reflecting its narrower band coverage. The overlap denominator (${iq("k = 8")}) suppresses SO&#8322; when the core gases are already optically thick &mdash; at Venus conditions (${iq("\\tau_{\\text{core}} \\approx 127")}), SO&#8322; retains only &sim;6% of its raw contribution.</p>
       <p><b>NH&#8323;</b> is a potent absorber at 10.5 &mu;m (within the atmospheric window). Square-root scaling (like CH&#8324;) captures its sub-linear saturation behaviour. The larger overlap constant (${iq("k = 20")}) reflects the fact that the 10.5 &mu;m window is less affected by CO&#8322; pressure broadening than the SO&#8322; bands.</p>
       <p><b>He</b> has no IR absorption and contributes ${iq("\\tau = 0")}. It only affects the mean molecular weight (0.004 kg/mol), atmospheric density, and scale height.</p>
-      <p><b>Overlap constants are WorldSmith-derived.</b> The values ${iq("k_{\\text{SO}_2} = 8")} and ${iq("k_{\\text{NH}_3} = 20")} were calibrated so that Venus in Full mode (with NASA trace gases) matches the 737 K surface temperature. The physics basis is that pressure-broadened CO&#8322; wings extend beyond 15 &mu;m into the atmospheric window at high pressures, but the specific ${iq("k")} values are empirical fits.</p>
-      ${cite("H&#8322;&ndash;N&#8322; CIA: Wordsworth &amp; Pierrehumbert (2013), Science 339. SO&#8322; and NH&#8323; coefficients and overlap constants: WorldSmith calibration.")}`,
+      <p><b>Overlap constants are Caelum-derived.</b> The values ${iq("k_{\\text{SO}_2} = 8")} and ${iq("k_{\\text{NH}_3} = 20")} were calibrated so that Venus in Full mode (with NASA trace gases) matches the 737 K surface temperature. The physics basis is that pressure-broadened CO&#8322; wings extend beyond 15 &mu;m into the atmospheric window at high pressures, but the specific ${iq("k")} values are empirical fits.</p>
+      ${cite("H&#8322;&ndash;N&#8322; CIA: Wordsworth &amp; Pierrehumbert (2013), Science 339. SO&#8322; and NH&#8323; coefficients and overlap constants: Caelum calibration.")}`,
     ),
 
     formula(
@@ -1723,7 +1771,7 @@ function buildAtmosphereColour() {
           ["Pluto", "32", "0.0006", "10&#8315;&#8309;", "&lt;0.001", "~32", "~65&ndash;70"],
         ],
       )}
-      <p><b>WorldSmith-derived model.</b> The coefficient 3.0 is calibrated to reproduce Earth's ~1000 K exobase temperature. The CO&#8322; cooling term captures the efficient 15 &mu;m radiative cooling that suppresses thermospheric heating on Venus. The &eta;<sub>abs</sub> term corrects for thin atmospheres (Mars, Pluto) that let most XUV pass through unabsorbed.</p>`,
+      <p><b>Caelum-derived model.</b> The coefficient 3.0 is calibrated to reproduce Earth's ~1000 K exobase temperature. The CO&#8322; cooling term captures the efficient 15 &mu;m radiative cooling that suppresses thermospheric heating on Venus. The &eta;<sub>abs</sub> term corrects for thin atmospheres (Mars, Pluto) that let most XUV pass through unabsorbed.</p>`,
     ),
 
     formula(
@@ -1838,7 +1886,7 @@ function buildClimateClassification() {
       `<div class="sci-formula__eq">${eq("\\Delta T_{\\text{cloud}} = -\\mathrm{clamp}(4.2A_c + 3.2S_c,\\,0,\\,8)")}</div>
       <div class="sci-formula__eq">${eq("\\Theta_{\\text{carb}} = \\min(W,\\,V,\\,R)\\,(0.55 + 0.45B)\\,C")}</div>
       <div class="sci-formula__eq">${eq("T_f = 273.15\\text{ K} - \\min(45,\\,0.55S + 1.35A)")}</div>
-      <p>WorldSmith treats clouds and carbonate-silicate cycling as bounded context layers. Cloud/circulation uses pressure, exposed water, temperature, rotation, tidal lock state, stellar flux, haze opacity, and collapse risk to estimate cloud fraction, substellar-cloud likelihood, heat redistribution, and a small diagnostic albedo-cooling term.</p>
+      <p>Caelum treats clouds and carbonate-silicate cycling as bounded context layers. Cloud/circulation uses pressure, exposed water, temperature, rotation, tidal lock state, stellar flux, haze opacity, and collapse risk to estimate cloud fraction, substellar-cloud likelihood, heat redistribution, and a small diagnostic albedo-cooling term.</p>
       <p>The carbon-cycle context is a tendency model, not a solved atmospheric CO<sub>2</sub> history. It combines exposed-rock weathering, limited seafloor weathering, CO<sub>2</sub> availability, volcanic supply, tectonic recycling, climate state, and high-pressure-ice caveats into a thermostat-strength diagnostic.</p>
       <p>The ocean-chemistry context adds salinity/ammonia freezing-point depression, carbonate buffering, acidity class, rock-ocean access, and hydrothermal/nutrient support. Salinity is consumed from explicit moon inputs when available; otherwise it is inferred only as a low-confidence class from water inventory and ocean depth.</p>
       <p>Biosignature context is deliberately non-diagnostic of life. O<sub>2</sub>/O<sub>3</sub>, CH<sub>4</sub>, CO, organic haze, redox state, atmosphere source-sink balance, ocean sinks, and stellar UV/XUV are combined into false-positive risk, disequilibrium strength, and source-demand language. O<sub>2</sub>+CH<sub>4</sub> means a replenishing source is required; it does not identify biology.</p>
@@ -1928,7 +1976,7 @@ function buildStellarActivity() {
       )}
       <p>Base probability is modulated by a soft-suppression factor at high N&#8323;&#8322; and a saturation limiter
       that prevents CME rate from exceeding the activity-cycle target.</p>
-      ${cite("Yashiro et al. (2006) flare-CME association rates; probabilities WorldSmith-calibrated")}`,
+      ${cite("Yashiro et al. (2006) flare-CME association rates; probabilities Caelum-calibrated")}`,
     ),
 
     formula(
@@ -1951,7 +1999,7 @@ function buildStellarActivity() {
       <p>Age band boundaries differ by spectral type: FGK old &ge; 2 Gyr, early-M old &ge; 4 Gyr,
       late-M old &ge; 6 Gyr. The power-law index ${iq("\\alpha")} steepens for cooler stars,
       meaning their energy distribution is more bottom-heavy.</p>
-      ${cite("Günther et al. (2020) TESS superflare rates; binning WorldSmith")}`,
+      ${cite("Günther et al. (2020) TESS superflare rates; binning Caelum")}`,
     ),
 
     formula(
@@ -2335,7 +2383,7 @@ function buildInteriorComposition() {
 
     formula(
       "Radius-Valley Boundary Context",
-      `<p>The super-Earth/sub-Neptune radius valley is treated as a <b>population-level boundary diagnostic</b>, not a deterministic single-planet origin label. WorldSmith records whether a boundary-family planet is boundary-sized and whether its orbital period or irradiation makes envelope-loss interpretation relevant.</p>
+      `<p>The super-Earth/sub-Neptune radius valley is treated as a <b>population-level boundary diagnostic</b>, not a deterministic single-planet origin label. Caelum records whether a boundary-family planet is boundary-sized and whether its orbital period or irradiation makes envelope-loss interpretation relevant.</p>
       ${dataTable(
         ["Context class", "Interpretation"],
         [
@@ -2673,14 +2721,14 @@ function buildDebrisDisks() {
     formula(
       "Exo-Oort Cloud Hill Scaling",
       `<div class="sci-formula__eq">${eq("r_{\\text{H,OC}} \\approx 1.5\\times10^5\\,\\left(\\frac{M_\\star}{M_\\odot}\\right)^{1/3}\\left(\\frac{R_{\\text{gal}}}{R_{\\text{gal},\\odot}}\\right)^{2/3}\\;\\text{AU}")}</div>
-      <p>WorldSmith scales exo-Oort cloud size from the parent system&rsquo;s Hill radius in the Galactic potential. This follows the same ${iq("M_\\star^{1/3} R_{\\text{gal}}^{2/3}")} dependence used in exo-Oort scaling work.</p>
+      <p>Caelum scales exo-Oort cloud size from the parent system&rsquo;s Hill radius in the Galactic potential. This follows the same ${iq("M_\\star^{1/3} R_{\\text{gal}}^{2/3}")} dependence used in exo-Oort scaling work.</p>
       ${vars([
         ["r_{\\text{H,OC}}", "Characteristic Hill / tidal size of the exo-Oort reservoir"],
         ["M_\\star", "Total mass of the host stellar system"],
         ["R_{\\text{gal}}", "Galactocentric distance of the system"],
         [
           "R_{\\text{gal},\\odot}",
-          "Solar-circle reference radius used by WorldSmith's Local Cluster defaults",
+          "Solar-circle reference radius used by Caelum's Local Cluster defaults",
         ],
       ])}
       ${cite("Moro-Martín (2019, AJ 157, 86), following Hanse et al. (2018) and Veras et al. (2014)")}`,
@@ -2691,7 +2739,7 @@ function buildDebrisDisks() {
       `<div class="sci-formula__eq">${eq("a_{\\text{in}} \\approx 3\\times10^3\\,\\left(\\frac{r_{\\text{H,OC}}}{1.5\\times10^5\\;\\text{AU}}\\right)")}</div>
       <div class="sci-formula__eq">${eq("a_{\\text{out}} \\approx 10^5\\,\\left(\\frac{r_{\\text{H,OC}}}{1.5\\times10^5\\;\\text{AU}}\\right)")}</div>
       <div class="sci-formula__eq">${eq("a_{\\text{in,WS}} = \\max\\left(a_{\\text{in}},\\;80\\,a_{\\text{giant,max}}\\right)")}</div>
-      <p>The base inner and outer edges follow Solar Oort-cloud reference values scaled by Galactic Hill radius. WorldSmith then applies an outer-giant architecture floor so the detached cloud does not begin unrealistically close to the scattering giant-planet region.</p>
+      <p>The base inner and outer edges follow Solar Oort-cloud reference values scaled by Galactic Hill radius. Caelum then applies an outer-giant architecture floor so the detached cloud does not begin unrealistically close to the scattering giant-planet region.</p>
       ${vars([
         ["a_{\\text{in}}", "Hill-scaled inner edge before architecture adjustment"],
         ["a_{\\text{out}}", "Hill-scaled outer edge"],
@@ -2701,10 +2749,10 @@ function buildDebrisDisks() {
     ),
 
     formula(
-      "Oort Cloud Mass And LPC Flux (WorldSmith Simplification)",
+      "Oort Cloud Mass And LPC Flux (Caelum Simplification)",
       `<div class="sci-formula__eq">${eq("M_{\\text{OC}} \\approx 7\\,M_\\oplus\\,\\left(\\frac{M_\\star}{M_\\odot}\\right) F_{\\text{giants}} F_{\\text{outer}} F_{\\text{eject}} F_{\\text{age}} F_{\\text{ret}}")}</div>
       <div class="sci-formula__eq">${eq("\\Gamma_{\\text{LPC}} \\approx 2.5\\,\\text{yr}^{-1}\\,\\left(\\frac{M_{\\text{OC}}}{5\\,M_\\oplus}\\right)\\left(\\frac{n_\\star}{0.004\\;\\text{ly}^{-3}}\\right)^{1/2}\\left(\\frac{3000\\;\\text{AU}}{a_{\\text{in,WS}}}\\right)^{0.35}")}</div>
-      <p>No single paper gives a closed-form exo-Oort mass or long-period-comet injection formula from authored system inputs. WorldSmith therefore uses a disclosed proxy: star-mass scaling from exo-Oort literature, an outer-giant architecture gate inspired by scattering-outcome maps, an inner-ejector penalty for Jupiter-dominated systems, an age saturation term, and an environmental retention factor for Galactic tides and stellar encounters.</p>
+      <p>No single paper gives a closed-form exo-Oort mass or long-period-comet injection formula from authored system inputs. Caelum therefore uses a disclosed proxy: star-mass scaling from exo-Oort literature, an outer-giant architecture gate inspired by scattering-outcome maps, an inner-ejector penalty for Jupiter-dominated systems, an age saturation term, and an environmental retention factor for Galactic tides and stellar encounters.</p>
       ${vars([
         ["F_{\\text{giants}}", "Total giant-mass factor relative to the Solar giant planets"],
         ["F_{\\text{outer}}", "Outermost-giant extent factor relative to Neptune's orbit"],
@@ -2718,9 +2766,9 @@ function buildDebrisDisks() {
     ),
 
     formula(
-      "Oort Cloud Authoring Layers (WorldSmith Overlay)",
-      `<p><b>Automatic baseline science layer:</b> the Oort-cloud formulas above are the literature-inspired baseline model. WorldSmith resolves that automatic model first, then optionally layers authoring controls on top.</p>
-      <p><b>Guided mode:</b> Guided Oort controls are a <b>WorldSmith authoring overlay</b>. They are worldbuilding adjustments layered on top of the automatic Oort model, not a separate published exo-Oort inference.</p>
+      "Oort Cloud Authoring Layers (Caelum Overlay)",
+      `<p><b>Automatic baseline science layer:</b> the Oort-cloud formulas above are the literature-inspired baseline model. Caelum resolves that automatic model first, then optionally layers authoring controls on top.</p>
+      <p><b>Guided mode:</b> Guided Oort controls are a <b>Caelum authoring overlay</b>. They are worldbuilding adjustments layered on top of the automatic Oort model, not a separate published exo-Oort inference.</p>
       <div class="sci-formula__eq">${eq("M^{\\prime} = M_{\\text{auto}}\\,F_{\\text{form}}\\,F_{\\text{ret}}\\,F_{\\text{inst}}")}</div>
       <div class="sci-formula__eq">${eq("a_{\\text{in}}^{\\prime} = a_{\\text{in,auto}}\\,F_{\\text{comp}}\\,F_{\\text{inst,in}}")}</div>
       <div class="sci-formula__eq">${eq("a_{\\text{out}}^{\\prime} = \\mathrm{clamp}\\!\\left(a_{\\text{out,auto}}\\,F_{\\text{out}},\\;2.2\\,a_{\\text{in}}^{\\prime},\\;0.95\\,r_H\\right)")}</div>
@@ -2734,7 +2782,7 @@ function buildDebrisDisks() {
         ["F_{\\text{inst},\\Gamma}", "Guided instability LPC-flux multiplier"],
       ])}
       <p><b>Manual mode:</b> Manual Oort settings are direct user overrides of the displayed reservoir state. Manual mode is not a scientific inference; it is explicit authored world data.</p>
-      ${cite("Automatic baseline science: see the Oort-cloud entries above. Guided and manual controls are WorldSmith authoring overlays resolved in engine/oortCloud.js.")}`,
+      ${cite("Automatic baseline science: see the Oort-cloud entries above. Guided and manual controls are Caelum authoring overlays resolved in engine/oortCloud.js.")}`,
     ),
 
     formula(
@@ -2751,41 +2799,41 @@ function buildDivergences() {
     `<div class="sci-formula"><h3 class="sci-formula__name">${title}</h3>${body}</div>`;
 
   return [
-    `<p class="sci-diverge-intro">WorldSmith aims to reproduce published astrophysical models wherever possible.
+    `<p class="sci-diverge-intro">Caelum aims to reproduce published astrophysical models wherever possible.
     In several areas, however, published models are incomplete, internally inconsistent, or
     too complex for a real-time calculator. This section documents every place where
-    WorldSmith uses its own empirical fits, simplifications, or calibrations instead of
+    Caelum uses its own empirical fits, simplifications, or calibrations instead of
     (or in addition to) a single published formula. Items marked <b>WS-derived</b> are original
-    to WorldSmith; items marked <b>Simplified</b> are reductions of published work.</p>`,
+    to Caelum; items marked <b>Simplified</b> are reductions of published work.</p>`,
 
     item(
       "Oort Cloud Mass And LPC Flux Proxy (WS-derived / Simplified)",
-      `<p>WorldSmith&rsquo;s Oort-cloud mass and long-period-comet flux are not taken from a single published closed-form model. The edge scaling follows exo-Oort Hill-radius work, but the mass and LPC-rate outputs are WorldSmith proxies built from five factors: total giant mass, outer-giant extent, inner-ejector depletion, age saturation, and environmental retention.</p>
-      <p><b>Why diverge?</b> The literature provides pieces of the problem rather than one direct calculator. Moro-Martín (2019) scales cloud extent to the Galactic Hill radius, Wyatt et al. (2017) map which planet architectures favor Oort clouds versus prompt ejection, Brasser et al. (2010) and Kaib et al. (2011) show strong environmental dependence, and Veras et al. (2011/2014) quantify later clearing. WorldSmith combines those ingredients into a disclosed proxy calibrated so Sol lands near the canonical ${iq("a_{\\text{in}} \\sim 3000\\;\\text{AU}")}, ${iq("a_{\\text{out}} \\sim 10^5\\;\\text{AU}")}, and a few-Earth-mass cloud with a Solar LPC flux of order 2&ndash;3 per year.</p>
+      `<p>Caelum&rsquo;s Oort-cloud mass and long-period-comet flux are not taken from a single published closed-form model. The edge scaling follows exo-Oort Hill-radius work, but the mass and LPC-rate outputs are Caelum proxies built from five factors: total giant mass, outer-giant extent, inner-ejector depletion, age saturation, and environmental retention.</p>
+      <p><b>Why diverge?</b> The literature provides pieces of the problem rather than one direct calculator. Moro-Martín (2019) scales cloud extent to the Galactic Hill radius, Wyatt et al. (2017) map which planet architectures favor Oort clouds versus prompt ejection, Brasser et al. (2010) and Kaib et al. (2011) show strong environmental dependence, and Veras et al. (2011/2014) quantify later clearing. Caelum combines those ingredients into a disclosed proxy calibrated so Sol lands near the canonical ${iq("a_{\\text{in}} \\sim 3000\\;\\text{AU}")}, ${iq("a_{\\text{out}} \\sim 10^5\\;\\text{AU}")}, and a few-Earth-mass cloud with a Solar LPC flux of order 2&ndash;3 per year.</p>
       ${cite("Moro-Martín (2019), Wyatt et al. (2017), Brasser et al. (2010), Kaib et al. (2011), Veras et al. (2011, 2014).")}`,
     ),
 
     item(
       "Greenhouse Optical Depth Coefficients (WS-derived)",
       `<p>The grey IR optical depth coefficients for CO&#8322; (0.503), H&#8322;O (0.336), and CH&#8324; (0.45) are
-      <em>not</em> taken from a single published radiative-transfer study. They are WorldSmith fits
+      <em>not</em> taken from a single published radiative-transfer study. They are Caelum fits
       calibrated so that the energy-balance model reproduces NASA Planetary Fact Sheet surface
       temperatures for Earth (288 K), Venus (737 K), and Mars (211 K) simultaneously.</p>
       <p><b>Why diverge?</b> Published greenhouse models (e.g. Pierrehumbert 2010, Robinson &amp; Catling 2012)
       use either line-by-line radiative transfer (too slow for real-time) or parameterisations tied
-      to specific atmospheric compositions. WorldSmith needs a single grey-opacity formula that
+      to specific atmospheric compositions. Caelum needs a single grey-opacity formula that
       works from Mars (0.006 atm, 95% CO&#8322;) through Earth (1 atm, mixed) to Venus (92 atm, 96% CO&#8322;).
       No published parameterisation spans this range in a single expression.</p>
       <p><b>Functional forms</b> (logarithmic for CO&#8322;/H&#8322;O, square-root for CH&#8324;) <em>are</em>
       grounded in published physics: Myhre (1998) band saturation for CO&#8322;, IPCC TAR Table 6.2
       for CH&#8324;, Robinson &amp; Catling (2012) for pressure broadening (${iq("P^{0.684}")}).</p>
-      ${cite("Coefficients: WorldSmith calibration. Functional forms: Myhre (1998), IPCC TAR (2001), Robinson &amp; Catling (2012).")}`,
+      ${cite("Coefficients: Caelum calibration. Functional forms: Myhre (1998), IPCC TAR (2001), Robinson &amp; Catling (2012).")}`,
     ),
 
     item(
       "CO&#8322;&ndash;H&#8322;O Band Overlap Suppression (WS-derived)",
       `<p>The half-saturation model ${iq("\\omega = 1/(1 + \\tau_{\\text{CO}_2}/6)")} and the constant
-      ${iq("k = 6")} are WorldSmith-derived. No published radiative-transfer study provides a
+      ${iq("k = 6")} are Caelum-derived. No published radiative-transfer study provides a
       single-parameter overlap correction of this form.</p>
       <p><b>Why diverge?</b> Real spectral overlap between CO&#8322; and H&#8322;O in the 12&ndash;18 &mu;m
       and 4.3 &mu;m regions is well established in atmospheric physics, but published models handle it
@@ -2797,19 +2845,19 @@ function buildDivergences() {
     item(
       "Expert Gas Overlap Constants (WS-derived)",
       `<p>The overlap constants ${iq("k_{\\text{SO}_2} = 8")} and ${iq("k_{\\text{NH}_3} = 20")}
-      and the H&#8322;&ndash;N&#8322; CIA coefficient (3.0) are WorldSmith calibrations.</p>
+      and the H&#8322;&ndash;N&#8322; CIA coefficient (3.0) are Caelum calibrations.</p>
       <p><b>Why diverge?</b> H&#8322;&ndash;N&#8322; CIA opacity is published (Wordsworth &amp;
       Pierrehumbert 2013), but as absorption coefficients for specific P-T grids, not as a
       single scalar. The coefficient 3.0 reproduces ~12 K warming at 10% H&#8322; / 90% N&#8322; / 1 bar,
       consistent with their Figure 2. SO&#8322; and NH&#8323; overlap constants were calibrated so
       Venus in Full mode matches 737 K with NASA trace-gas values.</p>
-      ${cite("H&#8322;&ndash;N&#8322; CIA: Wordsworth &amp; Pierrehumbert (2013), Science 339. SO&#8322;/NH&#8323; overlap: WorldSmith calibration.")}`,
+      ${cite("H&#8322;&ndash;N&#8322; CIA: Wordsworth &amp; Pierrehumbert (2013), Science 339. SO&#8322;/NH&#8323; overlap: Caelum calibration.")}`,
     ),
 
     item(
       "Surface Temperature Divisor (WS-derived)",
       `<p>The factor ${iq("\\text{surfDiv} = 1 - 0.1 \\cdot \\min(\\tau, 1)")} that ramps from
-      1.0 (airless) to 0.9 (atmosphere with ${iq("\\tau \\ge 1")}) is a WorldSmith parameterisation.</p>
+      1.0 (airless) to 0.9 (atmosphere with ${iq("\\tau \\ge 1")}) is a Caelum parameterisation.</p>
       <p><b>Why diverge?</b> In real atmospheres, convective transport creates a temperature
       difference between the radiative emission level and the surface (the lapse rate). Published
       models use full convective adjustment or adiabatic profiles. The 0.9 factor is a crude
@@ -2820,19 +2868,19 @@ function buildDivergences() {
     item(
       "Planet Mass&ndash;Radius Compression Exponent (WS-derived)",
       `<p>The mass-dependent exponent ${iq("\\alpha(M) = \\min(1/3,\\; 0.257 - 0.0161 \\ln M)")})
-      is a WorldSmith fit. Published mass-radius relations (Zeng &amp; Sasselov 2013, Fortney 2007)
+      is a Caelum fit. Published mass-radius relations (Zeng &amp; Sasselov 2013, Fortney 2007)
       provide specific curves for fixed compositions, not a single analytic expression with CMF
       as a continuous parameter.</p>
-      <p><b>Why diverge?</b> WorldSmith needs a formula where both mass and CMF are free
+      <p><b>Why diverge?</b> Caelum needs a formula where both mass and CMF are free
       parameters. The CMF prefactor ${iq("(1.07 - 0.21 \\cdot \\text{CMF})")} comes from Zeng &amp;
       Sasselov (2016). The exponent was fitted to reproduce all four Solar System rocky planets:
       Mercury (0.3% error), Venus (0.8%), Earth (0.2%), Mars (0.5%).</p>
-      ${cite("CMF scaling: Zeng &amp; Sasselov (2016). Exponent: WorldSmith fit to Solar System data.")}`,
+      ${cite("CMF scaling: Zeng &amp; Sasselov (2016). Exponent: Caelum fit to Solar System data.")}`,
     ),
 
     item(
       "Core Solidification Timescale (Simplified)",
-      `<p>The formula ${iq("\\tau = 2 + 12 \\cdot \\text{CMF} \\cdot \\sqrt{M_\\oplus}")} is a WorldSmith
+      `<p>The formula ${iq("\\tau = 2 + 12 \\cdot \\text{CMF} \\cdot \\sqrt{M_\\oplus}")} is a Caelum
       approximation, not from a specific publication. Published core thermal evolution models
       (e.g. Stevenson 2003, Nimmo 2015) solve coupled energy-balance ODEs for core heat flux,
       inner-core growth rate, and mantle cooling.</p>
@@ -2846,7 +2894,7 @@ function buildDivergences() {
     item(
       "Magnetic Field: Three-Phase Convective Boost (WS-derived)",
       `<p>The ${iq("C_b(s_f)")} function with its phase boundaries (0.5, 0.85) and exponential
-      decay constant (&minus;2.5) is a WorldSmith parameterisation. Published inner-core dynamo models
+      decay constant (&minus;2.5) is a Caelum parameterisation. Published inner-core dynamo models
       (Aubert 2009, Davies 2015) show the compositional convection peak but don&rsquo;t provide an
       analytic formula.</p>
       <p><b>Why diverge?</b> The three phases are physically motivated: (1) growing inner core
@@ -2859,7 +2907,7 @@ function buildDivergences() {
     item(
       "Magnetic Field: Dipolar Limit Scaling (Simplified)",
       `<p>The dipolar limit ${iq("P_{\\text{dip}} = 96 \\cdot \\sqrt{M} \\cdot \\sqrt{\\text{CMF}/0.33}")}
-      hours is a WorldSmith proxy for the local Rossby number. Published dynamo simulations
+      hours is a Caelum proxy for the local Rossby number. Published dynamo simulations
       (Christensen &amp; Aubert 2006) define the dipolar&ndash;multipolar transition at ${iq("Ro_l \\approx 0.12")},
       which depends on convective velocity, core shell thickness, and rotation rate.</p>
       <p><b>Why diverge?</b> Computing the local Rossby number requires knowing the convective
@@ -2890,12 +2938,12 @@ function buildDivergences() {
       the hydrostatic equation. The square-root approximation gives Earth CRF = 0.57 vs. observed
       0.545 (5% error) and scales correctly with CMF for other planets. The error is systematic
       (slight overestimate) and consistent across the rocky-planet mass range.</p>
-      ${cite("Zeng, L. &amp; Jacobsen, S. (2017). Approximation: WorldSmith simplification.")}`,
+      ${cite("Zeng, L. &amp; Jacobsen, S. (2017). Approximation: Caelum simplification.")}`,
     ),
 
     item(
       "Water-Radius Inflation: Linear Interpolation (Simplified)",
-      `<p>WorldSmith linearly interpolates between the Zeng dry curve (${iq("R = 1.00\\,M^{0.270}")})
+      `<p>Caelum linearly interpolates between the Zeng dry curve (${iq("R = 1.00\\,M^{0.270}")})
       and the 50%-water curve (${iq("R = 1.38\\,M^{0.263}")}) using ${iq("\\text{WMF}/0.5")} as the
       blend factor. Zeng &amp; Sasselov (2016) provide discrete curves at specific water fractions,
       not a continuous interpolation scheme.</p>
@@ -2919,16 +2967,16 @@ function buildDivergences() {
 
     item(
       "Tectonic Regime Probabilities (WS-derived)",
-      `<p>The entire five-factor multiplicative model for tectonic regime probabilities is a WorldSmith
+      `<p>The entire five-factor multiplicative model for tectonic regime probabilities is a Caelum
       construction. No published paper provides a quantitative probability distribution over
       tectonic regimes as a function of mass, age, water, CMF, and tidal heating.</p>
       <p><b>Why diverge?</b> The science of exoplanet tectonics is genuinely unsettled.
       Valencia et al. (2007) argue that super-Earths should have plate tectonics;
       O&rsquo;Neill &amp; Lenardic (2007) argue the opposite. Noack &amp; Breuer (2014) show
-      strong sensitivity to initial conditions. WorldSmith synthesises these qualitative findings
+      strong sensitivity to initial conditions. Caelum synthesises these qualitative findings
       into a quantitative prior that helps worldbuilders, but the specific Gaussian widths, peak
       positions, and multiplicative structure are heuristic.</p>
-      ${cite("Qualitative basis: Valencia et al. (2007), O'Neill &amp; Lenardic (2007), Noack &amp; Breuer (2014), Korenaga (2010). Quantitative model: WorldSmith.")}`,
+      ${cite("Qualitative basis: Valencia et al. (2007), O'Neill &amp; Lenardic (2007), Noack &amp; Breuer (2014), Korenaga (2010). Quantitative model: Caelum.")}`,
     ),
 
     item(
@@ -2938,7 +2986,7 @@ function buildDivergences() {
       Kopparapu et al. (2013/2014) coefficients. The polynomial coefficients differ slightly
       from the published values.</p>
       <p><b>Why diverge?</b> The original Kopparapu polynomials use actual stellar effective
-      temperature as input. WorldSmith derives Teff from mass, introducing a proxy step.
+      temperature as input. Caelum derives Teff from mass, introducing a proxy step.
       The Chromant correction adjusts the polynomial coefficients to compensate for this
       proxy and improve agreement across the 0.1&ndash;2 M&#9737; range where the mass-Teff
       relation deviates from the simple power law.</p>`,
@@ -2947,7 +2995,7 @@ function buildDivergences() {
     item(
       "Atmospheric Tide Calibration Constant C = 12 (WS-derived)",
       `<p>The dimensionless constant ${iq("C = 12")} in the atmospheric tide ratio
-      ${iq("b = C \\cdot P_s \\cdot S / (g \\cdot T_{\\text{eq}})")} is a WorldSmith calibration.</p>
+      ${iq("b = C \\cdot P_s \\cdot S / (g \\cdot T_{\\text{eq}})")} is a Caelum calibration.</p>
       <p><b>Why diverge?</b> Published atmospheric tide models (Leconte et al. 2015, Ingersoll &amp;
       Dobrovolskis 1978) derive torque from thermal tide amplitude, which depends on atmospheric
       structure. The constant C = 12 is calibrated so Venus (92 atm, S &approx; 1.9, g &approx; 8.8,
@@ -2958,10 +3006,10 @@ function buildDivergences() {
     item(
       "Planet Composition-Dependent Rigidity and Q (WS-derived)",
       `<p>The functions for planet tidal rigidity (${iq("\\mu")}) and quality factor (${iq("Q")})
-      as continuous functions of CMF and WMF are WorldSmith parameterisations. Published values
+      as continuous functions of CMF and WMF are Caelum parameterisations. Published values
       exist only for specific bodies (Earth: ${iq("\\mu")} &approx; 80 GPa mantle + 160 GPa core averaged,
       Q &approx; 12&ndash;280 frequency-dependent).</p>
-      <p><b>Why diverge?</b> WorldSmith needs a continuous function for arbitrary compositions.
+      <p><b>Why diverge?</b> Caelum needs a continuous function for arbitrary compositions.
       The base values (rock 30 GPa, iron boost 50 GPa above CMF 0.33, ice 3.5 GPa) are
       literature anchor points. The CMF-dependent Q (12 + 70&times;max(0, CMF&minus;0.2)) interpolates
       between low-Q rocky mantles and high-Q iron-rich interiors, consistent with the observation
@@ -2971,7 +3019,7 @@ function buildDivergences() {
     item(
       "Moon Composition Overrides: Io and Enceladus (WS-derived)",
       `<p>The &ldquo;Partially molten&rdquo; (${iq("\\mu")} = 10 GPa, Q = 10) and &ldquo;Subsurface ocean&rdquo;
-      (${iq("\\mu")} = 0.3 GPa, Q = 2) composition classes are WorldSmith calibrations that override
+      (${iq("\\mu")} = 0.3 GPa, Q = 2) composition classes are Caelum calibrations that override
       the density-based lookup.</p>
       <p><b>Why diverge?</b> Bulk density is a reliable proxy for cold, geologically quiet moons
       but fails dramatically for extreme interiors. Without overrides, Io&rsquo;s heating is
@@ -3001,25 +3049,25 @@ function buildDivergences() {
       simplified version captures the dominant trend: higher stellar [Fe/H] &rarr; higher Fe/Mg
       &rarr; higher CMF. It reproduces the key result that ~75% of observed rocky exoplanets
       have CMFs consistent with their host star&rsquo;s metallicity.</p>
-      ${cite("Schulze, J. et al. (2021), PSJ 2, 113. Simplification: WorldSmith.")}`,
+      ${cite("Schulze, J. et al. (2021), PSJ 2, 113. Simplification: Caelum.")}`,
     ),
 
     item(
       "Vegetation Colour Extrapolation (Simplified)",
       `<p>PanoptesV provides pre-computed vegetation colours at 1, 3, and 10 atm for spectral
-      classes A0&ndash;M8. WorldSmith extrapolates below 1 atm and above 10 atm with 50% dampening,
+      classes A0&ndash;M8. Caelum extrapolates below 1 atm and above 10 atm with 50% dampening,
       which has no published basis.</p>
       <p><b>Why diverge?</b> No published model provides vegetation colours outside the 1&ndash;10 atm
       range. The 50% dampening is a conservative choice: physically, Rayleigh scattering effects
       should diminish below 1 atm and saturate above 10 atm, but the rate of change is unknown.
       Dampening prevents unphysical extrapolation artefacts.</p>
-      ${cite("LUT data: PanoptesV (panoptesv.com/SciFi). Extrapolation: WorldSmith.")}`,
+      ${cite("LUT data: PanoptesV (panoptesv.com/SciFi). Extrapolation: Caelum.")}`,
     ),
 
     item(
       "Spin-Orbit Resonance Capture Thresholds (Simplified)",
       `<p>The thresholds for resonance capture (H &gt; 0.25 for 3:2, H &gt; 0.5 for 2:1 and 5:2)
-      are WorldSmith choices. Goldreich &amp; Peale (1966) derive capture probabilities that depend
+      are Caelum choices. Goldreich &amp; Peale (1966) derive capture probabilities that depend
       on the tidal dissipation rate and the approach trajectory, not just the eccentricity
       function amplitude.</p>
       <p><b>Why diverge?</b> Full capture probability computation requires integrating the
@@ -3027,7 +3075,7 @@ function buildDivergences() {
       The threshold approach gives the correct qualitative result: Mercury (e = 0.206) captures
       into 3:2, and higher eccentricities enable higher-order resonances. The specific threshold
       values are order-of-magnitude estimates.</p>
-      ${cite("Goldreich, P. &amp; Peale, S. (1966), AJ 71, 425. Thresholds: WorldSmith simplification.")}`,
+      ${cite("Goldreich, P. &amp; Peale, S. (1966), AJ 71, 425. Thresholds: Caelum simplification.")}`,
     ),
 
     item(
@@ -3038,7 +3086,7 @@ function buildDivergences() {
       <p><b>Why diverge?</b> The binning provides a tractable lookup table that captures the dominant
       trends: cooler stars flare more frequently, younger stars flare more frequently. Interpolation
       within bins was considered but rejected because the published uncertainties (factors of 2&ndash;5)
-      are larger than the binning error. The specific N&#8323;&#8322; values within each bin are WorldSmith
+      are larger than the binning error. The specific N&#8323;&#8322; values within each bin are Caelum
       estimates informed by the TESS statistics.</p>`,
     ),
 
@@ -3131,13 +3179,13 @@ function buildDivergences() {
     item(
       "Ocean Subsidence Intersection Constant (WS-modified)",
       `<p>The plate-model intersection amplitude uses 3,073 m instead of Parsons &amp; Sclater&rsquo;s
-      published 3,200 m. This is a WorldSmith hybrid calibration chosen so the half-space and
+      published 3,200 m. This is a Caelum hybrid calibration chosen so the half-space and
       plate-model regimes intersect smoothly at 20 Myr.</p>
       <p><b>Why diverge?</b> The original PSM (1977) constants were derived independently for each
       regime. A strict join at 20 Myr with the published 3,200 m amplitude produces a ~50 m
       discontinuity. The adjusted value 3,073 eliminates this artefact while staying within
       the published uncertainty range.</p>
-      ${cite("Parsons &amp; Sclater (1977), JGR 82, 803. Adjustment: WorldSmith calibration.")}`,
+      ${cite("Parsons &amp; Sclater (1977), JGR 82, 803. Adjustment: Caelum calibration.")}`,
     ),
 
     item(
@@ -3173,7 +3221,7 @@ function buildDivergences() {
       combines internal and absorbed stellar flux as
       ${iq("T_{\\text{eff}}^4 = T_{\\text{eq}}^4 + T_{\\text{int}}^4")}.</p>
       <p><b>Why diverge?</b> Full gas-giant cooling tracks require detailed interior composition,
-      helium rain, layered convection, equations of state, and initial entropy. WorldSmith uses a
+      helium rain, layered convection, equations of state, and initial entropy. Caelum uses a
       disclosed proxy so arbitrary giants can be compared consistently. Solar System giants are
       benchmark anchors, not object-specific weights, and non-Solar transiting giants are kept in
       the calibration suite to guard against Sol-system overfitting.</p>`,
@@ -3182,7 +3230,7 @@ function buildDivergences() {
     item(
       "Gas Giant Ring Mass Gaussian Model (WS-derived)",
       `<p>The ring mass model ${iq("M_{\\text{ring}} = 3 \\times 10^{19} \\, e^{-0.5(M/M_J - 1)^2}")} kg
-      with Gaussian optical depth is a WorldSmith parameterisation. Published ring models focus on
+      with Gaussian optical depth is a Caelum parameterisation. Published ring models focus on
       dynamics and structure of known ring systems, not on predicting ring properties from planet mass.</p>
       <p><b>Why diverge?</b> Ring formation and evolution depend on satellite disruption history,
       meteoroid bombardment, and viscous spreading&mdash;processes too complex for a parametric model.
@@ -3204,7 +3252,7 @@ function buildDivergences() {
     item(
       "Population Tech Era Density/Growth Tables (WS-derived)",
       `<p>The population density and growth rate values for each technological era (Hunter-Gatherer
-      through Sci-Fi High) are WorldSmith estimates. Published historical demography provides data
+      through Sci-Fi High) are Caelum estimates. Published historical demography provides data
       for Earth&rsquo;s specific trajectory, not generic per-era densities.</p>
       <p><b>Why diverge?</b> Earth&rsquo;s population history is a single data point shaped by
       geography, disease, and culture. The era-based table provides plausible defaults for
@@ -3216,7 +3264,7 @@ function buildDivergences() {
     item(
       "Climate Moisture Index Zone Model (WS-derived)",
       `<p>The three-zone moisture model (tropical Hadley: 0.9, midlatitude Ferrel: 0.5, polar: 0.2)
-      with transitions at 30&deg; and 60&deg; latitude is a WorldSmith simplification. Published
+      with transitions at 30&deg; and 60&deg; latitude is a Caelum simplification. Published
       climate models compute precipitation from GCM-resolved atmospheric dynamics.</p>
       <p><b>Why diverge?</b> Running a GCM is not feasible in real time. The three-zone model
       captures the first-order pattern: ITCZ convergence drives tropical rainfall, subtropical
@@ -3227,7 +3275,7 @@ function buildDivergences() {
     item(
       "Climate Tidally-Locked Temperature Model (WS-derived)",
       `<p>The substellar/terminator/antistellar temperature model with redistribution efficiency
-      ${iq("\\varepsilon")} is a WorldSmith parameterisation. Published tidally locked climate models
+      ${iq("\\varepsilon")} is a Caelum parameterisation. Published tidally locked climate models
       (e.g. Pierrehumbert 2011, Leconte et al. 2013) use 3D GCMs that resolve atmospheric heat
       transport.</p>
       <p><b>Why diverge?</b> The analytic model provides instant temperature estimates for the
@@ -3250,7 +3298,7 @@ function buildSystemArchitecture() {
     formula(
       "Host Frames (S-Type and P-Type)",
       `<div class="sci-formula__eq">${eq("\\text{host frame} \\in \\{\\text{star} \\Rightarrow \\text{S-type},\\; \\text{pair} \\Rightarrow \\text{P-type}\\}")}</div>
-      <p>WorldSmith resolves planetary architectures from a stellar hierarchy tree. A <b>star node</b> creates a circumstellar <b>S-type</b> host frame around one star. A <b>pair node</b> creates a circumbinary or barycentric <b>P-type</b> host frame around a bound stellar pair.</p>
+      <p>Caelum resolves planetary architectures from a stellar hierarchy tree. A <b>star node</b> creates a circumstellar <b>S-type</b> host frame around one star. A <b>pair node</b> creates a circumbinary or barycentric <b>P-type</b> host frame around a bound stellar pair.</p>
       <p>Each host frame gets its own orbit ladder, habitable zone, frost line, visible companion forcing, and stability envelope. In triples and quads, the active frame is taken from the selected star or pair node inside the hierarchical topology.</p>
       <p>This is why the same planetary semi-major axis can be viable in one host frame and unstable in another: the selected frame changes which stars count as the local host and which count as outer companions.</p>`,
     ),
@@ -3265,12 +3313,12 @@ function buildSystemArchitecture() {
       "System Inner Limit (Roche)",
       `<div class="sci-formula__eq">${eq("d_{\\text{inner}} = \\frac{2.455 \\cdot R_\\star \\cdot (\\rho_\\star / 5400)^{1/3}}{1 \\text{ AU}}")}</div>
       <p>Fluid Roche limit for the closest orbit a body can occupy without tidal disruption. Reference density 5,400 kg/m&sup3;.</p>
-      <p>WorldSmith also reuses Roche-limit logic inside the ring-science pipeline. In rocky-world auto mode, rings only appear when an assigned moon&rsquo;s current periapsis crosses the rocky Roche limit, turning the disrupted-moon case into a visible ring source rather than a stable moon orbit.</p>`,
+      <p>Caelum also reuses Roche-limit logic inside the ring-science pipeline. In rocky-world auto mode, rings only appear when an assigned moon&rsquo;s current periapsis crosses the rocky Roche limit, turning the disrupted-moon case into a visible ring source rather than a stable moon orbit.</p>`,
     ),
 
     formula(
       "Binary Stability Limits (Holman-Wiegert)",
-      `<p>For binary systems, WorldSmith uses Holman &amp; Wiegert (1999) style empirical critical radii to decide whether an orbit stays comfortably stable in an S-type or P-type frame.</p>
+      `<p>For binary systems, Caelum uses Holman &amp; Wiegert (1999) style empirical critical radii to decide whether an orbit stays comfortably stable in an S-type or P-type frame.</p>
       <div class="sci-formula__eq">${eq("a_{\\text{c,S}} = \\bigl(0.464 - 0.380\\mu - 0.631e + 0.586\\mu e + 0.150e^2 - 0.198\\mu e^2\\bigr)\\,a_{\\text{bin}}")}</div>
       <div class="sci-formula__eq">${eq("a_{\\text{c,P}} = \\bigl(1.60 + 5.10e - 2.22e^2 + 4.12\\mu - 4.27\\mu e - 5.09\\mu^2 + 4.61\\mu^2 e^2\\bigr)\\,a_{\\text{bin}}")}</div>
       ${vars([
@@ -3280,7 +3328,7 @@ function buildSystemArchitecture() {
         ["e", "binary eccentricity"],
         ["\\mu", "companion mass fraction = M_2 / (M_1 + M_2)"],
       ])}
-      <p>WorldSmith also carries simple disk-edge companions to these limits: circumstellar disk truncation ${iq("a_{\\text{disk,S}} \\approx 0.3\\,a_{\\text{bin}}(1-e)")} and circumbinary inner clearing ${iq("a_{\\text{disk,P}} \\approx 2\\,a_{\\text{bin}}(1+e)")}. These are used to explain why some host frames have narrow or heavily truncated orbit families.</p>
+      <p>Caelum also carries simple disk-edge companions to these limits: circumstellar disk truncation ${iq("a_{\\text{disk,S}} \\approx 0.3\\,a_{\\text{bin}}(1-e)")} and circumbinary inner clearing ${iq("a_{\\text{disk,P}} \\approx 2\\,a_{\\text{bin}}(1+e)")}. These are used to explain why some host frames have narrow or heavily truncated orbit families.</p>
       ${cite("Holman &amp; Wiegert (1999), AJ 117, 621; Artymowicz &amp; Lubow (1994), ApJ 421, 651")}`,
     ),
 
@@ -3288,7 +3336,7 @@ function buildSystemArchitecture() {
       "Companion Flux and Habitable-Zone Shift",
       `<p>Outer companion stars are sampled across their hierarchy orbits and their mean visible-light forcing is added to the active host frame as an extra heating term:</p>
       <div class="sci-formula__eq">${eq("S_{\\text{comp}} = \\sum_i \\frac{L_i}{d_i^2}")}</div>
-      <p>WorldSmith then shifts the host frame&rsquo;s habitable-zone bounds by subtracting that companion flux from the required stellar-flux threshold:</p>
+      <p>Caelum then shifts the host frame&rsquo;s habitable-zone bounds by subtracting that companion flux from the required stellar-flux threshold:</p>
       <div class="sci-formula__eq">${eq("d' = \\sqrt{\\frac{L_{\\text{host}}}{S_{\\text{eff}} - S_{\\text{comp}}}}")}</div>
       ${vars([
         ["S_{\\text{comp}}", "mean companion visible flux in Earth-flux units"],
@@ -3298,22 +3346,22 @@ function buildSystemArchitecture() {
         ["S_{\\text{eff}}", "required habitable-zone effective flux threshold"],
       ])}
       <p>Numerically, the same companion flux also shifts the effective frost-line context because the selected host frame sees more total radiative power than the local star or pair alone.</p>
-      ${cite("WorldSmith hierarchical host-frame flux model in engine/homeSystem/flux.js")}`,
+      ${cite("Caelum hierarchical host-frame flux model in engine/homeSystem/flux.js")}`,
     ),
 
     formula(
       "Hierarchical Guardrail for Triples and Quads",
-      `<p>For nested triples and quads, WorldSmith uses a Mardling-Aarseth style separation floor so outer branches do not crowd inner pairs:</p>
+      `<p>For nested triples and quads, Caelum uses a Mardling-Aarseth style separation floor so outer branches do not crowd inner pairs:</p>
       <div class="sci-formula__eq">${eq("a_{\\text{out,min}} \\approx a_{\\text{in}} \\cdot \\frac{2.8\\,(1+q_{\\text{out}})^{2/5}(1+e_{\\text{out}})^{2/5}}{(1-e_{\\text{out}})^{6/5}} \\cdot f_i")}</div>
       ${vars([
         ["a_{\\text{in}}", "inner pair semi-major axis"],
         ["a_{\\text{out,min}}", "recommended minimum outer semi-major axis"],
         ["q_{\\text{out}}", "outer companion-to-inner-system mass ratio"],
         ["e_{\\text{out}}", "outer eccentricity"],
-        ["f_i", "inclination factor used by WorldSmith (0.7&ndash;1.0)"],
+        ["f_i", "inclination factor used by Caelum (0.7&ndash;1.0)"],
       ])}
       <p>The Star page guardrail summary labels layouts as <b>Good</b>, <b>Caution</b>, <b>Unstable</b>, or <b>Blocked</b> by comparing the chosen outer orbit against this threshold and against the simpler periapsis-versus-apocentre overlap test.</p>
-      ${cite("Mardling &amp; Aarseth (2001), MNRAS 321, 398; WorldSmith hierarchy guardrails in engine/homeSystem/stability.js")}`,
+      ${cite("Mardling &amp; Aarseth (2001), MNRAS 321, 398; Caelum hierarchy guardrails in engine/homeSystem/stability.js")}`,
     ),
   ].join("");
 }
@@ -3644,7 +3692,7 @@ export function initSciencePage(mountEl) {
           <span class="sci-section__title">${s.title}</span>
           <span class="sci-section__count">${s.count} equations</span>
         </summary>
-        <div class="sci-section__body">${s.builder()}</div>
+        <div class="sci-section__body">${relatedAppPagesHtml(s.id)}${s.builder()}</div>
       </details>`,
   ).join("");
 
@@ -3658,11 +3706,11 @@ export function initSciencePage(mountEl) {
         <div class="badge">Reference</div>
       </div>
       <div class="panel__body">
-        <p>Every calculation in WorldSmith is grounded in published astrophysical
+        <p>Every calculation in Caelum is grounded in published astrophysical
         research. This page documents the formulas, models, and algorithms used
         by the engine, with citations to the original papers. The final section,
         <em>Divergences from Published Science</em>, documents every place where
-        WorldSmith uses its own empirical fits or simplifications.</p>
+        Caelum uses its own empirical fits or simplifications.</p>
         <div class="science-validation-link">
           <a class="validation-action validation-action--accent" href="#/validation">Open Validation Matrix</a>
           <span>Review benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, and release gates.</span>
@@ -3685,10 +3733,15 @@ export function initSciencePage(mountEl) {
           ></div>
           <div id="sciencePageSearchResults" class="sci-search__results" hidden></div>
         </div>
-        <div class="sci-toc">${tocHtml}</div>
       </div>
     </div>
-    <div class="sci-sections">${sectionsHtml}</div>
+    <div class="sci-reference-layout">
+      <aside class="sci-local-nav" aria-label="Science topics">
+        <div class="sci-local-nav__label">Topics</div>
+        <div class="sci-toc">${tocHtml}</div>
+      </aside>
+      <div class="sci-sections">${sectionsHtml}</div>
+    </div>
   `;
 
   mountEl.innerHTML = "";

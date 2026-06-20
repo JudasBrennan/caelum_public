@@ -317,7 +317,7 @@ export function validateEnvelope(obj) {
     (normalizedWorld.moon && typeof normalizedWorld.moon === "object") ||
     Number.isFinite(Number(normalizedWorld.version));
   if (!hasKnownWorldSection) {
-    errors.push("Import JSON is not a recognised WorldSmith world format.");
+    errors.push("Import JSON is not a recognised Caelum or WorldSmith-format world.");
   }
 
   if (

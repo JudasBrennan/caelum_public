@@ -62,6 +62,12 @@ import {
 } from "./calendar/renderHelpers.js";
 import { createCalendarRuleEditorFlows } from "./calendar/ruleEditorFlows.js";
 import { createCalendarRenderSnapshotReader } from "./calendar/renderSnapshot.js";
+import {
+  applyCalendarTaskViewState,
+  bindCalendarTaskNavigation,
+  buildCalendarTaskOverviewHtml,
+  installCalendarPreviewSection,
+} from "./calendar/taskView.js";
 import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import {
   analyzeHolidayRelativeIssues,
@@ -282,6 +288,7 @@ const TIPS = {
     "Import/export calendar settings only. Use this to move calendar rules between worlds without changing star/system/planet/moon data.",
   "Output & Utility section":
     "Open printable browser views, export ICS files for external apps, and control optional astronomy markers shown on the calendar.",
+  "Toggle task panel": "Show or hide the Calendar task panel.",
   "Astronomy markers": "Enable optional astronomy markers in month views and exports.",
   "Season markers":
     "Mark quarter-year seasonal anchors: vernal equinox, summer solstice, autumn equinox, winter solstice.",
@@ -2439,7 +2446,7 @@ export function initCalendarPage(mountEl) {
           "Choose or create a profile, sync from the selected planet and moons, then shape the rules and outputs.",
         compact: true,
         detailsTitle: "Calendar workflow context",
-        detailsSummary: "Profiles, structure rules, events, and exports stay calendar-scoped.",
+        detailsSummary: "Profiles, source bodies, rules, and exports.",
       },
     )}<div id="calProfileSummaryPanel" class="context-summary context-summary--compact calendar-profile-summary" aria-label="Active calendar profile summary"><div class="context-summary__header"><div><div class="context-summary__title">Active Profile Summary</div><div id="calProfileSummaryCopy" class="context-summary__copy"></div></div></div><div id="calProfileSummaryGrid" class="context-summary__grid context-summary__grid--compact"></div><div id="calProfileSummaryNotes" class="context-summary__notes"></div></div></div></div>
     <div class="calendar-workspace">
@@ -2457,19 +2464,23 @@ export function initCalendarPage(mountEl) {
           <button id="calNextMonth" type="button" class="calendar-toolbar__btn" data-tip="${esc(TIPS["Next month"] || "")}">\u2192</button>
         </div>
         <div class="calendar-toolbar__right">
-          <button id="calDrawerToggle" type="button" class="calendar-toolbar__btn" data-tip="${esc(TIPS["Toggle settings"] || "")}" aria-label="Toggle settings">\u276E</button>
+          <button id="calDrawerToggle" type="button" class="calendar-toolbar__btn" data-tip="${esc(TIPS["Toggle task panel"] || "")}" aria-label="Toggle task panel">\u276E</button>
           <button id="calOpenDetail" type="button" class="calendar-toolbar__btn" data-tip="${esc(TIPS["Open detailed view"] || "")}">Detailed Calendar</button>
         </div>
       </div>
       <div class="calendar-drawer" id="calDrawer">
-        <div class="calendar-drawer__tabs">
-          <button type="button" class="calendar-drawer__tab is-active" data-drawer-tab="structure">Structure</button>
-          <button type="button" class="calendar-drawer__tab" data-drawer-tab="identity">Identity</button>
-          <button type="button" class="calendar-drawer__tab" data-drawer-tab="rules">Rules</button>
-          <button type="button" class="calendar-drawer__tab" data-drawer-tab="output">Output</button>
+        <div class="calendar-drawer__tabs" role="tablist" aria-label="Calendar tasks">
+          <button type="button" class="calendar-drawer__tab is-active" data-drawer-tab="overview" role="tab">Overview</button>
+          <button type="button" class="calendar-drawer__tab" data-drawer-tab="structure" role="tab">Structure</button>
+          <button type="button" class="calendar-drawer__tab" data-drawer-tab="events" role="tab">Events</button>
+          <button type="button" class="calendar-drawer__tab" data-drawer-tab="preview" role="tab">Preview</button>
+          <button type="button" class="calendar-drawer__tab" data-drawer-tab="export" role="tab">Export</button>
         </div>
         <div class="calendar-drawer__body">
-        <section data-drawer-section="structure" class="calendar-drawer__section">
+        <section data-drawer-section="overview" class="calendar-drawer__section">
+          ${buildCalendarTaskOverviewHtml()}
+        </section>
+        <section data-drawer-section="structure" class="calendar-drawer__section" hidden>
         <div class="panel"><div class="panel__header"><h2>Inputs</h2></div><div class="panel__body">
           <div class="form-row"><div><div class="label">Reference body ${tipIcon(TIPS["Reference body"] || "")}</div></div><select id="calSourcePlanet"></select></div>
           <div class="form-row"><div><div class="label">Primary phase cycle ${tipIcon(TIPS["Primary phase cycle"] || "")}</div></div><select id="calPrimaryMoon"></select></div>
@@ -2490,7 +2501,7 @@ export function initCalendarPage(mountEl) {
           <div class="button-row"><button id="calUseSelected" type="button" data-tip="${esc(TIPS["Use selected objects"] || "")}">Use selected objects</button></div>
         </div></div>
         </section>
-        <section data-drawer-section="identity" class="calendar-drawer__section" hidden>
+        <section data-drawer-section="structure" class="calendar-drawer__section" hidden>
         <div class="panel"><div class="panel__header"><h2>Calendar Designer</h2><div class="calendar-section-info">${tipIcon(TIPS["Calendar Designer section"] || "")}</div></div><div class="panel__body">
           <div class="form-row"><div><div class="label">Calendar name ${tipIcon(TIPS["Calendar name"] || "")}</div></div><input id="calCalendarName" type="text" /></div>
           <div class="form-row"><div><div class="label">Start day of year ${tipIcon(TIPS["Start day of year"] || "")}</div></div><select id="calStartDay"></select></div>
@@ -2519,7 +2530,7 @@ export function initCalendarPage(mountEl) {
           <div class="button-row"><button id="calResetNames" type="button" data-tip="${esc(TIPS["Reset names"] || "")}">Reset names</button></div>
         </div></div>
         </section>
-        <section data-drawer-section="output" class="calendar-drawer__section" hidden>
+        <section data-drawer-section="export" class="calendar-drawer__section" hidden>
         <div class="panel"><div class="panel__header"><h2>Calendar Data</h2><div class="calendar-section-info">${tipIcon(TIPS["Calendar Data section"] || "")}</div></div><div class="panel__body">
           <div class="hint" id="calOutputScopeHint">Calendar JSON here is profile-only. It updates calendar settings without replacing star, planet, moon, or world-generation data.</div>
           <div style="height:10px"></div>
@@ -2564,7 +2575,7 @@ export function initCalendarPage(mountEl) {
           <div id="calOutputStatus" class="io-status" data-kind="info"></div>
         </div></div>
         </section>
-        <section data-drawer-section="rules" class="calendar-drawer__section" hidden>
+        <section data-drawer-section="events" class="calendar-drawer__section" hidden>
         <div class="calendar-drawer__subtabs">
           <button class="calendar-drawer__subtab is-active" data-rules-tab="holidays">Holidays</button>
           <button class="calendar-drawer__subtab" data-rules-tab="festivals">Festivals</button>
@@ -2727,6 +2738,7 @@ export function initCalendarPage(mountEl) {
 
   `;
   mountEl.appendChild(wrap);
+  installCalendarPreviewSection(wrap);
   attachTooltips(wrap);
 
   const els = collectCalendarPageElements(wrap);
@@ -2844,30 +2856,13 @@ export function initCalendarPage(mountEl) {
   const workspaceEl = wrap.querySelector(".calendar-workspace");
 
   function applyDrawerState() {
-    const open = !!state.ui.drawerOpen;
-    if (workspaceEl) workspaceEl.classList.toggle("drawer-open", open);
-    if (drawerEl) drawerEl.classList.toggle("is-hidden", !open);
-    els.drawerToggle?.classList.toggle("is-active", open);
-    if (els.drawerToggle) els.drawerToggle.textContent = open ? "\u276E" : "\u276F";
-    const tabs = wrap.querySelectorAll("[data-drawer-tab]");
-    for (const tab of tabs) {
-      tab.classList.toggle("is-active", tab.dataset.drawerTab === state.ui.drawerSection);
-    }
-    const sections = wrap.querySelectorAll("[data-drawer-section]");
-    for (const section of sections) {
-      section.hidden = section.dataset.drawerSection !== state.ui.drawerSection;
-    }
-    const subtabs = wrap.querySelectorAll("[data-rules-tab]");
-    for (const st of subtabs) {
-      st.classList.toggle("is-active", st.dataset.rulesTab === state.ui.rulesTab);
-    }
-    const ruleSections = wrap.querySelectorAll("[data-rules-section]");
-    for (const rs of ruleSections) {
-      rs.hidden = rs.dataset.rulesSection !== state.ui.rulesTab;
-    }
-    const backdrop = wrap.querySelector("#calDrawerBackdrop");
-    const narrow = typeof window !== "undefined" && window.innerWidth <= 1200;
-    if (backdrop) backdrop.classList.toggle("is-visible", open && narrow);
+    applyCalendarTaskViewState({
+      state,
+      wrap,
+      workspaceEl,
+      drawerEl,
+      drawerToggle: els.drawerToggle,
+    });
   }
 
   function setJsonStatus(msg, kind = "info") {
@@ -3449,9 +3444,9 @@ export function initCalendarPage(mountEl) {
         `${ctx.moonDefs.length} phase reference${ctx.moonDefs.length === 1 ? "" : "s"} available`,
       ),
       createContextSummaryCard(
-        "Rules",
+        "Events",
         ruleCountsText,
-        "Open the Rules drawer tab for holiday, festival, leap, intercalary, and cycle editing.",
+        "Open the Events task for holiday, festival, leap, intercalary, and cycle editing.",
       ),
       createContextSummaryCard(
         "Output Scope",
@@ -3460,10 +3455,6 @@ export function initCalendarPage(mountEl) {
       ),
     );
     els.profileSummaryNotes.replaceChildren(
-      createElement("div", { className: "context-summary__note" }, [
-        createElement("strong", { text: "Import/export scope. " }),
-        "Calendar JSON here is profile-only. Use the Import/Export route when you want to replace or transfer an entire world instead.",
-      ]),
       createElement("details", { className: "context-summary__details" }, [
         createElement("summary", { text: "Rule order" }),
         createElement("div", { className: "context-summary__note" }, [
@@ -3938,13 +3929,7 @@ export function initCalendarPage(mountEl) {
     applyDrawerState();
     persistState(state);
   });
-  wrap.querySelector(".calendar-drawer__tabs")?.addEventListener("click", (e) => {
-    const tab = e.target.closest("[data-drawer-tab]");
-    if (!tab) return;
-    state.ui.drawerSection = tab.dataset.drawerTab;
-    applyDrawerState();
-    persistState(state);
-  });
+  bindCalendarTaskNavigation(wrap, { state, applyDrawerState, persistState });
   wrap.querySelector(".calendar-drawer__subtabs")?.addEventListener("click", (e) => {
     const st = e.target.closest("[data-rules-tab]");
     if (!st) return;

@@ -5,6 +5,7 @@ import {
   replaceChildren,
   replaceSelectOptions,
 } from "../domHelpers.js";
+import { createEmptyState } from "../workflow/emptyState.js";
 import { buildBodySelectorOptionGroups, buildBodySelectorOptions } from "./bodySelector.js";
 
 function tipIconNode(text) {
@@ -381,39 +382,24 @@ export function renderPlanetEmptyState(
   } = {},
 ) {
   replaceChildren(container, [
-    createElement(
-      "section",
-      {
-        className: "planet-empty-state",
-        attrs: {
-          id: "planetEmptyState",
-          "aria-label": "Planet output empty state",
+    createEmptyState({
+      id: "planetEmptyState",
+      className: "planet-empty-state",
+      ariaLabel: "Planet output empty state",
+      eyebrow: "Outputs",
+      title,
+      body,
+      actions: [
+        {
+          label: "New rocky planet",
+          className: "primary",
+          dataset: { planetEmptyAction: "new-rocky" },
+          primary: true,
         },
-      },
-      [
-        createElement("div", { className: "planet-empty-state__eyebrow", text: "Outputs" }),
-        createElement("h3", { className: "planet-empty-state__title", text: title }),
-        createElement("p", { className: "planet-empty-state__body", text: body }),
-        createElement("div", { className: "planet-empty-state__actions" }, [
-          createElement("button", {
-            className: "primary",
-            attrs: { type: "button" },
-            dataset: { planetEmptyAction: "new-rocky" },
-            text: "New rocky planet",
-          }),
-          createElement("button", {
-            attrs: { type: "button" },
-            dataset: { planetEmptyAction: "new-gas-giant" },
-            text: "New gas giant",
-          }),
-          createElement("button", {
-            attrs: { type: "button" },
-            dataset: { planetEmptyAction: "guided-rocky" },
-            text: guidedLabel,
-          }),
-        ]),
+        { label: "New gas giant", dataset: { planetEmptyAction: "new-gas-giant" } },
+        { label: guidedLabel, dataset: { planetEmptyAction: "guided-rocky" } },
       ],
-    ),
+    }),
   ]);
   return container;
 }
@@ -580,7 +566,7 @@ export function createVegetationInfoOverlay({
             paragraphNode([
               "PanoptesV does not provide data above 10 atm. For pressures from ",
               createElement("strong", { text: "10 to 100 atm" }),
-              ", WorldSmith continues the 3→10 atm colour trend in OKLab space with ",
+              ", Caelum continues the 3→10 atm colour trend in OKLab space with ",
               createElement("strong", { text: "50% dampening" }),
               ".",
             ]),
@@ -598,7 +584,7 @@ export function createVegetationInfoOverlay({
           paragraphNode([
             "PanoptesV does not provide data below 1 atm. For pressures from ",
             createElement("strong", { text: "0.01 to 1 atm" }),
-            ", WorldSmith reverses the 1→3 atm colour trend in OKLab space with ",
+            ", Caelum reverses the 1→3 atm colour trend in OKLab space with ",
             createElement("strong", { text: "50% dampening" }),
             ".",
           ]),

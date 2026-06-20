@@ -50,7 +50,7 @@ export function createCalendarExportEnvelope(state, clonePlain) {
     };
   }
   return {
-    tool: "WorldSmith Web",
+    tool: "Caelum",
     type: "calendar",
     calendarSchemaVersion: 2,
     exportedUtc: new Date().toISOString(),

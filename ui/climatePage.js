@@ -15,6 +15,13 @@ import {
 } from "./store.js";
 import { createTutorial } from "./tutorial.js";
 import {
+  createDiagnosticCockpit,
+  createDiagnosticDependencyNotice,
+  createDiagnosticEmptyState,
+  createDiagnosticObjectSelector,
+  workflowHtml,
+} from "./workflow/diagnosticOrientation.js";
+import {
   buildSubtypeUnsupportedMessage,
   getSubtypePageApplicability,
 } from "./planet/bodyClassificationSummary.js";
@@ -366,20 +373,150 @@ const TUTORIAL_STEPS = [
 
 // ── Page init ───────────────────────────────────────────────
 
+function planetLabel(planet) {
+  return planet?.name || planet?.inputs?.name || planet?.id || "No compatible planet";
+}
+
+function planetSelectOptions(planets = [], selectedPlanet = null) {
+  return planets.map((planet) => ({
+    value: planet.id,
+    label: planetLabel(planet),
+    selected: planet.id === selectedPlanet?.id,
+  }));
+}
+
+function buildClimateCockpitMarkup({ selected, ctx, model, altitudeM, empty = false } = {}) {
+  const zoneCount = model?.display?.zoneCount ?? 0;
+  return workflowHtml(
+    createDiagnosticCockpit({
+      id: "climateCockpit",
+      title: "Climate Zones",
+      summary: empty
+        ? "Create a rocky planet before reading climate bands."
+        : "Reads the selected rocky planet and shows interpreted Koppen-style latitude bands.",
+      current: {
+        label: "Selected planet",
+        value: empty ? "No compatible planet" : planetLabel(selected),
+        meta: empty ? "No rocky planet is available." : "Change selection below.",
+      },
+      statusItems: [
+        {
+          label: "Reads from",
+          value: "Planets",
+          meta: "Atmosphere, orbit, water inventory, and surface classification.",
+        },
+        {
+          label: "Diagnostic only",
+          value: empty
+            ? "Waiting for planet"
+            : ctx?.unsupportedSurfaceMessage
+              ? "Unsupported"
+              : `${zoneCount} zones`,
+          meta: `Altitude view: ${fmt(Number(altitudeM) || 0, 0)} m.`,
+          tone: ctx?.unsupportedSurfaceMessage ? "warn" : "",
+        },
+        {
+          label: "Authoring override",
+          value: "Separate",
+          meta: "Visual and ocean overrides do not rewrite inferred climate coverage.",
+        },
+      ],
+      source: {
+        label: "Source",
+        value: "Reads from Planets",
+        meta: "Change inputs on Planets. This page is diagnostic only.",
+      },
+      details: {
+        id: "climateContextDisclosure",
+        title: "What this reads",
+        summary: "Planet atmosphere, water, orbit, circulation, and inferred ocean coverage.",
+        items: [
+          "Reads from Planets: atmosphere, greenhouse, water inventory, orbit, gravity, and surface classification.",
+          "Change inputs on Planets: edit atmosphere, water, orbit, and physical properties there.",
+          "Diagnostic only: altitude changes adjust this view and do not rewrite planet science inputs.",
+          "Authoring override: visual or population ocean overrides stay separate from inferred ocean coverage.",
+        ],
+      },
+      nextStep: {
+        id: "climateNextStepStrip",
+        recommendation: empty
+          ? "Create a rocky planet, then return here to inspect climate bands."
+          : "Tune atmosphere, water, or orbit on Planets when these climate bands need to change.",
+        actions: [
+          { label: "Edit planet", href: "#/planet", primary: true },
+          { label: "Open Tectonics", href: "#/tectonics" },
+          { label: "Open Population", href: "#/population" },
+        ],
+      },
+    }),
+  );
+}
+
+function buildClimateDependencyNoticeMarkup() {
+  return workflowHtml(
+    createDiagnosticDependencyNotice({
+      id: "climateDependencyNotice",
+      title: "Reads from Planets",
+      body: "Reads from the selected rocky planet's atmosphere, water, orbit, and inferred surface-ocean coverage. Change inputs on Planets.",
+      source:
+        "Diagnostic only. Authoring override values on visual or population surfaces remain separate from inferred climate science.",
+      actions: [{ label: "Change inputs on Planets", href: "#/planet" }],
+    }),
+  );
+}
+
+function buildClimateObjectSelectorMarkup(planets, selected, ctx) {
+  return workflowHtml(
+    createDiagnosticObjectSelector({
+      id: "climateObjectSelector",
+      title: "Planet selection",
+      summary: "Choose the rocky planet whose climate bands should be interpreted.",
+      selectedLabel: "Selected planet",
+      selectedValue: planetLabel(selected),
+      selectedMeta: ctx?.unsupportedSurfaceMessage
+        ? "No compatible climate output for this body."
+        : "Climate diagnostic target.",
+      selectId: "climPlanetSelect",
+      selectLabel: "Planet",
+      selectOptions: planetSelectOptions(planets, selected),
+    }),
+  );
+}
+
+function buildClimateEmptyPageMarkup(planets, selected) {
+  return `
+      <div class="page">
+        <div class="panel">
+          <div class="panel__header"><h1 class="panel__title">Climate Zones</h1></div>
+          <div class="panel__body">
+            ${buildClimateCockpitMarkup({ selected, altitudeM: 0, empty: true })}
+            ${buildClimateDependencyNoticeMarkup()}
+            ${workflowHtml(
+              createDiagnosticEmptyState({
+                id: "climateEmptyState",
+                title: "No compatible rocky planet",
+                body: "Climate Zones needs a rocky planet before it can read atmosphere, water, orbit, and circulation context.",
+                actions: [{ label: "Create a planet", href: "#/planet" }],
+              }),
+            )}
+            ${
+              planets.length
+                ? buildClimateObjectSelectorMarkup(planets, selected, {
+                    unsupportedSurfaceMessage: "No compatible climate output.",
+                  })
+                : ""
+            }
+          </div>
+        </div>
+      </div>`;
+}
+
 export function initClimatePage(containerEl) {
   const world = loadWorld();
   const planets = listPlanets(world);
 
   if (!planets.length) {
-    containerEl.innerHTML = `
-      <div class="page">
-        <div class="panel">
-          <div class="panel__header"><h1 class="panel__title">Climate Zones</h1></div>
-          <div class="panel__body">
-            <p class="hint">Create a planet on the <a href="#/planet">Planets</a> page first.</p>
-          </div>
-        </div>
-      </div>`;
+    containerEl.innerHTML = buildClimateEmptyPageMarkup(planets, null);
     return;
   }
 
@@ -477,27 +614,32 @@ export function initClimatePage(containerEl) {
       ctx.climateVariabilityWarning
         ? createElement("div", { className: "clim-advisory", text: ctx.climateVariabilityWarning })
         : null,
-      createElement("div", { className: "kpi-grid" }, [
-        kpiNode("Zone Count", model.display.zoneCount, TIP_LABEL["Zone Count"]),
-        kpiNode(
-          "Mean Surface Temp",
-          `${fmt(ctx.surfaceTempK - 273.15, 1)} \u00b0C`,
-          TIP_LABEL["Mean Surface Temp"],
-        ),
-        kpiNode("Dominant Class", dominantLabel, TIP_LABEL["Dominant Class"]),
-        kpiNode("Water Regime", ctx.waterRegime, TIP_LABEL["Water Regime"]),
-        kpiNode(
-          "Inferred Ocean Coverage",
-          ctx.inferredOceanCoverageDisplay,
-          TIP_LABEL["Inferred Ocean Coverage"],
-          ctx.coverageReason,
-        ),
-        kpiNode("Exposed Land", ctx.exposedLandDisplay, TIP_LABEL["Exposed Land"]),
-        kpiNode(
-          "Coverage Confidence",
-          ctx.coverageConfidenceDisplay,
-          TIP_LABEL["Coverage Confidence"],
-        ),
+      createElement("section", { className: "kpi-section", attrs: { id: "climateSummary" } }, [
+        createElement("div", { className: "kpi-section__header" }, [
+          createElement("h3", { className: "kpi-section__title", text: "Summary" }),
+        ]),
+        createElement("div", { className: "kpi-grid" }, [
+          kpiNode("Zone Count", model.display.zoneCount, TIP_LABEL["Zone Count"]),
+          kpiNode(
+            "Mean Surface Temp",
+            `${fmt(ctx.surfaceTempK - 273.15, 1)} \u00b0C`,
+            TIP_LABEL["Mean Surface Temp"],
+          ),
+          kpiNode("Dominant Class", dominantLabel, TIP_LABEL["Dominant Class"]),
+          kpiNode("Water Regime", ctx.waterRegime, TIP_LABEL["Water Regime"]),
+          kpiNode(
+            "Inferred Ocean Coverage",
+            ctx.inferredOceanCoverageDisplay,
+            TIP_LABEL["Inferred Ocean Coverage"],
+            ctx.coverageReason,
+          ),
+          kpiNode("Exposed Land", ctx.exposedLandDisplay, TIP_LABEL["Exposed Land"]),
+          kpiNode(
+            "Coverage Confidence",
+            ctx.coverageConfidenceDisplay,
+            TIP_LABEL["Coverage Confidence"],
+          ),
+        ]),
       ]),
       createElement("div", { className: "subsection", attrs: { style: "margin-top:12px" } }, [
         createElement("h3", {}, [
@@ -591,11 +733,14 @@ export function initClimatePage(containerEl) {
             <button id="climTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
           </div>
           <div class="panel__body">
-
-            <div class="form-row">
-              <label for="climPlanetSelect">Planet</label>
-              <select id="climPlanetSelect"></select>
-            </div>
+            ${buildClimateCockpitMarkup({
+              selected,
+              ctx,
+              model,
+              altitudeM: state.altitudeM,
+            })}
+            ${buildClimateDependencyNoticeMarkup()}
+            ${buildClimateObjectSelectorMarkup(pList, selected, ctx)}
 
             <div class="form-row">
               <label>Altitude <span class="unit">m</span> ${tipIcon(TIP_LABEL["Altitude"])}</label>

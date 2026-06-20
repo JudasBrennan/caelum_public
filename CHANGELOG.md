@@ -1,8 +1,61 @@
 # Changelog
 
-All notable changes to WorldSmith Web will be documented in this file.
+All notable changes to Caelum will be documented in this file.
 
 ## Unreleased
+
+## 3.0.0 - 2026-06-20
+
+### Changed
+
+**Caelum identity and release metadata**
+(index.html, README.md, ui/appIdentity.js, ui/aboutPage.js, ui/splashOverlay.js,
+ui/importExportPage.js, ui/worldStorage.js)
+
+The app release is now 3.0.0 and visible product surfaces use the Caelum
+identity with the slogan "Ex Nihilo, Astra". Browser metadata, cache-busting
+release tags, README title, About copy, splash and first-run surfaces, export
+metadata, and the sidebar version tag now align with the Caelum release while
+legacy WorldSmith storage and import compatibility remain supported.
+
+**Cross-page UI/UX consistency**
+(styles.css, ui/workflow/\*, ui/planet/workflowChrome.js, ui/planetPage.js,
+ui/moonPage.js, ui/calendarPage.js, ui/apparentPage.js,
+ui/localClusterPage.js, ui/visualizerPage.js)
+
+Authoring and diagnostic routes now use a more consistent workflow shell with
+compact context, clearer source guidance, and less repeated setup copy. Planet
+and Moon setup panels, Create This controls, Apparent Size observer inputs,
+Local Cluster visualiser guidance, Calendar task framing, and Visualiser mobile
+controls have been tightened so primary controls and outputs sit higher on the
+page.
+
+**About page and community links**
+(ui/aboutPage.js, index.html)
+
+The About page has been rewritten around purpose, science stance, data
+ownership, credits, community links, and changelog/license actions. The Judas
+Brennan Discord link now uses `http://discord.gg/aZzaR3DjsG` in both About and
+the navigation bar.
+
+### Fixed
+
+- Prevented mobile horizontal overflow in the Science & Maths reference layout
+  and Visualiser toast/control area.
+- Removed duplicated observer/source context from Apparent Size and replaced it
+  with a compact local-viewing note.
+- Clarified that Local Cluster coordinates feed the 3D Visualiser without
+  repeating the same explanation in multiple lines.
+
+### Tests
+
+- Regenerated the Science Verification Matrix and compatibility calibration
+  artifacts for 3.0.0.
+- Expanded browser UI review coverage across desktop/mobile, dark/light spot
+  checks, reference pages, diagnostic routes, Visualiser, Local Cluster, About,
+  and Apparent Size.
+- Added critical horizontal-overflow guardrails for major page containers and
+  compact workflow sections.
 
 ## 2.12.0 - 2026-06-20
 

@@ -95,7 +95,7 @@ export function buildLesson05(mode) {
         modelled as 4th-order polynomials in
         ${iq("\\Delta T = T_{\\text{eff}} - 5780\\;\\text{K}")}:</p>
       ${eq("S_{\\text{eff}} = S_0 + a\\,\\Delta T + b\\,\\Delta T^2 + c\\,\\Delta T^3 + d\\,\\Delta T^4")}
-      <p>WorldSmith uses the Chromant Desmos correction to the Kopparapu
+      <p>Caelum uses the Chromant Desmos correction to the Kopparapu
         coefficients:</p>
       ${dataTable(
         ["Boundary", "S<sub>0</sub>", "a", "b", "c", "d"],

@@ -15,8 +15,7 @@ import {
 } from "./guidedCreation/goalState.js";
 import { loadGuidedSession } from "./guidedCreation/sessionState.js";
 import { buildGasGiantRecipeApplyInputs } from "./guidedCreation/adapters/gasGiant.js";
-import { getGuidedEntryModeTooltip } from "./guidedCreation/tooltips.js";
-import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
+import { attachTooltips } from "./tooltip.js";
 import { computeGasGiantVisualProfile, styleLabel, GAS_GIANT_RECIPES } from "./gasGiantStyles.js";
 import { ROCKY_RECIPES } from "./rockyPlanetStyles.js";
 import {
@@ -30,7 +29,6 @@ import { launchGuidedMoonForParent } from "./moonGuidedLaunch.js";
 import { buildPlanetaryVisualControlManifest } from "./planetaryVisual/controlManifest.js";
 import { resolvePlanetaryVisualDescriptor } from "./planetaryVisual/descriptor.js";
 import { openPlanetaryVisualEditor } from "./planetaryVisual/editorDom.js";
-import { buildPageIntroHtml } from "./pageIntro.js";
 import { buildBodySelectorEntries, filterBodySelectorEntries } from "./planet/bodySelector.js";
 import {
   buildPlanetaryBodyClassificationSummary,
@@ -142,6 +140,13 @@ import { vegGridOrbit, vegGridTwilightOrbit } from "./planet/vegetationGridModel
 import { PLANET_TUTORIAL_STEPS as TUTORIAL_STEPS } from "./planet/tutorials.js";
 import { TIP_LABEL } from "./planet/tooltips.js";
 import {
+  buildPlanetCockpitMarkup,
+  buildPlanetCreationModeStrip,
+  buildPlanetDependencyNoticesMarkup,
+  buildPlanetSelectorMarkup,
+  renderPlanetWorkflowChrome,
+} from "./planet/workflowChrome.js";
+import {
   GAS_GIANT_RADIUS_MAX_RJ,
   GAS_GIANT_RADIUS_MIN_RJ,
   GAS_GIANT_RADIUS_STEP_RJ,
@@ -229,19 +234,7 @@ export function initPlanetPage(mountEl, options = {}) {
         <button id="planetTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        ${buildPageIntroHtml({
-          summary:
-            "Create rocky planets and gas giants, then place them into the current stellar architecture.",
-          controls:
-            "The selected body, its host frame and orbital slot, plus its rocky or gas-giant physics inputs.",
-          affects:
-            "Moon parents, visualizer placement, climate assumptions, and later apparent or biology-facing pages.",
-          primaryAction:
-            "Select or create a body, assign its host frame and slot, then tune the physical inputs.",
-          compact: true,
-          detailsTitle: "Planet workflow context",
-          detailsSummary: "Body selection, host frame, and slot choices drive downstream pages.",
-        })}
+        ${buildPlanetCockpitMarkup()}
       </div>
     </div>
 
@@ -249,82 +242,36 @@ export function initPlanetPage(mountEl, options = {}) {
       <div class="panel">
         <div class="panel__header"><h2>Inputs</h2></div>
         <div class="panel__body">
-          <div class="label">Derived Data ${tipIcon(TIP_LABEL["Star (read-only)"])}</div>
-          <div class="derived-readout" id="starInfo"></div>
-          <div style="height:12px"></div>
-
-          <div class="label">Body selection ${tipIcon(TIP_LABEL["Body selection"])}</div>
-          <div class="form-row">
-            <div>
-              <div class="hint">Select, search, or create a body in the current system.</div>
-            </div>
-            <div class="select-stack body-switcher">
-              <input id="bodySearch" class="body-switcher__search" type="search" placeholder="Search bodies" aria-label="Search bodies" />
-              <select id="bodySelect"></select>
-              <div class="new-body-control">
-                <select id="newBodyIntent" aria-label="New body starting intent">
-                  <option value="rocky">Rocky world</option>
-                  <option value="volatile">Volatile / mini-Neptune</option>
-                  <option value="iceGiant">Ice giant</option>
-                  <option value="gasGiant">Gas giant</option>
-                  <option value="substellar">Substellar companion</option>
-                </select>
-                <button id="newBody" class="small" type="button">New body</button>
-              </div>
-              <div class="select-actions">
-                <button id="newRockyPlanet" class="small" type="button">Rocky quick start</button>
-                <button id="newGasGiant" class="small" type="button">Gas giant quick start</button>
-                <button id="deleteBody" class="small danger" type="button">Delete</button>
-              </div>
-            </div>
-          </div>
+          ${buildPlanetSelectorMarkup()}
           <div id="bodyClassificationSummary" class="body-classification-summary" hidden></div>
 
-          <div id="rockyCreateEntry" class="guided-entry-strip" hidden>
-            <div class="guided-entry-strip__title">Create This Rocky World</div>
-            <div id="rockyCreateEntryHint" class="guided-entry-strip__copy">
-              Quick applies a rocky archetype, Guided walks you to a recommendation, and Advanced
-              is the direct editor below. Use Recipes alongside Advanced when you want a preset
-              starting point: Recipes will override the current rocky-world inputs.
-            </div>
-            <div class="guided-entry-strip__modes">
-              <button id="rockyCreateQuickBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("quick"))}>
-                Quick
-              </button>
-              <button id="rockyCreateGuidedBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("guided"))}>
-                Guided
-              </button>
-              <button id="rockyCreateRecipesBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("recipes"))}>
-                Recipes
-              </button>
-              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page" ${tipAttr(getGuidedEntryModeTooltip("advanced"))}>
-                Advanced
-              </span>
-            </div>
-          </div>
+          ${
+            buildPlanetCreationModeStrip({
+              id: "rockyCreateEntry",
+              className: "planet-create-entry",
+              title: "Create This Rocky World",
+              summaryId: "rockyCreateEntryHint",
+              summary:
+                "Quick starts an archetype; Guided fits targets; Recipes apply presets; Advanced edits directly.",
+              buttonPrefix: "rockyCreate",
+              hidden: true,
+            }).outerHTML
+          }
 
-          <div id="gasGiantCreateEntry" class="guided-entry-strip" hidden>
-            <div class="guided-entry-strip__title">Create This Gas Giant</div>
-            <div id="gasGiantCreateEntryHint" class="guided-entry-strip__copy">
-              Quick applies a gas-giant archetype, Guided walks you to a recommendation, and
-              Advanced is the direct editor below. Use Recipes alongside Advanced when you want a
-              preset starting point: Recipes will override the current gas-giant inputs.
-            </div>
-            <div class="guided-entry-strip__modes">
-              <button id="gasGiantCreateQuickBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("quick"))}>
-                Quick
-              </button>
-              <button id="gasGiantCreateGuidedBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("guided"))}>
-                Guided
-              </button>
-              <button id="gasGiantCreateRecipesBtn" type="button" class="guided-entry-strip__mode" ${tipAttr(getGuidedEntryModeTooltip("recipes"))}>
-                Recipes
-              </button>
-              <span class="guided-entry-strip__mode guided-entry-strip__mode--current" aria-current="page" ${tipAttr(getGuidedEntryModeTooltip("advanced"))}>
-                Advanced
-              </span>
-            </div>
-          </div>
+          ${
+            buildPlanetCreationModeStrip({
+              id: "gasGiantCreateEntry",
+              className: "planet-create-entry",
+              title: "Create This Gas Giant",
+              summaryId: "gasGiantCreateEntryHint",
+              summary:
+                "Quick starts an archetype; Guided fits targets; Recipes apply presets; Advanced edits directly.",
+              buttonPrefix: "gasGiantCreate",
+              hidden: true,
+            }).outerHTML
+          }
+
+          ${buildPlanetDependencyNoticesMarkup()}
 
           <div id="bodyInputs"></div>
           <div id="bodyMoons" style="margin-top:14px"></div>
@@ -374,6 +321,32 @@ export function initPlanetPage(mountEl, options = {}) {
   const bodyMoonsEl = wrap.querySelector("#bodyMoons");
   const bodyActionsEl = wrap.querySelector("#bodyActions");
   const bodyOutputsEl = wrap.querySelector("#bodyOutputs");
+  const planetCockpitBodyValueEl = wrap.querySelector("#planetCockpitBodyValue");
+  const planetCockpitBodyMetaEl = wrap.querySelector("#planetCockpitBodyMeta");
+  const planetCockpitTypeValueEl = wrap.querySelector("#planetCockpitTypeValue");
+  const planetCockpitTypeMetaEl = wrap.querySelector("#planetCockpitTypeMeta");
+  const planetCockpitHostValueEl = wrap.querySelector("#planetCockpitHostValue");
+  const planetCockpitHostMetaEl = wrap.querySelector("#planetCockpitHostMeta");
+  const planetCockpitClassValueEl = wrap.querySelector("#planetCockpitClassValue");
+  const planetCockpitClassMetaEl = wrap.querySelector("#planetCockpitClassMeta");
+  const planetCockpitSourceMetaEl = wrap.querySelector("#planetCockpitSourceMeta");
+  const planetSelectedBodyValueEl = wrap.querySelector("#planetSelectedBodyValue");
+  const planetSelectedBodyMetaEl = wrap.querySelector("#planetSelectedBodyMeta");
+  const planetNextStepRecommendationEl = wrap.querySelector("#planetNextStepRecommendation");
+  const planetWorkflowChromeElements = {
+    bodyValue: planetCockpitBodyValueEl,
+    bodyMeta: planetCockpitBodyMetaEl,
+    typeValue: planetCockpitTypeValueEl,
+    typeMeta: planetCockpitTypeMetaEl,
+    hostValue: planetCockpitHostValueEl,
+    hostMeta: planetCockpitHostMetaEl,
+    classValue: planetCockpitClassValueEl,
+    classMeta: planetCockpitClassMetaEl,
+    sourceMeta: planetCockpitSourceMetaEl,
+    selectedBodyValue: planetSelectedBodyValueEl,
+    selectedBodyMeta: planetSelectedBodyMetaEl,
+    nextStepRecommendation: planetNextStepRecommendationEl,
+  };
 
   bodyMoonsEl.addEventListener("click", (event) => {
     const guidedMoonBtn = event.target.closest?.("button[data-action='guided-moon']");
@@ -739,8 +712,8 @@ export function initPlanetPage(mountEl, options = {}) {
     if (rockyCreateRecipesBtn) rockyCreateRecipesBtn.disabled = !hasSelection;
     if (rockyCreateEntryHintEl) {
       rockyCreateEntryHintEl.textContent = hasSelection
-        ? "Quick applies a rocky archetype, Guided walks you to a recommendation, and Advanced is the direct editor below. Use Recipes alongside Advanced when you want a preset starting point: Recipes will override the current rocky-world inputs."
-        : "Create or select a rocky planet first. Quick, Guided, and Recipes are currently available for rocky planets, not gas giants.";
+        ? "Quick starts a rocky archetype; Guided fits targets; Recipes apply presets; Advanced edits directly."
+        : "Select a rocky planet first; Quick, Guided, and Recipes stay scoped to rocky bodies.";
     }
   }
 
@@ -756,8 +729,8 @@ export function initPlanetPage(mountEl, options = {}) {
     if (gasGiantCreateRecipesBtn) gasGiantCreateRecipesBtn.disabled = !hasSelection;
     if (gasGiantCreateEntryHintEl) {
       gasGiantCreateEntryHintEl.textContent = hasSelection
-        ? "Quick applies a gas-giant archetype, Guided walks you to a recommendation, and Advanced is the direct editor below. Use Recipes alongside Advanced when you want a preset starting point: Recipes will override the current gas-giant inputs."
-        : "Create or select a gas giant first. Quick, Guided, and Recipes are currently available for gas giants on this page.";
+        ? "Quick starts a giant archetype; Guided fits targets; Recipes apply presets; Advanced edits directly."
+        : "Select a gas giant first; Quick, Guided, and Recipes stay scoped to giant bodies.";
     }
   }
 
@@ -5012,13 +4985,14 @@ export function initPlanetPage(mountEl, options = {}) {
         luminosityLsolOverride: pStarCalc.luminosityLsol,
         radiusRsolOverride: pStarCalc.radiusRsol,
       });
+      const selectedBody =
+        bodyType === "gasGiant" ? getSelectedGasGiant(world) : getSelectedPlanet(world);
+      const selectedUnifiedBody = getSelectedPlanetaryBodyModel(world);
+      const selectedSolveContext = selectedBody
+        ? resolvePlanetPageHostFrameContext(world, selectedBody, sysModel, homeSystemContext)
+        : resolvePlanetPageHostFrameContext(world, null, sysModel, homeSystemContext);
 
       if (!outputsOnly) {
-        const selectedBody =
-          bodyType === "gasGiant" ? getSelectedGasGiant(world) : getSelectedPlanet(world);
-        const selectedSolveContext = selectedBody
-          ? resolvePlanetPageHostFrameContext(world, selectedBody, sysModel, homeSystemContext)
-          : resolvePlanetPageHostFrameContext(world, null, sysModel, homeSystemContext);
         starInfoEl.textContent = buildSelectedBodyContextReadout(selectedSolveContext);
 
         // Body selector
@@ -5031,6 +5005,14 @@ export function initPlanetPage(mountEl, options = {}) {
         sysModel,
         homeSystemContext,
       );
+      renderPlanetWorkflowChrome({
+        elements: planetWorkflowChromeElements,
+        bodyType,
+        rawBody: selectedBody,
+        unifiedBody: selectedUnifiedBody,
+        solveContext: selectedSolveContext,
+        classificationSummary: selectedClassificationSummary,
+      });
 
       if (bodyType === "gasGiant") {
         const giant = getSelectedGasGiant(world);
@@ -5042,7 +5024,6 @@ export function initPlanetPage(mountEl, options = {}) {
         const planet = getSelectedPlanet(world);
         const bodyId = world.planets?.selectedId;
         if (!outputsOnly) renderRockyInputs(world, planet, sysModel);
-        const selectedUnifiedBody = getSelectedPlanetaryBodyModel(world);
         if (selectedClassificationSummary?.solverFamily === "volatile") {
           renderVolatileOutputs(world, selectedUnifiedBody, sysModel);
         } else {

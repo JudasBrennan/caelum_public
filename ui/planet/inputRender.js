@@ -240,6 +240,47 @@ function createSectionLabel(label, tip = "", style = "") {
   );
 }
 
+function disclosureKey(label) {
+  return String(label || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function collapseDirectSections(container, sections = []) {
+  const sectionConfigs = new Map(sections.map((section) => [String(section.label || ""), section]));
+  const directChildren = Array.from(container.children);
+  for (const labelEl of directChildren) {
+    if (labelEl.parentElement !== container || !labelEl.classList?.contains("label")) continue;
+    const label = String(labelEl.textContent || "").trim();
+    const config = [...sectionConfigs.entries()].find(([sectionLabel]) =>
+      label.startsWith(sectionLabel),
+    )?.[1];
+    if (!config) continue;
+
+    const details = createElement("details", {
+      className: "input-disclosure",
+      attrs: { "data-input-disclosure": disclosureKey(config.label) },
+    });
+    if (config.open) details.open = true;
+    const summary = createElement("summary", {}, [
+      createElement("span", { text: config.label }),
+      createElement("span", { text: config.summary || "Advanced controls" }),
+    ]);
+    const body = createElement("div", { className: "input-disclosure__body" });
+    details.append(summary, body);
+    container.insertBefore(details, labelEl);
+
+    let node = labelEl;
+    while (node) {
+      const next = node.nextElementSibling;
+      body.appendChild(node);
+      if (next?.classList?.contains("label")) break;
+      node = next;
+    }
+  }
+}
+
 function createHintNode(id, text, style = "") {
   return createElement("div", {
     className: "hint",
@@ -839,6 +880,37 @@ export function renderRockyInputForm(
       options: mantleOptions,
     }),
   ]);
+  collapseDirectSections(container, [
+    {
+      label: "Rings and moons",
+      summary: "Ring overrides and moon workflow links.",
+      open: ringModeValue !== "auto",
+    },
+    {
+      label: "Volatile envelope",
+      summary: "Envelope mass, observed radius, and exotic evidence.",
+    },
+    {
+      label: "Orbit and rotation",
+      summary: "Manual AU, rotation, eccentricity, inclination, and longitude controls.",
+    },
+    {
+      label: "Atmospheric Escape",
+      summary: "Escape solver toggle.",
+    },
+    {
+      label: "Vegetation",
+      summary: "Appearance override colors only; science context remains separate.",
+    },
+    {
+      label: "Internal Heat",
+      summary: "Radioisotope and per-isotope controls.",
+    },
+    {
+      label: "Tectonic Regime",
+      summary: "Tectonic regime and mantle oxidation controls.",
+    },
+  ]);
 
   return container;
 }
@@ -1050,6 +1122,21 @@ export function renderGasGiantInputForm(
       placeholder: "0",
       style: "margin-top:8px",
     }),
+  ]);
+  collapseDirectSections(container, [
+    {
+      label: "Rings and moons",
+      summary: "Ring overrides and moon workflow links.",
+      open: ringModeValue !== "auto",
+    },
+    {
+      label: "Giant atmosphere and clouds",
+      summary: "Metallicity and cloud context.",
+    },
+    {
+      label: "Detection geometry",
+      summary: "Eccentricity, inclination, and axial tilt.",
+    },
   ]);
 
   return container;

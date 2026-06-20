@@ -187,7 +187,7 @@ export function buildLesson08(mode) {
     concept(
       "Exotic Subtypes",
       `<p>Some planets are still rocky or volatile worlds underneath, but their
-      observed evidence suggests a more specific subtype. WorldSmith treats
+      observed evidence suggests a more specific subtype. Caelum treats
       these as <b>overlays</b>: a planet can remain a rocky world while also
       being flagged as carbon-rich, lava-dominated, oceanic, icy, stripped, or
       isolated from its star.</p>
@@ -231,7 +231,7 @@ export function buildLesson08(mode) {
       )}
       ${keyIdea("Subtype labels add evidence-aware context while preserving the broad planet family. A lava world is still solved as a planet; the overlay explains where normal surface assumptions become risky.")}`,
 
-      `<p>WorldSmith's subtype overlays combine broad physical
+      `<p>Caelum's subtype overlays combine broad physical
       classification with optional evidence fields such as bulk density,
       carbon-richness, internal heat flux, tidal heat flux,
       stripped-envelope history, migration history, and rogue-candidate

@@ -109,13 +109,13 @@ const TIP_LABEL = {
     "Named, user-authored comets for the selected host frame. Keep these separate from debris disks so you can model specific short-period or long-period passages without changing the surrounding belt architecture.",
   "Comets count": "Total number of authored comets in the selected host frame.",
   "Oort Cloud":
-    "System-wide long-period comet reservoir. Auto mode uses the WorldSmith paper-backed baseline estimate. Guided mode applies authoring adjustments on top of that baseline. Manual mode directly overrides the displayed reservoir values without creating a literal shell object in the system model.",
+    "System-wide long-period comet reservoir. Auto mode uses the Caelum paper-backed baseline estimate. Guided mode applies authoring adjustments on top of that baseline. Manual mode directly overrides the displayed reservoir values without creating a literal shell object in the system model.",
   "Reservoir Class":
     "Qualitative reservoir strength from the inferred Oort-cloud mass proxy. Robust systems should sustain a meaningful long-period comet population; Negligible systems should not.",
   "Inner Boundary":
-    "Inner edge of the inferred Oort reservoir in AU. WorldSmith starts from the Solar Oort cloud inner edge scaled by Galactic Hill radius, then applies an outer-giant architecture floor so the cloud remains detached from the scattered-planet region.",
+    "Inner edge of the inferred Oort reservoir in AU. Caelum starts from the Solar Oort cloud inner edge scaled by Galactic Hill radius, then applies an outer-giant architecture floor so the cloud remains detached from the scattered-planet region.",
   "Outer Boundary":
-    "Outer edge of the inferred Oort reservoir in AU. WorldSmith scales the Solar Oort cloud outer edge by the system's Galactic Hill radius, so more massive systems or systems farther from the Galactic centre can retain larger clouds.",
+    "Outer edge of the inferred Oort reservoir in AU. Caelum scales the Solar Oort cloud outer edge by the system's Galactic Hill radius, so more massive systems or systems farther from the Galactic centre can retain larger clouds.",
   "Oort Estimated Mass":
     "Estimated total Oort-cloud reservoir mass in Earth masses. This is a Solar-calibrated proxy that combines stellar mass, total giant-planet mass, outer-giant extent, inner-ejector depletion, age, and environmental retention.",
   "LPC Injection Rate":
@@ -125,7 +125,7 @@ const TIP_LABEL = {
   "Seed from Oort":
     "Create a deterministic long-period comet template from the inferred Oort-cloud reservoir and attach it to the current host frame.",
   "Oort Cloud Mode":
-    "Choose how WorldSmith resolves the Oort reservoir. Auto uses the baseline literature-inspired model. Guided applies controlled authoring adjustments on top. Manual directly overrides the reservoir fields shown on this page.",
+    "Choose how Caelum resolves the Oort reservoir. Auto uses the baseline literature-inspired model. Guided applies controlled authoring adjustments on top. Manual directly overrides the reservoir fields shown on this page.",
   "Baseline vs Resolved":
     "Read-only comparison between the automatic Oort baseline and the final resolved reservoir after Guided or Manual adjustments.",
   "Formation Efficiency":
@@ -444,12 +444,12 @@ export function initOuterObjectsPage(mountEl) {
             </div>
           </div>
 
-          <div style="height:10px"></div>
+          <div class="flow-spacer"></div>
 
           <div class="label">Selected Host ${tipIcon(TIP_LABEL["Selected Host"] || "")}</div>
           <div class="derived-readout" id="outerHostReadout"></div>
 
-          <div style="height:10px"></div>
+          <div class="flow-spacer"></div>
 
           <div class="pill-toggle-wrap outer-objects-tabs">
             <div class="physics-trio-toggle" data-toggle="outer-object-tab">
@@ -463,7 +463,7 @@ export function initOuterObjectsPage(mountEl) {
             </div>
           </div>
 
-          <div style="height:10px"></div>
+          <div class="flow-spacer"></div>
 
           <div id="debrisDisksEditor"></div>
           <div id="cometsEditor" style="display:none"></div>
@@ -732,8 +732,8 @@ export function initOuterObjectsPage(mountEl) {
       createElement(
         "div",
         {
-          className: "physics-duo-toggle dd-mode-toggle",
-          attrs: { style: "margin-top:8px", "data-toggle": "dd-mode" },
+          className: "physics-duo-toggle dd-mode-toggle dd-mode-toggle--stacked",
+          attrs: { "data-toggle": "dd-mode" },
         },
         [
           createElement("input", {
@@ -771,51 +771,43 @@ export function initOuterObjectsPage(mountEl) {
       className: "dd-edges-group",
       attrs: { style: mode === "center" ? "display:none" : "" },
     });
-    const innerRow = createElement(
-      "div",
-      { className: "form-row", attrs: { style: "margin-top:8px" } },
-      [
-        createElement("div", {}, [
-          labelWithTipNode("Inner edge", TIP_LABEL["Inner edge"], { unit: "AU" }),
-        ]),
-        numberSliderPairNode({
-          inputClass: "dd-inner",
-          sliderClass: "dd-inner-slider",
-          value: inner,
-          step: "0.01",
-          min: String(ORBIT_AU_MIN),
-          max: String(ORBIT_AU_MAX),
-          rangeMinLabel: String(ORBIT_AU_MIN),
-          rangeMaxLabel: String(ORBIT_AU_MAX),
-          orbitRangeName: `dd_${disk.id}_innerRange`,
-          orbitRangeStatusSubject: "edge",
-        }),
-      ],
-    );
+    const innerRow = createElement("div", { className: "form-row flow-stack-gap--sm" }, [
+      createElement("div", {}, [
+        labelWithTipNode("Inner edge", TIP_LABEL["Inner edge"], { unit: "AU" }),
+      ]),
+      numberSliderPairNode({
+        inputClass: "dd-inner",
+        sliderClass: "dd-inner-slider",
+        value: inner,
+        step: "0.01",
+        min: String(ORBIT_AU_MIN),
+        max: String(ORBIT_AU_MAX),
+        rangeMinLabel: String(ORBIT_AU_MIN),
+        rangeMaxLabel: String(ORBIT_AU_MAX),
+        orbitRangeName: `dd_${disk.id}_innerRange`,
+        orbitRangeStatusSubject: "edge",
+      }),
+    ]);
     setInputValue(innerRow.querySelector(".dd-inner"), inner);
     edgesGroup.appendChild(innerRow);
 
-    const outerRow = createElement(
-      "div",
-      { className: "form-row", attrs: { style: "margin-top:8px" } },
-      [
-        createElement("div", {}, [
-          labelWithTipNode("Outer edge", TIP_LABEL["Outer edge"], { unit: "AU" }),
-        ]),
-        numberSliderPairNode({
-          inputClass: "dd-outer",
-          sliderClass: "dd-outer-slider",
-          value: outer,
-          step: "0.01",
-          min: String(ORBIT_AU_MIN),
-          max: String(ORBIT_AU_MAX),
-          rangeMinLabel: String(ORBIT_AU_MIN),
-          rangeMaxLabel: String(ORBIT_AU_MAX),
-          orbitRangeName: `dd_${disk.id}_outerRange`,
-          orbitRangeStatusSubject: "edge",
-        }),
-      ],
-    );
+    const outerRow = createElement("div", { className: "form-row flow-stack-gap--sm" }, [
+      createElement("div", {}, [
+        labelWithTipNode("Outer edge", TIP_LABEL["Outer edge"], { unit: "AU" }),
+      ]),
+      numberSliderPairNode({
+        inputClass: "dd-outer",
+        sliderClass: "dd-outer-slider",
+        value: outer,
+        step: "0.01",
+        min: String(ORBIT_AU_MIN),
+        max: String(ORBIT_AU_MAX),
+        rangeMinLabel: String(ORBIT_AU_MIN),
+        rangeMaxLabel: String(ORBIT_AU_MAX),
+        orbitRangeName: `dd_${disk.id}_outerRange`,
+        orbitRangeStatusSubject: "edge",
+      }),
+    ]);
     setInputValue(outerRow.querySelector(".dd-outer"), outer);
     edgesGroup.appendChild(outerRow);
     row.appendChild(edgesGroup);
@@ -824,132 +816,110 @@ export function initOuterObjectsPage(mountEl) {
       className: "dd-center-group",
       attrs: { style: mode === "edges" ? "display:none" : "" },
     });
-    const centerRow = createElement(
-      "div",
-      { className: "form-row", attrs: { style: "margin-top:8px" } },
-      [
-        createElement("div", {}, [
-          labelWithTipNode("Center", TIP_LABEL["Disk center"], { unit: "AU" }),
-        ]),
-        numberSliderPairNode({
-          inputClass: "dd-center",
-          sliderClass: "dd-center-slider",
-          value: center,
-          step: "0.01",
-          min: String(ORBIT_AU_MIN),
-          max: String(ORBIT_AU_MAX),
-          rangeMinLabel: String(ORBIT_AU_MIN),
-          rangeMaxLabel: String(ORBIT_AU_MAX),
-          orbitRangeName: `dd_${disk.id}_centerRange`,
-          orbitRangeStatusSubject: "center",
-        }),
-      ],
-    );
+    const centerRow = createElement("div", { className: "form-row flow-stack-gap--sm" }, [
+      createElement("div", {}, [
+        labelWithTipNode("Center", TIP_LABEL["Disk center"], { unit: "AU" }),
+      ]),
+      numberSliderPairNode({
+        inputClass: "dd-center",
+        sliderClass: "dd-center-slider",
+        value: center,
+        step: "0.01",
+        min: String(ORBIT_AU_MIN),
+        max: String(ORBIT_AU_MAX),
+        rangeMinLabel: String(ORBIT_AU_MIN),
+        rangeMaxLabel: String(ORBIT_AU_MAX),
+        orbitRangeName: `dd_${disk.id}_centerRange`,
+        orbitRangeStatusSubject: "center",
+      }),
+    ]);
     setInputValue(centerRow.querySelector(".dd-center"), center);
     centerGroup.appendChild(centerRow);
 
-    const widthRow = createElement(
-      "div",
-      { className: "form-row", attrs: { style: "margin-top:8px" } },
-      [
-        createElement("div", {}, [
-          labelWithTipNode("Width", TIP_LABEL["Disk width"], { unit: "AU" }),
-        ]),
-        numberSliderPairNode({
-          inputClass: "dd-width",
-          sliderClass: "dd-width-slider",
-          value: width,
-          step: "0.01",
-          min: String(ORBIT_AU_MIN),
-          max: String(ORBIT_AU_MAX),
-          rangeMinLabel: String(ORBIT_AU_MIN),
-          rangeMaxLabel: String(ORBIT_AU_MAX),
-          orbitRangeName: `dd_${disk.id}_widthRange`,
-          orbitRangeStatusSubject: "width",
-        }),
-      ],
-    );
+    const widthRow = createElement("div", { className: "form-row flow-stack-gap--sm" }, [
+      createElement("div", {}, [
+        labelWithTipNode("Width", TIP_LABEL["Disk width"], { unit: "AU" }),
+      ]),
+      numberSliderPairNode({
+        inputClass: "dd-width",
+        sliderClass: "dd-width-slider",
+        value: width,
+        step: "0.01",
+        min: String(ORBIT_AU_MIN),
+        max: String(ORBIT_AU_MAX),
+        rangeMinLabel: String(ORBIT_AU_MIN),
+        rangeMaxLabel: String(ORBIT_AU_MAX),
+        orbitRangeName: `dd_${disk.id}_widthRange`,
+        orbitRangeStatusSubject: "width",
+      }),
+    ]);
     setInputValue(widthRow.querySelector(".dd-width"), width);
     centerGroup.appendChild(widthRow);
     row.appendChild(centerGroup);
 
-    const eccentricityRow = createElement(
-      "div",
-      { className: "form-row", attrs: { style: "margin-top:8px" } },
-      [
-        createElement("div", {}, [
-          labelWithTipNode("Eccentricity", TIP_LABEL["Disk Eccentricity"]),
-        ]),
-        numberSliderPairNode({
-          inputClass: "dd-ecc",
-          sliderClass: "dd-ecc-slider",
-          value: disk.eccentricity != null ? disk.eccentricity : "",
-          step: "0.01",
-          min: "0",
-          max: "0.5",
-          placeholder: "0.05",
-          rangeMinLabel: "0",
-          rangeMaxLabel: "0.5",
-        }),
-      ],
-    );
+    const eccentricityRow = createElement("div", { className: "form-row flow-stack-gap--sm" }, [
+      createElement("div", {}, [labelWithTipNode("Eccentricity", TIP_LABEL["Disk Eccentricity"])]),
+      numberSliderPairNode({
+        inputClass: "dd-ecc",
+        sliderClass: "dd-ecc-slider",
+        value: disk.eccentricity != null ? disk.eccentricity : "",
+        step: "0.01",
+        min: "0",
+        max: "0.5",
+        placeholder: "0.05",
+        rangeMinLabel: "0",
+        rangeMaxLabel: "0.5",
+      }),
+    ]);
     setInputValue(
       eccentricityRow.querySelector(".dd-ecc"),
       disk.eccentricity != null ? disk.eccentricity : "",
     );
     row.appendChild(eccentricityRow);
 
-    const inclinationRow = createElement(
-      "div",
-      { className: "form-row", attrs: { style: "margin-top:8px" } },
-      [
-        createElement("div", {}, [
-          labelWithTipNode("Inclination", TIP_LABEL["Disk Inclination"], { unit: "\u00b0" }),
-        ]),
-        numberSliderPairNode({
-          inputClass: "dd-inc",
-          sliderClass: "dd-inc-slider",
-          value: disk.inclination != null ? disk.inclination : "",
-          step: "1",
-          min: "0",
-          max: "90",
-          placeholder: "0",
-          rangeMinLabel: "0",
-          rangeMaxLabel: "90",
-        }),
-      ],
-    );
+    const inclinationRow = createElement("div", { className: "form-row flow-stack-gap--sm" }, [
+      createElement("div", {}, [
+        labelWithTipNode("Inclination", TIP_LABEL["Disk Inclination"], { unit: "\u00b0" }),
+      ]),
+      numberSliderPairNode({
+        inputClass: "dd-inc",
+        sliderClass: "dd-inc-slider",
+        value: disk.inclination != null ? disk.inclination : "",
+        step: "1",
+        min: "0",
+        max: "90",
+        placeholder: "0",
+        rangeMinLabel: "0",
+        rangeMaxLabel: "90",
+      }),
+    ]);
     setInputValue(
       inclinationRow.querySelector(".dd-inc"),
       disk.inclination != null ? disk.inclination : "",
     );
     row.appendChild(inclinationRow);
 
-    const massRow = createElement(
-      "div",
-      { className: "form-row", attrs: { style: "margin-top:8px" } },
-      [
-        createElement("div", {}, [
-          labelWithTipNode("Total mass", TIP_LABEL["Disk Mass Override"], { unit: "M\u2295" }),
-        ]),
-        createElement("div", { className: "input-pair" }, [
-          createElement("input", {
-            className: "dd-mass",
-            attrs: {
-              type: "number",
-              step: "0.001",
-              min: "0",
-              placeholder: "Auto",
-            },
-          }),
-          createElement("button", {
-            className: "small dd-mass-clear",
-            attrs: { type: "button", style: "margin-left:4px" },
-            text: "Auto",
-          }),
-        ]),
-      ],
-    );
+    const massRow = createElement("div", { className: "form-row flow-stack-gap--sm" }, [
+      createElement("div", {}, [
+        labelWithTipNode("Total mass", TIP_LABEL["Disk Mass Override"], { unit: "M\u2295" }),
+      ]),
+      createElement("div", { className: "input-pair" }, [
+        createElement("input", {
+          className: "dd-mass",
+          attrs: {
+            type: "number",
+            step: "0.001",
+            min: "0",
+            placeholder: "Auto",
+          },
+        }),
+        createElement("button", {
+          className: "small dd-mass-clear",
+          attrs: { type: "button" },
+          text: "Auto",
+        }),
+      ]),
+    ]);
     setInputValue(
       massRow.querySelector(".dd-mass"),
       disk.totalMassMearth != null ? disk.totalMassMearth : "",
@@ -1293,8 +1263,7 @@ export function initOuterObjectsPage(mountEl) {
             createElement("div", { className: "pill-toggle-wrap" }, [createOortModeToggle(mode)]),
           ]),
           createElement("div", {
-            className: "hint",
-            attrs: { style: "margin-top:8px" },
+            className: "hint flow-stack-gap--sm",
             text: modeHint,
           }),
           createElement("div", { className: "oort-compare-grid" }, [
@@ -1710,7 +1679,7 @@ export function initOuterObjectsPage(mountEl) {
             }),
           ]),
         ]),
-        createElement("div", { className: "form-row", attrs: { style: "margin-top:8px" } }, [
+        createElement("div", { className: "form-row flow-stack-gap--sm" }, [
           createElement("div", {}, [labelWithTipNode("Name", TIP_LABEL.Comets)]),
           createElement("div", { className: "input-pair" }, [
             createElement("input", {
@@ -2164,7 +2133,7 @@ export function initOuterObjectsPage(mountEl) {
         }),
         createElement("div", { className: "dd-suggest-preview" }, [
           zones.length
-            ? createElement("div", { className: "label", attrs: { style: "margin-top:8px" } }, [
+            ? createElement("div", { className: "label flow-stack-gap--sm" }, [
                 "Possible zones",
                 " ",
                 tipIconNode(TIP_LABEL["Suggest"]),
@@ -2180,8 +2149,7 @@ export function initOuterObjectsPage(mountEl) {
                 }. Recommended zones are pre-selected.`,
               })
             : createElement("div", {
-                className: "hint",
-                attrs: { style: "margin-top:8px" },
+                className: "hint flow-stack-gap--sm",
                 text: "No suggestions available. Add gas giants or adjust star parameters.",
               }),
           zones.length

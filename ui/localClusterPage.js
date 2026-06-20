@@ -279,7 +279,7 @@ const TUTORIAL_STEPS = [
     body:
       "The Local Cluster page generates a procedural neighbourhood of nearby " +
       "star systems. Your home star sits at the centre, surrounded by " +
-      "randomly placed neighbours.",
+      "randomly placed neighbours that the Visualiser can display as a 3D cluster.",
   },
   {
     title: "Seed and Radius",
@@ -327,7 +327,13 @@ export function initLocalClusterPage(mountEl) {
         <button id="clusterTutorials" type="button" class="ws-tutorial-trigger">Tutorials</button>
       </div>
       <div class="panel__body">
-        <div class="hint">Set your galactic neighbourhood inputs and generate seeded nearby star-system coordinates from the WorldSmith Galaxy sheet logic.</div>
+        <div class="cluster-visualizer-callout" role="note" aria-label="Local cluster visualiser connection">
+          <div>
+            <div class="cluster-visualizer-callout__title">Feeds the 3D Visualiser</div>
+            <div class="cluster-visualizer-callout__body">These coordinates and names become the nearby stars shown around your home system.</div>
+          </div>
+          <a class="cluster-visualizer-callout__action" href="#/cluster-viz">Open 3D Visualiser</a>
+        </div>
       </div>
     </div>
 

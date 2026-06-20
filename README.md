@@ -1,8 +1,19 @@
-# WorldSmith Web 2.12.0
+# Caelum 3.0.0
 
-WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
+Caelum is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
+
+**Ex Nihilo, Astra** means "from nothing, the stars": start with a blank worldbuilding page and grow it into a physically grounded system.
 
 This project is based on WorldSmith 8.0 by Artifexian.
+
+## Repositories
+
+- Public runtime release repository: https://github.com/JudasBrennan/caelum_public
+- Main development repository: https://github.com/JudasBrennan/caelum
+
+This repository contains the public runtime release mirror for Caelum. It keeps
+the shipped browser app, runtime source, reports, license, and third-party
+notices available separately from the main development workspace.
 
 ## Current Highlights
 
@@ -35,7 +46,7 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Backup previews now explain why a preview cannot be built, and Sol, Realmspace, and Arrakis starter worlds are normalized through the current import engine before use.
 - Ocean-world high-pressure ice warnings now compare local seafloor pressure and estimated bottom-ocean temperature against the water liquidus boundary, with pressure-band fallback only when temperature is unconstrained.
 - Rocky planets with substantial surface liquid now surface mean ocean depth and seafloor pressure context even when they are not exotic ocean worlds.
-- The Science and Maths page now includes a WorldSmith-tailored ocean-floor water phase guide with the implemented dense-ice boundary, example model points, and uncertainty notes.
+- The Science and Maths page now includes a Caelum-tailored ocean-floor water phase guide with the implemented dense-ice boundary, example model points, and uncertainty notes.
 - Planet visuals can now be customized from the Planet page or Visualizer with draft-safe previews, presets, sparse overrides, seeded procedural variation, locks, and reset/randomize controls.
 - The visual editor keeps science-derived auto visuals as the default while letting custom appearances persist through save, import/export, snapshots, the Visualizer, Apparent Size, and system posters.
 - Visual editor color controls now stage native color-picker changes until Apply, keep compact swatches and hex fields aligned, and keep lock controls visible in dense rows.
@@ -101,11 +112,11 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - `Lessons`
 - `Science and Maths`
 - `Validation`
-- `About WorldSmith`
+- `About Caelum`
 
 ## Ocean-World Phase Guide
 
-WorldSmith's ocean-world warnings are now pressure-and-temperature estimates,
+Caelum's ocean-world warnings are now pressure-and-temperature estimates,
 not fixed-depth labels. The Planet and Moon pages may show seafloor pressure,
 estimated bottom-ocean temperature, the relevant water liquidus boundary, and a
 short interpretation.
@@ -198,6 +209,7 @@ npm install
 - `npm run test:ui` - Run UI-focused tests.
 - `npm run test:browser:install` - Install the Playwright Chromium browser used by smoke tests.
 - `npm run test:browser` - Run Playwright smoke tests against the built production app, using `4174` by default and the next free local port if that port is busy.
+- `npm run ui:review` - Run the Phase 9 Playwright screenshot review and regenerate `test-results/ui-review/metrics.json`.
 - `npm run test` - Run the full test suite with custom reporter output.
 - `npm run test:report` - Generate `test-results.md`.
 - `npm run test:json` - Generate machine-readable test results in `test-results/test-results.json`.
@@ -233,7 +245,7 @@ $env:WORLDSMITH_FTP_HOST = "145.223.89.28"
 $env:WORLDSMITH_FTP_USER = "<ftp-user>"
 $env:WORLDSMITH_FTP_PASSWORD = "<ftp-password>"
 $env:WORLDSMITH_FTP_PORT = "21"
-$env:WORLDSMITH_FTP_REMOTE_DIR = "/domains/thebrokenwheel.co.uk/public_html/worldsmith"
+$env:WORLDSMITH_FTP_REMOTE_DIR = "/domains/thebrokenwheel.co.uk/public_html/caelum"
 ```
 
 Run `npm run deploy:ftp:dry-run` before every upload. The normal deploy compares remote file sizes and uploads only files that are missing or changed, while leaving stale remote files in place. Use `npm run deploy:ftp -- --force` only when deliberately overwriting every `dist/` file, and use `npm run deploy:ftp -- --delete` only when pruning stale files after the release backup and dry-run have been checked.
@@ -304,7 +316,7 @@ Critical client-side libraries are now sourced from the local npm install in dev
 
 Static runtime assets required by these libraries are synced into `assets/vendor/` during `npm install` and before `npm run build`.
 
-WorldSmith no longer relies on remote runtime fallbacks for core browser features. If a local runtime asset fails to load, the app surfaces a local-only error instead of loading a CDN substitute.
+Caelum no longer relies on remote runtime fallbacks for core browser features. If a local runtime asset fails to load, the app surfaces a local-only error instead of loading a CDN substitute.
 
 ## Repository Layout
 
@@ -324,7 +336,7 @@ WorldSmith no longer relies on remote runtime fallbacks for core browser feature
 Community:
 
 - Artifexian Discord: https://discord.com/invite/hPvqDBPkhg
-- Judas Brennan Discord: https://discord.gg/f63SfkW7vh
+- Judas Brennan Discord: http://discord.gg/aZzaR3DjsG
 
 ## Changelog
 

@@ -416,6 +416,7 @@ export function initStarPage(mountEl, options = {}) {
   const starCreateEntryEl = wrap.querySelector("#starCreateEntry");
   const starCreateQuickBtn = wrap.querySelector("#starCreateQuickBtn");
   const starCreateGuidedBtn = wrap.querySelector("#starCreateGuidedBtn");
+  const starNextStepRecommendationEl = wrap.querySelector("#starNextStepRecommendation");
   const inputPanelBodyEl = starCreateEntryEl?.parentElement || null;
   const architectureSectionEl = topologyKindEl?.closest(".subsection") || null;
   const topologyKindRowEl = topologyKindEl?.closest(".form-row") || null;
@@ -1707,6 +1708,7 @@ export function initStarPage(mountEl, options = {}) {
       guidanceEl: starTopologyGuidanceEl,
       ...outputViewModel.currentStateSummary,
     });
+    renderStarNextStepStrip({ isMulti, topologyHealth });
 
     syncFocusedStarEditorInputs({ syncVisibleInputs: !preserveFocusedDraft });
     renderKpiSections(kpisEl, outputViewModel.kpiSections);
@@ -1793,6 +1795,29 @@ export function initStarPage(mountEl, options = {}) {
     massBinding.syncFromNumber({ commit: false, normalize: true });
     ageBinding.syncFromNumber({ commit: false, normalize: true });
     metallicityBinding.syncFromNumber({ commit: false, normalize: true });
+  }
+
+  function renderStarNextStepStrip({ isMulti, topologyHealth }) {
+    if (!starNextStepRecommendationEl) return;
+    const needsHierarchyWork =
+      isMulti &&
+      (topologyHealth?.blocked ||
+        /blocked|caution|unstable|inverted/i.test(topologyHealth?.headline || ""));
+
+    if (!isMulti) {
+      starNextStepRecommendationEl.textContent =
+        "Single star ready. Arrange planets next, or use the topology controls to add a companion.";
+      return;
+    }
+
+    if (needsHierarchyWork) {
+      starNextStepRecommendationEl.textContent =
+        "Hierarchy needs attention before downstream planet authoring will read cleanly; resolve topology or orbit spacing first.";
+      return;
+    }
+
+    starNextStepRecommendationEl.textContent =
+      "Stable stellar layout. Continue with Planetary System orbit slots or authoring Planets.";
   }
 
   inputController = createStarInputController({

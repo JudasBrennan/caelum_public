@@ -1,6 +1,6 @@
 /**
  * Lessons page - progressive curriculum teaching the scientific concepts
- * behind every WorldSmith calculator.
+ * behind every Caelum calculator.
  *
  * Architecture mirrors sciencePage.js: lazy KaTeX, collapsible accordion,
  * TOC with unit groupings, and embedded mini-calculators. A global
@@ -91,7 +91,7 @@ export function initLessonsPage(mountEl) {
       </div>
       <div class="panel__body">
         <p style="color:var(--muted);font-size:13px;margin:0 0 4px">
-          A progressive curriculum covering every scientific concept in WorldSmith.
+          A progressive curriculum covering every scientific concept in Caelum.
           Work through the units in order, or jump to any topic.
         </p>
         ${buildToc()}
@@ -125,7 +125,7 @@ export function initLessonsPage(mountEl) {
       if (renderToken !== renderSequence || !body.isConnected) return;
       body.dataset.lessonState = "error";
       body.innerHTML = `<div class="hint">Lesson content failed to load.</div>`;
-      console.error(`[WorldSmith] Failed to load lesson ${id}:`, error);
+      console.error(`[Caelum] Failed to load lesson ${id}:`, error);
       return;
     }
 
@@ -137,7 +137,7 @@ export function initLessonsPage(mountEl) {
     try {
       lessonRuntime.wire?.(body);
     } catch (error) {
-      console.error(`[WorldSmith] Failed to wire lesson ${id}:`, error);
+      console.error(`[Caelum] Failed to wire lesson ${id}:`, error);
     }
 
     if (mode === "advanced") {
@@ -147,7 +147,7 @@ export function initLessonsPage(mountEl) {
           renderAllMath(body, katex);
         })
         .catch((error) => {
-          console.error(`[WorldSmith] Failed to load KaTeX for lesson ${id}:`, error);
+          console.error(`[Caelum] Failed to load KaTeX for lesson ${id}:`, error);
         });
     }
   }
