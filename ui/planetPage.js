@@ -37,6 +37,7 @@ import {
   hasLimitedSurfaceApplicability,
 } from "./planet/bodyClassificationSummary.js";
 import { buildPhotochemicalHazeOutputItems } from "./planet/photochemicalHazeOutputs.js";
+import { buildSurfaceOceanOutputContext } from "./planet/surfaceOceanCoverageOutputs.js";
 import { buildLongTermDynamicsSection } from "./planet/longTermDynamicsOutput.js";
 import {
   buildGasGiantCoupledContextItems,
@@ -1767,27 +1768,13 @@ export function initPlanetPage(mountEl, options = {}) {
       (prebioticUvClass !== "uv_starved" ||
         (Number.isFinite(surfaceLiquidCoverage) && surfaceLiquidCoverage > 0.001));
     const hazeOutputs = buildPhotochemicalHazeOutputItems({ derived: d, display: model.display });
-    const meanOceanDepthKm = Number(d.hydrosphere?.estimatedMeanOceanDepthKm);
-    const seafloorPressureGPa = Number(d.hydrosphere?.seafloorPressureGPa);
-    const oceanPhaseDiagnostics = String(model.display.oceanPhaseDiagnostics || "").trim();
-    const showMeanOceanDepth =
-      Number.isFinite(surfaceLiquidCoverage) &&
-      surfaceLiquidCoverage >= 0.05 &&
-      Number.isFinite(meanOceanDepthKm) &&
-      meanOceanDepthKm > 0 &&
-      model.display.meanOceanDepth;
-    const waterRegimeMeta = showMeanOceanDepth
-      ? `~${fmt(model.inputs.wmfPct, 2)}% water by mass | Mean depth ${model.display.meanOceanDepth}`
-      : `~${fmt(model.inputs.wmfPct, 2)}% water by mass`;
-    const meanOceanDepthMeta = [
-      `Surface liquid coverage ${fmt(surfaceLiquidCoverage * 100, 0)}%`,
-      oceanPhaseDiagnostics,
-      !oceanPhaseDiagnostics && Number.isFinite(seafloorPressureGPa) && seafloorPressureGPa > 0
-        ? `Seafloor pressure ${fmt(seafloorPressureGPa, seafloorPressureGPa >= 1 ? 2 : 3)} GPa`
-        : "",
-    ]
-      .filter(Boolean)
-      .join(" | ");
+    const { showMeanOceanDepth, waterRegimeMeta, meanOceanDepthMeta, surfaceOceanCoverageItems } =
+      buildSurfaceOceanOutputContext({
+        derived: d,
+        display: model.display,
+        inputs: model.inputs,
+        surfaceLiquidCoverage,
+      });
     const stellarWindRatio = Number(d.stellarWind?.ramPressureEarthRatio);
     const stellarWindConfidence = String(d.stellarWind?.confidence || "unsupported");
     const stellarWindMeta =
@@ -2085,6 +2072,7 @@ export function initPlanetPage(mountEl, options = {}) {
         value: model.display.waterRegime,
         meta: waterRegimeMeta,
       },
+      ...surfaceOceanCoverageItems,
       showMeanOceanDepth && {
         label: "Mean Ocean Depth",
         value: model.display.meanOceanDepth,
@@ -2602,6 +2590,7 @@ export function initPlanetPage(mountEl, options = {}) {
               value: model.display.waterRegime,
               meta: `~${fmt(model.inputs.wmfPct, 2)}% water by mass`,
             },
+            ...surfaceOceanCoverageItems,
             showMeanOceanDepth
               ? {
                   label: "Mean Ocean Depth",

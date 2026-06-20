@@ -1359,6 +1359,34 @@ a:hover {
   font: inherit;
 }
 
+.validation-field select {
+  color-scheme: dark;
+}
+
+.validation-field select option {
+  background: #111827;
+  color: #f8fafc;
+}
+
+.validation-field select option:checked {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+[data-theme="light"] .validation-field select {
+  color-scheme: light;
+}
+
+[data-theme="light"] .validation-field select option {
+  background: #ffffff;
+  color: #111827;
+}
+
+[data-theme="light"] .validation-field select option:checked {
+  background: #2563eb;
+  color: #ffffff;
+}
+
 .validation-field input:focus,
 .validation-field select:focus {
   border-color: rgba(var(--accent-rgb), 0.48);

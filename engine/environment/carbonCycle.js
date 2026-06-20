@@ -1,4 +1,8 @@
 import { clamp, round, toFinite } from "../utils.js";
+import {
+  hasRockOceanExchangeBarrier,
+  resolveSurfaceOceanFractions,
+} from "../contexts/surfaceOceanCoverageAccessors.js";
 
 const MODEL_VERSION = "carbon-cycle-v1";
 
@@ -69,10 +73,17 @@ function volcanicSupplyScore({ tectonicScore, outgassing, volcanicActivity }) {
 }
 
 function landWaterExposure({ hydrosphere, landFraction, oceanFraction }) {
-  const land = fraction(landFraction, fraction(hydrosphere?.landFraction, 0));
-  const ocean = fraction(oceanFraction, fraction(hydrosphere?.liquidOceanFraction, 0));
-  const surfaceLiquid = Math.max(fraction(hydrosphere?.surfaceAccessibleLiquidFraction, 0), ocean);
-  const highPressureBarrier = hydrosphere?.highPressureIceBarrier === true;
+  const coverage = resolveSurfaceOceanFractions(hydrosphere);
+  const land = fraction(
+    coverage.landFraction,
+    fraction(landFraction, fraction(hydrosphere?.landFraction, 0)),
+  );
+  const ocean = fraction(
+    coverage.liquidOceanFraction,
+    fraction(oceanFraction, fraction(hydrosphere?.liquidOceanFraction, 0)),
+  );
+  const surfaceLiquid = fraction(coverage.surfaceAccessibleLiquidFraction, ocean);
+  const highPressureBarrier = hasRockOceanExchangeBarrier(hydrosphere);
   const subsurfaceScore = fraction(hydrosphere?.subsurfaceOceanScore, 0);
   const rockOceanAccess = highPressureBarrier ? 0.2 : clamp(0.35 + 0.65 * subsurfaceScore, 0, 1);
   const exposedLandWeathering = clamp(1 - Math.abs(land - 0.35) / 0.45, land > 0 ? 0.05 : 0, 1);
@@ -83,6 +94,7 @@ function landWaterExposure({ hydrosphere, landFraction, oceanFraction }) {
     surfaceLiquid,
     highPressureBarrier,
     subsurfaceScore,
+    coverageModelVersion: coverage.modelVersion,
     exposedLandWeathering,
     seafloorWeathering,
     rockOceanAccess,
@@ -276,8 +288,10 @@ export function computeCarbonCycleContext({
     co2SupplyTendency: round(volcanicSupply, 3),
     exposedLandFraction: round(exposure.land, 3),
     oceanFraction: round(exposure.ocean, 3),
+    surfaceAccessibleLiquidFraction: round(exposure.surfaceLiquid, 3),
     seafloorWeatheringPotential: round(exposure.seafloorWeathering, 3),
     rockOceanAccess: round(exposure.rockOceanAccess, 3),
+    surfaceOceanCoverageModelVersion: exposure.coverageModelVersion,
     interiorEvolutionModelVersion: interiorEvolutionContext?.modelVersion || null,
     interiorVolcanicSupportClass: interiorOutputs.volcanicLongevityClass || "not-evaluated",
     interiorRecyclingSupportClass: interiorOutputs.mantleRecyclingSupportClass || "not-evaluated",

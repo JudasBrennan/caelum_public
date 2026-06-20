@@ -1,8 +1,8 @@
 # WorldSmith Science Verification Matrix
 
-Generated: 2026-06-19T20:08:34.911Z
+Generated: 2026-06-20T13:18:04.440Z
 
-App version: 2.11.0
+App version: 2.12.0
 
 Science verification matrix covering benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, units, independent formula oracles, sensitivity, population sanity, browser coverage, and release gates.
 
@@ -12,12 +12,12 @@ Anchor benchmarks are only one family. Physics invariants, metamorphic trends, b
 
 Metric | Value
 --- | ---
-Model areas | 25
-Verification rows | 347
-Passed rows | 334
+Model areas | 27
+Verification rows | 348
+Passed rows | 339
 Warnings | 0
 Failures | 0
-Modeling gaps | 4
+Modeling gaps | 0
 Blocked rows | 0
 Release gates passed | 1
 
@@ -26,15 +26,17 @@ Release gates passed | 1
 Model area | Trust | Registry keys | Coverage
 --- | --- | --- | ---
 Stellar Environment | strong | stellarHistoryDose | anchor, metamorphic, unit, source-coverage
-Rocky Planets | bounded | planetRadiationEnvironment, surfaceClimate, geodynamics, interiorEvolution | anchor, invariant, metamorphic, unit, sensitivity, source-coverage
-Hydrosphere And Ocean Chemistry | bounded | co2ClimateTendency, productivity, nitrogenCycle | invariant, metamorphic, boundary, cross-system, source-coverage
+Rocky Planets | strong | planetRadiationEnvironment, surfaceClimate, geodynamics, interiorEvolution | anchor, invariant, metamorphic, unit, sensitivity, source-coverage
+Hydrosphere And Ocean Chemistry | strong | co2ClimateTendency, productivity, nitrogenCycle | invariant, metamorphic, boundary, cross-system, source-coverage
 Atmosphere And Climate Coupling | strong | atmosphereEvolution, coupledClimatePass, co2ClimateTendency, surfaceClimate | invariant, metamorphic, boundary, cross-system, unit, oracle, sensitivity, source-coverage
-Moons And Tidal Worlds | bounded | observerFrame, eclipseTiming, moonOrientation, secularStress, gasGiantMoonInfluenceSummary | anchor, invariant, metamorphic, boundary, cross-system, unit, oracle, population, source-coverage
+Moons And Tidal Worlds | strong | observerFrame, eclipseTiming, moonOrientation, secularStress, gasGiantMoonInfluenceSummary | anchor, invariant, metamorphic, boundary, cross-system, unit, oracle, population, source-coverage
 Gas Giants And Rings | strong | ringMagnetosphere, gasGiantMoonInfluenceSummary | anchor, invariant, source-coverage
 Orbital Dynamics And Architecture | strong | longTermDynamics, dynamicalVariability, secularDynamics, precession, cassiniState, migrationHistory, trojanPopulation, orbitalEpoch | anchor, cross-system, unit, oracle, source-coverage
 Small Bodies And Impacts | strong | smallBodyReservoir, impactEnvironment | anchor, source-coverage
 Habitability, Productivity, And Biosignatures | strong | productivity, nitrogenCycle, stellarHistoryDose | invariant, population, source-coverage
 Observability And User-Facing Science | strong | observability, observerFrame, eclipseTiming | anchor, population, browser, source-coverage, release-gate
+Surface ocean coverage and hypsometry context | strong | surfaceOceanCoverage | source-coverage
+Icy moon sputtered oxygen exosphere | strong | icyMoonExosphere | source-coverage
 Radius-valley boundary context | strong | radiusValleyBoundary | source-coverage
 Host-frame stability | strong | hostFrame.stability | source-coverage
 Selected-frame orbital architecture | strong | hostFrame.orbitalArchitecture | source-coverage
@@ -53,12 +55,7 @@ Dynamical timeline events | strong | timeline.dynamicalEvents | source-coverage
 
 ## Open Gaps And Watch Items
 
-Model area | Family | Subject | Metric | Status | Severity | Action
---- | --- | --- | --- | --- | --- | ---
-rocky-planets | anchor | Environment coupling / Earth | Surface ocean coverage | GAP | medium | Retain as documented gap until a future feature models this quantity
-rocky-planets | anchor | Environment coupling / Europa | Sputtered oxygen exosphere | GAP | medium | Retain as documented gap until a future feature models this quantity
-hydrosphere-ocean | cross-system | Earth surface ocean coverage | Hypsometry-based surface coverage gap | GAP | medium | Implement the surface ocean coverage and hypsometry plan.
-moons | cross-system | Europa sputtered oxygen exosphere | Icy moon exosphere gap | GAP | medium | Implement the icy moon sputtered oxygen exosphere plan.
+No gaps, warnings, blocked rows, or failures.
 
 ## Verification Rows
 
@@ -335,11 +332,12 @@ stellar-environment | anchor | Stellar environment / Sol | Equatorial rotation |
 stellar-environment | anchor | Stellar environment / Sol | Polar rotation | PASS | info | 33.03 days | 30.00 days to 37.00 days | No action
 stellar-environment | anchor | Stellar environment / Sol | Wind pressure at 1 AU | PASS | info | 0.9989 Earth ratio | 1.000 Earth ratio | No action
 rocky-planets | anchor | Environment coupling / Earth | Magnetopause | PASS | info | 9.930 Earth radii | 8.000 Earth radii to 12.00 Earth radii | No action
-rocky-planets | anchor | Environment coupling / Earth | Surface ocean coverage | GAP | medium | water-mass fraction driven | 0.7100 | Retain as documented gap until a future feature models this quantity
+rocky-planets | anchor | Environment coupling / Earth | Surface ocean coverage | PASS | info | 0.7060 fraction | 0.6800 fraction to 0.7400 fraction | Phase 5 implemented: keep Earth ocean coverage as active calibrated row
 rocky-planets | anchor | Environment coupling / Mars | Ancient water timeline cue | PASS | info | true | true | No action
 rocky-planets | anchor | Environment coupling / Jupiter | Variable magnetosphere range | PASS | info | 31.60 Jupiter radii | 20.00 Jupiter radii to 120.0 Jupiter radii | No action
 rocky-planets | anchor | Environment coupling / Europa | Subsurface ocean timeline cue | PASS | info | true | true | No action
-rocky-planets | anchor | Environment coupling / Europa | Sputtered oxygen exosphere | GAP | medium | not explicit | observed | Retain as documented gap until a future feature models this quantity
+rocky-planets | anchor | Environment coupling / Europa | Sputtered oxygen exosphere class | PASS | info | Europa-like | Europa-like | Phase 5 implemented: keep Europa exosphere as active calibration row
+rocky-planets | anchor | Environment coupling / Europa | Sputtered oxygen O2 production | PASS | info | 12.01 kg/s | 6.000 kg/s to 18.00 kg/s | Phase 5 implemented: keep Europa O2 production as broad range anchor
 stellar-environment | source-coverage | Stellar Environment | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 rocky-planets | source-coverage | Rocky Planets | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 hydrosphere-ocean | source-coverage | Hydrosphere And Ocean Chemistry | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
@@ -350,6 +348,8 @@ orbital-dynamics | source-coverage | Orbital Dynamics And Architecture | Registr
 small-bodies-impacts | source-coverage | Small Bodies And Impacts | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 habitability-biosignatures | source-coverage | Habitability, Productivity, And Biosignatures | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 observability-user-facing | source-coverage | Observability And User-Facing Science | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
+context-surfaceoceancoverage | source-coverage | Surface ocean coverage and hypsometry context | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
+context-icymoonexosphere | source-coverage | Icy moon sputtered oxygen exosphere | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-radiusvalleyboundary | source-coverage | Radius-valley boundary context | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-hostframe-stability | source-coverage | Host-frame stability | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-hostframe-orbitalarchitecture | source-coverage | Selected-frame orbital architecture | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
@@ -383,11 +383,11 @@ moons | oracle | Earth synchronous orbit | Independent synchronous radius | PASS
 atmosphere-climate | metamorphic | Orbit distance | Moving outward lowers absorbed flux | PASS | low | 236.13 -> 163.98 W/m2 | decrease | Investigate sign, unit, or coupling regression if this trend fails.
 stellar-environment | metamorphic | Stellar luminosity | Increasing luminosity raises surface temperature | PASS | low | 283 -> 296 K | increase | Investigate sign, unit, or coupling regression if this trend fails.
 atmosphere-climate | metamorphic | Albedo | Increasing albedo lowers absorbed flux | PASS | low | 236.13 -> 170.13 W/m2 | decrease | Investigate sign, unit, or coupling regression if this trend fails.
-hydrosphere-ocean | metamorphic | Water inventory | Increasing WMF does not reduce water coverage before phase transitions | PASS | low | 0.068 -> 0.959 | nondecrease | Investigate sign, unit, or coupling regression if this trend fails.
+hydrosphere-ocean | metamorphic | Water inventory | Increasing WMF does not reduce water coverage before phase transitions | PASS | low | 0.046 -> 0.995 | nondecrease | Investigate sign, unit, or coupling regression if this trend fails.
 rocky-planets | metamorphic | Stellar XUV | Increasing XUV does not reduce atmosphere-loss stress | PASS | low | 0.5 -> 5 | increase | Investigate sign, unit, or coupling regression if this trend fails.
 moons | metamorphic | Moon eccentricity | Increasing eccentricity raises tidal heating | PASS | low | 0.351254 -> 35.446348 W/m2 | increase | Investigate sign, unit, or coupling regression if this trend fails.
 hydrosphere-ocean | boundary | Dry planet | Dry boundary | PASS | low | Dry | Dry | Review threshold logic and user-facing caveats if this boundary fails.
-hydrosphere-ocean | boundary | Snowball planet | Snowball transfers liquid to ice | PASS | low | ice=0.643; liquid=0 | ice present and accessible liquid limited | Review threshold logic and user-facing caveats if this boundary fails.
+hydrosphere-ocean | boundary | Snowball planet | Snowball transfers liquid to ice | PASS | low | ice=0.874; liquid=0 | ice present and accessible liquid limited | Review threshold logic and user-facing caveats if this boundary fails.
 hydrosphere-ocean | boundary | Deep waterworld | High-pressure ice boundary is surfaced | PASS | low | ice-vii | caution/plausible/likely or stable phase diagnostic | Review threshold logic and user-facing caveats if this boundary fails.
 atmosphere-climate | boundary | Mars pressure | Thin atmosphere remains thin/transient | PASS | low | declining-transient | declining-transient | Review threshold logic and user-facing caveats if this boundary fails.
 moons | boundary | Luna | Airless/exosphere boundary | PASS | low | Airless | Airless | Review threshold logic and user-facing caveats if this boundary fails.
@@ -404,9 +404,7 @@ observability-user-facing | population | Science calibration fixture set | Fixtu
 habitability-biosignatures | population | Hostile calibration fixtures | Hostile worlds do not bypass habitability guardrails | PASS | low | Guardrails hold | No obvious hostile world with high habitability index | Review habitability penalties if this fails.
 moons | population | Moon calibration fixture availability | Europa-like and Titan-like worlds exist for downstream suites | PASS | low | Europa-like calibration; Titan-like calibration | Moon fixture worlds present | Keep moon fixtures updated when moon schema changes.
 observability-user-facing | browser | Validation page | Browser regression suite coverage | INFO | info | Covered by npm run test:browser during release verification | Validation page loads matrix artifact and filters rows | Run browser tests before release; investigate any Validation page failure.
-hydrosphere-ocean | cross-system | Earth surface ocean coverage | Hypsometry-based surface coverage gap | GAP | medium | Known gap until SURFACE_OCEAN_COVERAGE_HYPSOMETRY_PLAN.md is implemented | Earth-like inputs infer about 71% surface ocean coverage | Implement the surface ocean coverage and hypsometry plan.
-moons | cross-system | Europa sputtered oxygen exosphere | Icy moon exosphere gap | GAP | medium | Known gap until ICY_MOON_SPUTTERED_OXYGEN_EXOSPHERE_PLAN.md is implemented | Abiotic O2/H2 exosphere from radiolysis and sputtering | Implement the icy moon sputtered oxygen exosphere plan.
-observability-user-facing | release-gate | science:verify | Release verification command | PASS | info | Recorded at 2026-06-19T20:08:34.911Z | PASS before release | No action required.
+observability-user-facing | release-gate | science:verify | Release verification command | PASS | info | Recorded at 2026-06-20T13:18:04.440Z | PASS before release | No action required.
 observability-user-facing | release-gate | check | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | build | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | bundle | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.

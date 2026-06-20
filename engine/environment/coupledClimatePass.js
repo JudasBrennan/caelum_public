@@ -184,6 +184,9 @@ export function resolveCoupledClimatePassForPlanet({
   tidalHeatFluxWm2 = 0,
   salinityPct = 0,
   ammoniaPct = 0,
+  tectonicContext = null,
+  geodynamicsContext = null,
+  explicitOceanCoverageFraction = null,
   manualOverride = false,
   userMode = "auto",
 } = {}) {
@@ -219,6 +222,9 @@ export function resolveCoupledClimatePassForPlanet({
     tidalHeatFluxWm2,
     salinityPct,
     ammoniaPct,
+    tectonicContext,
+    geodynamicsContext,
+    explicitOceanCoverageFraction,
   });
   const { boundaryRisk, boundaryCrossings } = classifyCoupledClimateBoundaryRisk({
     baselineSurfaceTempK,

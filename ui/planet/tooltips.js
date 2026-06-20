@@ -21,7 +21,7 @@ export const TIP_LABEL = {
   Physical: "Core physical inputs that control the planet's bulk properties.",
   Mass: "Planet mass in Earth masses.\n\nTerrestrial planets: 0.1\u201310 MEarth.\nHabitable Earth-like planets: 0.1\u20133.5 MEarth.\n\nEarth = 1 MEarth = 5.972E24 kg",
   CMF: "Core Mass Fraction (CMF) \u2014 percentage of planetary mass in the iron core.\n\nBy default, auto-derived from the host star\u2019s metallicity [Fe/H] (Schulze et al. 2021, PSJ 2, 113). Use the \u2018auto\u2019 button to reset, or enter a manual value.\n\nMercury \u2248 70%\nVenus \u2248 32%\nEarth \u2248 32.5%\nMars \u2248 22%\nMoon \u2248 2%",
-  WMF: "Water Mass Fraction (WMF) \u2014 percentage of planetary mass that is water or ice.\n\nHigher WMF inflates the radius, reduces bulk density, and deepens oceans.\n\nDry: < 0.01%\nShallow oceans: 0.01\u20130.1% (Earth ~0.02%)\nExtensive oceans: 0.1\u20131%\nGlobal ocean: 1\u201310% (no exposed land)\nDeep ocean: 10\u201330% (pressure-aware high-pressure ice caution depends on gravity, depth, and temperature)\nIce world: > 30%\n\nReference: Zeng & Sasselov (2016, ApJ 819, 127) three-layer interior model.",
+  WMF: "Water Mass Fraction (WMF) \u2014 percentage of planetary mass that is water or ice.\n\nHigher WMF inflates the radius, reduces bulk density, and deepens oceans. Surface-ocean coverage is inferred separately by comparing this water inventory with planet size, gravity-scaled relief, and basin capacity.\n\nDry: < 0.01%\nShallow oceans: 0.01\u20130.1% (Earth ~0.02%)\nExtensive oceans: 0.1\u20131%\nGlobal ocean: 1\u201310% (no exposed land)\nDeep ocean: 10\u201330% (pressure-aware high-pressure ice caution depends on gravity, depth, and temperature)\nIce world: > 30%\n\nReference: Zeng & Sasselov (2016, ApJ 819, 127) three-layer interior model.",
   "H/He Envelope":
     "Hydrogen/helium envelope mass fraction. Values above about 0.1% move low-mass bodies toward mini-Neptune or ice-giant classification and route them through the volatile-envelope radius and escape model.",
   "Observed Radius":
@@ -99,7 +99,13 @@ export const TIP_LABEL = {
   "Core Radius":
     "Core radius as a fraction of the total planetary radius. Estimated via CRF \u2248 CMF^0.5 (Zeng & Jacobsen 2017).\n\nEarth: CRF \u2248 0.55 (core radius ~3,485 km).",
   "Water Regime":
-    "Surface water state derived from water mass fraction (WMF).\n\nDry: < 0.01% WMF\nShallow oceans: 0.01\u20130.1% WMF (Earth ~0.02%\u2014thin but widespread oceans)\nExtensive oceans: 0.1\u20131% WMF (deeper oceans, less exposed land)\nGlobal ocean: 1\u201310% WMF (no exposed land)\nDeep ocean: 10\u201330% WMF (high-pressure ice caution is pressure-first and gravity-aware)\nIce world: > 30% WMF",
+    "Surface water state derived from water mass fraction (WMF). This is the inventory label; the separate Inferred Ocean Coverage output estimates how much of the surface is flooded by comparing water inventory with basin capacity.\n\nDry: < 0.01% WMF\nShallow oceans: 0.01\u20130.1% WMF (Earth ~0.02%\u2014thin but widespread oceans)\nExtensive oceans: 0.1\u20131% WMF (deeper oceans, less exposed land)\nGlobal ocean: 1\u201310% WMF (little to no exposed land)\nDeep ocean: 10\u201330% WMF (high-pressure ice caution is pressure-first and gravity-aware)\nIce world: > 30% WMF",
+  "Inferred Ocean Coverage":
+    "Estimated fraction of the surface covered by liquid ocean after the model compares water inventory with an Earth-hypsometry basin-capacity proxy, gravity-scaled relief, and the current climate state. This is science context, not a manual art override.",
+  "Exposed Land":
+    "Estimated unflooded surface fraction remaining after the inferred basin fill and climate transfer. Carbon-cycle, productivity, climate, and visual auto coverage use this context when no manual override is set.",
+  "Coverage Confidence":
+    "Confidence in the inferred ocean/land split. High confidence means mass, radius, water inventory, climate, pressure, and relief context are all available; lower confidence means the model is leaning harder on fallback assumptions.",
   "Mean Ocean Depth":
     "Estimated average depth of the liquid surface ocean where substantial surface water is present.\n\nThis divides the planet's water inventory by the modeled liquid-ocean coverage, so it is a global estimate rather than a detailed bathymetry map.",
   "Climate State":

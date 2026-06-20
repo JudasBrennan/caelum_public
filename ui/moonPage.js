@@ -328,6 +328,18 @@ const TIP_LABEL = {
   Atmosphere:
     "Derived moon atmosphere class from the retained volatile inventory.\n\n" +
     "Airless and exosphere states indicate no meaningful surface atmosphere. Thin, substantial, and dense volatile atmospheres represent retained or replenished gases near the surface.",
+  Exosphere:
+    "Surface-boundary exosphere context for icy moons. Sputtered O2/H2 here is abiotic, not breathable air, not retained surface pressure, and not a biosignature claim.",
+  Source:
+    "Exosphere source mechanism. Radiolysis-sputtering means parent magnetospheric particles dissociate exposed water ice and eject products into a tenuous exosphere.",
+  "O2 production":
+    "Broad global O2 production estimate for an icy sputtered exosphere. This is a source-rate diagnostic, not an atmospheric pressure or life signal.",
+  "Ion pickup":
+    "How strongly exosphere products can load the parent magnetosphere as pickup ions. This is plasma-source evidence, not a stable atmosphere.",
+  "Abiotic O2":
+    "Whether oxygen is marked as abiotic and exosphere-only. This must not be read as breathable air or biological oxygen.",
+  "Pressure effect":
+    "Retained-atmosphere contribution from the exosphere. Icy sputtered O2 rows should report zero pressure effect unless a separate manual atmosphere is authored.",
   "Surface Pressure":
     "Total modeled moon surface pressure from retained volatile species.\n\n" +
     "This is derived from the retained volatile inventory rather than a manual input. Higher values generally support stronger greenhouse warming and denser near-surface air.",
@@ -1867,6 +1879,16 @@ export function initMoonPage(mountEl, options = {}) {
         density: "compact",
         items: [
           buildMoonKpi("Atmosphere", model.display.atmosphereClass, model.display.atmosphereSource),
+          buildMoonKpi(
+            "Exosphere",
+            model.display.exosphere,
+            "Icy sputtered O2/H2 is abiotic, exosphere-only, and not breathable.",
+          ),
+          buildMoonKpi("Source", model.display.exosphereSource),
+          buildMoonKpi("O2 production", model.display.exosphereO2Production),
+          buildMoonKpi("Ion pickup", model.display.exosphereIonPickup),
+          buildMoonKpi("Abiotic O2", model.display.exosphereAbioticO2),
+          buildMoonKpi("Pressure effect", model.display.exospherePressureEffect),
           buildMoonKpi(
             "Environment Forcing",
             model.display.environmentForcing,

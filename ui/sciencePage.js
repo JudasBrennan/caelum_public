@@ -621,6 +621,26 @@ function buildPlanetaryPhysics() {
     ),
 
     formula(
+      "Surface Ocean Coverage And Hypsometry",
+      `<div class="sci-formula__eq">${eq("D_{\\text{eq}} = \\frac{M_{\\text{water}}}{4\\pi R^2\\rho_{\\text{water}}}")}</div>
+      <div class="sci-formula__eq">${eq("D_{\\text{eff}} = \\frac{D_{\\text{eq}}}{S_{\\text{relief}}}")}</div>
+      <div class="sci-formula__eq">${eq("f_{\\text{ocean}} = H_{\\text{Earth}}(D_{\\text{eff}})")}</div>
+      <div class="sci-formula__eq">${eq("\\bar{d}_{\\text{ocean}} = \\frac{D_{\\text{eq}}}{\\max(f_{\\text{ocean}},\\epsilon)}")}</div>
+      ${vars([
+        [
+          "D_{\\text{eq}}",
+          "Global equivalent water depth from water mass fraction, radius, and water density",
+        ],
+        ["S_{\\text{relief}}", "Gravity- and tectonics-scaled relief factor relative to Earth"],
+        ["H_{\\text{Earth}}", "Earth-hypsometry basin-capacity proxy"],
+        ["f_{\\text{ocean}}", "Inferred liquid-ocean surface fraction before climate transfer"],
+      ])}
+      <p>WorldSmith now estimates surface-ocean coverage from water inventory and basin capacity instead of mapping each water-regime label to a fixed ocean percentage. Earth-like WMF at Earth mass/radius fills an Earth-hypsometry proxy to about 71% ocean coverage, while climate transfer can turn the same basin fill into permanent ice or steam for snowball and runaway greenhouse cases.</p>
+      <p>Manual visual or population overrides remain authoring controls. They can change displayed land/ocean split for those pages, but they do not rewrite the inferred science context used by climate, carbon-cycle, productivity, tectonics, and validation outputs.</p>
+      ${cite("NASA Space Place water inventory notes; NASA/JPL planetary fact sheets; NOAA/NCEI ETOPO global relief data; Cowan &amp; Abbot (2014), ApJ 781, 27; Pedersen et al. (2024), A&amp;A 685, A162")}`,
+    ),
+
+    formula(
       "Atmospheric Density (Ideal Gas Law)",
       `<div class="sci-formula__eq">${eq("\\rho = \\frac{p \\cdot M_w}{R \\cdot T}")}</div>
       ${vars([
@@ -1299,6 +1319,22 @@ function buildOrbitalMechanics() {
       <p>This is why WorldSmith can classify the same moon as a <b>radiation-limited surface ocean</b> but still keep <b>subsurface ocean plausible</b>.</p>
       <p><b>Calibration note:</b> the parent-belt term remains a comparative, Europa-anchored radiation model rather than a full first-principles particle-transport solution. The output is most reliable as a relative moon-environment classifier, not as an absolute dose forecast for arbitrary exomoon systems.</p>
       ${cite("Paranicas et al. (2009); Divine & Garrett (1983) — Jupiter radiation environment")}`,
+    ),
+
+    formula(
+      "Icy Moon Sputtered Oxygen Exospheres",
+      `<p>Europa-like icy moons can carry an abiotic O<sub>2</sub>/H<sub>2</sub> exosphere without having breathable air. WorldSmith treats this as a surface-boundary context: parent magnetospheric particles dissociate exposed water ice, sputtering and radiolysis release neutrals, and pickup ions plus surface trapping remove them.</p>
+      <div class="sci-formula__eq">${eq("Q_{O_2} \\approx 12\\;\\frac{R_m^2}{R_E^2}\\;S_{ice}\\;S_{particles}\\;S_{pressure}\\;\\text{kg s}^{-1}")}</div>
+      ${vars([
+        ["Q_{O_2}", "Global O2 production proxy"],
+        ["R_m/R_E", "Moon radius relative to Europa"],
+        ["S_{ice}", "Exposed water-ice support"],
+        ["S_{particles}", "Parent magnetospheric particle context"],
+        ["S_{pressure}", "Suppression by retained dense atmospheres"],
+      ])}
+      <p><b>Calibration:</b> the current anchor is Europa. Juno/JADE constrains total O<sub>2</sub> production near 12 kg/s, with a broad 6-18 kg/s acceptance range. Hubble detections establish the tenuous oxygen atmosphere, while exosphere modeling keeps the result surface-boundary and loss-balanced rather than a retained surface atmosphere.</p>
+      <p><b>Guardrail:</b> exosphere O<sub>2</sub> is never added to retained pressure, greenhouse warming, breathability, vegetation, or life confidence. It only contributes abiotic-oxygen caution, parent plasma loading evidence, atmosphere-ledger source/sink terms, and timeline context.</p>
+      ${cite("NASA Juno/JADE Europa oxygen production; Szalay et al. (2024); Hall et al. (1995); Teolis et al. (2017)")}`,
     ),
 
     formula(
@@ -3560,7 +3596,7 @@ function wireCalculators(root) {
 const SECTIONS = [
   { id: "stellar", title: "Stellar Physics", count: 9, builder: buildStellarPhysics },
   { id: "evolution", title: "Stellar Evolution", count: 7, builder: buildStellarEvolution },
-  { id: "planetary", title: "Planetary Physics", count: 13, builder: buildPlanetaryPhysics },
+  { id: "planetary", title: "Planetary Physics", count: 14, builder: buildPlanetaryPhysics },
   { id: "gasgiant", title: "Gas Giant Physics", count: 13, builder: buildGasGiantPhysics },
   {
     id: "interior",

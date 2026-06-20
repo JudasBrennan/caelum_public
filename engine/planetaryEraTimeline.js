@@ -1,3 +1,9 @@
+import {
+  getSurfaceOceanCoverageContext,
+  resolveMeanOceanDepthKm,
+  resolveSurfaceOceanFractions,
+} from "./contexts/surfaceOceanCoverageAccessors.js";
+
 const MODEL_VERSION = "planetary-era-timeline-v1";
 
 const CATEGORY_ORDER = Object.freeze({
@@ -578,6 +584,17 @@ function biosignatureContextOf(model = {}) {
   return isObject(derived.biosignatureContext) ? derived.biosignatureContext : null;
 }
 
+function exosphereContextOf(model = {}) {
+  const derived = derivedModel(model);
+  return (
+    (isObject(derived.exosphere) && derived.exosphere) ||
+    (isObject(model.exosphere) && model.exosphere) ||
+    (isObject(model.atmosphere?.surfaceBoundaryExosphere) &&
+      model.atmosphere.surfaceBoundaryExosphere) ||
+    null
+  );
+}
+
 function dynamicalVariabilityContextOf(model = {}) {
   const derived = derivedModel(model);
   return (
@@ -612,6 +629,7 @@ function addCoupledEnvironmentContextEras(eras, context, model) {
   addEnvironmentForcingEras(eras, context, model);
   addMagnetosphereCompressionEra(eras, context, model);
   addAtmosphereLedgerEras(eras, context, model);
+  addIcyMoonExosphereEra(eras, context, model);
   addAtmosphereEvolutionEra(eras, context, model);
   addStellarHistoryDoseEra(eras, context, model);
   addPhotochemicalHazeEra(eras, context, model);
@@ -623,6 +641,38 @@ function addCoupledEnvironmentContextEras(eras, context, model) {
   addOceanChemistryEra(eras, context, model);
   addBiosignatureContextEra(eras, context, model);
   addDynamicalVariabilityEra(eras, context, model);
+}
+
+function addIcyMoonExosphereEra(eras, context, model) {
+  const exosphere = exosphereContextOf(model);
+  if (!exosphere?.present || !exosphere?.abioticOxygenSource) return;
+  const production = firstFinite(exosphere.oxygenProductionKgS);
+  addEra(eras, context, {
+    id: "sputtered-oxygen-exosphere-era",
+    label: "Sputtered oxygen exosphere era",
+    category: "atmosphere",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: normalizeConfidence(exosphere.oxygenProductionConfidence, "medium"),
+    severity: "info",
+    headline: "Radiolysis and sputtering maintain an abiotic surface-boundary exosphere",
+    detail:
+      "Water-ice radiolysis can supply O2/H2 to a tenuous exosphere while pickup ions and surface trapping remove it. This is not breathable air, a retained oxygen atmosphere, or a life claim.",
+    drivers: [
+      makeDriver("class", "Exosphere class", firstString(exosphere.exosphereClass), ""),
+      makeDriver(
+        "o2Production",
+        "O2 production",
+        production == null ? "" : `${formatNumber(production, production < 1 ? 2 : 1)} kg/s`,
+        "",
+      ),
+      makeDriver("ionPickup", "Ion pickup", firstString(exosphere.ionPickupClass), ""),
+      makeDriver("coupling", "Atmosphere coupling", "exosphere-only", ""),
+    ],
+    evidenceCodes: ["ICY_MOON_EXOSPHERE", "ABIOTIC_OXYGEN_SOURCE"],
+    warningCodes: ["NO_BREATHABLE_AIR", "NO_LIFE_DETECTION_CLAIM"],
+  });
 }
 
 function addEnvironmentForcingEras(eras, context, model) {
@@ -1383,23 +1433,138 @@ function addRockyAtmosphereAndHydrosphereEras(eras, context, model) {
   if (hydrosphere) addHydrosphereEras(eras, context, model, hydrosphere, climateState);
 }
 
+function coverageEraDescriptor({ fractions, climateState }) {
+  const liquid = fractions.liquidOceanFraction;
+  const land = fractions.landFraction;
+  const ice = fractions.permanentIceFraction;
+  const steam = fractions.steamFraction;
+  const climate = String(climateState || "").toLowerCase();
+
+  if (steam > 0.05 || climate.includes("runaway") || climate.includes("greenhouse")) {
+    return {
+      id: "steam-ocean-coverage-era",
+      label: "Steam-ocean coverage era",
+      severity: "warning",
+      headline: "Surface water is expressed as steam or greenhouse-limited inventory",
+    };
+  }
+  if (ice > 0.5 || climate.includes("snowball")) {
+    return {
+      id: "snowball-ocean-coverage-era",
+      label: "Snowball ocean-coverage era",
+      severity: "caution",
+      headline: "Basin-filling water is mostly frozen",
+    };
+  }
+  if (liquid <= 0.02) return null;
+  if (land <= 0.02 && liquid >= 0.9) {
+    return {
+      id: "waterworld-coverage-era",
+      label: "Waterworld coverage era",
+      severity: "caution",
+      headline: "Surface ocean coverage leaves little exposed land",
+    };
+  }
+  if (land <= 0.15 && liquid >= 0.62) {
+    return {
+      id: "archipelago-coverage-era",
+      label: "Archipelago coverage era",
+      severity: "info",
+      headline: "Ocean coverage dominates with limited exposed land",
+    };
+  }
+  if (land >= 0.3) {
+    return {
+      id: "exposed-continent-coverage-era",
+      label: "Exposed-continent coverage era",
+      severity: "good",
+      headline: "Surface water and broad exposed land coexist",
+    };
+  }
+  return {
+    id: "mixed-basin-coverage-era",
+    label: "Mixed basin-coverage era",
+    severity: "good",
+    headline: "Surface oceans and exposed land coexist",
+  };
+}
+
+function addSurfaceOceanCoverageEra(eras, context, hydrosphere = {}, climateState = "") {
+  const coverageContext = getSurfaceOceanCoverageContext(hydrosphere);
+  if (!coverageContext || coverageContext.supported === false) return;
+  const fractions = resolveSurfaceOceanFractions(hydrosphere);
+  const descriptor = coverageEraDescriptor({ fractions, climateState });
+  if (!descriptor) return;
+  const meanDepthKm = resolveMeanOceanDepthKm(hydrosphere);
+
+  addEra(eras, context, {
+    id: descriptor.id,
+    label: descriptor.label,
+    category: "hydrosphere",
+    startGyr: context.currentAgeGyr,
+    endGyr: null,
+    state: "current",
+    confidence: fractions.confidence || "medium",
+    severity: descriptor.severity,
+    headline: descriptor.headline,
+    detail:
+      "The surface ocean coverage context classifies basin fill from water inventory, relief assumptions, and climate phase.",
+    drivers: [
+      makeDriver(
+        "oceanCoverage",
+        "Inferred ocean coverage",
+        `${formatNumber(fractions.liquidOceanFraction * 100, 1)}%`,
+        "",
+      ),
+      makeDriver(
+        "exposedLand",
+        "Exposed land",
+        `${formatNumber(fractions.landFraction * 100, 1)}%`,
+        "",
+      ),
+      makeDriver(
+        "coverageClass",
+        "Coverage class",
+        coverageContext.floodClass || fractions.floodClass || "",
+        "",
+      ),
+      makeDriver(
+        "meanDepth",
+        "Mean ocean depth",
+        meanDepthKm > 0 ? `${formatNumber(meanDepthKm, 2)} km` : "",
+        "",
+      ),
+    ],
+    evidenceCodes: ["SURFACE_OCEAN_COVERAGE_CONTEXT"],
+  });
+}
+
 function addHydrosphereEras(eras, context, model, hydrosphere = {}, climateState = "") {
+  const coverage = resolveSurfaceOceanFractions(hydrosphere);
   const liquidFraction = firstFinite(
-    hydrosphere.surfaceAccessibleLiquidFraction,
-    hydrosphere.liquidOceanFraction,
+    coverage.surfaceAccessibleLiquidFraction,
+    coverage.liquidOceanFraction,
     derivedModel(model).surfaceAccessibleLiquidFraction,
     derivedModel(model).liquidOceanFraction,
   );
   const iceFraction = firstFinite(
+    coverage.permanentIceFraction,
     hydrosphere.permanentIceFraction,
     derivedModel(model).permanentIceFraction,
   );
-  const steamFraction = firstFinite(hydrosphere.steamFraction, derivedModel(model).steamFraction);
+  const steamFraction = firstFinite(
+    coverage.steamFraction,
+    hydrosphere.steamFraction,
+    derivedModel(model).steamFraction,
+  );
   const meanDepthKm = firstFinite(
+    resolveMeanOceanDepthKm(hydrosphere),
     hydrosphere.estimatedMeanOceanDepthKm,
     hydrosphere.estimatedSurfaceOceanDepthKm,
     hydrosphere.estimatedSubsurfaceOceanDepthKm,
   );
+
+  addSurfaceOceanCoverageEra(eras, context, hydrosphere, climateState);
 
   if ((liquidFraction != null && liquidFraction > 0.02) || hydrosphere.surfaceLiquidPresent) {
     addEra(eras, context, {

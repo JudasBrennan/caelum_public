@@ -16,6 +16,7 @@ import {
   baselineHydrosphereFractionsForRegime,
   hydrosphereStateFromPlanet,
 } from "../engine/habitability/hydrosphere.js";
+import { resolveSurfaceOceanFractions } from "../engine/contexts/surfaceOceanCoverageAccessors.js";
 import { tintPalette } from "./renderUtils.js";
 
 let rockyPreviewModulePromise = null;
@@ -102,8 +103,28 @@ function iceCapsFromTemp(tempK, axialTiltDeg) {
 }
 
 function resolveHydrosphere(derived, inputs) {
+  const coverageContext =
+    derived?.surfaceOceanCoverageContext || derived?.hydrosphere?.surfaceOceanCoverageContext;
   if (derived?.hydrosphere && typeof derived.hydrosphere === "object") {
-    return derived.hydrosphere;
+    return {
+      ...derived.hydrosphere,
+      ...(coverageContext ? { surfaceOceanCoverageContext: coverageContext } : {}),
+    };
+  }
+  if (coverageContext && typeof coverageContext === "object") {
+    const coverage = resolveSurfaceOceanFractions({ surfaceOceanCoverageContext: coverageContext });
+    return {
+      modelVersion: "hydrosphere-v2",
+      coverageModelVersion: coverage.modelVersion,
+      coverageConfidence: coverage.confidence,
+      liquidOceanFraction: coverage.liquidOceanFraction,
+      landFraction: coverage.landFraction,
+      permanentIceFraction: coverage.permanentIceFraction,
+      steamFraction: coverage.steamFraction,
+      waterCoverageFraction: coverage.waterCoverageFraction,
+      surfaceAccessibleLiquidFraction: coverage.surfaceAccessibleLiquidFraction,
+      surfaceOceanCoverageContext: coverageContext,
+    };
   }
   const explicitWmf = Number(inputs?.wmfPct ?? derived?.wmfPct);
   const explicitMassEarth = Number(inputs?.massEarth ?? derived?.massEarth);
@@ -167,6 +188,7 @@ export function computeRockyVisualProfile(derived, inputs) {
   const d = derived || {};
   const inp = inputs || {};
   const hydrosphere = resolveHydrosphere(d, inp);
+  const coverage = resolveSurfaceOceanFractions(hydrosphere);
   const haze =
     d.photochemistry?.haze && typeof d.photochemistry.haze === "object"
       ? d.photochemistry.haze
@@ -183,7 +205,7 @@ export function computeRockyVisualProfile(derived, inputs) {
 
   // Ocean
   const oceanCoverage = clamp(
-    Number(hydrosphere.liquidOceanFraction || 0) + Number(hydrosphere.permanentIceFraction || 0),
+    Number(coverage.liquidOceanFraction || 0) + Number(coverage.permanentIceFraction || 0),
     0,
     1,
   );
@@ -191,7 +213,7 @@ export function computeRockyVisualProfile(derived, inputs) {
   const oceanColour = OCEAN_COLOURS[d.compositionClass] || DEFAULT_OCEAN_COLOUR;
   const tempK = d.surfaceTempK || 288;
   const frozen =
-    oceanCoverage > 0 && (Number(hydrosphere.permanentIceFraction || 0) > 0 || tempK < 273);
+    oceanCoverage > 0 && (Number(coverage.permanentIceFraction || 0) > 0 || tempK < 273);
   const dryHydrosphereScore = clamp(1 - oceanCoverage * 2, 0, 1);
   const warmDryScore = clamp((tempK - 270) / 80, 0, 1);
   const desertCoverage = clamp(exposedLandFraction * dryHydrosphereScore * warmDryScore, 0, 0.95);
@@ -199,7 +221,7 @@ export function computeRockyVisualProfile(derived, inputs) {
 
   // Ice caps
   let iceCaps;
-  if (d.waterRegime === "Ice world" || Number(hydrosphere.permanentIceFraction || 0) >= 0.95) {
+  if (d.waterRegime === "Ice world" || Number(coverage.permanentIceFraction || 0) >= 0.95) {
     iceCaps = { north: 1, south: 1, colour: "#e8f0ff" };
   } else {
     iceCaps = iceCapsFromTemp(tempK, Number(inp.axialTiltDeg) || 0);
@@ -258,7 +280,7 @@ export function computeRockyVisualProfile(derived, inputs) {
   // Vegetation
   let vegCoverage = 0;
   let vegColour = null;
-  const landFraction = clamp(Number(hydrosphere.landFraction || 0), 0, 1);
+  const landFraction = clamp(Number(coverage.landFraction || 0), 0, 1);
   if (d.vegetationPaleHex && tempK >= 200 && tempK <= 400 && landFraction > 0.05) {
     vegCoverage = clamp(0.35 * landFraction, 0, 0.4);
     vegColour = d.vegetationDeepHex || d.vegetationPaleHex;
@@ -286,7 +308,12 @@ export function computeRockyVisualProfile(derived, inputs) {
     palette,
     landPalette,
     surface: { landCoverage: exposedLandFraction },
-    ocean: { coverage: oceanCoverage, colour: oceanColour, frozen },
+    ocean: {
+      coverage: oceanCoverage,
+      colour: oceanColour,
+      frozen,
+      source: coverage.modelVersion ? "surface-ocean-coverage-context" : "hydrosphere",
+    },
     iceCaps,
     clouds: {
       coverage: cloudCoverage,

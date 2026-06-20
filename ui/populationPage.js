@@ -46,7 +46,7 @@ const TIP_LABEL = {
     "A 100% crop world supports ~1.3\u00d7 more than the 77/23 Earth default.",
   "Ocean Coverage":
     "Percentage of the planet\u2019s surface covered by ocean. " +
-    "Auto-derived from the water regime; override to set manually.\n\n" +
+    "Auto mode follows the inferred surface-ocean coverage from water inventory and basin capacity when available; override only sets authored population/visual land-ocean split outputs.\n\n" +
     "Earth: ~71%.  Mars-like (Dry): ~0%.",
   Habitability:
     "Fraction of land area that is habitable, derived from climate zones. " +

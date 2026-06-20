@@ -1,22 +1,22 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-06-19T20:08:34.911Z",
+  "generatedAt": "2026-06-20T13:18:04.440Z",
   "generatedBy": "node scripts/generate-science-verification-matrix.mjs",
-  "appVersion": "2.11.0",
+  "appVersion": "2.12.0",
   "git": {
-    "commit": "7108a5d",
+    "commit": "f499131",
     "branch": "main",
     "dirty": true
   },
   "scope": "Science verification matrix covering benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, units, independent formula oracles, sensitivity, population sanity, browser coverage, and release gates.",
   "interpretation": "Anchor benchmarks are only one family. Physics invariants, metamorphic trends, boundary behavior, coupling checks, and user-visible release gates are shown separately so users can see how each science area is bounded.",
   "headlineCounts": {
-    "modelAreas": 25,
-    "verificationRows": 347,
-    "passedRows": 334,
+    "modelAreas": 27,
+    "verificationRows": 348,
+    "passedRows": 339,
     "warningRows": 0,
     "failedRows": 0,
-    "gapRows": 4,
+    "gapRows": 0,
     "blockedRows": 0,
     "infoRows": 9,
     "releaseGatesPassed": 1,
@@ -29,6 +29,7 @@
       "context-habitability-persistencebridge",
       "context-hostframe-orbitalarchitecture",
       "context-hostframe-stability",
+      "context-icymoonexosphere",
       "context-moon-eccentricitypersistence",
       "context-moon-migrationdirection",
       "context-moon-sustainedtidalheating",
@@ -39,6 +40,7 @@
       "context-parent-radiationcontext",
       "context-parent-ringcontext",
       "context-radiusvalleyboundary",
+      "context-surfaceoceancoverage",
       "context-timeline-dynamicalevents",
       "gas-giants",
       "habitability-biosignatures",
@@ -61,6 +63,8 @@
       "small-bodies-impacts": "Small Bodies And Impacts",
       "habitability-biosignatures": "Habitability, Productivity, And Biosignatures",
       "observability-user-facing": "Observability And User-Facing Science",
+      "context-surfaceoceancoverage": "Surface ocean coverage and hypsometry context",
+      "context-icymoonexosphere": "Icy moon sputtered oxygen exosphere",
       "context-radiusvalleyboundary": "Radius-valley boundary context",
       "context-hostframe-stability": "Host-frame stability",
       "context-hostframe-orbitalarchitecture": "Selected-frame orbital architecture",
@@ -92,14 +96,12 @@
       "unit"
     ],
     "statuses": [
-      "GAP",
       "INFO",
       "PASS"
     ],
     "severities": [
       "info",
-      "low",
-      "medium"
+      "low"
     ],
     "sourceClasses": [
       "analytic",
@@ -215,7 +217,7 @@
         "source-coverage": true,
         "release-gate": false
       },
-      "trustLevel": "bounded"
+      "trustLevel": "strong"
     },
     {
       "id": "hydrosphere-ocean",
@@ -271,7 +273,7 @@
         "source-coverage": true,
         "release-gate": false
       },
-      "trustLevel": "bounded"
+      "trustLevel": "strong"
     },
     {
       "id": "atmosphere-climate",
@@ -392,7 +394,7 @@
         "source-coverage": true,
         "release-gate": false
       },
-      "trustLevel": "bounded"
+      "trustLevel": "strong"
     },
     {
       "id": "gas-giants",
@@ -671,6 +673,85 @@
         "browser": true,
         "source-coverage": true,
         "release-gate": true
+      },
+      "trustLevel": "strong"
+    },
+    {
+      "id": "context-surfaceoceancoverage",
+      "label": "Surface ocean coverage and hypsometry context",
+      "registryKeys": [
+        "surfaceOceanCoverage"
+      ],
+      "engineFiles": [],
+      "uiFiles": [],
+      "scientificScope": "Earth's observed 71% ocean coverage is a surface-area constraint, not a direct water-mass-fraction output. The planned context will infer surface ocean coverage from water inventory, planet size, gravity, climate state, and a bounded Earth-hypsometry basin-capacity proxy.",
+      "outputKind": "semiQuantitative",
+      "assumptions": [
+        "Outputs will be global coverage diagnostics. Hypsometry is represented by a compact Earth-calibrated basin-fill proxy, not a topographic map, mantle water-cycle solver, or plate-tectonic terrain generator."
+      ],
+      "knownLimitations": [
+        "No exact continent/ocean geography, dynamic sea level, crustal thickness model, erosion/sedimentation cycle, mantle water partitioning, or regional bathymetry is solved."
+      ],
+      "sourceUrls": [
+        "https://doi.org/10.1016/j.epsl.2024.119071",
+        "https://doi.org/10.1088/0004-637X/781/1/27",
+        "https://spaceplace.nasa.gov/water/",
+        "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+        "https://www.ncei.noaa.gov/sites/default/files/2023-01/Hypsographic%20Curve%20of%20Earth%E2%80%99s%20Surface%20from%20ETOPO1.pdf",
+        "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/tiled/"
+      ],
+      "coverageSummary": {
+        "anchor": false,
+        "invariant": false,
+        "metamorphic": false,
+        "boundary": false,
+        "cross-system": false,
+        "unit": false,
+        "oracle": false,
+        "sensitivity": false,
+        "population": false,
+        "browser": false,
+        "source-coverage": true,
+        "release-gate": false
+      },
+      "trustLevel": "strong"
+    },
+    {
+      "id": "context-icymoonexosphere",
+      "label": "Icy moon sputtered oxygen exosphere",
+      "registryKeys": [
+        "icyMoonExosphere"
+      ],
+      "engineFiles": [],
+      "uiFiles": [],
+      "scientificScope": "Europa's water-ice surface is dissociated by magnetospheric particles into H2 and O2; Juno/JADE pickup-ion measurements constrain Europa O2 production near 12 kg/s, while Hubble/Nature observations establish an extremely tenuous abiotic O2 atmosphere.",
+      "outputKind": "semiQuantitative",
+      "assumptions": [
+        "Outputs are global support classes and broad O2 production estimates only. Exosphere O2 is abiotic, exosphere-only, and never added to retained pressure, greenhouse warming, breathability, or life confidence."
+      ],
+      "knownLimitations": [
+        "No MHD or plasma transport, no neutral column-density map, no sputtering-yield chemistry network, no local leading/trailing hemisphere structure, and no plume time variability."
+      ],
+      "sourceUrls": [
+        "https://doi.org/10.1016/j.icarus.2016.10.027",
+        "https://doi.org/10.1038/373677a0",
+        "https://science.nasa.gov/mission/europa-clipper/why-europa-ingredients-for-life/",
+        "https://www.nasa.gov/missions/juno/nasas-juno-mission-measures-oxygen-production-at-europa/",
+        "https://www.nature.com/articles/s41550-024-02206-x"
+      ],
+      "coverageSummary": {
+        "anchor": false,
+        "invariant": false,
+        "metamorphic": false,
+        "boundary": false,
+        "cross-system": false,
+        "unit": false,
+        "oracle": false,
+        "sensitivity": false,
+        "population": false,
+        "browser": false,
+        "source-coverage": true,
+        "release-gate": false
       },
       "trustLevel": "strong"
     },
@@ -8497,25 +8578,25 @@
       "family": "anchor",
       "subject": "Environment coupling / Earth",
       "metric": "Surface ocean coverage",
-      "inputSummary": "WMF-based hydrosphere fixture",
-      "output": "water-mass fraction driven",
-      "expected": "0.7100",
-      "tolerance": "n/a",
-      "status": "GAP",
-      "severity": "medium",
+      "inputSummary": "WMF hydrosphere plus Earth-hypsometry basin-capacity proxy",
+      "output": "0.7060 fraction",
+      "expected": "0.6800 fraction to 0.7400 fraction",
+      "tolerance": "0%",
+      "status": "PASS",
+      "severity": "info",
       "confidence": "medium",
-      "comparisonSemantics": "intentional-gap",
+      "comparisonSemantics": "range-bounded",
       "sourceClass": "NASA",
       "sourceUrls": [],
       "assumptions": [
-        "not explicitly modeled",
-        "observed or expected physical feature"
+        "hypsometry-inferred surface-ocean coverage",
+        "observed Earth surface ocean coverage"
       ],
       "limitations": [
-        "not-applicable"
+        "bounded Earth-hypsometry proxy"
       ],
       "downstreamConsumers": [],
-      "action": "Retain as documented gap until a future feature models this quantity",
+      "action": "Phase 5 implemented: keep Earth ocean coverage as active calibrated row",
       "userVisible": true
     },
     {
@@ -8600,30 +8681,57 @@
       "userVisible": true
     },
     {
-      "id": "anchor-Environment coupling-Europa-Sputtered oxygen exosphere",
+      "id": "anchor-Environment coupling-Europa-Sputtered oxygen exosphere class",
       "modelAreaId": "rocky-planets",
       "family": "anchor",
       "subject": "Environment coupling / Europa",
-      "metric": "Sputtered oxygen exosphere",
+      "metric": "Sputtered oxygen exosphere class",
       "inputSummary": "NASA Europa fixture",
-      "output": "not explicit",
-      "expected": "observed",
+      "output": "Europa-like",
+      "expected": "Europa-like",
       "tolerance": "n/a",
-      "status": "GAP",
-      "severity": "medium",
+      "status": "PASS",
+      "severity": "info",
       "confidence": "medium",
-      "comparisonSemantics": "intentional-gap",
+      "comparisonSemantics": "direct-categorical",
       "sourceClass": "NASA",
       "sourceUrls": [],
       "assumptions": [
-        "not explicitly modeled",
-        "observed or expected physical feature"
+        "surface-boundary exosphere class",
+        "observed Europa exosphere class"
       ],
       "limitations": [
-        "not-applicable"
+        "bounded"
       ],
       "downstreamConsumers": [],
-      "action": "Retain as documented gap until a future feature models this quantity",
+      "action": "Phase 5 implemented: keep Europa exosphere as active calibration row",
+      "userVisible": true
+    },
+    {
+      "id": "anchor-Environment coupling-Europa-Sputtered oxygen O2 production",
+      "modelAreaId": "rocky-planets",
+      "family": "anchor",
+      "subject": "Environment coupling / Europa",
+      "metric": "Sputtered oxygen O2 production",
+      "inputSummary": "NASA Europa fixture",
+      "output": "12.01 kg/s",
+      "expected": "6.000 kg/s to 18.00 kg/s",
+      "tolerance": "0%",
+      "status": "PASS",
+      "severity": "info",
+      "confidence": "medium",
+      "comparisonSemantics": "range-bounded",
+      "sourceClass": "NASA",
+      "sourceUrls": [],
+      "assumptions": [
+        "global O2 production estimate",
+        "Juno/JADE O2 production range"
+      ],
+      "limitations": [
+        "broad observational and proxy-model uncertainty"
+      ],
+      "downstreamConsumers": [],
+      "action": "Phase 5 implemented: keep Europa O2 production as broad range anchor",
       "userVisible": true
     },
     {
@@ -9021,6 +9129,71 @@
         "No spectral retrieval, coronagraph model, cadence/noise model, target-star activity time series, or atmospheric retrieval degeneracy solve.",
         "Exact local sky paths and calendars require site coordinates, reference epochs, and phase-resolved orbital elements.",
         "No exact eclipse dates, durations, or surface visibility maps without a full ephemeris and observer location."
+      ],
+      "downstreamConsumers": [],
+      "action": "Keep source registry entries current as science changes.",
+      "userVisible": true
+    },
+    {
+      "id": "context-surfaceoceancoverage-source-coverage-surface-ocean-coverage-and-hypsometry-context-registry-source-and-limitation-coverage",
+      "modelAreaId": "context-surfaceoceancoverage",
+      "family": "source-coverage",
+      "subject": "Surface ocean coverage and hypsometry context",
+      "metric": "Registry source and limitation coverage",
+      "inputSummary": "1 registry entries",
+      "output": "Registry metadata present",
+      "expected": "Source summary, assumptions, valid range, and limitations",
+      "tolerance": "Required for each model area",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "comparisonSemantics": "metadata-coverage",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1016/j.epsl.2024.119071",
+        "https://doi.org/10.1088/0004-637X/781/1/27",
+        "https://spaceplace.nasa.gov/water/",
+        "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+        "https://www.ncei.noaa.gov/sites/default/files/2023-01/Hypsographic%20Curve%20of%20Earth%E2%80%99s%20Surface%20from%20ETOPO1.pdf",
+        "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/tiled/"
+      ],
+      "assumptions": [
+        "Outputs will be global coverage diagnostics. Hypsometry is represented by a compact Earth-calibrated basin-fill proxy, not a topographic map, mantle water-cycle solver, or plate-tectonic terrain generator."
+      ],
+      "limitations": [
+        "No exact continent/ocean geography, dynamic sea level, crustal thickness model, erosion/sedimentation cycle, mantle water partitioning, or regional bathymetry is solved."
+      ],
+      "downstreamConsumers": [],
+      "action": "Keep source registry entries current as science changes.",
+      "userVisible": true
+    },
+    {
+      "id": "context-icymoonexosphere-source-coverage-icy-moon-sputtered-oxygen-exosphere-registry-source-and-limitation-coverage",
+      "modelAreaId": "context-icymoonexosphere",
+      "family": "source-coverage",
+      "subject": "Icy moon sputtered oxygen exosphere",
+      "metric": "Registry source and limitation coverage",
+      "inputSummary": "1 registry entries",
+      "output": "Registry metadata present",
+      "expected": "Source summary, assumptions, valid range, and limitations",
+      "tolerance": "Required for each model area",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "comparisonSemantics": "metadata-coverage",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1016/j.icarus.2016.10.027",
+        "https://doi.org/10.1038/373677a0",
+        "https://science.nasa.gov/mission/europa-clipper/why-europa-ingredients-for-life/",
+        "https://www.nasa.gov/missions/juno/nasas-juno-mission-measures-oxygen-production-at-europa/",
+        "https://www.nature.com/articles/s41550-024-02206-x"
+      ],
+      "assumptions": [
+        "Outputs are global support classes and broad O2 production estimates only. Exosphere O2 is abiotic, exosphere-only, and never added to retained pressure, greenhouse warming, breathability, or life confidence."
+      ],
+      "limitations": [
+        "No MHD or plasma transport, no neutral column-density map, no sputtering-yield chemistry network, no local leading/trailing hemisphere structure, and no plume time variability."
       ],
       "downstreamConsumers": [],
       "action": "Keep source registry entries current as science changes.",
@@ -9822,7 +9995,7 @@
       "subject": "Water inventory",
       "metric": "Increasing WMF does not reduce water coverage before phase transitions",
       "inputSummary": "Single-parameter perturbation",
-      "output": "0.068 -> 0.959",
+      "output": "0.046 -> 0.995",
       "expected": "nondecrease",
       "tolerance": "directional trend",
       "status": "PASS",
@@ -9910,7 +10083,7 @@
       "subject": "Snowball planet",
       "metric": "Snowball transfers liquid to ice",
       "inputSummary": "Known regime-boundary fixture",
-      "output": "ice=0.643; liquid=0",
+      "output": "ice=0.874; liquid=0",
       "expected": "ice present and accessible liquid limited",
       "tolerance": "class-level boundary",
       "status": "PASS",
@@ -10299,66 +10472,13 @@
       "userVisible": true
     },
     {
-      "id": "hydrosphere-ocean-cross-system-earth-surface-ocean-coverage-hypsometry-based-surface-coverage-gap",
-      "modelAreaId": "hydrosphere-ocean",
-      "family": "cross-system",
-      "subject": "Earth surface ocean coverage",
-      "metric": "Hypsometry-based surface coverage gap",
-      "inputSummary": "Earth-like WMF currently drives coverage without basin-capacity calibration",
-      "output": "Known gap until SURFACE_OCEAN_COVERAGE_HYPSOMETRY_PLAN.md is implemented",
-      "expected": "Earth-like inputs infer about 71% surface ocean coverage",
-      "tolerance": "0.68..0.74 after implementation",
-      "status": "GAP",
-      "severity": "medium",
-      "confidence": "high",
-      "comparisonSemantics": "known-modeling-gap",
-      "sourceClass": "NASA",
-      "sourceUrls": [
-        "https://spaceplace.nasa.gov/water/"
-      ],
-      "assumptions": [],
-      "limitations": [
-        "Current hydrosphere model does not solve basin capacity or hypsometry."
-      ],
-      "downstreamConsumers": [],
-      "action": "Implement the surface ocean coverage and hypsometry plan.",
-      "userVisible": true
-    },
-    {
-      "id": "moons-cross-system-europa-sputtered-oxygen-exosphere-icy-moon-exosphere-gap",
-      "modelAreaId": "moons",
-      "family": "cross-system",
-      "subject": "Europa sputtered oxygen exosphere",
-      "metric": "Icy moon exosphere gap",
-      "inputSummary": "Europa-like moon inside Jupiter magnetosphere",
-      "output": "Known gap until ICY_MOON_SPUTTERED_OXYGEN_EXOSPHERE_PLAN.md is implemented",
-      "expected": "Abiotic O2/H2 exosphere from radiolysis and sputtering",
-      "tolerance": "class-level plus broad O2 production range",
-      "status": "GAP",
-      "severity": "medium",
-      "confidence": "high",
-      "comparisonSemantics": "known-modeling-gap",
-      "sourceClass": "peer-reviewed",
-      "sourceUrls": [
-        "https://www.nasa.gov/missions/juno/nasas-juno-mission-measures-oxygen-production-at-europa/",
-        "https://doi.org/10.1038/373677a0"
-      ],
-      "assumptions": [],
-      "limitations": [
-        "Current moon atmosphere model does not represent surface-boundary O2 exospheres explicitly."
-      ],
-      "downstreamConsumers": [],
-      "action": "Implement the icy moon sputtered oxygen exosphere plan.",
-      "userVisible": true
-    },
-    {
       "id": "observability-user-facing-release-gate-science-verify-release-verification-command",
       "modelAreaId": "observability-user-facing",
       "family": "release-gate",
       "subject": "science:verify",
       "metric": "Release verification command",
       "inputSummary": "node scripts/generate-science-verification-matrix.mjs",
-      "output": "Recorded at 2026-06-19T20:08:34.911Z",
+      "output": "Recorded at 2026-06-20T13:18:04.440Z",
       "expected": "PASS before release",
       "tolerance": "required release gate",
       "status": "PASS",
@@ -17786,25 +17906,25 @@
       "family": "anchor",
       "subject": "Environment coupling / Earth",
       "metric": "Surface ocean coverage",
-      "inputSummary": "WMF-based hydrosphere fixture",
-      "output": "water-mass fraction driven",
-      "expected": "0.7100",
-      "tolerance": "n/a",
-      "status": "GAP",
-      "severity": "medium",
+      "inputSummary": "WMF hydrosphere plus Earth-hypsometry basin-capacity proxy",
+      "output": "0.7060 fraction",
+      "expected": "0.6800 fraction to 0.7400 fraction",
+      "tolerance": "0%",
+      "status": "PASS",
+      "severity": "info",
       "confidence": "medium",
-      "comparisonSemantics": "intentional-gap",
+      "comparisonSemantics": "range-bounded",
       "sourceClass": "NASA",
       "sourceUrls": [],
       "assumptions": [
-        "not explicitly modeled",
-        "observed or expected physical feature"
+        "hypsometry-inferred surface-ocean coverage",
+        "observed Earth surface ocean coverage"
       ],
       "limitations": [
-        "not-applicable"
+        "bounded Earth-hypsometry proxy"
       ],
       "downstreamConsumers": [],
-      "action": "Retain as documented gap until a future feature models this quantity",
+      "action": "Phase 5 implemented: keep Earth ocean coverage as active calibrated row",
       "userVisible": true
     },
     {
@@ -17889,30 +18009,57 @@
       "userVisible": true
     },
     {
-      "id": "anchor-Environment coupling-Europa-Sputtered oxygen exosphere",
+      "id": "anchor-Environment coupling-Europa-Sputtered oxygen exosphere class",
       "modelAreaId": "rocky-planets",
       "family": "anchor",
       "subject": "Environment coupling / Europa",
-      "metric": "Sputtered oxygen exosphere",
+      "metric": "Sputtered oxygen exosphere class",
       "inputSummary": "NASA Europa fixture",
-      "output": "not explicit",
-      "expected": "observed",
+      "output": "Europa-like",
+      "expected": "Europa-like",
       "tolerance": "n/a",
-      "status": "GAP",
-      "severity": "medium",
+      "status": "PASS",
+      "severity": "info",
       "confidence": "medium",
-      "comparisonSemantics": "intentional-gap",
+      "comparisonSemantics": "direct-categorical",
       "sourceClass": "NASA",
       "sourceUrls": [],
       "assumptions": [
-        "not explicitly modeled",
-        "observed or expected physical feature"
+        "surface-boundary exosphere class",
+        "observed Europa exosphere class"
       ],
       "limitations": [
-        "not-applicable"
+        "bounded"
       ],
       "downstreamConsumers": [],
-      "action": "Retain as documented gap until a future feature models this quantity",
+      "action": "Phase 5 implemented: keep Europa exosphere as active calibration row",
+      "userVisible": true
+    },
+    {
+      "id": "anchor-Environment coupling-Europa-Sputtered oxygen O2 production",
+      "modelAreaId": "rocky-planets",
+      "family": "anchor",
+      "subject": "Environment coupling / Europa",
+      "metric": "Sputtered oxygen O2 production",
+      "inputSummary": "NASA Europa fixture",
+      "output": "12.01 kg/s",
+      "expected": "6.000 kg/s to 18.00 kg/s",
+      "tolerance": "0%",
+      "status": "PASS",
+      "severity": "info",
+      "confidence": "medium",
+      "comparisonSemantics": "range-bounded",
+      "sourceClass": "NASA",
+      "sourceUrls": [],
+      "assumptions": [
+        "global O2 production estimate",
+        "Juno/JADE O2 production range"
+      ],
+      "limitations": [
+        "broad observational and proxy-model uncertainty"
+      ],
+      "downstreamConsumers": [],
+      "action": "Phase 5 implemented: keep Europa O2 production as broad range anchor",
       "userVisible": true
     },
     {
@@ -18310,6 +18457,71 @@
         "No spectral retrieval, coronagraph model, cadence/noise model, target-star activity time series, or atmospheric retrieval degeneracy solve.",
         "Exact local sky paths and calendars require site coordinates, reference epochs, and phase-resolved orbital elements.",
         "No exact eclipse dates, durations, or surface visibility maps without a full ephemeris and observer location."
+      ],
+      "downstreamConsumers": [],
+      "action": "Keep source registry entries current as science changes.",
+      "userVisible": true
+    },
+    {
+      "id": "context-surfaceoceancoverage-source-coverage-surface-ocean-coverage-and-hypsometry-context-registry-source-and-limitation-coverage",
+      "modelAreaId": "context-surfaceoceancoverage",
+      "family": "source-coverage",
+      "subject": "Surface ocean coverage and hypsometry context",
+      "metric": "Registry source and limitation coverage",
+      "inputSummary": "1 registry entries",
+      "output": "Registry metadata present",
+      "expected": "Source summary, assumptions, valid range, and limitations",
+      "tolerance": "Required for each model area",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "comparisonSemantics": "metadata-coverage",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1016/j.epsl.2024.119071",
+        "https://doi.org/10.1088/0004-637X/781/1/27",
+        "https://spaceplace.nasa.gov/water/",
+        "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+        "https://www.ncei.noaa.gov/sites/default/files/2023-01/Hypsographic%20Curve%20of%20Earth%E2%80%99s%20Surface%20from%20ETOPO1.pdf",
+        "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/tiled/"
+      ],
+      "assumptions": [
+        "Outputs will be global coverage diagnostics. Hypsometry is represented by a compact Earth-calibrated basin-fill proxy, not a topographic map, mantle water-cycle solver, or plate-tectonic terrain generator."
+      ],
+      "limitations": [
+        "No exact continent/ocean geography, dynamic sea level, crustal thickness model, erosion/sedimentation cycle, mantle water partitioning, or regional bathymetry is solved."
+      ],
+      "downstreamConsumers": [],
+      "action": "Keep source registry entries current as science changes.",
+      "userVisible": true
+    },
+    {
+      "id": "context-icymoonexosphere-source-coverage-icy-moon-sputtered-oxygen-exosphere-registry-source-and-limitation-coverage",
+      "modelAreaId": "context-icymoonexosphere",
+      "family": "source-coverage",
+      "subject": "Icy moon sputtered oxygen exosphere",
+      "metric": "Registry source and limitation coverage",
+      "inputSummary": "1 registry entries",
+      "output": "Registry metadata present",
+      "expected": "Source summary, assumptions, valid range, and limitations",
+      "tolerance": "Required for each model area",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "comparisonSemantics": "metadata-coverage",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1016/j.icarus.2016.10.027",
+        "https://doi.org/10.1038/373677a0",
+        "https://science.nasa.gov/mission/europa-clipper/why-europa-ingredients-for-life/",
+        "https://www.nasa.gov/missions/juno/nasas-juno-mission-measures-oxygen-production-at-europa/",
+        "https://www.nature.com/articles/s41550-024-02206-x"
+      ],
+      "assumptions": [
+        "Outputs are global support classes and broad O2 production estimates only. Exosphere O2 is abiotic, exosphere-only, and never added to retained pressure, greenhouse warming, breathability, or life confidence."
+      ],
+      "limitations": [
+        "No MHD or plasma transport, no neutral column-density map, no sputtering-yield chemistry network, no local leading/trailing hemisphere structure, and no plume time variability."
       ],
       "downstreamConsumers": [],
       "action": "Keep source registry entries current as science changes.",
@@ -19111,7 +19323,7 @@
       "subject": "Water inventory",
       "metric": "Increasing WMF does not reduce water coverage before phase transitions",
       "inputSummary": "Single-parameter perturbation",
-      "output": "0.068 -> 0.959",
+      "output": "0.046 -> 0.995",
       "expected": "nondecrease",
       "tolerance": "directional trend",
       "status": "PASS",
@@ -19199,7 +19411,7 @@
       "subject": "Snowball planet",
       "metric": "Snowball transfers liquid to ice",
       "inputSummary": "Known regime-boundary fixture",
-      "output": "ice=0.643; liquid=0",
+      "output": "ice=0.874; liquid=0",
       "expected": "ice present and accessible liquid limited",
       "tolerance": "class-level boundary",
       "status": "PASS",
@@ -19588,66 +19800,13 @@
       "userVisible": true
     },
     {
-      "id": "hydrosphere-ocean-cross-system-earth-surface-ocean-coverage-hypsometry-based-surface-coverage-gap",
-      "modelAreaId": "hydrosphere-ocean",
-      "family": "cross-system",
-      "subject": "Earth surface ocean coverage",
-      "metric": "Hypsometry-based surface coverage gap",
-      "inputSummary": "Earth-like WMF currently drives coverage without basin-capacity calibration",
-      "output": "Known gap until SURFACE_OCEAN_COVERAGE_HYPSOMETRY_PLAN.md is implemented",
-      "expected": "Earth-like inputs infer about 71% surface ocean coverage",
-      "tolerance": "0.68..0.74 after implementation",
-      "status": "GAP",
-      "severity": "medium",
-      "confidence": "high",
-      "comparisonSemantics": "known-modeling-gap",
-      "sourceClass": "NASA",
-      "sourceUrls": [
-        "https://spaceplace.nasa.gov/water/"
-      ],
-      "assumptions": [],
-      "limitations": [
-        "Current hydrosphere model does not solve basin capacity or hypsometry."
-      ],
-      "downstreamConsumers": [],
-      "action": "Implement the surface ocean coverage and hypsometry plan.",
-      "userVisible": true
-    },
-    {
-      "id": "moons-cross-system-europa-sputtered-oxygen-exosphere-icy-moon-exosphere-gap",
-      "modelAreaId": "moons",
-      "family": "cross-system",
-      "subject": "Europa sputtered oxygen exosphere",
-      "metric": "Icy moon exosphere gap",
-      "inputSummary": "Europa-like moon inside Jupiter magnetosphere",
-      "output": "Known gap until ICY_MOON_SPUTTERED_OXYGEN_EXOSPHERE_PLAN.md is implemented",
-      "expected": "Abiotic O2/H2 exosphere from radiolysis and sputtering",
-      "tolerance": "class-level plus broad O2 production range",
-      "status": "GAP",
-      "severity": "medium",
-      "confidence": "high",
-      "comparisonSemantics": "known-modeling-gap",
-      "sourceClass": "peer-reviewed",
-      "sourceUrls": [
-        "https://www.nasa.gov/missions/juno/nasas-juno-mission-measures-oxygen-production-at-europa/",
-        "https://doi.org/10.1038/373677a0"
-      ],
-      "assumptions": [],
-      "limitations": [
-        "Current moon atmosphere model does not represent surface-boundary O2 exospheres explicitly."
-      ],
-      "downstreamConsumers": [],
-      "action": "Implement the icy moon sputtered oxygen exosphere plan.",
-      "userVisible": true
-    },
-    {
       "id": "observability-user-facing-release-gate-science-verify-release-verification-command",
       "modelAreaId": "observability-user-facing",
       "family": "release-gate",
       "subject": "science:verify",
       "metric": "Release verification command",
       "inputSummary": "node scripts/generate-science-verification-matrix.mjs",
-      "output": "Recorded at 2026-06-19T20:08:34.911Z",
+      "output": "Recorded at 2026-06-20T13:18:04.440Z",
       "expected": "PASS before release",
       "tolerance": "required release gate",
       "status": "PASS",
@@ -19759,7 +19918,7 @@
       "subject": "science:verify",
       "metric": "Release verification command",
       "inputSummary": "node scripts/generate-science-verification-matrix.mjs",
-      "output": "Recorded at 2026-06-19T20:08:34.911Z",
+      "output": "Recorded at 2026-06-20T13:18:04.440Z",
       "expected": "PASS before release",
       "tolerance": "required release gate",
       "status": "PASS",
@@ -20265,6 +20424,71 @@
       "userVisible": true
     },
     {
+      "id": "context-surfaceoceancoverage-source-coverage-surface-ocean-coverage-and-hypsometry-context-registry-source-and-limitation-coverage",
+      "modelAreaId": "context-surfaceoceancoverage",
+      "family": "source-coverage",
+      "subject": "Surface ocean coverage and hypsometry context",
+      "metric": "Registry source and limitation coverage",
+      "inputSummary": "1 registry entries",
+      "output": "Registry metadata present",
+      "expected": "Source summary, assumptions, valid range, and limitations",
+      "tolerance": "Required for each model area",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "comparisonSemantics": "metadata-coverage",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1016/j.epsl.2024.119071",
+        "https://doi.org/10.1088/0004-637X/781/1/27",
+        "https://spaceplace.nasa.gov/water/",
+        "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+        "https://www.ncei.noaa.gov/sites/default/files/2023-01/Hypsographic%20Curve%20of%20Earth%E2%80%99s%20Surface%20from%20ETOPO1.pdf",
+        "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/tiled/"
+      ],
+      "assumptions": [
+        "Outputs will be global coverage diagnostics. Hypsometry is represented by a compact Earth-calibrated basin-fill proxy, not a topographic map, mantle water-cycle solver, or plate-tectonic terrain generator."
+      ],
+      "limitations": [
+        "No exact continent/ocean geography, dynamic sea level, crustal thickness model, erosion/sedimentation cycle, mantle water partitioning, or regional bathymetry is solved."
+      ],
+      "downstreamConsumers": [],
+      "action": "Keep source registry entries current as science changes.",
+      "userVisible": true
+    },
+    {
+      "id": "context-icymoonexosphere-source-coverage-icy-moon-sputtered-oxygen-exosphere-registry-source-and-limitation-coverage",
+      "modelAreaId": "context-icymoonexosphere",
+      "family": "source-coverage",
+      "subject": "Icy moon sputtered oxygen exosphere",
+      "metric": "Registry source and limitation coverage",
+      "inputSummary": "1 registry entries",
+      "output": "Registry metadata present",
+      "expected": "Source summary, assumptions, valid range, and limitations",
+      "tolerance": "Required for each model area",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "comparisonSemantics": "metadata-coverage",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1016/j.icarus.2016.10.027",
+        "https://doi.org/10.1038/373677a0",
+        "https://science.nasa.gov/mission/europa-clipper/why-europa-ingredients-for-life/",
+        "https://www.nasa.gov/missions/juno/nasas-juno-mission-measures-oxygen-production-at-europa/",
+        "https://www.nature.com/articles/s41550-024-02206-x"
+      ],
+      "assumptions": [
+        "Outputs are global support classes and broad O2 production estimates only. Exosphere O2 is abiotic, exosphere-only, and never added to retained pressure, greenhouse warming, breathability, or life confidence."
+      ],
+      "limitations": [
+        "No MHD or plasma transport, no neutral column-density map, no sputtering-yield chemistry network, no local leading/trailing hemisphere structure, and no plume time variability."
+      ],
+      "downstreamConsumers": [],
+      "action": "Keep source registry entries current as science changes.",
+      "userVisible": true
+    },
+    {
       "id": "context-radiusvalleyboundary-source-coverage-radius-valley-boundary-context-registry-source-and-limitation-coverage",
       "modelAreaId": "context-radiusvalleyboundary",
       "family": "source-coverage",
@@ -20661,11 +20885,11 @@
   "familySummary": [
     {
       "value": "anchor",
-      "rows": 276,
-      "pass": 270,
+      "rows": 277,
+      "pass": 273,
       "warn": 0,
       "fail": 0,
-      "gap": 2,
+      "gap": 0,
       "blocked": 0,
       "info": 4
     },
@@ -20691,11 +20915,11 @@
     },
     {
       "value": "cross-system",
-      "rows": 7,
+      "rows": 5,
       "pass": 5,
       "warn": 0,
       "fail": 0,
-      "gap": 2,
+      "gap": 0,
       "blocked": 0,
       "info": 0
     },
@@ -20761,8 +20985,8 @@
     },
     {
       "value": "source-coverage",
-      "rows": 25,
-      "pass": 25,
+      "rows": 27,
+      "pass": 27,
       "warn": 0,
       "fail": 0,
       "gap": 0,
@@ -20823,6 +21047,16 @@
     },
     {
       "value": "context-hostframe-stability",
+      "rows": 1,
+      "pass": 1,
+      "warn": 0,
+      "fail": 0,
+      "gap": 0,
+      "blocked": 0,
+      "info": 0
+    },
+    {
+      "value": "context-icymoonexosphere",
       "rows": 1,
       "pass": 1,
       "warn": 0,
@@ -20932,6 +21166,16 @@
       "info": 0
     },
     {
+      "value": "context-surfaceoceancoverage",
+      "rows": 1,
+      "pass": 1,
+      "warn": 0,
+      "fail": 0,
+      "gap": 0,
+      "blocked": 0,
+      "info": 0
+    },
+    {
       "value": "context-timeline-dynamicalevents",
       "rows": 1,
       "pass": 1,
@@ -20963,21 +21207,21 @@
     },
     {
       "value": "hydrosphere-ocean",
-      "rows": 9,
+      "rows": 8,
       "pass": 8,
       "warn": 0,
       "fail": 0,
-      "gap": 1,
+      "gap": 0,
       "blocked": 0,
       "info": 0
     },
     {
       "value": "moons",
-      "rows": 100,
+      "rows": 99,
       "pass": 95,
       "warn": 0,
       "fail": 0,
-      "gap": 1,
+      "gap": 0,
       "blocked": 0,
       "info": 4
     },
@@ -21003,11 +21247,11 @@
     },
     {
       "value": "rocky-planets",
-      "rows": 38,
-      "pass": 36,
+      "rows": 39,
+      "pass": 39,
       "warn": 0,
       "fail": 0,
-      "gap": 2,
+      "gap": 0,
       "blocked": 0,
       "info": 0
     },
@@ -21034,16 +21278,6 @@
   ],
   "statusSummary": [
     {
-      "value": "GAP",
-      "rows": 4,
-      "pass": 0,
-      "warn": 0,
-      "fail": 0,
-      "gap": 4,
-      "blocked": 0,
-      "info": 0
-    },
-    {
       "value": "INFO",
       "rows": 9,
       "pass": 0,
@@ -21055,8 +21289,8 @@
     },
     {
       "value": "PASS",
-      "rows": 334,
-      "pass": 334,
+      "rows": 339,
+      "pass": 339,
       "warn": 0,
       "fail": 0,
       "gap": 0,
@@ -21064,53 +21298,8 @@
       "info": 0
     }
   ],
-  "openGaps": [
-    {
-      "id": "anchor-Environment coupling-Earth-Surface ocean coverage",
-      "modelAreaId": "rocky-planets",
-      "family": "anchor",
-      "subject": "Environment coupling / Earth",
-      "metric": "Surface ocean coverage",
-      "status": "GAP",
-      "severity": "medium",
-      "action": "Retain as documented gap until a future feature models this quantity"
-    },
-    {
-      "id": "anchor-Environment coupling-Europa-Sputtered oxygen exosphere",
-      "modelAreaId": "rocky-planets",
-      "family": "anchor",
-      "subject": "Environment coupling / Europa",
-      "metric": "Sputtered oxygen exosphere",
-      "status": "GAP",
-      "severity": "medium",
-      "action": "Retain as documented gap until a future feature models this quantity"
-    },
-    {
-      "id": "hydrosphere-ocean-cross-system-earth-surface-ocean-coverage-hypsometry-based-surface-coverage-gap",
-      "modelAreaId": "hydrosphere-ocean",
-      "family": "cross-system",
-      "subject": "Earth surface ocean coverage",
-      "metric": "Hypsometry-based surface coverage gap",
-      "status": "GAP",
-      "severity": "medium",
-      "action": "Implement the surface ocean coverage and hypsometry plan."
-    },
-    {
-      "id": "moons-cross-system-europa-sputtered-oxygen-exosphere-icy-moon-exosphere-gap",
-      "modelAreaId": "moons",
-      "family": "cross-system",
-      "subject": "Europa sputtered oxygen exosphere",
-      "metric": "Icy moon exosphere gap",
-      "status": "GAP",
-      "severity": "medium",
-      "action": "Implement the icy moon sputtered oxygen exosphere plan."
-    }
-  ],
+  "openGaps": [],
   "recommendations": [
-    {
-      "priority": "medium",
-      "text": "Review modeling gaps and confirm they are either accepted limitations or queued implementation plans."
-    },
     {
       "priority": "release",
       "text": "Regenerate this matrix during every release preparation and review all non-pass rows."

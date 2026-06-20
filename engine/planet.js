@@ -770,6 +770,10 @@ export function calcPlanetExact({
     climateState,
     geothermalFluxWm2: radiogenicHeatingWm2,
     tidalHeatFluxWm2: planetTidalHeatingWm2,
+    tectonicContext: {
+      tectonicRegime: tecRegime,
+      tectonicProbabilities: tecProbs,
+    },
   });
   // Sky colours (after gravity + temperature are known for column-density correction)
   const sky = skyColoursFromSpectralAndPressure({
@@ -1102,6 +1106,10 @@ export function calcPlanetExact({
     waterPresent: watRegime !== "Dry",
     geothermalFluxWm2: radiogenicHeatingWm2,
     tidalHeatFluxWm2: planetTidalHeatingWm2,
+    tectonicContext: {
+      tectonicRegime: tecRegime,
+      tectonicProbabilities: tecProbs,
+    },
     manualOverride: greenhouseMode === "manual" ? ["greenhouseEffect"] : false,
     userMode: greenhouseMode === "manual" ? "manual" : "auto",
   });
@@ -1595,6 +1603,7 @@ export function calcPlanetExact({
       waterRegime: watRegime,
       baselineHydrosphere: hydrosphere,
       hydrosphere: effectiveHydrosphere,
+      surfaceOceanCoverageContext: effectiveHydrosphere.surfaceOceanCoverageContext,
       liquidOceanFraction: effectiveHydrosphere.liquidOceanFraction,
       landFraction: effectiveHydrosphere.landFraction,
       permanentIceFraction: effectiveHydrosphere.permanentIceFraction,
@@ -1779,6 +1788,7 @@ export function calcPlanetExact({
       baselineHydrosphere: hydrosphere,
       hydrosphere: effectiveHydrosphere,
       effectiveHydrosphere,
+      surfaceOceanCoverageContext: effectiveHydrosphere.surfaceOceanCoverageContext,
       liquidOceanFraction: effectiveHydrosphere.liquidOceanFraction,
       landFraction: effectiveHydrosphere.landFraction,
       permanentIceFraction: effectiveHydrosphere.permanentIceFraction,
@@ -2103,6 +2113,20 @@ export function calcPlanetExact({
       surfaceState: effectiveSurfaceState.label,
       compositionClass: compClass,
       waterRegime: watRegime,
+      surfaceOceanCoverage: `${fmt(effectiveHydrosphere.waterCoverageFraction * 100, 1)}%`,
+      inferredOceanCoverage: `${fmt(effectiveHydrosphere.liquidOceanFraction * 100, 1)}%`,
+      exposedLand: `${fmt(effectiveHydrosphere.landFraction * 100, 1)}%`,
+      surfaceAccessibleLiquid: `${fmt(
+        effectiveHydrosphere.surfaceAccessibleLiquidFraction * 100,
+        1,
+      )}%`,
+      surfaceOceanCoverageConfidence: effectiveHydrosphere.coverageConfidence
+        ? `${String(effectiveHydrosphere.coverageConfidence).toUpperCase()} confidence`
+        : "Unknown confidence",
+      surfaceOceanCoverageReason:
+        effectiveHydrosphere.surfaceOceanCoverageContext?.floodClass ||
+        effectiveHydrosphere.surfaceOceanCoverageContext?.source ||
+        effectiveHydrosphere.regime,
       meanOceanDepth: formatOceanDepthKm(effectiveHydrosphere.estimatedMeanOceanDepthKm),
       oceanPhaseDiagnostics: effectiveOceanPhaseDiagnostics?.text ?? null,
       oceanPhaseDiagnosticLines: effectiveOceanPhaseDiagnostics?.lines ?? [],

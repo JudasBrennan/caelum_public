@@ -1,6 +1,7 @@
 import { calcClimateZones } from "../climate.js";
 import { climateLivabilityScore, habitabilityFraction } from "../habitability/climateLivability.js";
 import { clamp, round, toFinite } from "../utils.js";
+import { resolveSurfaceOceanFractions } from "./surfaceOceanCoverageAccessors.js";
 import { CONFIDENCE, CONTEXT_STATUS, makeContext, roundMaybe, scoreToClass } from "./validation.js";
 
 const MODEL_VERSION = "surface-climate-context-v1";
@@ -120,6 +121,7 @@ export function buildSurfaceClimateContext({
   const assumptions = [];
   const limitingFactors = [];
   const notes = [];
+  const coverage = resolveSurfaceOceanFractions(hydrosphere);
   const coupled = usableNumber(coupledSurfaceTempK);
   const baseline = toFinite(surfaceTempK, 288);
   const chemistryDelta = Number(climateChemistryForcing?.netDeltaK);
@@ -231,6 +233,7 @@ export function buildSurfaceClimateContext({
       liquidWaterPossible: !!liquidWaterPossible,
       tidallyLockedToStar: !!tidallyLockedToStar,
       nitrogenCycleModelVersion: nitrogenCycleContext?.modelVersion || null,
+      surfaceOceanCoverageModelVersion: coverage.modelVersion,
     },
     outputs: {
       zones,
@@ -254,10 +257,9 @@ export function buildSurfaceClimateContext({
         rotationPeriodHours,
         heatRedistributionEfficiency,
       }),
-      hydrosphereSurfaceLiquidFraction: roundMaybe(
-        hydrosphere?.surfaceAccessibleLiquidFraction ?? hydrosphere?.liquidOceanFraction,
-        3,
-      ),
+      hydrosphereSurfaceLiquidFraction: roundMaybe(coverage.surfaceAccessibleLiquidFraction, 3),
+      hydrosphereOceanFraction: roundMaybe(coverage.liquidOceanFraction, 3),
+      hydrosphereExposedLandFraction: roundMaybe(coverage.landFraction, 3),
     },
     assumptions,
     limitingFactors,

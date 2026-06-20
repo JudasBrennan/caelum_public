@@ -91,8 +91,11 @@ const MOON_GUIDED_ARCHETYPES = Object.freeze([
     rationale: [
       "Uses a buried-ocean ice-moon baseline.",
       "Best fit when you want internal water without an exposed sea.",
+      "Exosphere readiness is inferred from ice and parent-particle context as a diagnostic, not by forcing manual O2.",
     ],
-    nextActions: ["Check subsurface ocean support, ice-shell thickness, and cryovolcanism."],
+    nextActions: [
+      "Check subsurface ocean support, ice-shell thickness, exosphere readiness, and cryovolcanism.",
+    ],
   },
   {
     id: "hazy-atmosphere-moon",

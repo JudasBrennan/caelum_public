@@ -4,6 +4,7 @@ import { compositionFromClass, compositionFromDensity } from "./moon/composition
 import { computeMoonMagnetosphere } from "./moon/magnetosphere.js";
 import { computeMoonOrbit } from "./moon/orbit.js";
 import { computeMoonRadiationEnvironment } from "./moon/radiation.js";
+import { computeIcyMoonExosphere } from "./moon/exosphere.js";
 import { analyseMoonVolatiles, radiationLabel } from "./moon/retention.js";
 import { computeSurfaceExomoonCalibration } from "./moon/surfaceHabitabilityCalibration.js";
 import { computeMoonTemperature } from "./moon/temperature.js";
@@ -822,6 +823,7 @@ function buildMoonSummaryResult({
   interior,
   magnetosphere,
   radiation,
+  surfaceBoundaryExosphere,
   spinState,
   tides,
   compositionClass,
@@ -913,8 +915,10 @@ function buildMoonSummaryResult({
       sourceClass: atmosphere.sourceClass,
       surfacePressurePa: atmosphere.surfacePressurePa,
       compositionSummary: atmosphere.compositionSummary,
+      surfaceBoundaryExosphere,
       ledger: atmosphere.ledger,
     },
+    exosphere: surfaceBoundaryExosphere,
     hydrosphere: {
       regime: hydrosphere.regime,
       hydrosphereState: hydrosphere.hydrosphereState,
@@ -970,6 +974,9 @@ function buildMoonSummaryResult({
     resonance,
     formation,
     surfaceExomoonCalibration,
+    derived: {
+      exosphere: surfaceBoundaryExosphere,
+    },
     habitability: {
       habitabilityIndex: unifiedMoonHabitability.score,
       habitabilityModelVersion: unifiedMoonHabitability.version,
@@ -987,6 +994,23 @@ function buildMoonSummaryResult({
       atmosphereTrend: atmosphere.ledger?.trendLabel || "Not evaluated",
       atmosphereEvolution: atmosphereEvolutionContext?.pressureTrendClass || "Not evaluated",
       atmosphereVolatileLoss: atmosphereEvolutionContext?.volatileLossRiskClass || "Not evaluated",
+      exosphere: surfaceBoundaryExosphere?.present
+        ? surfaceBoundaryExosphere.exosphereClass
+        : "No icy sputtered O2 exosphere",
+      exosphereSource: surfaceBoundaryExosphere?.sourceMechanism || "none",
+      exosphereO2Production:
+        surfaceBoundaryExosphere?.oxygenProductionKgS == null
+          ? "Not quantified"
+          : `${fmt(surfaceBoundaryExosphere.oxygenProductionKgS, 1)} kg/s`,
+      exosphereIonPickup: surfaceBoundaryExosphere?.ionPickupClass || "none",
+      exosphereAbioticO2:
+        surfaceBoundaryExosphere?.abioticOxygenSource === true
+          ? "Abiotic exosphere-only O2"
+          : "No exosphere O2 source",
+      exospherePressureEffect:
+        surfaceBoundaryExosphere?.pressureContributionAtm === 0
+          ? "0 atm retained pressure"
+          : "No retained-pressure contribution",
       stellarHistoryWaterLoss:
         stellarHistoryDoseContext?.outputs?.waterLossRiskClass || "Not evaluated",
       stellarHistoryAbioticOxygen:
@@ -1617,6 +1641,20 @@ export function calcMoonExact({
     magnetosphere,
     parentMagnetosphereEnvironment,
   });
+  const surfaceBoundaryExosphere = computeIcyMoonExosphere({
+    hydrosphere,
+    atmosphere,
+    radiation,
+    volatiles: volatileResults,
+    temperature,
+    orbit,
+    tides,
+    parent,
+    radiusMoon: rMoonRM,
+    massMoon: mMoonMM,
+    gravityMs2: tides.moonGravityMs2,
+    escapeVelocityKms: vEscKmS,
+  });
   const moonMassEarth = mMoonMM * 0.012300037;
   const moonRadiusEarth = (rMoonRM * 1738.1) / 6371;
   const moonCoreMassFraction = inferMoonCoreMassFraction({
@@ -1713,6 +1751,7 @@ export function calcMoonExact({
       tidalHeatingEarth: tides.tidalHeatingEarth,
     },
     volatileInventory: volatileResults,
+    surfaceBoundaryExosphere,
     radiation,
     surfaceTempK: temperature.surfaceK,
     gravityG: gMoonG,
@@ -1927,6 +1966,7 @@ export function calcMoonExact({
     nitrogenCycleContext,
     environmentForcing,
     hydrosphere: effectiveHydrosphere,
+    surfaceBoundaryExosphere,
   });
   const impactEnvironmentContext = buildImpactEnvironmentContext({
     ageGyr,
@@ -1939,6 +1979,7 @@ export function calcMoonExact({
   });
   atmosphere = {
     ...atmosphere,
+    surfaceBoundaryExosphere,
     stability: atmosphereStability,
     ledger: atmosphereLedger,
   };
@@ -2041,6 +2082,20 @@ export function calcMoonExact({
     radiation,
     tides,
   });
+  const exosphereO2ProductionDisplay =
+    surfaceBoundaryExosphere?.oxygenProductionKgS == null
+      ? "Not quantified"
+      : `${fmt(surfaceBoundaryExosphere.oxygenProductionKgS, 1)} kg/s`;
+  const exospherePressureEffect =
+    surfaceBoundaryExosphere?.pressureContributionAtm === 0
+      ? "0 atm retained pressure"
+      : surfaceBoundaryExosphere?.pressureContributionAtm == null
+        ? "No retained-pressure contribution"
+        : `${fmt(surfaceBoundaryExosphere.pressureContributionAtm, 8)} atm`;
+  const exosphereAbioticO2 =
+    surfaceBoundaryExosphere?.abioticOxygenSource === true
+      ? "Abiotic exosphere-only O2"
+      : "No exosphere O2 source";
   const habitabilityContext = buildMoonHabitabilityContext({
     star: { massMsol: mStarMsol, radiusRsol: rStarRsol, luminosityLsol: lStarLsol, ageGyr },
     planet: {
@@ -2242,6 +2297,7 @@ export function calcMoonExact({
       interior,
       magnetosphere,
       radiation,
+      surfaceBoundaryExosphere,
       spinState: tides.spinState,
       tides,
       compositionClass: tides.compositionClass,
@@ -2390,6 +2446,7 @@ export function calcMoonExact({
     },
 
     atmosphere,
+    exosphere: surfaceBoundaryExosphere,
 
     magnetosphere,
 
@@ -2440,6 +2497,7 @@ export function calcMoonExact({
       impactEnvironmentContext,
     },
     derived: {
+      exosphere: surfaceBoundaryExosphere,
       environmentForcing,
       atmosphereLedger,
       atmosphereEvolutionContext,
@@ -2479,6 +2537,7 @@ export function calcMoonExact({
       hydrosphere: effectiveHydrosphere,
       radiation,
       atmosphereLedger,
+      exosphere: surfaceBoundaryExosphere,
       stellarHistoryDoseContext,
       cloudCirculation,
       smallBodyReservoirContext,
@@ -2753,6 +2812,14 @@ export function calcMoonExact({
       carbonThermostat: fmt(carbonCycleContext.thermostatStrength, 2),
       atmosphereHaze: atmosphere.stability?.hazeClass || "None",
       atmosphereClouds: atmosphere.stability?.cloudClass || "None",
+      exosphere: surfaceBoundaryExosphere?.present
+        ? surfaceBoundaryExosphere.exosphereClass
+        : "No icy sputtered O2 exosphere",
+      exosphereSource: surfaceBoundaryExosphere?.sourceMechanism || "none",
+      exosphereO2Production: exosphereO2ProductionDisplay,
+      exosphereIonPickup: surfaceBoundaryExosphere?.ionPickupClass || "none",
+      exosphereAbioticO2,
+      exospherePressureEffect,
       greenhouseWarming:
         atmosphere.greenhouseWarmingK <= 0 ? "+0 K" : `+${fmt(atmosphere.greenhouseWarmingK, 1)} K`,
       volcanicActivity: geology.volcanicActivity,

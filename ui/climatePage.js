@@ -61,8 +61,15 @@ const TIP_LABEL = {
     "X = Special (e.g., tidally locked permanent night-side).",
   "Water Regime":
     "Planet-wide water availability category from the Planets page.\n\n" +
-    "Drives ocean coverage, atmospheric H₂O content, and aridity index " +
-    "across all climate zones.  Ranges from Desiccated to Water World.",
+    "Summarizes inventory, while Inferred Ocean Coverage estimates the flooded surface " +
+    "from water inventory, basin capacity, and climate state. These contexts drive " +
+    "atmospheric H2O content and aridity across climate zones.",
+  "Inferred Ocean Coverage":
+    "Estimated liquid-ocean surface coverage inherited from the Planet solver. It is inferred from water inventory, gravity-scaled relief, basin capacity, and current climate state.",
+  "Exposed Land":
+    "Estimated unflooded land fraction after the inferred basin fill. Climate aridity, weathering, productivity, and visuals use this context when no manual override is set.",
+  "Coverage Confidence":
+    "Confidence in the inferred ocean/land split. Lower confidence means missing inputs forced fallback assumptions.",
   "Climate Legend":
     "Colour key for the Köppen master classes shown in the latitude band chart.\n\n" +
     "Only classes that appear in the current zone set are displayed.",
@@ -100,6 +107,10 @@ function getClimateContext(world) {
     liquidWaterPossible: true,
     insolationEarth: 1,
     gravityG: 1,
+    inferredOceanCoverageDisplay: "70.0%",
+    exposedLandDisplay: "30.0%",
+    coverageConfidenceDisplay: "Fallback confidence",
+    coverageReason: "fallback",
   };
 
   const planet = getSelectedPlanet(world);
@@ -155,6 +166,14 @@ function getClimateContext(world) {
     surfaceClimateContext: model.derived.surfaceClimateContext || null,
     dynamicalVariabilityContext,
     climateVariabilityWarning,
+    inferredOceanCoverageDisplay: model.display?.inferredOceanCoverage || "n/a",
+    exposedLandDisplay: model.display?.exposedLand || "n/a",
+    coverageConfidenceDisplay:
+      model.display?.surfaceOceanCoverageConfidence || "Unknown confidence",
+    coverageReason:
+      model.display?.surfaceOceanCoverageReason ||
+      model.derived.hydrosphere?.surfaceOceanCoverageContext?.source ||
+      "",
     limitedSurfaceMessage: pageApplicability?.status === "limited" ? subtypeMessage : "",
   };
 }
@@ -392,7 +411,7 @@ export function initClimatePage(containerEl) {
     });
   }
 
-  function kpiNode(label, value, tipText) {
+  function kpiNode(label, value, tipText, meta = "") {
     return createElement("div", { className: "kpi-wrap" }, [
       createElement("div", { className: "kpi" }, [
         createElement("div", { className: "kpi__label" }, [
@@ -401,6 +420,7 @@ export function initClimatePage(containerEl) {
           tipIconNode(tipText),
         ]),
         createElement("div", { className: "kpi__value", text: value }),
+        meta ? createElement("div", { className: "kpi__meta", text: meta }) : null,
       ]),
     ]);
   }
@@ -466,6 +486,18 @@ export function initClimatePage(containerEl) {
         ),
         kpiNode("Dominant Class", dominantLabel, TIP_LABEL["Dominant Class"]),
         kpiNode("Water Regime", ctx.waterRegime, TIP_LABEL["Water Regime"]),
+        kpiNode(
+          "Inferred Ocean Coverage",
+          ctx.inferredOceanCoverageDisplay,
+          TIP_LABEL["Inferred Ocean Coverage"],
+          ctx.coverageReason,
+        ),
+        kpiNode("Exposed Land", ctx.exposedLandDisplay, TIP_LABEL["Exposed Land"]),
+        kpiNode(
+          "Coverage Confidence",
+          ctx.coverageConfidenceDisplay,
+          TIP_LABEL["Coverage Confidence"],
+        ),
       ]),
       createElement("div", { className: "subsection", attrs: { style: "margin-top:12px" } }, [
         createElement("h3", {}, [

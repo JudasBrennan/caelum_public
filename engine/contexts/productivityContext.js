@@ -1,4 +1,5 @@
 import { clamp, round, toFinite } from "../utils.js";
+import { resolveSurfaceOceanFractions } from "./surfaceOceanCoverageAccessors.js";
 import {
   CONFIDENCE,
   CONTEXT_STATUS,
@@ -100,12 +101,10 @@ export function buildProductivityContext({
     0,
     1,
   );
-  const land = fraction(hydrosphere?.landFraction, 0);
-  const ocean = fraction(hydrosphere?.liquidOceanFraction, 0);
-  const surfaceLiquid = fraction(
-    hydrosphere?.surfaceAccessibleLiquidFraction ?? hydrosphere?.liquidOceanFraction,
-    0,
-  );
+  const coverage = resolveSurfaceOceanFractions(hydrosphere);
+  const land = fraction(coverage.landFraction, 0);
+  const ocean = fraction(coverage.liquidOceanFraction, 0);
+  const surfaceLiquid = fraction(coverage.surfaceAccessibleLiquidFraction, 0);
   const lightScore = clamp(toFinite(surfaceLightFraction, 1), 0, 1);
   const oceanNutrientScore = nutrientScoreFromClass(oceanChemistryContext?.nutrientSupportClass);
   const nitrogenNutrientScore = nitrogenScoreFromContext(nitrogenCycleContext);
@@ -183,6 +182,7 @@ export function buildProductivityContext({
       oceanFraction: roundMaybe(ocean, 3),
       surfaceLiquidFraction: roundMaybe(surfaceLiquid, 3),
       surfaceLightFraction: roundMaybe(lightScore, 3),
+      surfaceOceanCoverageModelVersion: coverage.modelVersion,
       pressureAtm: roundMaybe(pressureAtm, 6),
       ppO2Atm: roundMaybe(ppO2Atm, 6),
       ppCO2Atm: roundMaybe(ppCO2Atm, 8),

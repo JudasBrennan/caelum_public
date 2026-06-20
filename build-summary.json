@@ -1,20 +1,20 @@
 {
   "mode": "production",
-  "releaseVersion": "2.11.0",
+  "releaseVersion": "2.12.0",
   "distDir": "dist",
-  "generatedAt": "2026-06-19T20:08:37.479Z",
+  "generatedAt": "2026-06-20T13:18:12.855Z",
   "entry": {
     "file": "app.js",
-    "bytes": 23994
+    "bytes": 24029
   },
-  "lazyChunkCount": 108,
+  "lazyChunkCount": 109,
   "largestLazyChunk": {
     "file": "chunks/chunk-K6EXVWDB.js",
     "bytes": 715105
   },
   "largestAppLazyChunk": {
-    "file": "chunks/chunk-2NRVVUJ7.js",
-    "bytes": 391606
+    "file": "chunks/chunk-MU7BKJ2M.js",
+    "bytes": 329333
   },
   "largestVendorLazyChunk": {
     "file": "chunks/chunk-K6EXVWDB.js",

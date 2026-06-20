@@ -11,9 +11,12 @@ const LABELS = Object.freeze({
   comet_delivery: "Comet delivery",
   retained_volatiles: "Retained volatiles",
   ocean_buffering: "Ocean buffering",
+  radiolytic_sputtered_o2: "Radiolytic sputtered O2",
   jeans_escape: "Jeans escape",
   xuv_escape: "XUV escape",
   wind_sputtering: "Wind stripping / sputtering",
+  pickup_ion_loss: "Pickup-ion loss",
+  surface_reimplantation: "Surface reimplantation / trapping",
   photolysis_h_escape: "Photolysis H escape",
   condensation_collapse: "Condensation collapse",
   weathering_sequestration: "Weathering sequestration",
@@ -213,6 +216,7 @@ function buildSourceTerms({
   tectonics,
   volatileInventory,
   hydrosphere,
+  surfaceBoundaryExosphere,
   smallBodyReservoirContext,
   ageGyr,
 }) {
@@ -267,6 +271,33 @@ function buildSourceTerms({
         ),
       );
     }
+  }
+
+  const exosphere =
+    surfaceBoundaryExosphere && typeof surfaceBoundaryExosphere === "object"
+      ? surfaceBoundaryExosphere
+      : null;
+  if (
+    bodyType === "moon" &&
+    exosphere?.present === true &&
+    exosphere?.abioticOxygenSource === true
+  ) {
+    const productionScore = logRangeScore(exosphere.oxygenProductionKgS, 0.1, 12);
+    const supportScore = fraction(exosphere.supportScore, 0);
+    const pressureGate = thinAtmosphereFactor(pressureAtm);
+    const sourceScore = clamp(
+      (0.24 + 0.5 * supportScore + 0.16 * productionScore) * pressureGate,
+      0,
+      0.82,
+    );
+    sources.push(
+      term(
+        "radiolytic_sputtered_o2",
+        sourceScore,
+        exosphere.evidenceClass === "high" ? "medium" : "low",
+        "Water-ice radiolysis and sputtering replenish an abiotic surface-boundary O2/H2 exosphere.",
+      ),
+    );
   }
 
   const oceanFraction = Math.max(
@@ -340,6 +371,7 @@ function buildSinkTerms({
   atmosphericEscapeEnabled,
   photochemistry,
   hydrosphere,
+  surfaceBoundaryExosphere,
   carbonCycleContext,
   climateState,
   climate,
@@ -432,6 +464,43 @@ function buildSinkTerms({
         windScore,
         bodyType === "moon" && radiation ? "medium" : "low",
         "Wind and particle stripping are mediated by magnetosphere compression and atmospheric shielding.",
+      ),
+    );
+  }
+
+  const exosphere =
+    surfaceBoundaryExosphere && typeof surfaceBoundaryExosphere === "object"
+      ? surfaceBoundaryExosphere
+      : null;
+  if (bodyType === "moon" && exosphere?.present === true) {
+    const supportScore = fraction(exosphere.supportScore, 0);
+    const pickupScore = clamp(
+      (0.22 + 0.5 * supportScore + 0.28 * parentRadiation) * thinFactor,
+      0,
+      0.9,
+    );
+    if (pickupScore > 0.01) {
+      sinks.push(
+        term(
+          "pickup_ion_loss",
+          pickupScore,
+          exosphere.evidenceClass === "high" ? "medium" : "low",
+          "O2/H2 exosphere particles are ionized and picked up by the parent magnetospheric flow.",
+        ),
+      );
+    }
+    const retentionText = String(exosphere.surfaceRetentionClass || "").toLowerCase();
+    const retentionScore = retentionText.includes("strong")
+      ? 0.55
+      : retentionText.includes("moderate")
+        ? 0.35
+        : 0.18;
+    sinks.push(
+      term(
+        "surface_reimplantation",
+        clamp(retentionScore * thinFactor, 0, 0.6),
+        "low",
+        "Some radiolytic oxygen is retained, trapped, or reimplanted in surface ice instead of forming durable air.",
       ),
     );
   }
@@ -625,6 +694,7 @@ export function computeAtmosphereLedger({
   outgassing = null,
   tectonics = null,
   volatileInventory = [],
+  surfaceBoundaryExosphere = null,
   radiation = null,
   surfaceTempK = null,
   gravityG = null,
@@ -642,6 +712,7 @@ export function computeAtmosphereLedger({
     tectonics,
     volatileInventory,
     hydrosphere,
+    surfaceBoundaryExosphere,
     smallBodyReservoirContext,
     ageGyr,
   });
@@ -655,6 +726,7 @@ export function computeAtmosphereLedger({
     atmosphericEscapeEnabled,
     photochemistry,
     hydrosphere,
+    surfaceBoundaryExosphere,
     carbonCycleContext,
     climateState,
     climate,
@@ -685,6 +757,7 @@ export function computeAtmosphereLedger({
     tectonics,
     radiation,
     smallBodyReservoirContext,
+    surfaceBoundaryExosphere,
   ].filter(Boolean).length;
   const confidence = confidenceFromTerms(sourceTerms, sinkTerms, explicitInputs);
   const caveats = [
@@ -743,11 +816,13 @@ export function atmosphereLedgerTimelineInputs(ledger = {}) {
       trendClass.includes("declining") ||
       trendClass.includes("rapid-loss") ||
       sinkId === "xuv_escape" ||
-      sinkId === "wind_sputtering",
+      sinkId === "wind_sputtering" ||
+      sinkId === "pickup_ion_loss",
     atmosphereReplenished:
       trendClass.includes("replenished") ||
       sourceId === "volcanic_outgassing" ||
-      sourceId === "cryovolcanic_outgassing",
+      sourceId === "cryovolcanic_outgassing" ||
+      sourceId === "radiolytic_sputtered_o2",
     atmosphereAirlessOrExosphere: trendClass.includes("airless"),
   };
 }

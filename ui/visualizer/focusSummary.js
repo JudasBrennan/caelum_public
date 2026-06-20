@@ -20,6 +20,9 @@ function fmtLuminosityLsol(value, digits = 2) {
 }
 
 function describeMoonSolventPathway(moonCalc) {
+  if (moonCalc?.exosphere?.abioticOxygenSource) {
+    return "Icy-moon O2 is exosphere-only and abiotic; it is not breathable air or life evidence.";
+  }
   const pathway = String(moonCalc?.habitability?.breakdown?.solventPathway || "");
   if (pathway === "subsurface-water") {
     return "Score currently benefits from subsurface-water support. Surface biology may still remain sterile.";
@@ -98,27 +101,34 @@ function summarizeMoon(parent, moon) {
   const moonCalc = moon?.moonCalc;
   if (!moonCalc) return null;
   const parentName = parent?.name || "Parent body";
+  const lines = [
+    { label: "Atmosphere", value: moonCalc.display?.atmosphereClass || "Airless" },
+    { label: "Hydrosphere", value: moonCalc.display?.hydrosphereState || "Dry surface" },
+    { label: "Climate", value: moonCalc.display?.climateState || "Unknown" },
+    { label: "Biosphere", value: moonCalc.display?.surfaceBiosphere || "Surface sterile" },
+    {
+      label: "Habitability",
+      value:
+        moonCalc.display?.habitabilityIndex ||
+        fmtNumber(moonCalc.habitability?.habitabilityIndex, 3),
+    },
+    {
+      label: "Surface vs subsurface",
+      value:
+        moonCalc.display?.subsurfaceOcean ||
+        (moonCalc.hydrosphere?.subsurfaceOceanPresent ? "Yes" : "No"),
+    },
+  ];
+  if (moonCalc.exosphere?.present) {
+    lines.splice(1, 0, {
+      label: "Exosphere",
+      value: moonCalc.display?.exosphere || moonCalc.exosphere.exosphereClass,
+    });
+  }
   return {
     title: moon.name || "Moon",
     subtitle: `Moon around ${parentName}`,
-    lines: [
-      { label: "Atmosphere", value: moonCalc.display?.atmosphereClass || "Airless" },
-      { label: "Hydrosphere", value: moonCalc.display?.hydrosphereState || "Dry surface" },
-      { label: "Climate", value: moonCalc.display?.climateState || "Unknown" },
-      { label: "Biosphere", value: moonCalc.display?.surfaceBiosphere || "Surface sterile" },
-      {
-        label: "Habitability",
-        value:
-          moonCalc.display?.habitabilityIndex ||
-          fmtNumber(moonCalc.habitability?.habitabilityIndex, 3),
-      },
-      {
-        label: "Surface vs subsurface",
-        value:
-          moonCalc.display?.subsurfaceOcean ||
-          (moonCalc.hydrosphere?.subsurfaceOceanPresent ? "Yes" : "No"),
-      },
-    ],
+    lines,
     note: describeMoonSolventPathway(moonCalc),
   };
 }

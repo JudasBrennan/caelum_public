@@ -186,6 +186,12 @@ const TIP_LABEL = {
     "Maximum ocean floor depth reached by old oceanic crust (m). " +
     "Determined by the plate-cooling model: crust subsides as it " +
     "ages and cools, flattening at ~80\u2013100 Myr.",
+  "Inferred Ocean Coverage":
+    "Liquid-ocean surface fraction inherited from the Planet solver. It is inferred from water inventory, gravity-scaled relief, basin capacity, and climate state; tectonics uses this science context separately from authored visual/population overrides.",
+  "Authored Ocean Override":
+    "Manual ocean percentage from Population or visual authoring. When set, it changes authored land/ocean split outputs but does not rewrite the inferred science coverage used by climate, carbon-cycle, and tectonic context.",
+  "Exposed Land":
+    "Estimated unflooded surface fraction after inferred basin fill. This is the land context seen by downstream science models unless a page explicitly advertises an authored override.",
   "Cross-Section Width":
     "Total width of the mountain range cross-section from " +
     "forearc to back-arc (km). Sum of all tectonic zone widths.",
@@ -244,6 +250,12 @@ export function getPlanetTectonicContext(world) {
     compositionClass: "Earth-like",
     tidalHeatingWm2: 0,
     radioisotopeAbundance: 1,
+    inferredOceanCoverageDisplay: "70.0%",
+    exposedLandDisplay: "30.0%",
+    coverageConfidenceDisplay: "Fallback confidence",
+    surfaceOceanCoverageReason: "fallback",
+    authoredOceanOverrideDisplay: "Auto",
+    authoredOceanOverrideActive: false,
   };
   const planet = getSelectedPlanet(world);
   if (!planet) return fallback;
@@ -263,6 +275,13 @@ export function getPlanetTectonicContext(world) {
   }
   const { model, starConfig } = solvePlanetExactForWorld(world, planet);
   if (!model?.derived) return fallback;
+  const overrideRaw = world.population?.oceanPctOverride;
+  const overrideValue =
+    overrideRaw == null || overrideRaw === "" ? null : Number(world.population.oceanPctOverride);
+  const authoredOceanOverrideActive = Number.isFinite(overrideValue);
+  const authoredOceanOverridePct = authoredOceanOverrideActive
+    ? Math.max(0, Math.min(100, overrideValue))
+    : null;
   return {
     gravityG: model.derived.gravityG || 1,
     massEarth: model.inputs?.massEarth || 1,
@@ -276,6 +295,18 @@ export function getPlanetTectonicContext(world) {
     tidalHeatingWm2: model.derived.planetTidalHeatingWm2 || 0,
     radioisotopeAbundance: model.derived.radioisotopeAbundance ?? 1,
     geodynamicsContext: model.derived.geodynamicsContext || null,
+    inferredOceanCoverageDisplay: model.display?.inferredOceanCoverage || "n/a",
+    exposedLandDisplay: model.display?.exposedLand || "n/a",
+    coverageConfidenceDisplay:
+      model.display?.surfaceOceanCoverageConfidence || "Unknown confidence",
+    surfaceOceanCoverageReason:
+      model.display?.surfaceOceanCoverageReason ||
+      model.derived.hydrosphere?.surfaceOceanCoverageContext?.source ||
+      "",
+    authoredOceanOverrideDisplay: authoredOceanOverrideActive
+      ? `${fmt(authoredOceanOverridePct, 1)}%`
+      : "Auto",
+    authoredOceanOverrideActive,
     limitedSurfaceMessage: pageApplicability?.status === "limited" ? subtypeMessage : "",
   };
 }
@@ -293,6 +324,21 @@ function geodynamicsReadoutHTML(ctx) {
   )}; heat ${escapeHtml(out.internalHeatClass || "unknown")}; convection ${escapeHtml(
     out.convectiveVigorClass || "unknown",
   )}; weathering ${escapeHtml(out.weatheringFeedbackClass || "unknown")}.${escapeHtml(limits)}</div>`;
+}
+
+function surfaceOceanCoverageReadoutHTML(ctx) {
+  if (!ctx) return "";
+  const overrideText = ctx.authoredOceanOverrideActive
+    ? `Authored Ocean Override: ${ctx.authoredOceanOverrideDisplay} (manual land/ocean authoring; inferred science coverage remains separate)`
+    : "Authored Ocean Override: Auto (uses inferred coverage)";
+  const reason = ctx.surfaceOceanCoverageReason
+    ? `; class ${escapeHtml(ctx.surfaceOceanCoverageReason)}`
+    : "";
+  return `<div class="derived-readout">Surface ocean coverage: inferred ${escapeHtml(
+    ctx.inferredOceanCoverageDisplay || "n/a",
+  )}; exposed land ${escapeHtml(ctx.exposedLandDisplay || "n/a")}; ${escapeHtml(
+    ctx.coverageConfidenceDisplay || "Unknown confidence",
+  )}${reason}. ${escapeHtml(overrideText)}</div>`;
 }
 
 // ── Canvas drawing helpers ───────────────────────────────
@@ -996,7 +1042,7 @@ export function initTectonicsPage(containerEl) {
   }
 
   /** Generate the HTML content for the outputs panel. */
-  function outputsHTML(model, activeProfile, selIdx, arcDist) {
+  function outputsHTML(model, activeProfile, selIdx, arcDist, pCtx) {
     return `
               <div class="subsection">
                 <h3>Summary</h3>
@@ -1008,6 +1054,16 @@ export function initTectonicsPage(containerEl) {
                   <div class="kpi-wrap"><div class="kpi">
                     <div class="kpi__label">Max Ocean Depth ${tipIcon(TIP_LABEL["Max Ocean Depth"])}</div>
                     <div class="kpi__value">${model.display.maxOceanDepth}</div>
+                  </div></div>
+                  <div class="kpi-wrap"><div class="kpi">
+                    <div class="kpi__label">Inferred Ocean Coverage ${tipIcon(TIP_LABEL["Inferred Ocean Coverage"])}</div>
+                    <div class="kpi__value">${escapeHtml(pCtx?.inferredOceanCoverageDisplay || "n/a")}</div>
+                    <div class="kpi__meta">${escapeHtml(pCtx?.surfaceOceanCoverageReason || "")}</div>
+                  </div></div>
+                  <div class="kpi-wrap"><div class="kpi">
+                    <div class="kpi__label">Authored Ocean Override ${tipIcon(TIP_LABEL["Authored Ocean Override"])}</div>
+                    <div class="kpi__value">${escapeHtml(pCtx?.authoredOceanOverrideDisplay || "Auto")}</div>
+                    <div class="kpi__meta">${pCtx?.authoredOceanOverrideActive ? "manual population/visual override" : "auto follows inferred coverage"}</div>
                   </div></div>
                   <div class="kpi-wrap"><div class="kpi">
                     <div class="kpi__label">Ridge Height ${tipIcon(TIP_LABEL["Ridge Height"])}</div>
@@ -1250,7 +1306,7 @@ export function initTectonicsPage(containerEl) {
 
     const el = containerEl.querySelector("#tecOutputs");
     if (!el) return;
-    el.innerHTML = `${pCtx.limitedSurfaceMessage ? `<div class="derived-readout">${escapeHtml(pCtx.limitedSurfaceMessage)}</div>` : ""}${geodynamicsReadoutHTML(pCtx)}${outputsHTML(model, activeProfile, selIdx, arcDist)}`;
+    el.innerHTML = `${pCtx.limitedSurfaceMessage ? `<div class="derived-readout">${escapeHtml(pCtx.limitedSurfaceMessage)}</div>` : ""}${geodynamicsReadoutHTML(pCtx)}${surfaceOceanCoverageReadoutHTML(pCtx)}${outputsHTML(model, activeProfile, selIdx, arcDist, pCtx)}`;
     attachTooltips(el);
     enableKpiInteractions(containerEl);
     drawOutputCanvases(el, model, activeProfile, arcDist);
@@ -1618,7 +1674,8 @@ export function initTectonicsPage(containerEl) {
                   : ""
               }
               ${geodynamicsReadoutHTML(ctx)}
-              ${outputsHTML(model, activeProfile, selIdx, arcDist)}
+              ${surfaceOceanCoverageReadoutHTML(ctx)}
+              ${outputsHTML(model, activeProfile, selIdx, arcDist, ctx)}
             </div>
           </div>
         </div>

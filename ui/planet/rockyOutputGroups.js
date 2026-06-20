@@ -5,6 +5,7 @@ export const ROCKY_SUMMARY_LABELS = new Set([
   "Gravity",
   "Avg Surface Temp",
   "Water Regime",
+  "Inferred Ocean Coverage",
   "Climate State",
   "Habitability Index",
 ]);
@@ -37,6 +38,9 @@ export const ROCKY_ENVIRONMENT_LABELS = new Set([
   "Stability Timescale",
   "Surface State",
   "Water Regime",
+  "Inferred Ocean Coverage",
+  "Exposed Land",
+  "Coverage Confidence",
   "Mean Ocean Depth",
   "Rings",
   "Sky Colour (Sun High)",

@@ -4,6 +4,94 @@ All notable changes to WorldSmith Web will be documented in this file.
 
 ## Unreleased
 
+## 2.12.0 - 2026-06-20
+
+### Added
+
+**Icy moon sputtered oxygen exospheres**
+(engine/moon/exosphere.js, engine/moon.js,
+engine/environment/atmosphereLedger.js, engine/environment/biosignatureContext.js,
+engine/gasGiant/moonInfluenceSummary.js, engine/planetaryEraTimeline.js,
+ui/moonPage.js, ui/sciencePage.js, ui/visualizer/focusSummary.js)
+
+Added a first-class icy-moon exosphere context for Europa-like O2/H2
+exospheres produced by water-ice radiolysis, sputtering, thermal release, and
+pickup-ion loss. The new context distinguishes replenished exospheres from
+retained surface atmospheres, sets pressure and greenhouse contributions to
+zero, and labels abiotic oxygen as an exosphere-only caution rather than a
+breathable or biological signal.
+
+Moon outputs, atmosphere ledgers, biosignature context, gas-giant plasma
+loading summaries, visualizer focus summaries, and era timelines now consume
+the same bounded exosphere result. Europa-like moons in strong giant-planet
+magnetospheres therefore surface the relevant oxygen context without turning it
+into a stable atmosphere.
+
+**Surface ocean coverage and hypsometry context**
+(engine/contexts/surfaceOceanCoverageContext.js,
+engine/contexts/surfaceOceanCoverageAccessors.js,
+engine/habitability/hydrosphere.js, engine/planet.js,
+engine/environment/carbonCycle.js, engine/environment/oceanChemistry.js,
+engine/environment/coupledClimatePass.js, engine/environment/biosignatureContext.js,
+engine/contexts/geodynamicsContext.js, engine/contexts/productivityContext.js,
+engine/contexts/surfaceClimateContext.js)
+
+Added an Earth-calibrated surface-ocean coverage context that maps physical
+water inventory through a bounded basin-capacity and relief proxy before
+reporting liquid ocean coverage, exposed land, permanent ice, steam fraction,
+mean ocean depth, and seafloor pressure. Earth-like mass, radius, climate, and
+water inventory now infer roughly Earth-like 71% surface ocean coverage without
+requiring a manual override.
+
+Hydrosphere, climate, carbon-cycle, ocean-chemistry, productivity,
+biosignature, geodynamics, and coupled-climate paths now share this context so
+surface water coverage is sourced consistently across model areas. Dry,
+snowball, steam, deep-ocean, high-pressure-ice, and unsupported states remain
+bounded with confidence and limitation notes.
+
+### Changed
+
+**Planet, climate, tectonics, population, and visual outputs**
+(ui/planetPage.js, ui/planet/rockyOutputGroups.js,
+ui/planet/surfaceOceanCoverageOutputs.js, ui/climatePage.js,
+ui/tectonicsPage.js, ui/populationPage.js, ui/rockyPlanetStyles.js,
+ui/visualizer/focusSummary.js)
+
+Planet outputs now include a dedicated surface-ocean coverage readout with
+source, confidence, coverage, exposed-land, depth, and phase-state context.
+Climate, tectonics, population, visual auto-coverage, and visualizer summaries
+now display or consume the shared inferred coverage while preserving authored
+visual and tectonic overrides as authoring choices rather than hidden science
+requirements.
+
+**Science verification and calibration reporting**
+(scripts/report-model-calibration.mjs, scripts/report-nasa-calibration.mjs,
+scripts/science-verification/verificationRows.mjs, scripts/build.mjs,
+tests/fixtures/nasaSolarSystemReference.js)
+
+Earth surface-ocean coverage and Europa sputtered oxygen exosphere rows now
+run as active bounded calibration checks instead of intentional non-matches.
+The Science Verification Matrix, legacy compatibility calibration artifacts,
+and build report copy all carry the updated release candidate version and the
+new closure status.
+
+### Fixed
+
+- Improved dark-mode contrast for Validation page native dropdowns so filter
+  options remain readable while reviewing the Science Verification Matrix.
+
+### Tests
+
+- Added exosphere regressions for Europa-like icy moons, parent-magnetosphere
+  support, abiotic oxygen handling, atmosphere-ledger integration, and
+  gas-giant moon influence summaries.
+- Added surface-ocean coverage regressions for Earth calibration, dry and
+  volatile states, climate phase transfers, hydrosphere integration,
+  visual-style auto coverage, validation rows, and Science page references.
+- Expanded import/export, engine fixtures, visualizer focus summary,
+  calibration-report, Science Verification Matrix, and Validation page tests
+  for the new shared contexts and release-surface behavior.
+
 ## 2.11.0 - 2026-06-19
 
 ### Added

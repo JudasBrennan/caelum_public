@@ -18,6 +18,29 @@ export const CONTEXT_SCIENCE_REGISTRY = Object.freeze({
     knownLimitations:
       "Does not resolve geography, ocean circulation, topography, cloud microphysics, or seasonal orbital phase.",
   },
+  surfaceOceanCoverage: {
+    key: "surfaceOceanCoverage",
+    label: "Surface ocean coverage and hypsometry context",
+    formulaName: "Earth-calibrated basin-capacity and hypsometry coverage proxy",
+    sourceSummary:
+      "Earth's observed 71% ocean coverage is a surface-area constraint, not a direct water-mass-fraction output. The planned context will infer surface ocean coverage from water inventory, planet size, gravity, climate state, and a bounded Earth-hypsometry basin-capacity proxy.",
+    sourceUrls: [
+      "https://spaceplace.nasa.gov/water/",
+      "https://ssd.jpl.nasa.gov/planets/phys_par.html",
+      "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/tiled/",
+      "https://www.ncei.noaa.gov/sites/default/files/2023-01/Hypsographic%20Curve%20of%20Earth%E2%80%99s%20Surface%20from%20ETOPO1.pdf",
+      "https://doi.org/10.1088/0004-637X/781/1/27",
+      "https://doi.org/10.1016/j.epsl.2024.119071",
+    ],
+    assumptions:
+      "Outputs will be global coverage diagnostics. Hypsometry is represented by a compact Earth-calibrated basin-fill proxy, not a topographic map, mantle water-cycle solver, or plate-tectonic terrain generator.",
+    validInputRange:
+      "Rocky planets with mass, radius, gravity or mass-radius gravity inference, water mass fraction, climate state, surface temperature, pressure, and tectonic or geodynamic context.",
+    outputKind: "semiQuantitative",
+    calibrationRequired: true,
+    knownLimitations:
+      "No exact continent/ocean geography, dynamic sea level, crustal thickness model, erosion/sedimentation cycle, mantle water partitioning, or regional bathymetry is solved.",
+  },
   coupledClimatePass: {
     key: "coupledClimatePass",
     label: "Coupled climate second pass",
@@ -486,6 +509,28 @@ export const CONTEXT_SCIENCE_REGISTRY = Object.freeze({
     calibrationRequired: true,
     knownLimitations:
       "No neutral cloud chemistry, pickup-ion transport, plasma mass-loading rate, magnetodisk current system, or time-variable plume/volcano model is solved.",
+  },
+  icyMoonExosphere: {
+    key: "icyMoonExosphere",
+    label: "Icy moon sputtered oxygen exosphere",
+    formulaName: "Europa-calibrated radiolysis, sputtering, and pickup-ion exosphere proxy",
+    sourceSummary:
+      "Europa's water-ice surface is dissociated by magnetospheric particles into H2 and O2; Juno/JADE pickup-ion measurements constrain Europa O2 production near 12 kg/s, while Hubble/Nature observations establish an extremely tenuous abiotic O2 atmosphere.",
+    sourceUrls: [
+      "https://science.nasa.gov/mission/europa-clipper/why-europa-ingredients-for-life/",
+      "https://www.nasa.gov/missions/juno/nasas-juno-mission-measures-oxygen-production-at-europa/",
+      "https://www.nature.com/articles/s41550-024-02206-x",
+      "https://doi.org/10.1038/373677a0",
+      "https://doi.org/10.1016/j.icarus.2016.10.027",
+    ],
+    assumptions:
+      "Outputs are global support classes and broad O2 production estimates only. Exosphere O2 is abiotic, exosphere-only, and never added to retained pressure, greenhouse warming, breathability, or life confidence.",
+    validInputRange:
+      "Airless or exosphere-pressure icy moons with exposed water ice, parent-magnetosphere particle context, radius, temperature, and hydrosphere state.",
+    outputKind: "semiQuantitative",
+    calibrationRequired: true,
+    knownLimitations:
+      "No MHD or plasma transport, no neutral column-density map, no sputtering-yield chemistry network, no local leading/trailing hemisphere structure, and no plume time variability.",
   },
   secularStress: {
     key: "secularStress",

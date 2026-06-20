@@ -1,4 +1,4 @@
-# WorldSmith Web 2.11.0
+# WorldSmith Web 2.12.0
 
 WorldSmith Web is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -6,6 +6,18 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Earth-like water inventories now infer Earth-like surface ocean coverage from
+  bounded basin-capacity and hypsometry context instead of requiring a manual
+  ocean override.
+- Europa-like icy moons can now surface replenished, non-breathable sputtered
+  O2/H2 exospheres from parent-magnetosphere irradiation, with explicit abiotic
+  oxygen cautions.
+- Hydrosphere, carbon cycle, climate, productivity, ocean chemistry, tectonics,
+  visual auto-coverage, timelines, and visualizer summaries now share the same
+  surface-ocean coverage context.
+- The Science Verification Matrix now carries active rows for Earth surface
+  ocean coverage and icy-moon sputtered oxygen exospheres instead of treating
+  those cases as accepted gaps.
 - Planetary System diagnostics now show bounded host-frame orbital integrity context, including mutual-Hill spacing confidence for crowded or packed systems.
 - Orbital architecture, moon tidal persistence, generation guidance, habitability persistence, parent ring/radiation context, timelines, and page explanations now share one bounded dynamical context.
 - Guided orbit slots and moon parent assignment are clearer in the Planetary System viewer, with drag-to-move slot swaps, manual-to-guided slot inference, and visible locked-parent guidance.

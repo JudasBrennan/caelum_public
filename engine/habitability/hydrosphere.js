@@ -5,15 +5,14 @@
 // intentionally heuristic, but deterministic and internally consistent.
 
 import { clamp, round, toFinite } from "../utils.js";
+import { buildSurfaceOceanCoverageContext } from "../contexts/surfaceOceanCoverageContext.js";
 import { OCEAN_PRESSURE_MODELS, classifyHighPressureIce } from "./highPressureIce.js";
 import { estimateBottomOceanTemperature } from "./oceanThermalProfile.js";
-import { waterBoilingK } from "../planet/composition.js";
 export { hydrosphereStateFromMoon } from "../moon/hydrosphere.js";
 
 const EARTH_MASS_KG = 5.972e24;
 const EARTH_RADIUS_KM = 6371;
 const WATER_DENSITY_KG_M3 = 1000;
-const MIN_LIQUID_PRESSURE_ATM = 0.006;
 
 const BASELINE_FRACTIONS = {
   Dry: { liquidOceanFraction: 0, landFraction: 1, permanentIceFraction: 0, steamFraction: 0 },
@@ -48,37 +47,6 @@ const BASELINE_FRACTIONS = {
     steamFraction: 0,
   },
 };
-
-function normalizeFractions(state) {
-  const land = clamp(toFinite(state.landFraction, 0), 0, 1);
-  const liquid = clamp(toFinite(state.liquidOceanFraction, 0), 0, 1);
-  const ice = clamp(toFinite(state.permanentIceFraction, 0), 0, 1);
-  const steam = clamp(toFinite(state.steamFraction, 0), 0, 1);
-  const total = land + liquid + ice + steam;
-
-  if (total <= 0) {
-    return {
-      liquidOceanFraction: 0,
-      landFraction: 1,
-      permanentIceFraction: 0,
-      steamFraction: 0,
-    };
-  }
-
-  return {
-    liquidOceanFraction: liquid / total,
-    landFraction: land / total,
-    permanentIceFraction: ice / total,
-    steamFraction: steam / total,
-  };
-}
-
-function transferFraction(state, fromKey, toKey, share = 1) {
-  const source = clamp(toFinite(state[fromKey], 0), 0, 1);
-  const moved = source * clamp(toFinite(share, 0), 0, 1);
-  state[fromKey] = Math.max(0, source - moved);
-  state[toKey] = clamp(toFinite(state[toKey], 0) + moved, 0, 1);
-}
 
 function computeAccessibleLiquidFraction(state, regime, climateState) {
   let accessible = clamp(toFinite(state.liquidOceanFraction, 0), 0, 1);
@@ -152,6 +120,19 @@ function meanOceanDepthKmFromEquivalentLayer(equivalentWaterDepthM, liquidOceanF
   return equivalentKm / liquidFraction;
 }
 
+function contextWithDetailedHydrosphereFields(context, details) {
+  if (!context || typeof context !== "object") return context;
+  return {
+    ...context,
+    highPressureIceBand: details.highPressureIceBand,
+    highPressureIceRisk: details.highPressureIceRisk,
+    highPressureIceLikely: details.highPressureIceLikely,
+    seafloorPressureGPa: details.seafloorPressureGPa,
+    meanOceanDepthKm: details.estimatedMeanOceanDepthKm,
+    surfaceAccessibleLiquidFraction: details.surfaceAccessibleLiquidFraction,
+  };
+}
+
 function finiteOrNull(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
@@ -201,100 +182,49 @@ export function hydrosphereStateFromPlanet({
   tidalHeatFluxWm2,
   salinityPct,
   ammoniaPct,
+  tectonicContext = null,
+  geodynamicsContext = null,
+  explicitOceanCoverageFraction = null,
 } = {}) {
   const baseline = baselineHydrosphereFractionsForRegime(waterRegime);
-  const notes = [...baseline.notes];
-  const state = {
-    liquidOceanFraction: baseline.liquidOceanFraction,
-    landFraction: baseline.landFraction,
-    permanentIceFraction: baseline.permanentIceFraction,
-    steamFraction: baseline.steamFraction,
-  };
-
-  const waterInventoryPresent =
-    clamp(toFinite(wmfPct, 0), 0, 100) > 0 || String(waterRegime || "") !== "Dry";
   const tempK = Math.max(toFinite(surfaceTempK, 0), 0);
-  const pressure = Math.max(toFinite(pressureAtm, 0), 0);
   const regime = baseline.regime;
   const stateClimate = String(climateState || "Stable");
   const resolvedGravityG = gravityGFromMassRadius({ massEarth, radiusKm, gravityG });
-  const emptyHighPressureIce = classifyHighPressureIce({
-    gravityG: resolvedGravityG,
-    surfaceTempK: tempK,
-    climateState: stateClimate,
+
+  const surfaceOceanCoverageContext = buildSurfaceOceanCoverageContext({
+    massEarth,
+    radiusKm,
+    gravityG,
+    wmfPct,
+    waterRegime,
+    climateState,
+    surfaceTempK,
+    pressureAtm,
+    tectonicContext,
+    geodynamicsContext,
+    explicitOceanCoverageFraction,
   });
-
-  if (!waterInventoryPresent) {
-    notes.push("no-water-inventory");
-    return {
-      regime,
-      modelVersion: "hydrosphere-v2",
-      equivalentWaterDepthM: 0,
-      liquidOceanFraction: 0,
-      landFraction: 1,
-      permanentIceFraction: 0,
-      steamFraction: 0,
-      waterCoverageFraction: 0,
-      surfaceAccessibleLiquidFraction: 0,
-      estimatedMeanOceanDepthKm: 0,
-      seafloorPressureGPa: 0,
-      highPressureIceBand: emptyHighPressureIce.band,
-      highPressureIceRisk: false,
-      highPressureIceLikely: false,
-      highPressureIceThresholdDepthsKm: emptyHighPressureIce.thresholdDepthsKm,
-      ...phaseDiagramHydrosphereFields(emptyHighPressureIce),
-      notes,
-    };
-  }
-
-  const equivalentWaterDepthM = estimateEquivalentWaterDepthM({ massEarth, wmfPct, radiusKm });
-  const physicalCoverage = physicalWaterCoverageFromDepthM(equivalentWaterDepthM);
-  const blendedLiquidCoverage = 0.35 * baseline.liquidOceanFraction + 0.65 * physicalCoverage;
-  state.liquidOceanFraction = clamp(blendedLiquidCoverage, 0, 1);
-  state.landFraction = Math.max(0, 1 - state.liquidOceanFraction);
-  if (regime === "Ice world") {
-    state.liquidOceanFraction = 0;
-    state.permanentIceFraction = 1;
-    state.landFraction = 0;
-  }
-  notes.push("depth-coverage-blend");
-
-  if (pressure < MIN_LIQUID_PRESSURE_ATM && state.liquidOceanFraction > 0) {
-    if (tempK > 0 && tempK < 273) {
-      transferFraction(state, "liquidOceanFraction", "permanentIceFraction", 1);
-      notes.push("low-pressure-sublimation-to-ice");
-    } else {
-      transferFraction(state, "liquidOceanFraction", "steamFraction", 1);
-      notes.push("low-pressure-no-surface-liquid");
-    }
-  } else if (tempK > 0 && tempK < 273 && state.liquidOceanFraction > 0) {
-    transferFraction(state, "liquidOceanFraction", "permanentIceFraction", 1);
-    notes.push("subfreezing-surface");
-  } else if (
-    state.liquidOceanFraction > 0 &&
-    tempK > 0 &&
-    tempK > waterBoilingK(Math.max(pressure, MIN_LIQUID_PRESSURE_ATM))
-  ) {
-    transferFraction(state, "liquidOceanFraction", "steamFraction", 1);
-    notes.push("surface-water-boils");
-  }
-
-  if (stateClimate === "Snowball") {
-    transferFraction(state, "liquidOceanFraction", "permanentIceFraction", 1);
-    notes.push("snowball-climate");
-  } else if (stateClimate === "Moist greenhouse") {
-    transferFraction(state, "liquidOceanFraction", "steamFraction", 0.35);
-    notes.push("moist-greenhouse-bias");
-  } else if (stateClimate === "Runaway greenhouse") {
-    transferFraction(state, "liquidOceanFraction", "steamFraction", 1);
-    transferFraction(state, "permanentIceFraction", "steamFraction", 1);
-    notes.push("runaway-greenhouse");
-  }
-
-  const normalized = normalizeFractions(state);
-  const estimatedMeanOceanDepthKm = meanOceanDepthKmFromEquivalentLayer(
-    equivalentWaterDepthM,
-    normalized.liquidOceanFraction,
+  const equivalentWaterDepthM = toFinite(
+    surfaceOceanCoverageContext.equivalentGlobalWaterDepthM,
+    estimateEquivalentWaterDepthM({ massEarth, wmfPct, radiusKm }),
+  );
+  const normalized = {
+    liquidOceanFraction: clamp(toFinite(surfaceOceanCoverageContext.liquidOceanFraction, 0), 0, 1),
+    landFraction: clamp(toFinite(surfaceOceanCoverageContext.exposedLandFraction, 1), 0, 1),
+    permanentIceFraction: clamp(
+      toFinite(surfaceOceanCoverageContext.permanentIceFraction, 0),
+      0,
+      1,
+    ),
+    steamFraction: clamp(toFinite(surfaceOceanCoverageContext.steamFraction, 0), 0, 1),
+  };
+  const estimatedMeanOceanDepthKm = Math.max(
+    0,
+    toFinite(
+      surfaceOceanCoverageContext.meanOceanDepthKm,
+      meanOceanDepthKmFromEquivalentLayer(equivalentWaterDepthM, normalized.liquidOceanFraction),
+    ),
   );
   const surfaceAccessibleLiquidFraction = computeAccessibleLiquidFraction(
     normalized,
@@ -306,7 +236,7 @@ export function hydrosphereStateFromPlanet({
       ? estimateBottomOceanTemperature({
           surfaceTempK: tempK,
           climateState: stateClimate,
-          pressureAtm: pressure,
+          pressureAtm,
           oceanDepthKm: estimatedMeanOceanDepthKm,
           geothermalFluxWm2,
           tidalHeatFluxWm2,
@@ -335,9 +265,11 @@ export function hydrosphereStateFromPlanet({
     steamFraction: normalized.steamFraction,
     permanentIceFraction: normalized.permanentIceFraction,
   });
-  return {
+  const result = {
     regime,
     modelVersion: "hydrosphere-v2",
+    coverageModelVersion: surfaceOceanCoverageContext.modelVersion,
+    coverageConfidence: surfaceOceanCoverageContext.confidence,
     equivalentWaterDepthM: round(equivalentWaterDepthM, 1),
     liquidOceanFraction: round(normalized.liquidOceanFraction, 3),
     landFraction: round(normalized.landFraction, 3),
@@ -355,6 +287,21 @@ export function hydrosphereStateFromPlanet({
     highPressureIceLikely: highPressureIce.highPressureIceLikely,
     highPressureIceThresholdDepthsKm: highPressureIce.thresholdDepthsKm,
     ...phaseDiagramHydrosphereFields(highPressureIce, bottomOceanProfile),
-    notes,
+    notes: [
+      ...new Set([
+        ...baseline.notes,
+        "hypsometry-coverage-context",
+        ...(Array.isArray(surfaceOceanCoverageContext.notes)
+          ? surfaceOceanCoverageContext.notes
+          : []),
+      ]),
+    ],
+  };
+  return {
+    ...result,
+    surfaceOceanCoverageContext: contextWithDetailedHydrosphereFields(
+      surfaceOceanCoverageContext,
+      result,
+    ),
   };
 }

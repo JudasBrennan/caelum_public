@@ -1,4 +1,8 @@
 import { clamp, round, toFinite } from "../utils.js";
+import {
+  hasRockOceanExchangeBarrier,
+  resolveSurfaceOceanFractions,
+} from "./surfaceOceanCoverageAccessors.js";
 import { CONFIDENCE, CONTEXT_STATUS, makeContext, roundMaybe, scoreToClass } from "./validation.js";
 
 const MODEL_VERSION = "geodynamics-context-v1";
@@ -46,17 +50,9 @@ export function buildGeodynamicsContext({
   const tidal = Math.max(0, toFinite(tidalHeatingWm2, 0));
   const heatFlux = radio + tidal;
   const earthFlux = heatFlux / EARTH_HEAT_FLUX_WM2;
-  const waterSupport = clamp(
-    toFinite(
-      hydrosphere?.surfaceAccessibleLiquidFraction ??
-        hydrosphere?.liquidOceanFraction ??
-        hydrosphere?.landFraction,
-      0,
-    ),
-    0,
-    1,
-  );
-  const land = clamp(toFinite(hydrosphere?.landFraction, 0.5), 0, 1);
+  const coverage = resolveSurfaceOceanFractions(hydrosphere);
+  const waterSupport = clamp(toFinite(coverage.surfaceAccessibleLiquidFraction, 0), 0, 1);
+  const land = clamp(toFinite(coverage.landFraction, 0.5), 0, 1);
   const temp = toFinite(surfaceTempK, 288);
   const tempSupport =
     temp < 180 || temp > 850 ? 0.05 : temp > 500 ? 0.28 : temp < 240 ? 0.35 : 0.75;
@@ -137,7 +133,7 @@ export function buildGeodynamicsContext({
     limitingFactors.push("limited surface-accessible water weakens tectonic/weathering support");
   if (temp > 700)
     limitingFactors.push("extreme surface temperature weakens Earth-like tectonic inference");
-  if (hydrosphere?.highPressureIceBarrier) {
+  if (hasRockOceanExchangeBarrier(hydrosphere)) {
     limitingFactors.push("high-pressure ice can isolate ocean and rock exchange");
   }
 
@@ -159,6 +155,7 @@ export function buildGeodynamicsContext({
       radiogenicHeatingWm2: roundMaybe(radiogenicHeatingWm2, 6),
       tidalHeatingWm2: roundMaybe(tidalHeatingWm2, 6),
       interiorEvolutionModelVersion: interiorEvolutionContext?.modelVersion || null,
+      surfaceOceanCoverageModelVersion: coverage.modelVersion,
     },
     outputs: {
       heatFluxWm2: round(heatFlux, 6),

@@ -115,6 +115,33 @@ function inferCryovolcanicActivityScore(moonModel = {}, tidalScore = 0) {
   );
 }
 
+function exosphereContextOf(moonModel = {}) {
+  const candidates = [
+    moonModel.exosphere,
+    moonModel.derived?.exosphere,
+    moonModel.atmosphere?.surfaceBoundaryExosphere,
+    moonModel.habitability?.exosphere,
+  ];
+  return candidates.find((candidate) => candidate && typeof candidate === "object") || null;
+}
+
+function oxygenPickupScore(exosphere = null, insideParentMagnetosphere = false) {
+  if (!exosphere?.abioticOxygenSource || !insideParentMagnetosphere) return 0;
+  const support = clamp(finiteOrNull(exosphere.supportScore) ?? 0.45, 0, 1);
+  const production = Math.max(finiteOrNull(exosphere.oxygenProductionKgS) ?? 0, 0);
+  const productionScore =
+    production > 0 ? clamp(Math.log10(1 + production) / Math.log10(13), 0, 1) : 0.35;
+  const pickupClass = String(exosphere.ionPickupClass || "").toLowerCase();
+  const pickupBoost = pickupClass.includes("strong")
+    ? 1
+    : pickupClass.includes("moderate")
+      ? 0.75
+      : pickupClass.includes("weak")
+        ? 0.45
+        : 0.25;
+  return clamp(0.52 * support + 0.3 * productionScore + 0.18 * pickupBoost, 0, 1);
+}
+
 export function buildSolvedMoonInfluenceSummary(moonModel = {}) {
   const tidalHeatingWm2 = firstFinite(
     moonModel.tides?.tidalHeatingWm2,
@@ -142,6 +169,8 @@ export function buildSolvedMoonInfluenceSummary(moonModel = {}) {
   const insideParentMagnetosphere =
     moonModel.radiation?.insideParentMagnetosphere === true ||
     moonModel.radiation?.withinParentMagnetosphere === true;
+  const exosphere = exosphereContextOf(moonModel);
+  const oxygenPickup = oxygenPickupScore(exosphere, insideParentMagnetosphere);
   const radiationSputteringClass =
     moonModel.radiation?.surfaceClass ||
     moonModel.radiation?.subsurfaceClass ||
@@ -157,7 +186,8 @@ export function buildSolvedMoonInfluenceSummary(moonModel = {}) {
       0.22 * cryovolcanicActivityScore +
       0.1 * escapeScore +
       0.1 * sputteringScore +
-      0.06 * tidalScore,
+      0.06 * tidalScore +
+      0.12 * oxygenPickup,
     0,
     1,
   );
@@ -173,7 +203,16 @@ export function buildSolvedMoonInfluenceSummary(moonModel = {}) {
     insideParentMagnetosphere && escapeScore > 0
       ? 1e10 * escapeScore * Math.max(sputteringScore, 0.2)
       : 0;
-  const plasmaSourcePowerW = Math.max(tidalBranch, plumeBranch, sputteringBranch);
+  const oxygenPickupBranch =
+    oxygenPickup > 0
+      ? 5e10 * oxygenPickup * Math.max(finiteOrNull(exosphere?.oxygenProductionKgS) ?? 1, 1)
+      : 0;
+  const plasmaSourcePowerW = Math.max(
+    tidalBranch,
+    plumeBranch,
+    sputteringBranch,
+    oxygenPickupBranch,
+  );
   const confidenceInputs = [
     tidalHeatingWm2 != null || tidalHeatingW != null,
     moonModel.geology && typeof moonModel.geology === "object",
@@ -186,6 +225,11 @@ export function buildSolvedMoonInfluenceSummary(moonModel = {}) {
   if (!insideParentMagnetosphere) {
     notes.push(
       "Moon is not flagged inside the parent magnetosphere, so plasma coupling is reduced.",
+    );
+  }
+  if (oxygenPickup > 0) {
+    notes.push(
+      "Icy-moon radiolytic O2 pickup is included as parent plasma loading evidence, separate from volcanic sulfur and plume sources.",
     );
   }
 
@@ -201,6 +245,11 @@ export function buildSolvedMoonInfluenceSummary(moonModel = {}) {
     volatileEscapeRisk,
     insideParentMagnetosphere,
     radiationSputteringClass,
+    oxygenPickupScore: round(oxygenPickup, 4),
+    oxygenPickupEvidenceClass: plasmaSourceClass(oxygenPickup),
+    oxygenProductionKgS:
+      exosphere?.oxygenProductionKgS == null ? null : round(exosphere.oxygenProductionKgS, 3),
+    ionPickupClass: exosphere?.ionPickupClass || "none",
     plasmaSourceScore: round(plasmaSourceScore, 4),
     plasmaSourceClass: plasmaSourceClass(plasmaSourceScore),
     plasmaSourcePowerW: round(plasmaSourcePowerW, 0),

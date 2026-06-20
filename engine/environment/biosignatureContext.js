@@ -50,6 +50,23 @@ function confidenceFromInputs({
   return "low";
 }
 
+function exosphereAbioticOxygenScore(surfaceBoundaryExosphere = null) {
+  const exosphere =
+    surfaceBoundaryExosphere && typeof surfaceBoundaryExosphere === "object"
+      ? surfaceBoundaryExosphere
+      : null;
+  if (!exosphere?.abioticOxygenSource) return 0;
+  if (String(exosphere.retainedAtmosphereCoupling || "") !== "exosphere-only") return 0;
+  const confidenceBoost =
+    confidenceRank(exosphere.oxygenProductionConfidence || exosphere.confidence) / 3;
+  const supportScore = fraction(exosphere.supportScore, 0);
+  const productionScore = logRangeScore(exosphere.oxygenProductionKgS, 0.1, 12);
+  return round(
+    clamp(0.32 + 0.18 * supportScore + 0.14 * productionScore + 0.12 * confidenceBoost, 0, 0.64),
+    3,
+  );
+}
+
 function normalizeComposition({ composition = {}, pressureAtm = 0 } = {}) {
   const raw = composition && typeof composition === "object" ? composition : {};
   const pressure = finiteNonNegative(pressureAtm, 0);
@@ -299,6 +316,7 @@ function buildNotes({
   stellarHistoryDoseContext,
   planetRadiationEnvironmentContext,
   nitrogenCycleContext,
+  surfaceBoundaryExosphere,
 }) {
   const notes = [
     "Biosignature context never asserts life; it reports source demand and false-positive risk.",
@@ -345,6 +363,11 @@ function buildNotes({
       notes.push("A large N2 reservoir is not treated as Earth-like fixed nitrogen availability.");
     }
   }
+  if (exosphereAbioticOxygenScore(surfaceBoundaryExosphere) > 0) {
+    notes.push(
+      "Icy-moon exosphere O2 is abiotic and exosphere-only; it is not breathable air or life evidence.",
+    );
+  }
   notes.push(...methane.notes);
   return [...new Set(notes)];
 }
@@ -362,6 +385,7 @@ export function computeBiosignatureContext({
   nitrogenCycleContext = null,
   environmentForcing = null,
   hydrosphere = null,
+  surfaceBoundaryExosphere = null,
 } = {}) {
   const pressure = finiteNonNegative(pressureAtm, 0);
   const partials = normalizeComposition({ composition, pressureAtm: pressure });
@@ -372,17 +396,21 @@ export function computeBiosignatureContext({
     atmosphereLedger,
     photochemistry,
   });
-  const falsePositive = o2FalsePositiveScore({
-    partials,
-    hydrosphere,
-    environmentForcing,
-    stellarHistoryDoseContext,
-    planetRadiationEnvironmentContext,
-    atmosphereLedger,
-    atmosphereEvolutionContext,
-    oceanChemistryContext,
-    photochemistry,
-  });
+  const exosphereAbioticScore = exosphereAbioticOxygenScore(surfaceBoundaryExosphere);
+  const falsePositive = Math.max(
+    o2FalsePositiveScore({
+      partials,
+      hydrosphere,
+      environmentForcing,
+      stellarHistoryDoseContext,
+      planetRadiationEnvironmentContext,
+      atmosphereLedger,
+      atmosphereEvolutionContext,
+      oceanChemistryContext,
+      photochemistry,
+    }),
+    exosphereAbioticScore,
+  );
   const methane = methaneContext({
     partials,
     photochemistry,
@@ -428,6 +456,15 @@ export function computeBiosignatureContext({
       nitrogenCycleContext?.outputs?.pressureBufferSupportClass || "Not evaluated",
     nitrogenBiosignatureCaveat:
       nitrogenCycleContext?.outputs?.biosignatureNitrogenCaveatClass || "not-evaluated",
+    exosphereAbioticOxygenRiskScore: exosphereAbioticScore,
+    exosphereAbioticOxygenRisk: classFromScore(exosphereAbioticScore, [
+      "Not indicated",
+      "Abiotic exosphere caution",
+      "Strong abiotic exosphere caution",
+    ]),
+    surfaceBoundaryExosphereClass:
+      surfaceBoundaryExosphere?.exosphereClass || "No icy sputtered O2 exosphere",
+    exosphereOxygenProductionKgS: surfaceBoundaryExosphere?.oxygenProductionKgS ?? null,
     confidence: confidenceFromInputs({
       photochemistry,
       atmosphereLedger,
@@ -445,6 +482,7 @@ export function computeBiosignatureContext({
       stellarHistoryDoseContext,
       planetRadiationEnvironmentContext,
       nitrogenCycleContext,
+      surfaceBoundaryExosphere,
     }),
   };
 }

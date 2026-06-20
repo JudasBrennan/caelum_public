@@ -9,7 +9,7 @@ export function initAboutPage(mountEl) {
       </div>
       <div class="panel__body">
         <p>
-          <b>WorldSmith Web 2.11.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
+          <b>WorldSmith Web 2.12.0</b> is a browser-based worldbuilding toolkit by <b>Judas Brennan</b>.
           Design stars, brown dwarfs, planetary systems, rocky worlds, gas giants, moons, comets,
           Oort clouds, and debris disks with real astrophysics. Model tectonics, climate zones,
           atmospheres, populations, calendars, and exotic planetary subtype evidence. Explore your
@@ -393,6 +393,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Co-developed electroweak unification, showing how apparently separate forces can be described by one tested physical framework.",
   },
+  "2.12.0": {
+    name: "Ernest Rutherford",
+    born: 1871,
+    died: 1937,
+    country: "New Zealand",
+    summary:
+      "Revealed the atomic nucleus through particle-scattering experiments, turning invisible interactions into measurable physical structure.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -432,6 +440,18 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "2.12.0",
+      "(from 2.11.0)",
+      [
+        "<b>Surface Ocean Coverage</b> &mdash; Earth-like water inventories now infer Earth-like ocean coverage from a bounded basin and hypsometry model instead of needing a manual ocean override.",
+        "<b>Icy Moon Exospheres</b> &mdash; Europa-like icy moons can now show replenished, non-breathable O2/H2 exospheres from parent-magnetosphere irradiation, with abiotic oxygen clearly separated from retained atmospheres.",
+        "<b>Shared Water Context</b> &mdash; Hydrosphere, climate, carbon cycle, ocean chemistry, productivity, tectonics, visuals, timelines, and visualizer summaries now use the same inferred surface-water context.",
+        "<b>Validation Closure</b> &mdash; The Science Verification Matrix now checks Earth surface-ocean coverage and Europa sputtered oxygen directly instead of treating them as accepted modeling gaps.",
+        "<b>Validation Readability</b> &mdash; Dark-mode dropdowns on the Validation page now have stronger contrast while filtering the matrix.",
+      ],
+      { open: true },
+    ),
+    release(
       "2.11.0",
       "(from 2.10.0)",
       [
@@ -441,7 +461,7 @@ function changelogHTML() {
         "<b>Long-Term Dynamics</b> &mdash; Planetary systems now expose bounded diagnostics for secular and Kozai-Lidov susceptibility, precession, Cassini-state readiness, migration clues, and Trojan reservoir support without rewriting authored orbits.",
         "<b>Validation Page Clarity</b> &mdash; The Validation page now explains what each matrix family means in plain language, highlights open gaps and release gates, and links to the generated standalone matrix artifacts.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.10.0",

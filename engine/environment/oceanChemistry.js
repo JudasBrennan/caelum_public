@@ -1,5 +1,11 @@
 import { clamp, round, toFinite } from "../utils.js";
 import { freezingPointKFromOceanChemistry } from "../habitability/oceanThermalProfile.js";
+import {
+  hasHighPressureIceCaveat,
+  hasRockOceanExchangeBarrier,
+  resolveMeanOceanDepthKm,
+  resolveSurfaceOceanFractions,
+} from "../contexts/surfaceOceanCoverageAccessors.js";
 
 const MODEL_VERSION = "ocean-chemistry-v1";
 const PURE_WATER_FREEZING_K = 273.15;
@@ -33,27 +39,16 @@ function confidenceFromRank(rank) {
 }
 
 function resolveOceanDepthKm(hydrosphere = {}) {
-  const candidates = [
-    hydrosphere.estimatedMeanOceanDepthKm,
-    hydrosphere.estimatedSurfaceOceanDepthKm,
-    hydrosphere.estimatedSubsurfaceOceanDepthKm,
-    hydrosphere.subsurfaceOceanDepthKm,
-    hydrosphere.oceanDepthKm,
-  ];
-  for (const candidate of candidates) {
-    const depth = finiteNonNegative(candidate, NaN);
-    if (Number.isFinite(depth) && depth > 0) return depth;
-  }
-  const equivalentDepthKm = finiteNonNegative(hydrosphere.equivalentWaterDepthM, 0) / 1000;
-  return equivalentDepthKm > 0 ? equivalentDepthKm : 0;
+  return resolveMeanOceanDepthKm(hydrosphere);
 }
 
 function waterInventoryPresent(hydrosphere = {}) {
+  const coverage = resolveSurfaceOceanFractions(hydrosphere);
   return (
-    fraction(hydrosphere.waterCoverageFraction, 0) > 0.001 ||
-    fraction(hydrosphere.liquidOceanFraction, 0) > 0.001 ||
-    fraction(hydrosphere.permanentIceFraction, 0) > 0.001 ||
-    fraction(hydrosphere.steamFraction, 0) > 0.001 ||
+    coverage.waterCoverageFraction > 0.001 ||
+    coverage.liquidOceanFraction > 0.001 ||
+    coverage.permanentIceFraction > 0.001 ||
+    coverage.steamFraction > 0.001 ||
     finiteNonNegative(hydrosphere.equivalentWaterDepthM, 0) > 0 ||
     hydrosphere.subsurfaceOceanPresent === true ||
     fraction(hydrosphere.subsurfaceOceanScore, 0) > 0.001
@@ -61,10 +56,11 @@ function waterInventoryPresent(hydrosphere = {}) {
 }
 
 function classifyWaterContext(hydrosphere = {}) {
-  const liquid = fraction(hydrosphere.liquidOceanFraction, 0);
-  const accessible = fraction(hydrosphere.surfaceAccessibleLiquidFraction, liquid);
-  const ice = fraction(hydrosphere.permanentIceFraction, 0);
-  const steam = fraction(hydrosphere.steamFraction, 0);
+  const coverage = resolveSurfaceOceanFractions(hydrosphere);
+  const liquid = coverage.liquidOceanFraction;
+  const accessible = coverage.surfaceAccessibleLiquidFraction;
+  const ice = coverage.permanentIceFraction;
+  const steam = coverage.steamFraction;
   const subsurfaceScore = fraction(hydrosphere.subsurfaceOceanScore, 0);
   const hasWater = waterInventoryPresent(hydrosphere);
 
@@ -84,14 +80,12 @@ function classifyWaterContext(hydrosphere = {}) {
 
 function inferSalinityPct(hydrosphere = {}, waterContext) {
   if (!waterContext?.liquid) return 0;
-  const liquid = fraction(hydrosphere.liquidOceanFraction, 0);
-  const accessible = fraction(hydrosphere.surfaceAccessibleLiquidFraction, liquid);
-  const land = fraction(hydrosphere.landFraction, 0);
+  const coverage = resolveSurfaceOceanFractions(hydrosphere);
+  const liquid = coverage.liquidOceanFraction;
+  const accessible = coverage.surfaceAccessibleLiquidFraction;
+  const land = coverage.landFraction;
   const depthKm = resolveOceanDepthKm(hydrosphere);
-  const highPressureBarrier =
-    hydrosphere.highPressureIceBarrier === true ||
-    hydrosphere.highPressureIceLikely === true ||
-    hydrosphere.rockOceanBarrier === true;
+  const highPressureBarrier = hasRockOceanExchangeBarrier(hydrosphere);
 
   if (waterContext.key === "subsurface-ocean") {
     return highPressureBarrier ? 4.5 : 6;
@@ -163,15 +157,16 @@ function classifyBrineModifier(freezingPointDepressionK, ammoniaPct) {
 function rockOceanAccessScore({ hydrosphere, carbonCycleContext }) {
   const carbonAccess = toFinite(carbonCycleContext?.rockOceanAccess, NaN);
   let access = Number.isFinite(carbonAccess) ? clamp(carbonAccess, 0, 1) : 0.35;
-  const surfaceLiquid = fraction(hydrosphere?.surfaceAccessibleLiquidFraction, 0);
-  const land = fraction(hydrosphere?.landFraction, 0);
-  if (hydrosphere?.subsurfaceOceanPresent === true && !hydrosphere?.highPressureIceBarrier) {
+  const coverage = resolveSurfaceOceanFractions(hydrosphere);
+  const surfaceLiquid = coverage.surfaceAccessibleLiquidFraction;
+  const land = coverage.landFraction;
+  if (hydrosphere?.subsurfaceOceanPresent === true && !hasRockOceanExchangeBarrier(hydrosphere)) {
     access = Math.max(access, 0.55);
   }
   if (surfaceLiquid > 0.05) {
     access = Math.max(access, land > 0.05 ? 0.65 : 0.55);
   }
-  if (hydrosphere?.highPressureIceBarrier === true || hydrosphere?.rockOceanBarrier === true) {
+  if (hasRockOceanExchangeBarrier(hydrosphere)) {
     access = Math.min(access, 0.22);
   }
   return round(clamp(access, 0, 1), 3);
@@ -182,17 +177,15 @@ function carbonateSupportScore({ hydrosphere, carbonCycleContext, ppCO2Atm }) {
   const thermostat = fraction(carbonCycleContext?.thermostatStrength, 0);
   const seafloor = fraction(carbonCycleContext?.seafloorWeatheringPotential, 0);
   const recycling = fraction(carbonCycleContext?.recyclingEfficiency, 0);
-  const land = fraction(hydrosphere?.landFraction, 0);
+  const coverage = resolveSurfaceOceanFractions(hydrosphere);
+  const land = coverage.landFraction;
   const liquid = Math.max(
-    fraction(hydrosphere?.surfaceAccessibleLiquidFraction, 0),
-    fraction(hydrosphere?.liquidOceanFraction, 0),
+    coverage.surfaceAccessibleLiquidFraction,
+    coverage.liquidOceanFraction,
     fraction(hydrosphere?.subsurfaceOceanScore, 0) * 0.55,
   );
   const co2Availability = logRangeScore(ppCO2Atm, 1e-5, 0.01);
-  const highPressurePenalty =
-    hydrosphere?.highPressureIceBarrier === true || hydrosphere?.rockOceanBarrier === true
-      ? 0.42
-      : 1;
+  const highPressurePenalty = hasRockOceanExchangeBarrier(hydrosphere) ? 0.42 : 1;
   const exposedSurfaceExchange =
     highPressurePenalty < 1 ? 0 : Math.sqrt(liquid * clamp(land / 0.25, 0, 1));
   const surfaceBufferScore =
@@ -218,7 +211,7 @@ function classifyAcidity({ waterContext, ppCO2Atm, carbonateScore, ammoniaPct })
 
 function classifyCarbonateSaturation({ waterContext, hydrosphere, carbonateScore, ppCO2Atm }) {
   if (!waterContext?.liquid) return "Not evaluated";
-  if (hydrosphere?.highPressureIceBarrier === true || hydrosphere?.rockOceanBarrier === true) {
+  if (hasRockOceanExchangeBarrier(hydrosphere)) {
     return "Rock-ocean limited";
   }
   if (carbonateScore >= 0.42) return "Carbonate-supported";
@@ -242,7 +235,7 @@ function hydrothermalScore({ hydrosphere, geology, carbonCycleContext }) {
     0.45 * carbonAccess + 0.25 * volcanic + 0.2 * subsurface + 0.1 * tidalHeat,
     oceanPersistence * 0.7,
   );
-  if (hydrosphere?.highPressureIceBarrier === true || hydrosphere?.rockOceanBarrier === true) {
+  if (hasRockOceanExchangeBarrier(hydrosphere)) {
     score *= 0.45;
   }
   return round(clamp(score, 0, 1), 3);
@@ -265,7 +258,7 @@ function buildNotes({ salinitySource, waterContext, hydrosphere, ppCO2Atm }) {
   if (waterContext.key === "ice-brine") {
     notes.push("Ice-dominated bodies are treated as possible brine contexts, not open oceans.");
   }
-  if (hydrosphere?.highPressureIceBarrier === true || hydrosphere?.rockOceanBarrier === true) {
+  if (hasHighPressureIceCaveat(hydrosphere)) {
     notes.push("High-pressure ice can isolate ocean water from direct rock exchange.");
   }
   if (finiteNonNegative(ppCO2Atm, 0) >= 0.05) {
@@ -326,6 +319,7 @@ export function computeOceanChemistryContext({
     normalizeDynamicalPersistenceContext(resolvedHydrosphere.dynamicalPersistenceContext) ||
     normalizeDynamicalPersistenceContext(geology?.dynamicalPersistenceContext);
   const waterContext = classifyWaterContext(resolvedHydrosphere);
+  const coverage = resolveSurfaceOceanFractions(resolvedHydrosphere);
   const pressure = finiteNonNegative(pressureAtm, 0);
   const co2Partial = finiteNonNegative(ppCO2Atm, 0);
   const salinity = resolveSalinity({
@@ -416,6 +410,10 @@ export function computeOceanChemistryContext({
     liquidContext: waterContext.liquid,
     waterContext: waterContext.key,
     waterContextLabel: waterContext.label,
+    surfaceOceanCoverageModelVersion: coverage.modelVersion,
+    surfaceAccessibleLiquidFraction: round(coverage.surfaceAccessibleLiquidFraction, 3),
+    exposedLandFraction: round(coverage.landFraction, 3),
+    meanOceanDepthKm: round(resolveOceanDepthKm(resolvedHydrosphere), 2),
     pressureAtm: round(pressure, pressure < 0.01 ? 8 : 4),
     ppCO2Atm: round(co2Partial, co2Partial < 0.01 ? 8 : 4),
     salinityPct: round(salinity.value, 2),
@@ -434,9 +432,7 @@ export function computeOceanChemistryContext({
     hydrothermalSupportClass,
     nutrientSupportScore: nutrientScore,
     nutrientSupportClass,
-    highPressureIceCaveat:
-      resolvedHydrosphere.highPressureIceBarrier === true ||
-      resolvedHydrosphere.rockOceanBarrier === true,
+    highPressureIceCaveat: hasHighPressureIceCaveat(resolvedHydrosphere),
     dynamicalPersistenceContext: persistenceContext,
     sustainedTidalHeatingClass: persistenceContext?.sustainedTidalHeatingClass || "unknown",
     tidalPersistenceConfidence: persistenceContext?.persistenceConfidence || "unknown",
