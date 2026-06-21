@@ -1852,6 +1852,7 @@ a.next-step-strip__action {
   border: 1px solid rgba(var(--overlay-color), 0.1);
   border-radius: var(--radius-sm, 8px);
   background: rgba(var(--overlay-color), 0.03);
+  min-width: 0;
 }
 
 .about-hero {
@@ -1947,6 +1948,11 @@ a.next-step-strip__action {
   gap: 5px;
 }
 
+.about-list--links a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .about-muted {
   color: var(--muted);
   font-size: 12px;
@@ -1966,6 +1972,7 @@ a.next-step-strip__action {
   }
 
   .about-hero__slogan {
+    min-width: 0;
     text-align: left;
   }
 }
