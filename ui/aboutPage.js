@@ -446,6 +446,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Discovered a telescopic comet and helped open astronomy to a wider public, connecting careful observation with a more welcoming scientific culture.",
   },
+  "3.1.0": {
+    name: "J. J. Thomson",
+    born: 1856,
+    died: 1940,
+    country: "England",
+    summary:
+      "Discovered the electron and showed that atoms have internal structure, making composition something measurable rather than merely named.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -485,6 +493,19 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "3.1.0",
+      "(from 3.0.0)",
+      [
+        "<b>Manual Composition Inventories</b> &mdash; Planets and moons now share inferred, reservoir, and expert-element composition modes for metal, silicate, water ice, volatile ice, carbonaceous material, sulfur, salts, major elements, and trace heat elements.",
+        "<b>Sensible Composition Seeds</b> &mdash; The composition editor can fill reservoir, element, and trace boxes with scientifically bounded starter values derived from the current body state, then let users adjust them freely.",
+        "<b>Composition-Aware Moons</b> &mdash; Moon inventories now feed hydrosphere priors, ocean chemistry, atmosphere source context, geology, magnetosphere diagnostics, and visual cues where the science supports it.",
+        "<b>Reservoirs Drive Structure</b> &mdash; Manual reservoir values can affect rocky planet structure and moon material response, while expert element values improve chemistry and diagnostics without pretending to solve full mineralogy.",
+        "<b>Density-Aware Validation</b> &mdash; Seeded and manual inventories now compare against body-aware density expectations, reducing false cautions for compressed rocky planets while preserving warnings for unsupported mixes.",
+        "<b>Science Verification Matrix</b> &mdash; The matrix and calibration artifacts were regenerated for this release and are available to the dev server and production build outputs.",
+      ],
+      { open: true },
+    ),
+    release(
       "3.0.0",
       "(from 2.12.0)",
       [
@@ -495,7 +516,7 @@ function changelogHTML() {
         "<b>UI Review Coverage</b> &mdash; Browser review now captures desktop/mobile, dark/light spot checks, and critical horizontal-overflow guardrails across the main authoring, diagnostic, reference, and visualiser routes.",
         "<b>Science Verification Matrix</b> &mdash; The matrix and calibration artifacts were regenerated for this release and are available to the dev server and production build outputs.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "2.12.0",

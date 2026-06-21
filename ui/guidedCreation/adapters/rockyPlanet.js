@@ -604,6 +604,28 @@ function getRecipeForArchetype(archetypeId, context = {}) {
   return getRockyRecipeCatalog(context).find((entry) => entry?.id === archetype.recipeId) || null;
 }
 
+const ROCKY_RECIPE_COMPOSITION_FIELDS = [
+  "compositionMode",
+  "compositionNormalizeMode",
+  "compositionStructureSource",
+  "manualComponentPct",
+  "manualElementPct",
+  "manualTraceElementAbundance",
+  "compositionSuggestionMeta",
+];
+
+function pickRockyRecipeCompositionInputs(source, current) {
+  const out = {};
+  for (const field of ROCKY_RECIPE_COMPOSITION_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(source, field)) {
+      out[field] = source[field];
+    } else if (Object.prototype.hasOwnProperty.call(current, field)) {
+      out[field] = current[field];
+    }
+  }
+  return out;
+}
+
 export function buildRockyRecipeApplyInputs(
   recipeInputs = {},
   appearanceRecipeId = null,
@@ -611,6 +633,7 @@ export function buildRockyRecipeApplyInputs(
 ) {
   const source = recipeInputs && typeof recipeInputs === "object" ? recipeInputs : {};
   const current = currentInputs && typeof currentInputs === "object" ? currentInputs : {};
+  const compositionInputs = pickRockyRecipeCompositionInputs(source, current);
   return {
     massEarth: source.massEarth ?? current.massEarth ?? 1,
     cmfPct: source.cmfPct ?? current.cmfPct ?? 33,
@@ -650,6 +673,7 @@ export function buildRockyRecipeApplyInputs(
     k40Abundance: source.k40Abundance ?? current.k40Abundance ?? 1,
     ringMode: source.ringMode ?? current.ringMode ?? "auto",
     ringStyleId: source.ringStyleId ?? current.ringStyleId ?? "auto",
+    ...compositionInputs,
     appearanceRecipeId:
       appearanceRecipeId ?? source.appearanceRecipeId ?? current.appearanceRecipeId ?? null,
   };

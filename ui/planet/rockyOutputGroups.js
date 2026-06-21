@@ -92,6 +92,53 @@ export const ROCKY_HABITABILITY_LABELS = new Set([
 
 const TECTONIC_PROBABILITY_KEYS = ["stagnant", "mobile", "episodic", "plutonicSquishy"];
 
+export function buildRockyInteriorActivityItems(display = {}) {
+  return [
+    {
+      label: "Interior Evolution",
+      value: display.interiorEvolution,
+      meta: display.interiorDynamoSupport,
+    },
+    {
+      label: "Volcanic Longevity",
+      value: display.volcanicLongevity,
+      meta: display.mantleRecyclingSupport,
+    },
+  ];
+}
+
+export function normalizeRockyKpiItem(item, tipLabels = {}) {
+  return {
+    ...item,
+    tip: item.tip || tipLabels[item.tipLabel] || tipLabels[item.label] || "",
+    kpiClass: item.kpiClass ? `kpi--compact ${item.kpiClass}`.trim() : "kpi--compact",
+  };
+}
+
+export function buildRockyOutputGroupItems(allRockyItems, labelSet, normalizeItem) {
+  return allRockyItems.filter((item) => item && labelSet.has(item.label)).map(normalizeItem);
+}
+
+export function buildRockyOutputItemGroups(allRockyItems, normalizeItem) {
+  return {
+    summaryItems: buildRockyOutputGroupItems(allRockyItems, ROCKY_SUMMARY_LABELS, normalizeItem),
+    identityItems: buildRockyOutputGroupItems(allRockyItems, ROCKY_IDENTITY_LABELS, normalizeItem),
+    physicalItems: buildRockyOutputGroupItems(allRockyItems, ROCKY_PHYSICAL_LABELS, normalizeItem),
+    environmentItems: buildRockyOutputGroupItems(
+      allRockyItems,
+      ROCKY_ENVIRONMENT_LABELS,
+      normalizeItem,
+    ),
+    systemItems: buildRockyOutputGroupItems(allRockyItems, ROCKY_SYSTEM_LABELS, normalizeItem),
+    activityItems: buildRockyOutputGroupItems(allRockyItems, ROCKY_ACTIVITY_LABELS, normalizeItem),
+    habitabilityItems: buildRockyOutputGroupItems(
+      allRockyItems,
+      ROCKY_HABITABILITY_LABELS,
+      normalizeItem,
+    ),
+  };
+}
+
 export function formatRockyTectonicProbabilities(probabilities = {}) {
   return TECTONIC_PROBABILITY_KEYS.map((regime) => {
     const label =

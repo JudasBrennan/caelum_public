@@ -43,14 +43,10 @@ import {
   buildGasGiantThermalDetailItems,
 } from "./planet/gasGiantOutputItems.js";
 import {
-  ROCKY_ACTIVITY_LABELS,
-  ROCKY_ENVIRONMENT_LABELS,
-  ROCKY_HABITABILITY_LABELS,
-  ROCKY_IDENTITY_LABELS,
-  ROCKY_PHYSICAL_LABELS,
-  ROCKY_SUMMARY_LABELS,
-  ROCKY_SYSTEM_LABELS,
+  buildRockyInteriorActivityItems,
+  buildRockyOutputItemGroups,
   formatRockyTectonicProbabilities,
+  normalizeRockyKpiItem,
 } from "./planet/rockyOutputGroups.js";
 import {
   applyGasGiantGuidedRecommendation,
@@ -136,6 +132,12 @@ import {
   renderPlanetResultSummary,
 } from "./planet/resultSummary.js";
 import { renderGasGiantInputForm, renderRockyInputForm } from "./planet/inputRender.js";
+import { bindCompositionEditor, updateCompositionEditorValidation } from "./compositionEditor.js";
+import {
+  buildRockyCompositionOutputModel,
+  buildRockyCompositionSuggestionFromForm,
+  formatCompositionPctValue as formatPctValue,
+} from "./planet/compositionOutputs.js";
 import { vegGridOrbit, vegGridTwilightOrbit } from "./planet/vegetationGridModel.js";
 import { PLANET_TUTORIAL_STEPS as TUTORIAL_STEPS } from "./planet/tutorials.js";
 import { TIP_LABEL } from "./planet/tooltips.js";
@@ -1292,6 +1294,21 @@ export function initPlanetPage(mountEl, options = {}) {
       commitRockyInputPatch({ [inputKey]: value });
     };
 
+    bindCompositionEditor(bodyInputsEl.querySelector('[data-composition-editor="planet"]'), {
+      onPatch: (patch) => {
+        if (hydrating) return;
+        commitRockyInputPatch(patch);
+      },
+      onSeedSensibleValues: () =>
+        buildRockyCompositionSuggestionFromForm({
+          bodyInputsEl,
+          cmfIsAuto,
+          planetInputs: p,
+          solveContext,
+          world,
+        }),
+    });
+
     for (const [id, val] of Object.entries(fieldMap)) {
       if (id === "a") continue;
       const el = bodyInputsEl.querySelector(`#${id}`);
@@ -1725,6 +1742,23 @@ export function initPlanetPage(mountEl, options = {}) {
     if (ringStyleHintEl)
       ringStyleHintEl.textContent = formatRingStyleHint(ringAppearance, ringState);
 
+    const {
+      compositionInputMeta,
+      compositionItems,
+      compositionValidation,
+      effectiveCmfPct,
+      effectiveWmfPct,
+    } = buildRockyCompositionOutputModel({
+      derived: d,
+      display: model.display,
+      inputs: model.inputs,
+      planetInputs: p,
+    });
+    updateCompositionEditorValidation(
+      bodyInputsEl.querySelector('[data-composition-editor="planet"]'),
+      compositionValidation,
+    );
+
     const habitabilityPolicyVersion =
       d.habitabilityBreakdown?.solventPolicyVersion || "surface-plus-subsurface-water-v1";
     const habitabilityPolicyLabel =
@@ -1771,18 +1805,7 @@ export function initPlanetPage(mountEl, options = {}) {
       Number.isFinite(stellarWindRatio) &&
       stellarWindRatio > 0 &&
       (stellarWindRatio > 3 || stellarWindRatio < 0.3);
-    const interiorActivityItems = [
-      {
-        label: "Interior Evolution",
-        value: model.display.interiorEvolution,
-        meta: model.display.interiorDynamoSupport,
-      },
-      {
-        label: "Volcanic Longevity",
-        value: model.display.volcanicLongevity,
-        meta: model.display.mantleRecyclingSupport,
-      },
-    ];
+    const interiorActivityItems = buildRockyInteriorActivityItems(model.display);
 
     const allRockyItems = [
       {
@@ -1810,7 +1833,7 @@ export function initPlanetPage(mountEl, options = {}) {
       {
         label: "Composition",
         value: model.display.compositionClass,
-        meta: `CMF ${fmt(model.inputs.cmfPct, 1)}%${d.cmfIsAuto ? " (auto)" : ""}, WMF ${fmt(model.inputs.wmfPct, 2)}%`,
+        meta: `Effective CMF ${formatPctValue(effectiveCmfPct, 1)}, WMF ${formatPctValue(effectiveWmfPct, 2)} | ${compositionInputMeta}`,
       },
       {
         label: "Radius",
@@ -2243,14 +2266,16 @@ export function initPlanetPage(mountEl, options = {}) {
       });
     }
 
-    const normalizeRockyItem = (item) => ({
-      ...item,
-      tip: item.tip || TIP_LABEL[item.tipLabel] || TIP_LABEL[item.label] || "",
-      kpiClass: item.kpiClass ? `kpi--compact ${item.kpiClass}`.trim() : "kpi--compact",
-    });
-    const summaryItems = allRockyItems
-      .filter((item) => item && ROCKY_SUMMARY_LABELS.has(item.label))
-      .map((item) => normalizeRockyItem(item));
+    const normalizeRockyItem = (item) => normalizeRockyKpiItem(item, TIP_LABEL);
+    const {
+      summaryItems,
+      identityItems,
+      physicalItems,
+      environmentItems,
+      systemItems,
+      activityItems,
+      habitabilityItems,
+    } = buildRockyOutputItemGroups(allRockyItems, normalizeRockyItem);
     if (hasLimitedSurfaceApplicability(classificationSummary)) {
       summaryItems.unshift(
         normalizeRockyItem({
@@ -2263,24 +2288,6 @@ export function initPlanetPage(mountEl, options = {}) {
         }),
       );
     }
-    const identityItems = allRockyItems
-      .filter((item) => item && ROCKY_IDENTITY_LABELS.has(item.label))
-      .map((item) => normalizeRockyItem(item));
-    const physicalItems = allRockyItems
-      .filter((item) => item && ROCKY_PHYSICAL_LABELS.has(item.label))
-      .map((item) => normalizeRockyItem(item));
-    const environmentItems = allRockyItems
-      .filter((item) => item && ROCKY_ENVIRONMENT_LABELS.has(item.label))
-      .map((item) => normalizeRockyItem(item));
-    const systemItems = allRockyItems
-      .filter((item) => item && ROCKY_SYSTEM_LABELS.has(item.label))
-      .map((item) => normalizeRockyItem(item));
-    const activityItems = allRockyItems
-      .filter((item) => item && ROCKY_ACTIVITY_LABELS.has(item.label))
-      .map((item) => normalizeRockyItem(item));
-    const habitabilityItems = allRockyItems
-      .filter((item) => item && ROCKY_HABITABILITY_LABELS.has(item.label))
-      .map((item) => normalizeRockyItem(item));
     const items = allRockyItems;
     const n2Pct = fmt(d.n2Pct, 2);
     const gasMixNote = d.gasMixClamped
@@ -2386,7 +2393,7 @@ export function initPlanetPage(mountEl, options = {}) {
             {
               label: "Composition",
               value: model.display.compositionClass,
-              meta: `CMF ${fmt(model.inputs.cmfPct, 1)}%${d.cmfIsAuto ? " (auto)" : ""}, WMF ${fmt(model.inputs.wmfPct, 2)}%`,
+              meta: `Effective CMF ${formatPctValue(effectiveCmfPct, 1)}, WMF ${formatPctValue(effectiveWmfPct, 2)} | ${compositionInputMeta}`,
             },
             { label: "Core Radius", value: model.display.coreRadius },
             {
@@ -2395,6 +2402,11 @@ export function initPlanetPage(mountEl, options = {}) {
               meta: model.display.suggestedCmfNote,
             },
           ],
+        },
+        {
+          id: "planet-details-composition",
+          title: "Interior Composition",
+          items: compositionItems,
         },
         {
           id: "planet-details-physical",
@@ -2561,7 +2573,7 @@ export function initPlanetPage(mountEl, options = {}) {
             {
               label: "Water Regime",
               value: model.display.waterRegime,
-              meta: `~${fmt(model.inputs.wmfPct, 2)}% water by mass`,
+              meta: `~${formatPctValue(effectiveWmfPct, 2)} water by mass`,
             },
             ...surfaceOceanCoverageItems,
             showMeanOceanDepth
@@ -2830,6 +2842,12 @@ export function initPlanetPage(mountEl, options = {}) {
         title: "Identity & Class",
         density: "compact",
         items: identityItems,
+      },
+      {
+        id: "planet-composition",
+        title: "Interior Composition",
+        density: "compact",
+        items: compositionItems.map((item) => normalizeRockyItem(item)),
       },
       { id: "planet-physical", title: "Physical State", density: "compact", items: physicalItems },
       {

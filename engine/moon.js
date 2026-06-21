@@ -1,6 +1,8 @@
 import { clamp, fmt, toFinite } from "./utils.js";
 import { computeMoonAtmosphere } from "./moon/atmosphere.js";
 import { compositionFromClass, compositionFromDensity } from "./moon/composition.js";
+import { resolveTraceRadiogenicAbundance } from "./compositionCoupling.js";
+import { inferMoonCoreMassFraction } from "./rockyBodyComposition.js";
 import { computeMoonMagnetosphere } from "./moon/magnetosphere.js";
 import { computeMoonOrbit } from "./moon/orbit.js";
 import { computeMoonRadiationEnvironment } from "./moon/radiation.js";
@@ -77,19 +79,6 @@ function buildMoonInterior(hydrosphere, inputs, totalInternalHeatFluxWm2) {
     convectionRegime: hydrosphere.convectionRegime || "None",
     totalInternalHeatFluxWm2: totalInternalHeatFluxWm2,
   };
-}
-
-function inferMoonCoreMassFraction({ densityGcm3, compositionClass, differentiatedInterior }) {
-  const density = Math.max(toFinite(densityGcm3, 0), 0);
-  const composition = String(compositionClass || "").toLowerCase();
-  if (differentiatedInterior === false && density < 2.5) return 0.03;
-  if (composition.includes("silicate") || composition.includes("rock")) {
-    return clamp(0.12 + Math.max(0, density - 3) * 0.08, 0.1, 0.28);
-  }
-  if (density >= 4) return 0.22;
-  if (density >= 3) return differentiatedInterior === true ? 0.14 : 0.1;
-  if (density >= 2) return differentiatedInterior === true ? 0.08 : 0.05;
-  return differentiatedInterior === true ? 0.05 : 0.03;
 }
 
 function fallbackHabitableZoneAu(starLuminosityLsol) {
@@ -827,6 +816,7 @@ function buildMoonSummaryResult({
   spinState,
   tides,
   compositionClass,
+  rockyBodyComposition,
   resonance,
   formation,
   surfaceExomoonCalibration,
@@ -865,13 +855,19 @@ function buildMoonSummaryResult({
       inclinationDeg: inc,
       initialRotationPeriodHours: initialRotHours,
       compositionOverride: compositionOverride || null,
+      compositionMode: rockyBodyComposition?.compositionMode || "inferred",
     },
     physical: {
       radiusMoon: rMoonRM,
       gravityG: gMoonG,
       escapeVelocityKmS: vEscKmS,
       surfaceFieldEarths: magnetosphere?.intrinsicFieldStrengthRelEarth || 0,
+      effectiveCoreMassFraction: rockyBodyComposition?.effectiveCoreMassFraction,
+      effectiveCoreMassFractionPct: rockyBodyComposition?.effectiveCoreMassFractionPct,
+      effectiveWaterMassFraction: rockyBodyComposition?.effectiveWaterMassFraction,
+      effectiveWaterMassFractionPct: rockyBodyComposition?.effectiveWaterMassFractionPct,
     },
+    composition: rockyBodyComposition,
     orbit: {
       moonZoneInnerKm: orbit.zoneInnerKm,
       classicalRocheLimitKm: orbit.classicalRocheLimitKm,
@@ -976,6 +972,15 @@ function buildMoonSummaryResult({
     surfaceExomoonCalibration,
     derived: {
       exosphere: surfaceBoundaryExosphere,
+      rockyBodyComposition,
+      componentMassFractions: rockyBodyComposition?.componentMassFractions,
+      elementMassFractions: rockyBodyComposition?.elementMassFractions,
+      compositionMode: rockyBodyComposition?.compositionMode,
+      compositionValidation: rockyBodyComposition?.validation,
+      effectiveCoreMassFraction: rockyBodyComposition?.effectiveCoreMassFraction,
+      effectiveCoreMassFractionPct: rockyBodyComposition?.effectiveCoreMassFractionPct,
+      effectiveWaterMassFraction: rockyBodyComposition?.effectiveWaterMassFraction,
+      effectiveWaterMassFractionPct: rockyBodyComposition?.effectiveWaterMassFractionPct,
     },
     habitability: {
       habitabilityIndex: unifiedMoonHabitability.score,
@@ -1196,11 +1201,6 @@ export function calcMoonExact({
     parent.derived?.magnetosphereEnvironment || parent.magnetic?.magnetosphereEnvironment || null;
   const parentMagnetopauseRp =
     parent.derived?.magnetopauseRp ?? parentMagnetosphereEnvironment?.magnetopauseRp ?? null;
-  const radioisotopeAbundance = clamp(
-    resolveMoonRadioisotopeAbundance(moonInputs, parent.derived?.radioisotopeAbundance ?? 1),
-    0.01,
-    5,
-  );
   const hydrosphereMode = moonInputs.hydrosphereMode;
   const atmosphereMode = moonInputs.atmosphereMode;
   const orbitalCouplingMode = moonInputs.orbitalCouplingMode;
@@ -1277,9 +1277,72 @@ export function calcMoonExact({
   const rMoonRM = (mMoonMM / (rhoMoonGcm3 / 3.34)) ** (1 / 3);
   const gMoonG = (mMoonMM / rMoonRM ** 2) * 0.1654;
   const vEscKmS = Math.sqrt(mMoonMM / rMoonRM) * 2.38;
+  const compositionMode = moonInputs.compositionMode || "inferred";
+  const compositionNormalizeMode = moonInputs.compositionNormalizeMode || "warn";
+  const compositionStructureSource = moonInputs.compositionStructureSource || "inferred";
+  const moonCompositionOptions = {
+    densityGcm3: rhoMoonGcm3,
+    radiusMoon: rMoonRM,
+    differentiatedInterior: moonInputs.differentiatedInterior,
+    waterMassFraction: clamp(toFinite(moonInputs.waterMassFractionPct, 0) / 100, 0, 0.9),
+    ammoniaMassFraction: clamp(toFinite(moonInputs.ammoniaPct, 0) / 100, 0, 0.5),
+    compositionMode,
+    compositionNormalizeMode,
+    manualComponentMassFractions: moonInputs.manualComponentMassFractions,
+    manualComponentPct: moonInputs.manualComponentPct,
+    manualElementMassFractions: moonInputs.manualElementMassFractions,
+    manualElementPct: moonInputs.manualElementPct,
+    manualTraceElementAbundance: moonInputs.manualTraceElementAbundance,
+    compositionStructureSource,
+  };
   const moonComposition =
-    (moonInputs.compositionOverride && compositionFromClass(moonInputs.compositionOverride)) ||
-    compositionFromDensity(rhoMoonGcm3);
+    (moonInputs.compositionOverride &&
+      compositionFromClass(moonInputs.compositionOverride, moonCompositionOptions)) ||
+    compositionFromDensity(rhoMoonGcm3, moonCompositionOptions);
+  const compositionDrivenMoonInventory =
+    moonComposition != null && moonComposition.compositionMode !== "inferred";
+  const moonComponentMassFractions = moonComposition?.componentMassFractions || {};
+  const moonEffectiveWaterMassFraction = clamp(
+    toFinite(moonComponentMassFractions.waterIce, toFinite(moonComposition?.waterMassFraction, 0)) +
+      toFinite(moonComponentMassFractions.volatileIce, 0) * 0.35,
+    0,
+    0.9,
+  );
+  const effectiveMoonWaterMassFractionPct = compositionDrivenMoonInventory
+    ? moonEffectiveWaterMassFraction * 100
+    : moonInputs.waterMassFractionPct;
+  const moonVolatileInventoryMode =
+    compositionDrivenMoonInventory && (!atmosphereMode || atmosphereMode === "core")
+      ? "full"
+      : atmosphereMode;
+  const moonHydrosphereInventoryMode =
+    compositionDrivenMoonInventory && (!hydrosphereMode || hydrosphereMode === "core")
+      ? "full"
+      : hydrosphereMode;
+  const moonTraceRadiogenicContext = resolveTraceRadiogenicAbundance(moonComposition);
+  const radioisotopeAbundance = clamp(
+    resolveMoonRadioisotopeAbundance(moonInputs, parent.derived?.radioisotopeAbundance ?? 1, {
+      traceRadiogenicAbundance: moonTraceRadiogenicContext?.abundance,
+      traceElementAbundance: moonTraceRadiogenicContext?.traceElementAbundance,
+    }),
+    0.01,
+    5,
+  );
+  const moonRadioisotopeAbundanceSource =
+    moonInputs.radioisotopeMode === "advanced"
+      ? moonTraceRadiogenicContext
+        ? "advanced-isotopes-with-composition-trace-defaults"
+        : "advanced-isotopes"
+      : moonInputs.radioisotopeAbundance == null && moonTraceRadiogenicContext
+        ? "composition-trace-elements"
+        : "simple-input";
+  const moonCompositionRadiogenicContext = moonTraceRadiogenicContext
+    ? {
+        ...moonTraceRadiogenicContext,
+        appliedRadioisotopeAbundance: radioisotopeAbundance,
+        radioisotopeAbundanceSource: moonRadioisotopeAbundanceSource,
+      }
+    : null;
 
   const orbit = computeMoonOrbit({
     starMassMsol: mStarMsol,
@@ -1380,9 +1443,9 @@ export function calcMoonExact({
       ageGyr,
       tides.tidalFeedbackActive,
       {
-        mode: atmosphereMode,
-        compositionOverride: moonInputs.compositionOverride,
-        waterMassFractionPct: moonInputs.waterMassFractionPct,
+        mode: moonVolatileInventoryMode,
+        compositionOverride: moonComposition?.compositionClass || moonInputs.compositionOverride,
+        waterMassFractionPct: effectiveMoonWaterMassFractionPct,
         ammoniaPct: moonInputs.ammoniaPct,
         tidalPersistenceContext,
         manualSurfacePressureAtm: moonInputs.manualSurfacePressureAtm,
@@ -1561,8 +1624,8 @@ export function calcMoonExact({
     radiusMoon: rMoonRM,
     compositionClass: tides.compositionClass,
     compositionOverride: moonInputs.compositionOverride || null,
-    mode: hydrosphereMode,
-    waterMassFractionPct: moonInputs.waterMassFractionPct,
+    mode: moonHydrosphereInventoryMode,
+    waterMassFractionPct: effectiveMoonWaterMassFractionPct,
     salinityPct: moonInputs.salinityPct,
     ammoniaPct: moonInputs.ammoniaPct,
     differentiatedInterior: moonInputs.differentiatedInterior,
@@ -1593,6 +1656,7 @@ export function calcMoonExact({
     compositionOverride: moonInputs.compositionOverride || null,
     hydrosphere,
     tidalPersistenceContext,
+    rockyBodyComposition: moonComposition,
   });
   const dynamicalHabitabilityBridge = buildHabitabilityPersistenceBridge({
     bodyKind: "moon",
@@ -1624,6 +1688,7 @@ export function calcMoonExact({
       orbit.semiMajorAxisKm / Math.max(rPlanetRE * 6371, 1) <
         (parentMagnetopauseRp ?? Number.POSITIVE_INFINITY),
     lShell: orbit.semiMajorAxisKm / Math.max(rPlanetRE * 6371, 1),
+    rockyBodyComposition: moonComposition,
   });
   const radiation = computeMoonRadiationEnvironment({
     starMassMsol: mStarMsol,
@@ -1657,7 +1722,7 @@ export function calcMoonExact({
   });
   const moonMassEarth = mMoonMM * 0.012300037;
   const moonRadiusEarth = (rMoonRM * 1738.1) / 6371;
-  const moonCoreMassFraction = inferMoonCoreMassFraction({
+  const inferredMoonCoreMassFraction = inferMoonCoreMassFraction({
     densityGcm3: rhoMoonGcm3,
     compositionClass: tides.compositionClass,
     differentiatedInterior:
@@ -1665,6 +1730,21 @@ export function calcMoonExact({
         ? hydrosphere.differentiatedInterior
         : moonInputs.differentiatedInterior,
   });
+  const solvedMoonCoreMassFraction = toFinite(moonComposition?.coreMassFraction, NaN);
+  const moonCoreMassFraction = Number.isFinite(solvedMoonCoreMassFraction)
+    ? clamp(solvedMoonCoreMassFraction, 0, 1)
+    : inferredMoonCoreMassFraction;
+  const moonRockyBodyComposition = {
+    ...(moonComposition || {}),
+    coreMassFraction: moonCoreMassFraction,
+    coreMassFractionPct: moonCoreMassFraction * 100,
+    inferredCoreMassFraction: inferredMoonCoreMassFraction,
+    inferredCoreMassFractionPct: inferredMoonCoreMassFraction * 100,
+    effectiveCoreMassFraction: moonCoreMassFraction,
+    effectiveCoreMassFractionPct: moonCoreMassFraction * 100,
+    effectiveWaterMassFraction: moonEffectiveWaterMassFraction,
+    effectiveWaterMassFractionPct: moonEffectiveWaterMassFraction * 100,
+  };
   const baselineInteriorEvolutionContext = buildInteriorEvolutionContext({
     bodyType: "moon",
     massEarth: moonMassEarth,
@@ -1682,6 +1762,7 @@ export function calcMoonExact({
       fieldLabel: magnetosphere.shieldingClass,
     },
     geology,
+    rockyBodyComposition: moonRockyBodyComposition,
   });
   const atmosphereStability = buildMoonAtmosphereStability({
     ageGyr,
@@ -1758,6 +1839,7 @@ export function calcMoonExact({
     escapeVelocityKms: vEscKmS,
     escapeVelocityVEarth: vEscKmS / 11.186,
     ageGyr,
+    rockyBodyComposition: moonRockyBodyComposition,
   });
   const moonPhotochemistry = moonPhotochemistryFromAtmosphereStability({
     atmosphere,
@@ -1804,8 +1886,8 @@ export function calcMoonExact({
     radiusMoon: rMoonRM,
     compositionClass: tides.compositionClass,
     compositionOverride: moonInputs.compositionOverride || null,
-    hydrosphereMode,
-    waterMassFractionPct: moonInputs.waterMassFractionPct,
+    hydrosphereMode: moonHydrosphereInventoryMode,
+    waterMassFractionPct: effectiveMoonWaterMassFractionPct,
     salinityPct: moonInputs.salinityPct,
     ammoniaPct: moonInputs.ammoniaPct,
     differentiatedInterior: moonInputs.differentiatedInterior,
@@ -1845,6 +1927,7 @@ export function calcMoonExact({
       fieldLabel: magnetosphere.shieldingClass,
     },
     geology,
+    rockyBodyComposition: moonRockyBodyComposition,
   });
   const carbonCycleContext = computeCarbonCycleContext({
     surfaceTempK: effectiveSurfaceTempK,
@@ -1932,6 +2015,7 @@ export function calcMoonExact({
     },
     climateState: effectiveClimate.climateState,
     dynamicalPersistenceContext: tidalPersistenceContext,
+    rockyBodyComposition: moonRockyBodyComposition,
   });
   const nitrogenCycleContext = buildNitrogenCycleContext({
     pressureAtm: moonPressureAtm,
@@ -2301,6 +2385,7 @@ export function calcMoonExact({
       spinState: tides.spinState,
       tides,
       compositionClass: tides.compositionClass,
+      rockyBodyComposition: moonRockyBodyComposition,
       resonance,
       formation,
       surfaceExomoonCalibration: habitabilitySummary.surfaceExomoonCalibration,
@@ -2351,15 +2436,25 @@ export function calcMoonExact({
       inclinationDeg: inc,
       initialRotationPeriodHours: initialRotHours,
       compositionOverride: moonInputs.compositionOverride || null,
+      compositionMode,
+      compositionNormalizeMode,
+      compositionStructureSource,
+      manualComponentMassFractions: moonInputs.manualComponentMassFractions ?? null,
+      manualComponentPct: moonInputs.manualComponentPct ?? null,
+      manualElementMassFractions: moonInputs.manualElementMassFractions ?? null,
+      manualElementPct: moonInputs.manualElementPct ?? null,
+      manualTraceElementAbundance: moonInputs.manualTraceElementAbundance ?? null,
       hydrosphereMode,
       atmosphereMode,
       orbitalCouplingMode,
       waterMassFractionPct: moonInputs.waterMassFractionPct,
+      effectiveWaterMassFractionPct: effectiveMoonWaterMassFractionPct,
       salinityPct: moonInputs.salinityPct,
       ammoniaPct: moonInputs.ammoniaPct,
       differentiatedInterior: moonInputs.differentiatedInterior,
       radioisotopeMode: moonInputs.radioisotopeMode,
       radioisotopeAbundance,
+      radioisotopeAbundanceSource: moonRadioisotopeAbundanceSource,
       u238Abundance: moonInputs.u238Abundance,
       u235Abundance: moonInputs.u235Abundance,
       th232Abundance: moonInputs.th232Abundance,
@@ -2387,7 +2482,14 @@ export function calcMoonExact({
       gravityG: gMoonG,
       escapeVelocityKmS: vEscKmS,
       surfaceFieldEarths: magnetosphere.intrinsicFieldStrengthRelEarth,
+      inferredCoreMassFraction: inferredMoonCoreMassFraction,
+      effectiveCoreMassFraction: moonCoreMassFraction,
+      effectiveCoreMassFractionPct: moonCoreMassFraction * 100,
+      effectiveWaterMassFraction: moonEffectiveWaterMassFraction,
+      effectiveWaterMassFractionPct: moonEffectiveWaterMassFraction * 100,
     },
+
+    composition: moonRockyBodyComposition,
 
     orbit: {
       moonZoneInnerKm: orbit.zoneInnerKm,
@@ -2498,6 +2600,18 @@ export function calcMoonExact({
     },
     derived: {
       exosphere: surfaceBoundaryExosphere,
+      rockyBodyComposition: moonRockyBodyComposition,
+      componentMassFractions: moonRockyBodyComposition.componentMassFractions,
+      elementMassFractions: moonRockyBodyComposition.elementMassFractions,
+      compositionMode: moonRockyBodyComposition.compositionMode,
+      compositionValidation: moonRockyBodyComposition.validation,
+      compositionRadiogenicContext: moonCompositionRadiogenicContext,
+      radioisotopeAbundanceSource: moonRadioisotopeAbundanceSource,
+      inferredCoreMassFraction: inferredMoonCoreMassFraction,
+      effectiveCoreMassFraction: moonCoreMassFraction,
+      effectiveCoreMassFractionPct: moonCoreMassFraction * 100,
+      effectiveWaterMassFraction: moonEffectiveWaterMassFraction,
+      effectiveWaterMassFractionPct: moonEffectiveWaterMassFraction * 100,
       environmentForcing,
       atmosphereLedger,
       atmosphereEvolutionContext,

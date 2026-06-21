@@ -1,4 +1,5 @@
 import { clamp, round, toFinite } from "../utils.js";
+import { buildRockyBodyCompositionCoupling } from "../compositionCoupling.js";
 
 const MODEL_VERSION = "atmosphere-ledger-v1";
 const EARTH_ESCAPE_VELOCITY_KMS = 11.186;
@@ -10,6 +11,9 @@ const LABELS = Object.freeze({
   impact_delivery: "Impact delivery",
   comet_delivery: "Comet delivery",
   retained_volatiles: "Retained volatiles",
+  composition_volatile_budget: "Composition volatile budget",
+  composition_sulfur_outgassing: "Composition sulfur source",
+  composition_carbon_nitrogen_budget: "Composition C/N source",
   ocean_buffering: "Ocean buffering",
   radiolytic_sputtered_o2: "Radiolytic sputtered O2",
   jeans_escape: "Jeans escape",
@@ -219,6 +223,7 @@ function buildSourceTerms({
   surfaceBoundaryExosphere,
   smallBodyReservoirContext,
   ageGyr,
+  compositionCoupling,
 }) {
   const sources = [];
   const pressureSource = pressureRetentionScore(pressureAtm);
@@ -268,6 +273,66 @@ function buildSourceTerms({
           0.15 + 0.55 * activity,
           activity >= 0.45 ? "medium" : "low",
           "Mantle redox and tectonic regime are used as a first-order volcanic supply proxy.",
+        ),
+      );
+    }
+  }
+
+  if (compositionCoupling?.available) {
+    const volatileBudgetScore = fraction(compositionCoupling.atmosphere?.volatileSourceScore, 0);
+    const carbonBudgetScore = fraction(compositionCoupling.atmosphere?.carbonBudgetScore, 0);
+    const nitrogenBudgetScore = fraction(compositionCoupling.atmosphere?.nitrogenBudgetScore, 0);
+    const sulfurBudgetScore = fraction(compositionCoupling.atmosphere?.sulfurBudgetScore, 0);
+    const waterBudgetScore = fraction(compositionCoupling.atmosphere?.waterBudgetScore, 0);
+    const volcanicGate =
+      bodyType === "moon"
+        ? Math.max(
+            fraction(tectonics?.volcanicActivityScore, 0),
+            fraction(tectonics?.cryovolcanicActivityScore, 0),
+            fraction(hydrosphere?.subsurfaceOceanScore, 0) * 0.65,
+          )
+        : tectonicActivityScore(tectonics);
+    const retentionGate = clamp(
+      0.28 + 0.42 * volcanicGate + 0.2 * pressureSource + 0.1 * waterBudgetScore,
+      0,
+      1,
+    );
+    const volatileSourceScore = volatileBudgetScore * retentionGate;
+    if (volatileSourceScore > 0.04) {
+      sources.push(
+        term(
+          "composition_volatile_budget",
+          volatileSourceScore,
+          compositionCoupling.compositionMode === "inferred" ? "low" : "medium",
+          "C/N/S/H/O and volatile-reservoir inventory indicate available source material, gated by retention and resurfacing context.",
+        ),
+      );
+    }
+
+    const sulfurSourceScore = sulfurBudgetScore * clamp(0.35 + 0.65 * volcanicGate, 0, 1);
+    if (sulfurSourceScore > 0.05) {
+      sources.push(
+        term(
+          "composition_sulfur_outgassing",
+          sulfurSourceScore,
+          compositionCoupling.compositionMode === "inferred" ? "low" : "medium",
+          bodyType === "moon"
+            ? "Sulfur/sulfide/sulfate inventory supports sulfur-bearing volcanic or cryovolcanic replenishment when heating is available."
+            : "Sulfur inventory supports sulfur-bearing volcanic outgassing when geologic activity is available.",
+        ),
+      );
+    }
+
+    const carbonNitrogenSourceScore =
+      Math.max(carbonBudgetScore, nitrogenBudgetScore) *
+      clamp(0.22 + 0.48 * volcanicGate + 0.3 * pressureSource, 0, 1);
+    if (carbonNitrogenSourceScore > 0.05) {
+      sources.push(
+        term(
+          "composition_carbon_nitrogen_budget",
+          carbonNitrogenSourceScore,
+          compositionCoupling.compositionMode === "inferred" ? "low" : "medium",
+          "Carbonaceous, volatile-ice, carbon, and nitrogen budgets support atmosphere-source material without assuming complete retention.",
         ),
       );
     }
@@ -701,10 +766,12 @@ export function computeAtmosphereLedger({
   escapeVelocityKms = null,
   escapeVelocityVEarth = null,
   ageGyr = 4.6,
+  rockyBodyComposition = null,
 } = {}) {
   const resolvedBodyType = String(bodyType || "").toLowerCase() === "moon" ? "moon" : "planet";
   const resolvedPressureAtm = finiteNonNegative(pressureAtm, 0);
   const normalizedComposition = normalizeComposition(composition);
+  const compositionCoupling = buildRockyBodyCompositionCoupling(rockyBodyComposition);
   const sourceTerms = buildSourceTerms({
     bodyType: resolvedBodyType,
     pressureAtm: resolvedPressureAtm,
@@ -715,6 +782,7 @@ export function computeAtmosphereLedger({
     surfaceBoundaryExosphere,
     smallBodyReservoirContext,
     ageGyr,
+    compositionCoupling,
   });
   const sinkTerms = buildSinkTerms({
     bodyType: resolvedBodyType,
@@ -778,6 +846,12 @@ export function computeAtmosphereLedger({
     caveats[caveats.length - 1] =
       "Weathering sequestration is sourced from the bounded carbon-cycle context.";
   }
+  if (compositionCoupling.available) {
+    caveats.push(
+      "Composition source terms use bounded C/N/S/H/O reservoir diagnostics and do not assume complete atmospheric retention.",
+    );
+    caveats.push(...compositionCoupling.caveats);
+  }
 
   return {
     modelVersion: MODEL_VERSION,
@@ -796,6 +870,17 @@ export function computeAtmosphereLedger({
     sinkTerms,
     confidence,
     dominantAtmosphereGas: dominantCompositionGas(normalizedComposition),
+    compositionSourceContext: compositionCoupling.available
+      ? {
+          modelVersion: compositionCoupling.modelVersion,
+          volatileSourceScore: compositionCoupling.atmosphere.volatileSourceScore,
+          carbonBudgetScore: compositionCoupling.atmosphere.carbonBudgetScore,
+          nitrogenBudgetScore: compositionCoupling.atmosphere.nitrogenBudgetScore,
+          sulfurBudgetScore: compositionCoupling.atmosphere.sulfurBudgetScore,
+          waterBudgetScore: compositionCoupling.atmosphere.waterBudgetScore,
+          caveats: compositionCoupling.caveats,
+        }
+      : null,
     summary: buildSummary(classification),
     caveats,
   };

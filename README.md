@@ -1,4 +1,4 @@
-# Caelum 3.0.0
+# Caelum 3.1.0
 
 Caelum is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -8,15 +8,25 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Repositories
 
-- Public runtime release repository: https://github.com/JudasBrennan/caelum_public
 - Main development repository: https://github.com/JudasBrennan/caelum
-
-This repository contains the public runtime release mirror for Caelum. It keeps
-the shipped browser app, runtime source, reports, license, and third-party
-notices available separately from the main development workspace.
+- Public runtime release repository: https://github.com/JudasBrennan/caelum_public
 
 ## Current Highlights
 
+- Planets and moons now share a manual rocky-body composition inventory with
+  inferred, reservoir, and expert-element modes.
+- The composition editor can seed scientifically bounded starter values for
+  reservoirs, major elements, and trace heat-producing elements, then leave
+  users free to adjust them.
+- Reservoir inventories now drive structure where the science supports it, and
+  element inventories feed chemistry, diagnostics, validation, and downstream
+  context without pretending to solve full mineralogy.
+- Moon composition is now deeper: metal, silicate, water ice, volatile ice,
+  carbonaceous, sulfur, salts, and major elements can influence hydrosphere,
+  ocean chemistry, atmosphere sourcing, geology, magnetism, and visual context.
+- Density validation for seeded or manual inventories now compares against the
+  same compressed-density expectations used by the body solver, reducing false
+  cautions for massive rocky planets.
 - Earth-like water inventories now infer Earth-like surface ocean coverage from
   bounded basin-capacity and hypsometry context instead of requiring a manual
   ocean override.

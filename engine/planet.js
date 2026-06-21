@@ -31,11 +31,7 @@ import { clamp, fmt, toFinite } from "./utils.js";
 import { deriveRockyRingScience } from "./planetaryRings.js";
 import { calcStar } from "./star.js";
 import { findNearestResonance } from "./debrisDisk.js";
-import {
-  DIFFERENTIATED_PLANET_K2_SCALE,
-  calcRockyPlanetRigidityPa,
-  calcRockyPlanetTidalQualityFactor,
-} from "./physics/materials.js";
+import { DIFFERENTIATED_PLANET_K2_SCALE } from "./physics/materials.js";
 import { calcK2LoveNumber, selectSpinOrbitResonance } from "./physics/rotation.js";
 import {
   buildVegetationGradient,
@@ -43,16 +39,16 @@ import {
   vegetationColours,
 } from "./planet/appearance.js";
 import { calcInsolationEarthRatio } from "./physics/radiative.js";
+import { resolveTraceRadiogenicAbundance } from "./compositionCoupling.js";
+import { solveRockyBodyComposition } from "./rockyBodyComposition.js";
 import {
   analyseVolatiles,
   bodyClass,
   classifyRockySurfaceState,
   classifyClimateState,
-  compositionClass,
   suggestedCmfFromMetallicity,
   waterBoilingK,
   waterRadiusInflation,
-  waterRegime,
 } from "./planet/composition.js";
 import {
   atmosphereTideRatio,
@@ -212,6 +208,8 @@ function buildPlanetSummaryResult({
   massEarth,
   cmfPct,
   wmfPct,
+  effectiveCoreMassFractionPct = cmfPct,
+  effectiveWaterMassFractionPct = wmfPct,
   rotationPeriodHours,
   semiMajorAxisAu,
   eccentricity,
@@ -254,6 +252,10 @@ function buildPlanetSummaryResult({
       densityGcm3,
       radiusEarth,
       gravityG,
+      effectiveCoreMassFraction: effectiveCoreMassFractionPct / 100,
+      effectiveCoreMassFractionPct,
+      effectiveWaterMassFraction: effectiveWaterMassFractionPct / 100,
+      effectiveWaterMassFractionPct,
       baselineSurfaceTempK,
       surfaceTempK,
       effectiveSurfaceTempK,
@@ -354,6 +356,39 @@ export function calcPlanetExact({
   const cmfIsAuto = planet.cmfPct < 0 || planet.cmfPct == null;
   const cmfPct = cmfIsAuto ? suggestedCmfPct : clamp(planet.cmfPct, 0, 100); // percent
   const wmfPct = clamp(planet.wmfPct ?? 0, 0, 50); // water mass fraction %
+  const compositionMode = planet.compositionMode || "inferred";
+  const compositionNormalizeMode = planet.compositionNormalizeMode || "warn";
+  const compositionStructureSource = planet.compositionStructureSource || "inferred";
+  const authoredCoreMassFraction = cmfPct / 100;
+  const authoredWaterMassFraction = wmfPct / 100;
+  const planetCompositionInput = {
+    bodyType: "planet",
+    massEarth,
+    coreMassFraction: authoredCoreMassFraction,
+    waterMassFraction: authoredWaterMassFraction,
+    starMetallicityFeH: resolvedStarMetallicityFeH,
+    compositionMode,
+    compositionNormalizeMode,
+    manualComponentMassFractions: planet.manualComponentMassFractions,
+    manualComponentPct: planet.manualComponentPct,
+    manualElementMassFractions: planet.manualElementMassFractions,
+    manualElementPct: planet.manualElementPct,
+    manualTraceElementAbundance: planet.manualTraceElementAbundance,
+    compositionStructureSource,
+  };
+  const preliminaryRockyBodyComposition = solveRockyBodyComposition(planetCompositionInput);
+  const cmf = clamp(
+    preliminaryRockyBodyComposition?.coreMassFraction ?? authoredCoreMassFraction,
+    0,
+    1,
+  );
+  const wmf = clamp(
+    preliminaryRockyBodyComposition?.waterMassFraction ?? authoredWaterMassFraction,
+    0,
+    0.9,
+  );
+  const effectiveCmfPct = cmf * 100;
+  const effectiveWmfPct = wmf * 100;
   const axialTiltDeg = clamp(planet.axialTiltDeg, 0, 180);
 
   const albedoBond = clamp(planet.albedoBond, 0, 0.95); // ≤0.95: prevents runaway cooling
@@ -381,12 +416,28 @@ export function calcPlanetExact({
   let so2Pct = clamp(planet.so2Pct ?? 0, 0, 100);
   let nh3Pct = clamp(planet.nh3Pct ?? 0, 0, 100);
   const radioisotopeMode = planet.radioisotopeMode || "simple";
+  const traceRadiogenicContext = resolveTraceRadiogenicAbundance(preliminaryRockyBodyComposition);
+  const traceRadiogenicAbundance = traceRadiogenicContext?.abundance ?? null;
+  const traceRadiogenicElements = traceRadiogenicContext?.traceElementAbundance || {};
   let radioisotopeAbundance;
+  let radioisotopeAbundanceSource = "simple-input";
   if (radioisotopeMode === "advanced") {
-    const u238 = clamp(planet.u238Abundance ?? 1, 0, 5);
-    const u235 = clamp(planet.u235Abundance ?? 1, 0, 5);
-    const th232 = clamp(planet.th232Abundance ?? 1, 0, 5);
-    const k40 = clamp(planet.k40Abundance ?? 1, 0, 5);
+    const uraniumDefault = Number.isFinite(Number(traceRadiogenicElements.uranium))
+      ? Number(traceRadiogenicElements.uranium)
+      : 1;
+    const thoriumDefault = Number.isFinite(Number(traceRadiogenicElements.thorium))
+      ? Number(traceRadiogenicElements.thorium)
+      : 1;
+    const potassiumDefault = Number.isFinite(Number(traceRadiogenicElements.potassium))
+      ? Number(traceRadiogenicElements.potassium)
+      : 1;
+    const u238 = clamp(planet.u238Abundance ?? uraniumDefault, 0, 5);
+    const u235 = clamp(planet.u235Abundance ?? uraniumDefault, 0, 5);
+    const th232 = clamp(planet.th232Abundance ?? thoriumDefault, 0, 5);
+    const k40 = clamp(planet.k40Abundance ?? potassiumDefault, 0, 5);
+    radioisotopeAbundanceSource = traceRadiogenicContext
+      ? "advanced-isotopes-with-composition-trace-defaults"
+      : "advanced-isotopes";
     radioisotopeAbundance = Math.max(
       u238 * ISOTOPE_HEAT_FRACTIONS.u238 +
         u235 * ISOTOPE_HEAT_FRACTIONS.u235 +
@@ -395,8 +446,20 @@ export function calcPlanetExact({
       0.01,
     );
   } else {
-    radioisotopeAbundance = clamp(planet.radioisotopeAbundance ?? 1, 0.1, 3.0);
+    const simpleSource = planet.radioisotopeAbundance ?? traceRadiogenicAbundance ?? 1;
+    radioisotopeAbundanceSource =
+      planet.radioisotopeAbundance == null && traceRadiogenicAbundance != null
+        ? "composition-trace-elements"
+        : "simple-input";
+    radioisotopeAbundance = clamp(simpleSource, 0.1, 3.0);
   }
+  const compositionRadiogenicContext = traceRadiogenicContext
+    ? {
+        ...traceRadiogenicContext,
+        appliedRadioisotopeAbundance: radioisotopeAbundance,
+        radioisotopeAbundanceSource,
+      }
+    : null;
   // User-friendly guardrail: do not allow derived N2 to go negative.
   // These are from the raw user inputs; if Jeans escape auto-strip is active,
   // they are recomputed below from the effective (post-strip) gas percentages.
@@ -433,9 +496,6 @@ export function calcPlanetExact({
   const hzOuterAu = Number.isFinite(hzOuterAuRaw) ? hzOuterAuRaw : 0;
 
   // Physical characteristics (PLANET C13..C16)
-  const cmf = cmfPct / 100;
-  const wmf = wmfPct / 100;
-
   // Radius-first mass–radius relation (Zeng+2016 CMF scaling with
   // mass-dependent compression exponent calibrated to Solar System):
   //   R(M, CMF) = (1.07 − 0.21 × CMF) × M^α
@@ -590,8 +650,8 @@ export function calcPlanetExact({
     massEarth,
     radiusKm,
     rotationPeriodHours,
-    cmfPct,
-    wmfPct,
+    cmfPct: effectiveCmfPct,
+    wmfPct: effectiveWmfPct,
   });
   const rockyRingScience = deriveRockyRingScience({
     hostRadiusKm: radiusKm,
@@ -599,10 +659,18 @@ export function calcPlanetExact({
     moons,
   });
 
-  // Composition labels
-  const compClass = compositionClass(cmf, wmf);
+  // Composition labels and shared rocky-body material response.
+  const rockyBodyComposition = solveRockyBodyComposition({
+    ...planetCompositionInput,
+    coreMassFraction: cmf,
+    waterMassFraction: wmf,
+    densityGcm3,
+    radiusEarth,
+    observedRadiusEarth: planet.radiusEarth,
+  });
+  const compClass = rockyBodyComposition.compositionClass;
   const bClass = bodyClass(massEarth);
-  const watRegime = waterRegime(wmf);
+  const watRegime = rockyBodyComposition.waterRegime;
 
   // Core radius fraction (Zeng & Jacobsen 2017): CRF ≈ CMF^0.5
   const coreRadiusFraction = cmf > 0 ? Math.sqrt(cmf) : 0;
@@ -620,14 +688,8 @@ export function calcPlanetExact({
     hzInnerAu > 0 && semiMajorAxisAu >= hzInnerAu && semiMajorAxisAu <= hzOuterAu;
 
   // Tidal lock to star (composition-dependent rigidity and Q)
-  const rigidity = calcRockyPlanetRigidityPa({
-    coreMassFraction: cmf,
-    waterMassFraction: wmf,
-  });
-  const qualityFactor = calcRockyPlanetTidalQualityFactor({
-    coreMassFraction: cmf,
-    waterMassFraction: wmf,
-  });
+  const rigidity = rockyBodyComposition.rigidityPa;
+  const qualityFactor = rockyBodyComposition.tidalQualityFactor;
   const radiusM = radiusKm * 1000;
   const densityKgM3 = densityGcm3 * 1000;
   const mPlanetKg = planetMassEarthToKg(massEarth);
@@ -719,6 +781,7 @@ export function calcPlanetExact({
     ageGyr: starAgeGyr,
     tidalFraction: planetTidalFraction,
     radioisotopeAbundance,
+    rockyBodyComposition,
   });
   const magnetosphereEnvironment = computeRockyMagnetosphereEnvironment({
     surfaceFieldEarths: magField.surfaceFieldEarths,
@@ -761,7 +824,7 @@ export function calcPlanetExact({
   const climateState = classifyClimateState(tKel, absorbedFluxWm2, watRegime !== "Dry");
   const hydrosphere = hydrosphereStateFromPlanet({
     waterRegime: watRegime,
-    wmfPct,
+    wmfPct: effectiveWmfPct,
     massEarth,
     radiusKm,
     gravityG,
@@ -977,6 +1040,7 @@ export function calcPlanetExact({
     tectonicProbabilities: tecProbs,
     surfaceTempK: tKel,
     magneticFieldContext: magField,
+    rockyBodyComposition,
   });
   const baselineCarbonCycleContext = computeCarbonCycleContext({
     surfaceTempK: tKel,
@@ -1056,6 +1120,7 @@ export function calcPlanetExact({
     escapeVelocityKms,
     escapeVelocityVEarth,
     ageGyr: starAgeGyr,
+    rockyBodyComposition,
   });
   const cloudCirculation = computeCloudCirculationContext({
     pressureAtm,
@@ -1098,7 +1163,7 @@ export function calcPlanetExact({
     climateChemistryForcing,
     pressureAtm,
     waterRegime: watRegime,
-    wmfPct,
+    wmfPct: effectiveWmfPct,
     massEarth,
     radiusKm,
     gravityG,
@@ -1157,6 +1222,8 @@ export function calcPlanetExact({
       massEarth,
       cmfPct,
       wmfPct,
+      effectiveCoreMassFractionPct: effectiveCmfPct,
+      effectiveWaterMassFractionPct: effectiveWmfPct,
       rotationPeriodHours,
       semiMajorAxisAu,
       eccentricity,
@@ -1197,6 +1264,7 @@ export function calcPlanetExact({
     tectonicProbabilities: tecProbs,
     surfaceTempK: effectiveSurfaceTempK,
     magneticFieldContext: magField,
+    rockyBodyComposition,
   });
   const carbonCycleContext = computeCarbonCycleContext({
     surfaceTempK: effectiveSurfaceTempK,
@@ -1292,6 +1360,7 @@ export function calcPlanetExact({
       tidalHeatingEarth: planetTidalHeatingWm2 / EARTH_INTERNAL_HEAT_FLUX_WM2,
     },
     climateState: effectiveClimateState,
+    rockyBodyComposition,
   });
   const nitrogenCycleContext = buildNitrogenCycleContext({
     pressureAtm,
@@ -1577,7 +1646,8 @@ export function calcPlanetExact({
     inputs: {
       massEarth,
       pressureAtm,
-      wmfPct,
+      wmfPct: effectiveWmfPct,
+      authoredWmfPct: wmfPct,
       mantleOxidation: planet.mantleOxidation || "earth",
     },
     derived: {
@@ -1691,6 +1761,14 @@ export function calcPlanetExact({
       so2Pct,
       nh3Pct,
       greenhouseMode,
+      compositionMode,
+      compositionNormalizeMode,
+      compositionStructureSource,
+      manualComponentMassFractions: planet.manualComponentMassFractions ?? null,
+      manualComponentPct: planet.manualComponentPct ?? null,
+      manualElementMassFractions: planet.manualElementMassFractions ?? null,
+      manualElementPct: planet.manualElementPct ?? null,
+      manualTraceElementAbundance: planet.manualTraceElementAbundance ?? null,
       tectonicRegime: tecRegime,
       mantleOxidation: planet.mantleOxidation || "earth",
       radioisotopeAbundance,
@@ -1754,6 +1832,14 @@ export function calcPlanetExact({
       densityGcm3,
       radiusEarth,
       radiusKm,
+      authoredCoreMassFraction,
+      authoredCoreMassFractionPct: cmfPct,
+      authoredWaterMassFraction,
+      authoredWaterMassFractionPct: wmfPct,
+      effectiveCoreMassFraction: cmf,
+      effectiveCoreMassFractionPct: effectiveCmfPct,
+      effectiveWaterMassFraction: wmf,
+      effectiveWaterMassFractionPct: effectiveWmfPct,
       gravityG,
       gravityMs2,
       escapeVelocityVEarth,
@@ -1900,6 +1986,11 @@ export function calcPlanetExact({
       surfaceState: effectiveSurfaceState,
       compositionClass: compClass,
       waterRegime: watRegime,
+      compositionMode: rockyBodyComposition.compositionMode,
+      compositionValidation: rockyBodyComposition.validation,
+      rockyBodyComposition,
+      componentMassFractions: rockyBodyComposition.componentMassFractions,
+      elementMassFractions: rockyBodyComposition.elementMassFractions,
       coreRadiusFraction,
       coreRadiusKm,
       suggestedCmfPct,
@@ -1912,6 +2003,8 @@ export function calcPlanetExact({
       fieldMorphology: magField.fieldMorphology,
       surfaceFieldEarths: magField.surfaceFieldEarths,
       fieldLabel: magField.fieldLabel,
+      compositionFieldFactor: magField.compositionFieldFactor,
+      magneticCompositionContext: magField.compositionMagneticContext,
       magnetosphereEnvironment,
       magnetopauseRp: magnetosphereEnvironment.magnetopauseRp,
       magnetopauseKm: magnetosphereEnvironment.magnetopauseKm,
@@ -1938,6 +2031,8 @@ export function calcPlanetExact({
       primaryOutgassedSpecies: outgassing.primarySpecies,
       outgassingHint: outgassing.atmosphereHint,
       radioisotopeAbundance,
+      radioisotopeAbundanceSource,
+      compositionRadiogenicContext,
 
       vegetationPaleHex: veg.paleHex,
       vegetationDeepHex: veg.deepHex,

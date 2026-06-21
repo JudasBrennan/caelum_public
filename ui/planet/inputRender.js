@@ -1,4 +1,5 @@
 import { createElement, replaceChildren, replaceSelectOptions } from "../domHelpers.js";
+import { renderCompositionEditor } from "../compositionEditor.js";
 import {
   createOrbitRangeModeToggleNode,
   ORBIT_AU_MAX,
@@ -653,6 +654,11 @@ export function renderRockyInputForm(
       ]),
     ),
     ...createRockyFieldRows(secondaryPhysicalFields, tipLabels),
+    renderCompositionEditor({
+      values: p,
+      bodyType: "planet",
+      idPrefix: "planetComposition",
+    }),
     createSpacer(8),
     createSectionLabel("Volatile envelope", tipLabels["H/He Envelope"] || ""),
     ...createRockyFieldRows(volatileEnvelopeFields, tipLabels),

@@ -23,6 +23,10 @@ import {
   normalizeVisualOverrides,
   stripEmptyVisualOverrides,
 } from "../planetaryVisual/overrides.js";
+import {
+  normalizeCompositionInventoryInputs,
+  normalizePresentCompositionInventoryInputs,
+} from "./compositionInventoryInputs.js";
 
 export {
   ensureCanonicalPlanetaryBodyStorage,
@@ -125,7 +129,10 @@ function optionalEvidenceFields(source, fields, normalizeValue) {
 }
 
 function normalizeCompositionEvidence(source) {
-  return optionalEvidenceFields(source, ["carbonRichness"], normalizeOptionalScalar);
+  return {
+    ...optionalEvidenceFields(source, ["carbonRichness"], normalizeOptionalScalar),
+    ...normalizePresentCompositionInventoryInputs(source),
+  };
 }
 
 function normalizeDensityEvidence(source) {
@@ -342,6 +349,9 @@ export function normalizePlanetaryBody(raw, idx = 1, options = {}) {
       },
       composition: {
         ...(raw.composition || {}),
+        ...(legacyKind === "rocky"
+          ? normalizeCompositionInventoryInputs(raw.composition || {})
+          : {}),
         ...normalizeCompositionEvidence(raw.composition),
         ...normalizeDensityEvidence(raw.composition),
       },

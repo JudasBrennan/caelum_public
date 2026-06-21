@@ -11,6 +11,7 @@
 //   drawRockyPlanetViz()         → 8–20 px system poster scale
 
 import { clamp } from "../engine/utils.js";
+import { buildRockyBodyCompositionCoupling } from "../engine/compositionCoupling.js";
 import { rockyRingScienceFromDerived, resolveRingMode } from "../engine/planetaryRings.js";
 import {
   baselineHydrosphereFractionsForRegime,
@@ -69,6 +70,29 @@ function mixHexColour(fromHex, toHex, amount) {
   return `#${componentToHex(from.r + (to.r - from.r) * t)}${componentToHex(
     from.g + (to.g - from.g) * t,
   )}${componentToHex(from.b + (to.b - from.b) * t)}`;
+}
+
+function mixPalette(palette, target, amount) {
+  return {
+    c1: mixHexColour(palette.c1, target.c1, amount),
+    c2: mixHexColour(palette.c2, target.c2, amount),
+    c3: mixHexColour(palette.c3, target.c3, amount),
+  };
+}
+
+function applyCompositionDiagnosticPalette(palette, diagnosticKey) {
+  switch (diagnosticKey) {
+    case "dark-carbonaceous":
+      return mixPalette(palette, { c1: "#5f5b53", c2: "#3f3b38", c3: "#242222" }, 0.55);
+    case "sulfur-rich":
+      return mixPalette(palette, { c1: "#d7bd68", c2: "#9c7134", c3: "#5b3523" }, 0.45);
+    case "salt-rich":
+      return mixPalette(palette, { c1: "#edf8fb", c2: "#b9dfe8", c3: "#5f99aa" }, 0.38);
+    case "iron-rich":
+      return mixPalette(palette, SURFACE_PALETTES["Iron world"], 0.5);
+    default:
+      return palette;
+  }
 }
 
 function hazeTintColourForClass(hazeClass) {
@@ -197,9 +221,18 @@ export function computeRockyVisualProfile(derived, inputs) {
   const hazeLikelihoodScore = clamp(Number(haze.likelihoodScore) || 0, 0, 1);
   const hazeTintColour = haze.tintHex || hazeTintColourForClass(hazeClass);
   const strongOrganicHaze = isStrongOrganicHaze(hazeClass);
+  const compositionCoupling = buildRockyBodyCompositionCoupling(d.rockyBodyComposition);
+  const compositionDiagnosticKey =
+    compositionCoupling.visual?.dominantDiagnostic &&
+    compositionCoupling.visual.dominantDiagnostic !== "none"
+      ? compositionCoupling.visual.dominantDiagnostic
+      : "none";
 
   // Palette — tinted by albedo when available
-  const basePalette = SURFACE_PALETTES[d.compositionClass] || SURFACE_PALETTES["Earth-like"];
+  const basePalette = applyCompositionDiagnosticPalette(
+    SURFACE_PALETTES[d.compositionClass] || SURFACE_PALETTES["Earth-like"],
+    compositionDiagnosticKey,
+  );
   const albedo = Number(inp.albedoBond);
   const palette = Number.isFinite(albedo) ? tintPalette(basePalette, albedo) : basePalette;
 
@@ -210,7 +243,10 @@ export function computeRockyVisualProfile(derived, inputs) {
     1,
   );
   const exposedLandFraction = clamp(1 - oceanCoverage, 0, 1);
-  const oceanColour = OCEAN_COLOURS[d.compositionClass] || DEFAULT_OCEAN_COLOUR;
+  const oceanColour =
+    compositionDiagnosticKey === "salt-rich"
+      ? mixHexColour(OCEAN_COLOURS[d.compositionClass] || DEFAULT_OCEAN_COLOUR, "#7ed7e3", 0.35)
+      : OCEAN_COLOURS[d.compositionClass] || DEFAULT_OCEAN_COLOUR;
   const tempK = d.surfaceTempK || 288;
   const frozen =
     oceanCoverage > 0 && (Number(coverage.permanentIceFraction || 0) > 0 || tempK < 273);
@@ -302,7 +338,13 @@ export function computeRockyVisualProfile(derived, inputs) {
   // Land palette — for Ocean worlds, exposed land is rocky/earthy, not ocean-blue
   const baseLand =
     d.compositionClass === "Ocean world" ? SURFACE_PALETTES["Earth-like"] : basePalette;
-  const landPalette = Number.isFinite(albedo) ? tintPalette(baseLand, albedo) : baseLand;
+  const diagnosticLandPalette = applyCompositionDiagnosticPalette(
+    baseLand,
+    compositionDiagnosticKey,
+  );
+  const landPalette = Number.isFinite(albedo)
+    ? tintPalette(diagnosticLandPalette, albedo)
+    : diagnosticLandPalette;
 
   return {
     palette,
@@ -340,6 +382,7 @@ export function computeRockyVisualProfile(derived, inputs) {
     desert: { coverage: desertCoverage },
     lava: { coverage: lavaCoverage },
     special,
+    compositionVisualDiagnostics: compositionCoupling.available ? compositionCoupling.visual : null,
     ring: buildRockyRingProfile(d, inp),
     tidallyLocked: !!d.tidallyLockedToStar,
     seed: inp.name || "planet",

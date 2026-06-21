@@ -1,5 +1,9 @@
 import { normalizeMoonInputs } from "../../engine/moon/config.js";
 import {
+  mergeCompositionInventoryInputPatch,
+  withCompositionInventoryDefaults,
+} from "./compositionInventoryInputs.js";
+import {
   ensureCanonicalPlanetaryBodyStorage,
   getSelectedPlanetaryBodyLegacyId,
   listRockyPlanetEntries,
@@ -49,7 +53,7 @@ export function selectPlanetInWorld(world, planetId) {
 
 export function createPlanetInWorld(world, inputs, { name = "New Planet" } = {}) {
   const id = makeEntityId("p");
-  const normalizedInputs = { ...(inputs || {}) };
+  const normalizedInputs = withCompositionInventoryDefaults(inputs || {});
   if (Object.prototype.hasOwnProperty.call(normalizedInputs, "hostFrameId")) {
     delete normalizedInputs.hostFrameId;
   }
@@ -108,7 +112,9 @@ export function updatePlanetInWorld(world, planetId, patch) {
   if (patch.name != null) planet.name = patch.name;
   if (patch.slotIndex !== undefined) planet.slotIndex = patch.slotIndex;
   if (patch.hostFrameId !== undefined) planet.hostFrameId = patch.hostFrameId || null;
-  if (patch.inputs) planet.inputs = { ...planet.inputs, ...patch.inputs };
+  if (patch.inputs) {
+    planet.inputs = mergeCompositionInventoryInputPatch(planet.inputs, patch.inputs);
+  }
 
   replacePlanetaryBodiesByLegacyKind(world, "rocky", planets, {
     selectedLegacyId: getSelectedPlanetaryBodyLegacyId(world, "rocky"),

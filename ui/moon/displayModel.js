@@ -1,4 +1,5 @@
 import { clamp } from "../../engine/utils.js";
+import { buildRockyBodyCompositionCoupling } from "../../engine/compositionCoupling.js";
 
 function normalizeCompositionClass(rawValue) {
   const raw = String(rawValue || "").trim();
@@ -46,6 +47,31 @@ function displayClassForVisualState(visualState, compositionKey) {
   if (visualState === "icy") return "Icy moon";
   if (visualState === "volcanic") return "Volcanic moon";
   return compositionKey;
+}
+
+function paletteKeyForCompositionDiagnostic({ visualState, compositionKey, diagnosticKey }) {
+  if (visualState === "biological" || visualState === "hazy") {
+    return paletteKeyForVisualState(visualState, compositionKey);
+  }
+  if (diagnosticKey === "dark-carbonaceous") return "Dark carbonaceous";
+  if (diagnosticKey === "sulfur-rich" && visualState !== "oceanic") return "Sulfur-rich";
+  if (diagnosticKey === "salt-rich" && (visualState === "icy" || visualState === "oceanic")) {
+    return "Salt-rich";
+  }
+  if (diagnosticKey === "iron-rich") return "Iron-rich";
+  return paletteKeyForVisualState(visualState, compositionKey);
+}
+
+function displayClassForCompositionDiagnostic({ visualState, compositionKey, diagnosticKey }) {
+  if (visualState === "biological" || visualState === "hazy") {
+    return displayClassForVisualState(visualState, compositionKey);
+  }
+  if (diagnosticKey === "sulfur-rich") return "Sulfur-rich volcanic moon";
+  if (diagnosticKey === "salt-rich" && visualState === "oceanic") return "Salt-rich ocean moon";
+  if (diagnosticKey === "salt-rich") return "Salt-rich icy moon";
+  if (diagnosticKey === "dark-carbonaceous") return "Dark carbonaceous moon";
+  if (diagnosticKey === "iron-rich") return "Iron-rich moon";
+  return displayClassForVisualState(visualState, compositionKey);
 }
 
 function atmosphereColourForSpecies(dominantSpecies) {
@@ -123,6 +149,14 @@ export function buildMoonDisplayModel(moonCalc) {
   const climate = moonCalc.climate || {};
   const tides = moonCalc.tides || {};
   const inputs = moonCalc.inputs || {};
+  const compositionCoupling = buildRockyBodyCompositionCoupling(
+    moonCalc.composition || moonCalc.derived?.rockyBodyComposition || moonCalc.rockyBodyComposition,
+  );
+  const compositionDiagnosticKey =
+    compositionCoupling.visual?.dominantDiagnostic &&
+    compositionCoupling.visual.dominantDiagnostic !== "none"
+      ? compositionCoupling.visual.dominantDiagnostic
+      : "none";
 
   const compositionKey = normalizeCompositionClass(
     tides.compositionOverride || tides.compositionClass,
@@ -216,18 +250,34 @@ export function buildMoonDisplayModel(moonCalc) {
     volcanicScore,
     permanentIceFraction,
   });
+  const paletteKey = paletteKeyForCompositionDiagnostic({
+    visualState,
+    compositionKey,
+    diagnosticKey: compositionDiagnosticKey,
+  });
+  const displayClass = displayClassForCompositionDiagnostic({
+    visualState,
+    compositionKey,
+    diagnosticKey: compositionDiagnosticKey,
+  });
+  const sulfurRich = compositionDiagnosticKey === "sulfur-rich";
+  const saltRich = compositionDiagnosticKey === "salt-rich";
+  const darkCarbonaceous = compositionDiagnosticKey === "dark-carbonaceous";
 
   return {
     compositionKey,
-    paletteKey: paletteKeyForVisualState(visualState, compositionKey),
-    displayClass: displayClassForVisualState(visualState, compositionKey),
+    paletteKey,
+    displayClass,
     terrainType,
     craterDensity,
     iceCoverage: permanentIceFraction,
-    iceColour:
-      cryovolcanicScore >= 0.35 || hydrosphere.subsurfaceOceanPresent ? "#dff3ff" : "#edf7ff",
+    iceColour: saltRich
+      ? "#f4fbff"
+      : cryovolcanicScore >= 0.35 || hydrosphere.subsurfaceOceanPresent
+        ? "#dff3ff"
+        : "#edf7ff",
     oceanCoverage: liquidOceanFraction,
-    oceanColour: biosphere.vegetationEligible ? "#2e77a7" : "#2b628e",
+    oceanColour: saltRich ? "#4fa7b9" : biosphere.vegetationEligible ? "#2e77a7" : "#2b628e",
     vegetationCoverage,
     vegetationColour: biosphere.vegetation?.deepHex || null,
     landPalette:
@@ -235,7 +285,11 @@ export function buildMoonDisplayModel(moonCalc) {
         ? { c1: "#98a76f", c2: "#6f7f50", c3: "#49563a" }
         : visualState === "oceanic"
           ? { c1: "#b6a282", c2: "#8a7657", c3: "#5b4938" }
-          : null,
+          : sulfurRich
+            ? { c1: "#d5b55d", c2: "#9a6f34", c3: "#5d3b25" }
+            : darkCarbonaceous
+              ? { c1: "#625f5a", c2: "#403d3c", c3: "#211f20" }
+              : null,
     atmosphereThickness,
     atmosphereColour: atmosphereColourForSpecies(dominantSpecies),
     cloudCoverage,
@@ -244,12 +298,18 @@ export function buildMoonDisplayModel(moonCalc) {
     bodyScale: irregularCapture ? { x: 1.12, y: 0.82, z: 0.72 } : null,
     bodyShape: irregularCapture ? { kind: "lumpy-potato", profile: "irregular-capture" } : null,
     plumeCount: cryovolcanicScore >= 0.35 ? Math.round(4 + cryovolcanicScore * 8) : 0,
-    plumeColour: cryovolcanicScore >= 0.35 ? "#c8f2ff" : null,
+    plumeColour: sulfurRich ? "#ffe07a" : cryovolcanicScore >= 0.35 ? "#c8f2ff" : null,
     fractureCount:
       hydrosphere.subsurfaceOceanPresent || cryovolcanicScore >= 0.3
         ? Math.round(6 + Math.max(cryovolcanicScore, 0.2) * 10)
         : 0,
-    fractureColour: cryovolcanicScore >= 0.35 ? "#8fdcff" : "#9ccdf3",
+    fractureColour: sulfurRich
+      ? "#ffb04a"
+      : saltRich
+        ? "#d8fbff"
+        : cryovolcanicScore >= 0.35
+          ? "#8fdcff"
+          : "#9ccdf3",
     fractureAlpha:
       hydrosphere.subsurfaceOceanPresent || cryovolcanicScore >= 0.3
         ? clamp(0.16 + cryovolcanicScore * 0.3, 0.16, 0.42)
@@ -261,16 +321,21 @@ export function buildMoonDisplayModel(moonCalc) {
         ? "biosphere"
         : visualState === "oceanic"
           ? "ocean"
-          : volcanicScore >= 0.55
-            ? "volcanic"
-            : cryovolcanicScore >= 0.35
-              ? "cryovolcanic"
-              : hydrosphere.subsurfaceOceanPresent
-                ? "subsurface-ocean"
-                : compositionKey === "Partially molten"
-                  ? "molten"
-                  : null,
+          : sulfurRich && volcanicScore >= 0.35
+            ? "sulfur-rich"
+            : saltRich && (cryovolcanicScore >= 0.25 || hydrosphere.subsurfaceOceanPresent)
+              ? "salt-brine"
+              : volcanicScore >= 0.55
+                ? "volcanic"
+                : cryovolcanicScore >= 0.35
+                  ? "cryovolcanic"
+                  : hydrosphere.subsurfaceOceanPresent
+                    ? "subsurface-ocean"
+                    : compositionKey === "Partially molten"
+                      ? "molten"
+                      : null,
     artProfileId,
+    compositionVisualDiagnostics: compositionCoupling.available ? compositionCoupling.visual : null,
     seed: String(inputs.name || moonCalc.id || "moon"),
     climateState: climate.climateState || "Stable",
   };

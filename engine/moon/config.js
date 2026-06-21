@@ -1,4 +1,9 @@
 import { ISOTOPE_HEAT_FRACTIONS } from "../planet.js";
+import {
+  ROCKY_BODY_COMPONENT_KEYS,
+  ROCKY_BODY_ELEMENT_KEYS,
+  ROCKY_BODY_TRACE_ELEMENT_KEYS,
+} from "../rockyBodyComposition.js";
 
 export const MOON_SCIENCE_MODES = ["core", "full", "manual"];
 export const MOON_RADIOISOTOPE_MODES = ["simple", "advanced"];
@@ -24,6 +29,103 @@ function normalizeStringOrNull(value) {
   return normalized ? normalized : null;
 }
 
+function hasOwnField(source, key) {
+  return !!source && Object.prototype.hasOwnProperty.call(source, key);
+}
+
+function normalizeCompositionMode(value) {
+  const mode = String(value || "").trim();
+  return ["inferred", "reservoir", "expert-elements"].includes(mode) ? mode : "inferred";
+}
+
+function normalizeCompositionNormalizeMode(value) {
+  return String(value || "").trim() === "normalize" ? "normalize" : "warn";
+}
+
+function normalizeCompositionStructureSource(value) {
+  return String(value || "").trim() === "components" ? "components" : "inferred";
+}
+
+function normalizeManualCompositionValue(value) {
+  if (value === "" || value == null) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeManualCompositionGroup(value, keys) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const out = {};
+  for (const key of keys) out[key] = normalizeManualCompositionValue(source[key]);
+  return out;
+}
+
+function normalizeString(value) {
+  return value == null ? "" : String(value).trim();
+}
+
+function normalizeCompositionSuggestionMeta(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const modelVersion = normalizeString(value.modelVersion);
+  const source = normalizeString(value.source);
+  const confidence = normalizeString(value.confidence);
+  const bodySignature = normalizeString(value.bodySignature);
+  const caveats = Array.isArray(value.caveats)
+    ? value.caveats
+        .map((caveat) => normalizeString(caveat))
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
+  if (!modelVersion && !source && !bodySignature && !caveats.length) return null;
+  return {
+    modelVersion,
+    source,
+    confidence: ["low", "medium", "high"].includes(confidence) ? confidence : "",
+    bodySignature,
+    caveats,
+  };
+}
+
+function normalizeMoonCompositionInputs(source, { includeDefaults = true } = {}) {
+  const out = {};
+  if (includeDefaults || hasOwnField(source, "compositionMode")) {
+    out.compositionMode = normalizeCompositionMode(source.compositionMode);
+  }
+  if (includeDefaults || hasOwnField(source, "compositionNormalizeMode")) {
+    out.compositionNormalizeMode = normalizeCompositionNormalizeMode(
+      source.compositionNormalizeMode,
+    );
+  }
+  if (includeDefaults || hasOwnField(source, "compositionStructureSource")) {
+    out.compositionStructureSource = normalizeCompositionStructureSource(
+      source.compositionStructureSource,
+    );
+  }
+  if (includeDefaults || hasOwnField(source, "manualComponentPct")) {
+    out.manualComponentPct = normalizeManualCompositionGroup(
+      source.manualComponentPct,
+      ROCKY_BODY_COMPONENT_KEYS,
+    );
+  }
+  if (includeDefaults || hasOwnField(source, "manualElementPct")) {
+    out.manualElementPct = normalizeManualCompositionGroup(
+      source.manualElementPct,
+      ROCKY_BODY_ELEMENT_KEYS,
+    );
+  }
+  if (includeDefaults || hasOwnField(source, "manualTraceElementAbundance")) {
+    out.manualTraceElementAbundance = normalizeManualCompositionGroup(
+      source.manualTraceElementAbundance,
+      ROCKY_BODY_TRACE_ELEMENT_KEYS,
+    );
+  }
+  if (includeDefaults || hasOwnField(source, "compositionSuggestionMeta")) {
+    out.compositionSuggestionMeta = normalizeCompositionSuggestionMeta(
+      source.compositionSuggestionMeta,
+    );
+  }
+  return out;
+}
+
 export function normalizeMoonScienceMode(mode) {
   return normalizeMode(mode, "core");
 }
@@ -32,10 +134,12 @@ export function normalizeMoonRadioisotopeMode(mode) {
   return normalizeRadioisotopeMode(mode);
 }
 
-export function normalizeMoonInputs(raw = {}) {
+export function normalizeMoonInputs(raw = {}, options = {}) {
   const source = raw && typeof raw === "object" ? raw : {};
+  const includeCompositionDefaults = options.includeCompositionDefaults !== false;
   return {
     ...source,
+    ...normalizeMoonCompositionInputs(source, { includeDefaults: includeCompositionDefaults }),
     compositionOverride:
       source.compositionOverride === undefined
         ? null
@@ -79,13 +183,18 @@ export function normalizeMoonInputs(raw = {}) {
   };
 }
 
-export function resolveMoonRadioisotopeAbundance(inputs = {}, fallback = 1) {
+export function resolveMoonRadioisotopeAbundance(inputs = {}, fallback = 1, options = {}) {
   const normalized = normalizeMoonInputs(inputs);
+  const trace = options.traceElementAbundance || {};
+  const traceRadiogenicAbundance = Number(options.traceRadiogenicAbundance);
   if (normalized.radioisotopeMode === "advanced") {
-    const u238 = Math.max(0, Math.min(5, normalized.u238Abundance ?? 1));
-    const u235 = Math.max(0, Math.min(5, normalized.u235Abundance ?? 1));
-    const th232 = Math.max(0, Math.min(5, normalized.th232Abundance ?? 1));
-    const k40 = Math.max(0, Math.min(5, normalized.k40Abundance ?? 1));
+    const uraniumDefault = Number.isFinite(Number(trace.uranium)) ? Number(trace.uranium) : 1;
+    const thoriumDefault = Number.isFinite(Number(trace.thorium)) ? Number(trace.thorium) : 1;
+    const potassiumDefault = Number.isFinite(Number(trace.potassium)) ? Number(trace.potassium) : 1;
+    const u238 = Math.max(0, Math.min(5, normalized.u238Abundance ?? uraniumDefault));
+    const u235 = Math.max(0, Math.min(5, normalized.u235Abundance ?? uraniumDefault));
+    const th232 = Math.max(0, Math.min(5, normalized.th232Abundance ?? thoriumDefault));
+    const k40 = Math.max(0, Math.min(5, normalized.k40Abundance ?? potassiumDefault));
     return Math.max(
       0.01,
       u238 * ISOTOPE_HEAT_FRACTIONS.u238 +
@@ -94,6 +203,10 @@ export function resolveMoonRadioisotopeAbundance(inputs = {}, fallback = 1) {
         k40 * ISOTOPE_HEAT_FRACTIONS.k40,
     );
   }
-  const source = normalized.radioisotopeAbundance ?? fallback ?? 1;
+  const source =
+    normalized.radioisotopeAbundance ??
+    (Number.isFinite(traceRadiogenicAbundance) ? traceRadiogenicAbundance : null) ??
+    fallback ??
+    1;
   return Math.max(0.1, Math.min(3, Number(source) || 1));
 }

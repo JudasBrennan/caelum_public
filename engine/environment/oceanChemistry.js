@@ -1,4 +1,5 @@
 import { clamp, round, toFinite } from "../utils.js";
+import { buildRockyBodyCompositionCoupling } from "../compositionCoupling.js";
 import { freezingPointKFromOceanChemistry } from "../habitability/oceanThermalProfile.js";
 import {
   hasHighPressureIceCaveat,
@@ -99,7 +100,13 @@ function inferSalinityPct(hydrosphere = {}, waterContext) {
   return 3;
 }
 
-function resolveSalinity({ salinityPct, salinityInputProvided, hydrosphere, waterContext }) {
+function resolveSalinity({
+  salinityPct,
+  salinityInputProvided,
+  hydrosphere,
+  waterContext,
+  compositionCoupling,
+}) {
   const explicitNumber = toFinite(salinityPct, NaN);
   if (salinityInputProvided === true && Number.isFinite(explicitNumber)) {
     return {
@@ -119,14 +126,24 @@ function resolveSalinity({ salinityPct, salinityInputProvided, hydrosphere, wate
   if (!waterContext?.liquid) {
     return { value: 0, source: "none", confidenceRank: waterContext?.key === "none" ? 3 : 1 };
   }
+  const inferred = inferSalinityPct(hydrosphere, waterContext);
+  const compositionBias = finiteNonNegative(compositionCoupling?.ocean?.salinityBiasPct, 0);
+  if (compositionCoupling?.available && compositionBias > 0.05) {
+    return {
+      value: clamp(inferred + compositionBias, 0, 35),
+      source: "composition-inferred",
+      confidenceRank: compositionCoupling.compositionMode === "inferred" ? 1 : 2,
+      compositionBiasPct: compositionBias,
+    };
+  }
   return {
-    value: inferSalinityPct(hydrosphere, waterContext),
+    value: inferred,
     source: "inferred",
     confidenceRank: 1,
   };
 }
 
-function resolveAmmonia({ ammoniaPct, ammoniaInputProvided, hydrosphere }) {
+function resolveAmmonia({ ammoniaPct, ammoniaInputProvided, hydrosphere, compositionCoupling }) {
   const explicitNumber = toFinite(ammoniaPct, NaN);
   if (ammoniaInputProvided === true && Number.isFinite(explicitNumber)) {
     return { value: clamp(explicitNumber, 0, 30), source: "input", confidenceRank: 3 };
@@ -134,6 +151,15 @@ function resolveAmmonia({ ammoniaPct, ammoniaInputProvided, hydrosphere }) {
   const hydrosphereAmmonia = toFinite(hydrosphere?.ammoniaPct, NaN);
   if (Number.isFinite(hydrosphereAmmonia) && hydrosphereAmmonia > 0) {
     return { value: clamp(hydrosphereAmmonia, 0, 30), source: "input", confidenceRank: 3 };
+  }
+  const compositionBias = finiteNonNegative(compositionCoupling?.ocean?.ammoniaBiasPct, 0);
+  if (compositionCoupling?.available && compositionBias > 0.05) {
+    return {
+      value: clamp(compositionBias, 0, 30),
+      source: "composition-inferred",
+      confidenceRank: compositionCoupling.compositionMode === "inferred" ? 1 : 2,
+      compositionBiasPct: compositionBias,
+    };
   }
   return { value: 0, source: "none", confidenceRank: 2 };
 }
@@ -172,7 +198,7 @@ function rockOceanAccessScore({ hydrosphere, carbonCycleContext }) {
   return round(clamp(access, 0, 1), 3);
 }
 
-function carbonateSupportScore({ hydrosphere, carbonCycleContext, ppCO2Atm }) {
+function carbonateSupportScore({ hydrosphere, carbonCycleContext, ppCO2Atm, compositionCoupling }) {
   const weathering = fraction(carbonCycleContext?.weatheringEfficiency, 0);
   const thermostat = fraction(carbonCycleContext?.thermostatStrength, 0);
   const seafloor = fraction(carbonCycleContext?.seafloorWeatheringPotential, 0);
@@ -194,11 +220,43 @@ function carbonateSupportScore({ hydrosphere, carbonCycleContext, ppCO2Atm }) {
   const reservoirScore =
     (0.45 * weathering + 0.25 * thermostat + 0.2 * seafloor + 0.1 * co2Availability) *
     (0.45 + 0.55 * liquid);
-  return round(clamp(Math.max(reservoirScore, surfaceBufferScore) * highPressurePenalty, 0, 1), 3);
+  const inventoryCarbon = fraction(compositionCoupling?.ocean?.carbonInventoryScore, 0);
+  const inventorySulfur = fraction(compositionCoupling?.ocean?.sulfurInventoryScore, 0);
+  const inventorySalt = fraction(compositionCoupling?.ocean?.saltInventoryScore, 0);
+  const compositionBoost =
+    compositionCoupling?.available && liquid > 0
+      ? (0.14 * inventoryCarbon + 0.04 * inventorySalt) *
+        (hasRockOceanExchangeBarrier(hydrosphere) ? 0.35 : 1) *
+        liquid
+      : 0;
+  const sulfurAcidityPenalty =
+    compositionCoupling?.available && liquid > 0 && ppCO2Atm < 0.05
+      ? 0.08 * inventorySulfur * liquid
+      : 0;
+  return round(
+    clamp(
+      Math.max(reservoirScore, surfaceBufferScore) * highPressurePenalty +
+        compositionBoost -
+        sulfurAcidityPenalty,
+      0,
+      1,
+    ),
+    3,
+  );
 }
 
-function classifyAcidity({ waterContext, ppCO2Atm, carbonateScore, ammoniaPct }) {
+function classifyAcidity({
+  waterContext,
+  ppCO2Atm,
+  carbonateScore,
+  ammoniaPct,
+  compositionCoupling,
+}) {
   if (!waterContext?.liquid) return "Not evaluated";
+  const sulfurScore = fraction(compositionCoupling?.ocean?.sulfurInventoryScore, 0);
+  if (sulfurScore >= 0.65 && ammoniaPct < 2 && carbonateScore < 0.38) {
+    return "Sulfur-acidified";
+  }
   if (ammoniaPct >= 5 && ppCO2Atm < 0.05) return "Ammonia-buffered alkaline";
   if (ppCO2Atm >= 1) return "Strongly acidic";
   if (ppCO2Atm >= 0.05) return carbonateScore >= 0.45 ? "CO2-rich but buffered" : "Acidic";
@@ -220,7 +278,7 @@ function classifyCarbonateSaturation({ waterContext, hydrosphere, carbonateScore
   return "Uncertain carbonate support";
 }
 
-function hydrothermalScore({ hydrosphere, geology, carbonCycleContext }) {
+function hydrothermalScore({ hydrosphere, geology, carbonCycleContext, compositionCoupling }) {
   const carbonSeafloor = fraction(carbonCycleContext?.seafloorWeatheringPotential, 0);
   const carbonAccess = fraction(carbonCycleContext?.rockOceanAccess, 0);
   const volcanic = Math.max(
@@ -235,6 +293,11 @@ function hydrothermalScore({ hydrosphere, geology, carbonCycleContext }) {
     0.45 * carbonAccess + 0.25 * volcanic + 0.2 * subsurface + 0.1 * tidalHeat,
     oceanPersistence * 0.7,
   );
+  if (compositionCoupling?.available) {
+    const sulfurScore = fraction(compositionCoupling.ocean?.sulfurInventoryScore, 0);
+    const saltScore = fraction(compositionCoupling.ocean?.saltInventoryScore, 0);
+    score += (0.1 * sulfurScore + 0.05 * saltScore) * Math.max(carbonAccess, subsurface * 0.6);
+  }
   if (hasRockOceanExchangeBarrier(hydrosphere)) {
     score *= 0.45;
   }
@@ -248,12 +311,29 @@ function classifySupport(score, labels) {
   return labels.none;
 }
 
-function buildNotes({ salinitySource, waterContext, hydrosphere, ppCO2Atm }) {
+function buildNotes({
+  salinitySource,
+  ammoniaSource,
+  waterContext,
+  hydrosphere,
+  ppCO2Atm,
+  compositionCoupling,
+}) {
   const notes = [
     "Ocean chemistry is a qualitative context model, not a solved geochemical reservoir.",
   ];
   if (salinitySource === "inferred") {
     notes.push("Salinity is inferred from water inventory and ocean depth with low confidence.");
+  }
+  if (salinitySource === "composition-inferred") {
+    notes.push(
+      "Salinity is biased by salt, sulfur, sodium, and chlorine inventory diagnostics with bounded confidence.",
+    );
+  }
+  if (ammoniaSource === "composition-inferred") {
+    notes.push(
+      "Ammonia is inferred from volatile-ice, nitrogen, and hydrogen diagnostics rather than a solved speciation model.",
+    );
   }
   if (waterContext.key === "ice-brine") {
     notes.push("Ice-dominated bodies are treated as possible brine contexts, not open oceans.");
@@ -264,6 +344,16 @@ function buildNotes({ salinitySource, waterContext, hydrosphere, ppCO2Atm }) {
   if (finiteNonNegative(ppCO2Atm, 0) >= 0.05) {
     notes.push(
       "High CO2 pressure is treated as an acidification driver unless buffering is strong.",
+    );
+  }
+  if (fraction(compositionCoupling?.ocean?.carbonInventoryScore, 0) >= 0.35) {
+    notes.push(
+      "Carbonaceous inventory increases carbonate/organic reservoir support qualitatively.",
+    );
+  }
+  if (fraction(compositionCoupling?.ocean?.sulfurInventoryScore, 0) >= 0.45) {
+    notes.push(
+      "Sulfur-rich inventory can support redox chemistry but may acidify weakly buffered oceans.",
     );
   }
   return notes;
@@ -312,8 +402,10 @@ export function computeOceanChemistryContext({
   geology = null,
   climateState = "",
   dynamicalPersistenceContext = null,
+  rockyBodyComposition = null,
 } = {}) {
   const resolvedHydrosphere = hydrosphere && typeof hydrosphere === "object" ? hydrosphere : {};
+  const compositionCoupling = buildRockyBodyCompositionCoupling(rockyBodyComposition);
   const persistenceContext =
     normalizeDynamicalPersistenceContext(dynamicalPersistenceContext) ||
     normalizeDynamicalPersistenceContext(resolvedHydrosphere.dynamicalPersistenceContext) ||
@@ -327,11 +419,13 @@ export function computeOceanChemistryContext({
     salinityInputProvided,
     hydrosphere: resolvedHydrosphere,
     waterContext,
+    compositionCoupling,
   });
   const ammonia = resolveAmmonia({
     ammoniaPct,
     ammoniaInputProvided,
     hydrosphere: resolvedHydrosphere,
+    compositionCoupling,
   });
   const freezingPointK = freezingPointKFromOceanChemistry({
     salinityPct: salinity.value,
@@ -346,17 +440,29 @@ export function computeOceanChemistryContext({
     hydrosphere: resolvedHydrosphere,
     carbonCycleContext,
     ppCO2Atm: co2Partial,
+    compositionCoupling,
   });
   const hydrothermal = hydrothermalScore({
     hydrosphere: resolvedHydrosphere,
     geology,
     carbonCycleContext,
+    compositionCoupling,
   });
+  const compositionNutrientBoost = compositionCoupling.available
+    ? clamp(
+        0.08 * fraction(compositionCoupling.ocean?.carbonInventoryScore, 0) +
+          0.06 * fraction(compositionCoupling.ocean?.nitrogenInventoryScore, 0) +
+          0.05 * fraction(compositionCoupling.ocean?.sulfurInventoryScore, 0),
+        0,
+        0.16,
+      )
+    : 0;
   const nutrientScore = round(
     clamp(
       0.45 * rockAccess +
         0.3 * carbonateScore +
         0.25 * hydrothermal +
+        compositionNutrientBoost +
         (String(climateState).toLowerCase().includes("runaway") ? -0.2 : 0),
       0,
       1,
@@ -375,6 +481,7 @@ export function computeOceanChemistryContext({
     ppCO2Atm: co2Partial,
     carbonateScore,
     ammoniaPct: ammonia.value,
+    compositionCoupling,
   });
   const carbonateSaturationClass = classifyCarbonateSaturation({
     waterContext,
@@ -398,9 +505,11 @@ export function computeOceanChemistryContext({
   const brineModifierClass = classifyBrineModifier(freezingPointDepressionK, ammonia.value);
   const notes = buildNotes({
     salinitySource: salinity.source,
+    ammoniaSource: ammonia.source,
     waterContext,
     hydrosphere: resolvedHydrosphere,
     ppCO2Atm: co2Partial,
+    compositionCoupling,
   });
   appendDynamicalPersistenceNotes(notes, persistenceContext, waterContext);
 
@@ -419,8 +528,10 @@ export function computeOceanChemistryContext({
     salinityPct: round(salinity.value, 2),
     salinityClass,
     salinitySource: salinity.source,
+    salinityCompositionBiasPct: round(finiteNonNegative(salinity.compositionBiasPct, 0), 2),
     ammoniaPct: round(ammonia.value, 2),
     ammoniaSource: ammonia.source,
+    ammoniaCompositionBiasPct: round(finiteNonNegative(ammonia.compositionBiasPct, 0), 2),
     freezingPointK: round(freezingPointK, 1),
     freezingPointDepressionK: round(freezingPointDepressionK, 1),
     brineModifierClass,
@@ -432,6 +543,19 @@ export function computeOceanChemistryContext({
     hydrothermalSupportClass,
     nutrientSupportScore: nutrientScore,
     nutrientSupportClass,
+    compositionChemistryBias: compositionCoupling.available
+      ? {
+          modelVersion: compositionCoupling.modelVersion,
+          salinityBiasPct: compositionCoupling.ocean.salinityBiasPct,
+          ammoniaBiasPct: compositionCoupling.ocean.ammoniaBiasPct,
+          saltInventoryScore: compositionCoupling.ocean.saltInventoryScore,
+          sulfurInventoryScore: compositionCoupling.ocean.sulfurInventoryScore,
+          carbonInventoryScore: compositionCoupling.ocean.carbonInventoryScore,
+          nitrogenInventoryScore: compositionCoupling.ocean.nitrogenInventoryScore,
+          nutrientBoost: round(compositionNutrientBoost, 3),
+          caveats: compositionCoupling.caveats,
+        }
+      : null,
     highPressureIceCaveat: hasHighPressureIceCaveat(resolvedHydrosphere),
     dynamicalPersistenceContext: persistenceContext,
     sustainedTidalHeatingClass: persistenceContext?.sustainedTidalHeatingClass || "unknown",

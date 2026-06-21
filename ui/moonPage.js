@@ -2,6 +2,7 @@ import { calcMoon } from "../engine/moon.js";
 import { calcPlanetExact } from "../engine/planet.js";
 import { calcGasGiant } from "../engine/gasGiant.js";
 import { calcStar } from "../engine/star.js";
+import { suggestRockyBodyCompositionInventory } from "../engine/rockyBodyCompositionSuggestions.js";
 import { resolveHostFrameContext } from "../engine/homeSystem/context.js";
 import {
   classifyCompanionRegimeByMass,
@@ -16,6 +17,16 @@ import {
 import { fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { createElement } from "./domHelpers.js";
+import {
+  bindCompositionEditor,
+  collectCompositionEditorPatch,
+  formatCompositionModeLabel,
+  formatCompositionSourceLabel,
+  formatCompositionValidationMessages,
+  formatCompositionValidationStatus,
+  renderCompositionEditor,
+  updateCompositionEditorValidation,
+} from "./compositionEditor.js";
 import { createEraTimelineSection } from "./eraTimelinePanel.js";
 import { enableOutputSectionTabs } from "./outputSectionTabs.js";
 import { confirmDestructiveAction } from "./destructiveActionDialog.js";
@@ -160,6 +171,18 @@ const TIP_LABEL = {
   Physical: "Physical inputs used to derive radius, gravity, and escape velocity.",
   Composition:
     "Inferred from bulk density as a proxy for rock/ice fraction. Controls the material rigidity (\u03BC) and tidal quality factor (Q) used in tidal lock and heating calculations.\n\nDensity alone is often enough for cold, geologically quiet moons. But moons with extreme internal states \u2014 active volcanism or subsurface oceans \u2014 have much softer interiors than their bulk density implies. Use the Composition Override dropdown to select a special class when your moon has one of these conditions.\n\nIron-rich (>5 g/cm\u00B3): Dense metallic core, like Mercury.\nRocky (3.2\u20135 g/cm\u00B3): Solid silicate mantle. Earth\u2019s Moon, Io (cold).\nMixed rock/ice (2\u20133.2 g/cm\u00B3): Roughly equal rock and ice. Europa.\nIcy (1\u20132 g/cm\u00B3): Mostly water ice with some rock. Ganymede, Titan.\nVery icy (<1 g/cm\u00B3): Dominated by volatile ices. Cometary bodies.\n\nSpecial overrides (see Composition Override tooltip):\nSubsurface ocean: Liquid layer decouples the ice shell (\u03BC = 0.3 GPa, Q = 2).\nPartially molten: Magma interior from extreme tidal heating (\u03BC = 10 GPa, Q = 10).",
+  "Interior Composition":
+    "Shared rocky-body composition inventory for moons. The solver combines density or composition override with explicit water, ammonia, and differentiation inputs to estimate bulk components, element mass fractions, core fraction, rigidity, and tidal Q.",
+  "Bulk Mix":
+    "Estimated component mass fractions for the solid body: metal, silicate rock, water ice, volatile ice, carbonaceous material, sulfur, and salts.",
+  "Element Mix":
+    "Estimated element mass fractions derived from the component inventory. This is a bulk moon inventory, not a surface spectroscopy model.",
+  "Composition Source":
+    "Shows whether the moon inventory came from bulk density, the manual composition override, or a class hint.",
+  "Core Mass Fraction":
+    "Estimated differentiated core share of total moon mass. This is inferred from density, class, and the differentiated-interior input.",
+  "Material Response":
+    "Rigidity and tidal quality factor passed from the shared composition solver into the tidal heating and spin-lock calculations.",
   "Composition Override":
     "Override the density-derived composition class with a specific interior state. Density is a good proxy for cold, solid moons, but it underestimates tidal heating by 10\u2013100\u00D7 for moons with extreme interiors.\n\nAuto (from density): Default. Best for geologically quiet moons.\n\nVery icy: Cometary or outer solar system bodies dominated by volatile ices. Low density (<1 g/cm\u00B3).\n\nIcy: Mostly water ice with some rock. Ganymede, Callisto, Rhea. Density 1\u20132 g/cm\u00B3.\n\nSubsurface ocean: A global liquid ocean beneath a thin ice shell dramatically softens the body and amplifies tidal dissipation. Use for moons showing signs of geological activity despite low density (cryovolcanism, plumes, young surface). Calibrated to Enceladus: predicted heating matches Cassini observations within 10%. WARNING: over-predicts for large moons like Titan (\u223C37\u00D7 too high) \u2014 use Icy for those.\n\nMixed rock/ice: Roughly half rock, half ice. Europa\u2019s density (3.0 g/cm\u00B3) places it here. Good default for moons of giant planets with intermediate density.\n\nRocky: Solid silicate mantle, like Earth\u2019s Moon (3.34 g/cm\u00B3). Appropriate for tidally quiet rocky moons.\n\nPartially molten: Extreme tidal heating has melted the interior, creating a magma ocean or mushy mantle. This makes the body much softer than solid rock, dramatically increasing dissipation. Use for moons in strong orbital resonances with high volcanic activity. Calibrated to Io: predicted heating matches observed 10\u00B9\u2074 W within 1%.\n\nIron-rich: Dense metallic body (>5 g/cm\u00B3). Very stiff, dissipates little energy. Mercury-like composition.",
   Dynamics: "Optional inputs that affect tidal evolution timescales.",
@@ -501,6 +524,171 @@ const TIP_LABEL = {
   "Habitability Gates":
     "Quick count of how many surface and subsurface habitability gates currently pass.",
 };
+
+const MOON_COMPONENT_DISPLAY = Object.freeze([
+  ["metal", "Metal"],
+  ["silicate", "Silicate rock"],
+  ["waterIce", "H2O ice"],
+  ["volatileIce", "Volatile ice"],
+  ["carbonaceous", "Carbonaceous"],
+  ["sulfur", "Sulfur"],
+  ["salts", "Salts"],
+]);
+
+const MOON_ELEMENT_DISPLAY = Object.freeze([
+  ["oxygen", "O"],
+  ["iron", "Fe"],
+  ["silicon", "Si"],
+  ["magnesium", "Mg"],
+  ["hydrogen", "H"],
+  ["carbon", "C"],
+  ["sulfur", "S"],
+  ["nitrogen", "N"],
+  ["nickel", "Ni"],
+  ["sodium", "Na"],
+  ["chlorine", "Cl"],
+  ["aluminium", "Al"],
+  ["calcium", "Ca"],
+  ["metals", "metals"],
+]);
+
+const MOON_ELEMENT_ROW_DISPLAY = Object.freeze([
+  ["oxygen", "Oxygen"],
+  ["iron", "Iron"],
+  ["silicon", "Silicon"],
+  ["magnesium", "Magnesium"],
+  ["hydrogen", "Hydrogen"],
+  ["carbon", "Carbon"],
+  ["sulfur", "Sulfur"],
+  ["nitrogen", "Nitrogen"],
+  ["nickel", "Nickel"],
+  ["sodium", "Sodium"],
+  ["chlorine", "Chlorine"],
+  ["aluminium", "Aluminium"],
+  ["calcium", "Calcium"],
+  ["metals", "Metals"],
+]);
+
+function formatFractionPct(value, dp = 1) {
+  const fraction = Number(value);
+  if (!Number.isFinite(fraction)) return "";
+  return `${fmt(fraction * 100, dp)}%`;
+}
+
+function formatFractionSummary(fractions, labels, { limit = 4, minFraction = 0.0005 } = {}) {
+  const entries = (labels || [])
+    .map(([key, label]) => ({
+      key,
+      label,
+      fraction: Number(fractions?.[key]),
+    }))
+    .filter((entry) => Number.isFinite(entry.fraction) && entry.fraction >= minFraction)
+    .sort((a, b) => b.fraction - a.fraction);
+
+  if (!entries.length) return "Not evaluated";
+
+  return entries
+    .slice(0, limit)
+    .map((entry) => `${entry.label} ${formatFractionPct(entry.fraction)}`)
+    .join(" | ");
+}
+
+function formatCompositionSource(source) {
+  return formatCompositionSourceLabel(source);
+}
+
+function formatRigidityGpa(valuePa) {
+  const value = Number(valuePa);
+  if (!Number.isFinite(value) || value <= 0) return "";
+  const gpa = value / 1e9;
+  return `${fmt(gpa, gpa < 1 ? 2 : 1)} GPa`;
+}
+
+function fractionRows(fractions, labels, prefix = "") {
+  return (labels || [])
+    .map(([key, label]) => ({
+      label: prefix ? `${prefix} ${label}` : label,
+      value: formatFractionPct(fractions?.[key]),
+    }))
+    .filter((item) => item.value);
+}
+
+export function buildMoonCompositionInventory(model = {}) {
+  const composition =
+    model?.derived?.rockyBodyComposition || model?.composition || model?.rockyBodyComposition || {};
+  const componentMassFractions =
+    composition.componentMassFractions || model?.derived?.componentMassFractions || {};
+  const elementMassFractions =
+    composition.elementMassFractions || model?.derived?.elementMassFractions || {};
+  const compositionClass =
+    composition.compositionClass ||
+    model?.display?.compositionClass ||
+    model?.compositionClass ||
+    "";
+  const rigidityLabel = formatRigidityGpa(composition.rigidityPa ?? composition.mu);
+  const tidalQ = Number(composition.tidalQualityFactor ?? composition.Q);
+  const tidalQLabel = Number.isFinite(tidalQ) ? `Q ${fmt(tidalQ, 0)}` : "";
+  const materialResponse = [rigidityLabel ? `mu ${rigidityLabel}` : "", tidalQLabel]
+    .filter(Boolean)
+    .join(" | ");
+  const componentSummary = formatFractionSummary(componentMassFractions, MOON_COMPONENT_DISPLAY);
+  const elementSummary = formatFractionSummary(elementMassFractions, MOON_ELEMENT_DISPLAY, {
+    limit: 6,
+  });
+  const sourceLabel = formatCompositionSource(composition.compositionSource);
+  const modeLabel = formatCompositionModeLabel(
+    composition.compositionMode || model?.derived?.compositionMode || "inferred",
+  );
+  const validation = composition.validation || model?.derived?.compositionValidation || null;
+  const validationStatus = formatCompositionValidationStatus(validation);
+  const validationMessages = formatCompositionValidationMessages(validation);
+  const effectiveCoreMassFraction =
+    composition.effectiveCoreMassFraction ??
+    model?.derived?.effectiveCoreMassFraction ??
+    composition.coreMassFraction;
+  const effectiveWaterMassFraction =
+    composition.effectiveWaterMassFraction ??
+    model?.derived?.effectiveWaterMassFraction ??
+    composition.waterMassFraction;
+  const detailItems = [
+    { label: "Composition Class", value: compositionClass },
+    { label: "Composition Mode", value: modeLabel },
+    { label: "Composition Source", value: sourceLabel, tip: TIP_LABEL["Composition Source"] },
+    { label: "Validation", value: validationStatus, meta: validationMessages },
+    {
+      label: "Core Mass Fraction",
+      value: formatFractionPct(effectiveCoreMassFraction),
+      tip: TIP_LABEL["Core Mass Fraction"],
+    },
+    { label: "Bulk Mix", value: componentSummary, tip: TIP_LABEL["Bulk Mix"] },
+    { label: "Element Mix", value: elementSummary, tip: TIP_LABEL["Element Mix"] },
+    {
+      label: "Material Response",
+      value: materialResponse,
+      tip: TIP_LABEL["Material Response"],
+    },
+    ...fractionRows(componentMassFractions, MOON_COMPONENT_DISPLAY, "Component"),
+    ...fractionRows(elementMassFractions, MOON_ELEMENT_ROW_DISPLAY, "Element"),
+  ].filter((item) => item.value);
+
+  return {
+    composition,
+    compositionClass: compositionClass || "Not evaluated",
+    modeLabel,
+    sourceLabel,
+    componentSummary,
+    elementSummary,
+    validation,
+    validationStatus,
+    validationMessages,
+    materialResponse: materialResponse || "Not evaluated",
+    coreMassFraction: formatFractionPct(effectiveCoreMassFraction) || "Not evaluated",
+    waterMassFraction: formatFractionPct(effectiveWaterMassFraction) || "Not evaluated",
+    metalFraction: formatFractionPct(componentMassFractions.metal) || "Not evaluated",
+    silicateFraction: formatFractionPct(componentMassFractions.silicate) || "Not evaluated",
+    detailItems,
+  };
+}
 
 const TUTORIAL_STEPS = [
   {
@@ -961,6 +1149,20 @@ export function initMoonPage(mountEl, options = {}) {
             </select>
           </div>
 
+          <div class="form-row">
+            <div>
+              <div class="label">Differentiated Interior ${tipIcon(TIP_LABEL["Differentiated Interior"] || "")}</div>
+              <div class="hint">Auto defers to the solver. Yes/No pins the interior assumption.</div>
+            </div>
+            <select id="differentiatedInterior">
+              <option value="">Auto</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+
+          <div id="moonCompositionEditorMount" class="composition-editor-mount"></div>
+
           <div class="flow-spacer flow-spacer--sm"></div>
           <div class="label">Dynamics ${tipIcon(TIP_LABEL["Dynamics"] || "")}</div>
           ${numWithSlider("initRot", "Initial Rotation Period", "hours", "", 2, 1000, 0.1, "Initial Rotation Period")}
@@ -971,17 +1173,6 @@ export function initMoonPage(mountEl, options = {}) {
             ${numWithSlider("wmf", "Water Mass Fraction", "%", "", 0, 60, 0.1, "Water Mass Fraction")}
             ${numWithSlider("salinity", "Salinity", "%", "", 0, 35, 0.1, "Salinity")}
             ${numWithSlider("ammonia", "Ammonia", "%", "", 0, 30, 0.1, "Ammonia")}
-            <div class="form-row">
-              <div>
-                <div class="label">Differentiated Interior ${tipIcon(TIP_LABEL["Differentiated Interior"] || "")}</div>
-                <div class="hint">Auto defers to the solver. Yes/No pins the interior assumption.</div>
-              </div>
-              <select id="differentiatedInterior">
-                <option value="">Auto</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </div>
 
             <div class="form-row">
               <div>
@@ -1120,6 +1311,7 @@ export function initMoonPage(mountEl, options = {}) {
   const salinityEl = wrap.querySelector("#salinity");
   const ammoniaEl = wrap.querySelector("#ammonia");
   const differentiatedInteriorEl = wrap.querySelector("#differentiatedInterior");
+  const moonCompositionEditorMountEl = wrap.querySelector("#moonCompositionEditorMount");
   const isoModePillsEl = wrap.querySelector("#isoModePills");
   const isoModeHintEl = wrap.querySelector("#isoModeHint");
   const radioAbundanceEl = wrap.querySelector("#radioAbundance");
@@ -1155,6 +1347,7 @@ export function initMoonPage(mountEl, options = {}) {
   const kpisEl = wrap.querySelector("#kpis");
   const detailsEl = wrap.querySelector("#details");
   let noticeTimer = null;
+  let moonCompositionEditorEl = null;
   const pairBindings = {};
 
   bindPair("a", aEl, 10, 1e9, 100, "auto");
@@ -1215,6 +1408,65 @@ export function initMoonPage(mountEl, options = {}) {
     ]) {
       pairBindings[id]?.syncFromNumber({ commit: false, normalize: true });
     }
+  }
+
+  function readMoonNumberForSeed(input, fallback = null) {
+    const raw = String(input?.value ?? "").trim();
+    if (!raw) return fallback;
+    const number = Number(raw);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  function buildMoonCompositionSuggestion() {
+    const differentiatedValue = differentiatedInteriorEl.value;
+    return suggestRockyBodyCompositionInventory({
+      bodyType: "moon",
+      bodyInputs: {
+        ...state.moon,
+        massMoon: readMoonNumberForSeed(mEl, state.moon.massMoon),
+        densityGcm3: readMoonNumberForSeed(densityEl, state.moon.densityGcm3),
+        compositionOverride: compOverrideEl.value || null,
+        differentiatedInterior:
+          differentiatedValue === "yes"
+            ? true
+            : differentiatedValue === "no"
+              ? false
+              : state.moon.differentiatedInterior,
+        waterMassFractionPct: readMoonNumberForSeed(wmfEl, state.moon.waterMassFractionPct),
+        salinityPct: readMoonNumberForSeed(salinityEl, state.moon.salinityPct),
+        ammoniaPct: readMoonNumberForSeed(ammoniaEl, state.moon.ammoniaPct),
+        radioisotopeMode: getModeValue(isoModePillsEl, "isoMode", "simple"),
+        radioisotopeAbundance: readMoonNumberForSeed(
+          radioAbundanceEl,
+          state.moon.radioisotopeAbundance,
+        ),
+        u238Abundance: readMoonNumberForSeed(u238El, state.moon.u238Abundance),
+        u235Abundance: readMoonNumberForSeed(u235El, state.moon.u235Abundance),
+        th232Abundance: readMoonNumberForSeed(th232El, state.moon.th232Abundance),
+        k40Abundance: readMoonNumberForSeed(k40El, state.moon.k40Abundance),
+        so2Pct: readMoonNumberForSeed(so2PctEl, state.moon.so2Pct),
+      },
+      starContext: { metallicityFeH: state.starMetallicityFeH },
+      parentContext: {
+        parentType: state.parentType,
+        radioisotopeAbundance: state.planet?.radioisotopeAbundance,
+      },
+    });
+  }
+
+  function renderMoonCompositionEditor(values = state.moon) {
+    if (!moonCompositionEditorMountEl) return;
+    const node = renderCompositionEditor({
+      values,
+      bodyType: "moon",
+      idPrefix: "moonComposition",
+    });
+    moonCompositionEditorMountEl.replaceChildren(node);
+    moonCompositionEditorEl = node;
+    bindCompositionEditor(moonCompositionEditorEl, {
+      onPatch: () => applyFromInputs(),
+      onSeedSensibleValues: buildMoonCompositionSuggestion,
+    });
   }
 
   function syncFromWorld() {
@@ -1336,6 +1588,7 @@ export function initMoonPage(mountEl, options = {}) {
   }
 
   function collectDraftMoonInputs() {
+    const compositionPatch = collectCompositionEditorPatch(moonCompositionEditorEl);
     return {
       name: nameEl.value || "New Moon",
       semiMajorAxisKm: Number(aEl.value),
@@ -1380,6 +1633,7 @@ export function initMoonPage(mountEl, options = {}) {
       manualResonanceGroupId: resonanceGroupEl.value?.trim() || null,
       manualResonanceOrder: Number(resonanceOrderEl.value) || null,
       manualResonanceRatio: Number(resonanceRatioEl.value) || null,
+      ...compositionPatch,
     };
   }
 
@@ -1877,6 +2131,8 @@ export function initMoonPage(mountEl, options = {}) {
     const compactAtmosphereMix = model.atmosphere?.dominantSpecies
       ? `${model.atmosphere.dominantSpecies}-dominant`
       : "None";
+    const compositionInventory = buildMoonCompositionInventory(model);
+    updateCompositionEditorValidation(moonCompositionEditorEl, compositionInventory.validation);
     const compactResurfacing =
       geology.resurfacingDominantProcess === "volcanic"
         ? "Volcanic"
@@ -2011,6 +2267,12 @@ export function initMoonPage(mountEl, options = {}) {
             ],
           },
           buildMoonKpi("Composition", model.display.compositionClass),
+          buildMoonKpi(
+            "Bulk Mix",
+            compositionInventory.componentSummary,
+            compositionInventory.sourceLabel,
+          ),
+          buildMoonKpi("Element Mix", compositionInventory.elementSummary),
           buildMoonKpi("Radius", model.display.radius, "derived"),
           buildMoonKpi("Surface Temp", model.display.surfaceTemp),
           buildMoonKpi(
@@ -2036,7 +2298,33 @@ export function initMoonPage(mountEl, options = {}) {
         density: "compact",
         items: [
           buildMoonKpi("Composition", model.display.compositionClass),
+          buildMoonKpi("Composition Mode", compositionInventory.modeLabel),
+          buildMoonKpi("Composition Source", compositionInventory.sourceLabel),
+          buildMoonKpi("Core Mass Fraction", compositionInventory.coreMassFraction),
+          buildMoonKpi("Element Mix", compositionInventory.elementSummary),
           buildMoonKpi("Albedo", fmt(state.moon.albedo, 3)),
+        ],
+      }),
+      collapsedMoonKpiSection({
+        id: "moon-composition",
+        title: "Interior Composition",
+        density: "compact",
+        items: [
+          buildMoonKpi("Composition", compositionInventory.compositionClass),
+          buildMoonKpi("Composition Mode", compositionInventory.modeLabel),
+          buildMoonKpi("Composition Source", compositionInventory.sourceLabel),
+          buildMoonKpi("Bulk Mix", compositionInventory.componentSummary),
+          buildMoonKpi("Element Mix", compositionInventory.elementSummary),
+          buildMoonKpi(
+            "Validation",
+            compositionInventory.validationStatus,
+            compositionInventory.validationMessages,
+          ),
+          buildMoonKpi("Core Mass Fraction", compositionInventory.coreMassFraction),
+          buildMoonKpi("Water/Ice Mass", compositionInventory.waterMassFraction),
+          buildMoonKpi("Metal Fraction", compositionInventory.metalFraction),
+          buildMoonKpi("Silicate Fraction", compositionInventory.silicateFraction),
+          buildMoonKpi("Material Response", compositionInventory.materialResponse),
         ],
       }),
       collapsedMoonKpiSection({
@@ -2434,8 +2722,16 @@ export function initMoonPage(mountEl, options = {}) {
           items: [
             { label: "Name", value: state.moonName || state.moon.name || "Moon" },
             { label: "Composition", value: model.display.compositionClass },
+            { label: "Composition Source", value: compositionInventory.sourceLabel },
+            { label: "Element Mix", value: compositionInventory.elementSummary },
             { label: "Albedo", value: fmt(state.moon.albedo, 3) },
           ],
+        },
+        {
+          id: "moon-details-composition",
+          title: "Interior Composition",
+          tip: TIP_LABEL["Interior Composition"] || "",
+          items: compositionInventory.detailItems,
         },
         {
           id: "moon-details-physical",
@@ -2925,6 +3221,7 @@ export function initMoonPage(mountEl, options = {}) {
         : state.moon.differentiatedInterior === false
           ? "no"
           : "";
+    renderMoonCompositionEditor(state.moon);
     radioAbundanceEl.value = state.moon.radioisotopeAbundance ?? 1;
     u238El.value = state.moon.u238Abundance ?? 1;
     u235El.value = state.moon.u235Abundance ?? 1;

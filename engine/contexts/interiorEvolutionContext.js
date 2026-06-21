@@ -1,4 +1,5 @@
 import { clamp, round, toFinite } from "../utils.js";
+import { buildRockyBodyCompositionCoupling } from "../compositionCoupling.js";
 import { CONFIDENCE, CONTEXT_STATUS, makeContext, roundMaybe, scoreToClass } from "./validation.js";
 
 export const INTERIOR_EVOLUTION_MODEL_VERSION = "interior-evolution-context-v1";
@@ -106,11 +107,13 @@ export function buildInteriorEvolutionContext({
   surfaceTempK = 288,
   magneticFieldContext = null,
   geology = null,
+  rockyBodyComposition = null,
 } = {}) {
   const assumptions = [
     "Interior evolution is a bounded comparative screen, not a solved thermal-history model.",
   ];
   const limitingFactors = [];
+  const compositionCoupling = buildRockyBodyCompositionCoupling(rockyBodyComposition);
   const mass = finiteNonNegative(massEarth, 1);
   const radius = finiteNonNegative(radiusEarth, 1);
   const density = finiteNonNegative(densityGcm3, 5.51);
@@ -125,6 +128,11 @@ export function buildInteriorEvolutionContext({
   const heatScore = logRangeScore(heatFluxEarth, 0.08, 8);
   const radiogenicScore = logRangeScore(radiogenicEarth, 0.08, 3);
   const tidalScore = logRangeScore(tidalEarth, 0.01, 20);
+  const compositionCoreScore = fraction(compositionCoupling.interior?.coreMetalScore, 0);
+  const compositionVolatileScore = fraction(
+    compositionCoupling.interior?.volatileSofteningScore,
+    0,
+  );
   const massRetentionScore = clamp(
     0.62 * logRangeScore(Math.max(mass, 1e-6), 0.08, 5) +
       0.38 * logRangeScore(Math.max(radius, 1e-6), 0.28, 1.7),
@@ -132,6 +140,9 @@ export function buildInteriorEvolutionContext({
     1,
   );
   const coreScore = clamp(Math.sqrt(coreFraction / 0.33), 0, 1.35);
+  const effectiveCoreScore = compositionCoupling.available
+    ? clamp(0.82 * Math.min(coreScore, 1.35) + 0.18 * compositionCoreScore, 0, 1.35)
+    : coreScore;
   const nominalCoreLifetimeGyr =
     (2 + 12 * coreFraction * Math.sqrt(Math.max(mass, 0.01))) *
     Math.max(0.4, radiogenicEarth ** 0.35) *
@@ -143,7 +154,7 @@ export function buildInteriorEvolutionContext({
     0.38 * heatScore +
       0.28 * massRetentionScore +
       0.18 * radiogenicScore +
-      0.16 * Math.min(coreScore, 1),
+      0.16 * Math.min(effectiveCoreScore, 1),
     0,
     1,
   );
@@ -189,7 +200,7 @@ export function buildInteriorEvolutionContext({
   const dynamoActive = magneticFieldContext?.dynamoActive === true;
   const dynamoScore = clamp(
     0.35 * coolingRetentionScore +
-      0.22 * Math.min(coreScore, 1) +
+      0.22 * Math.min(effectiveCoreScore, 1) +
       0.2 * crystallizationSweetSpot +
       0.14 * radiogenicScore +
       0.09 * Math.min(1, tidalScore),
@@ -211,6 +222,26 @@ export function buildInteriorEvolutionContext({
       "Large metallic cores can support weak or unusual dynamos even when simple cooling proxies are uncertain.",
     );
   }
+  if (compositionCoupling.available) {
+    assumptions.push(
+      "Rocky-body composition inventory is coupled as bounded reservoir diagnostics; extreme totals are clamped before downstream use.",
+    );
+    if (compositionCoreScore >= 0.65) {
+      assumptions.push(
+        "Fe/Ni and metal inventory strengthen the qualitative core/dynamo support diagnostic.",
+      );
+    }
+    if (compositionVolatileScore >= 0.45) {
+      assumptions.push(
+        "Water/volatile-rich inventory can soften interiors and sustain low-temperature transport, but does not imply plate tectonics.",
+      );
+    }
+    if (compositionCoupling.traceRadiogenic) {
+      assumptions.push(
+        "K/U/Th trace inventory is represented through the radiogenic heat input when explicit isotope controls are unset.",
+      );
+    }
+  }
 
   return makeContext({
     modelVersion: INTERIOR_EVOLUTION_MODEL_VERSION,
@@ -227,6 +258,9 @@ export function buildInteriorEvolutionContext({
       coreMassFraction: roundMaybe(coreFraction, 4),
       tectonicRegime: String(tectonicRegime || ""),
       magneticFieldModelVersion: magneticFieldContext?.modelVersion || null,
+      rockyBodyCompositionModelVersion: compositionCoupling.available
+        ? compositionCoupling.modelVersion
+        : null,
     },
     outputs: {
       heatFluxEarth: round(heatFluxEarth, 3),
@@ -237,6 +271,11 @@ export function buildInteriorEvolutionContext({
         none: "radiogenically poor",
       }),
       radiogenicBudgetScore: round(radiogenicScore, 3),
+      compositionCoreScore: round(compositionCoreScore, 3),
+      compositionVolatileScore: round(compositionVolatileScore, 3),
+      compositionRadiogenicTraceAbundance:
+        compositionCoupling.interior?.radiogenicTraceAbundance ?? null,
+      compositionDiagnosticClass: compositionCoupling.visual?.dominantDiagnostic || "none",
       secularCoolingClass: secularCoolingLabel(coolingRetentionScore),
       secularCoolingScore: round(coolingRetentionScore, 3),
       coreCrystallizationLikelihood: coreCrystallizationLabel(crystallizationScore),

@@ -1,4 +1,5 @@
 import { clamp, toFinite } from "../utils.js";
+import { buildRockyBodyCompositionCoupling } from "../compositionCoupling.js";
 
 const VOLCANIC_CLASS_FACTOR = {
   "Very icy": 0,
@@ -269,8 +270,10 @@ export function computeMoonGeology({
   compositionOverride = "",
   hydrosphere = null,
   tidalPersistenceContext = null,
+  rockyBodyComposition = null,
 } = {}) {
   const notes = ["moon-geology-v1"];
+  const compositionCoupling = buildRockyBodyCompositionCoupling(rockyBodyComposition);
   const persistenceContext = normalizeTidalPersistenceContext(tidalPersistenceContext);
   const compositionKey = compositionKeyFromInputs({
     compositionOverride,
@@ -293,25 +296,51 @@ export function computeMoonGeology({
     gravityG,
     hydrosphere,
   });
-  const resurfacing = resurfacingClass(volcanic.score, cryovolcanic.score);
+  const sulfurScore = clamp(toFinite(compositionCoupling.reservoirScores?.sulfur, 0), 0, 1);
+  const saltScore = clamp(toFinite(compositionCoupling.reservoirScores?.salt, 0), 0, 1);
+  const volatileScore = clamp(toFinite(compositionCoupling.reservoirScores?.volatile, 0), 0, 1);
+  const silicateScore = clamp(toFinite(compositionCoupling.reservoirScores?.silicate, 0), 0, 1);
+  const volcanicCompositionBoost = compositionCoupling.available
+    ? volcanic.heatScore *
+      (0.12 * sulfurScore + 0.06 * silicateScore) *
+      (0.35 + 0.65 * volcanic.interiorRetention)
+    : 0;
+  const cryovolcanicCompositionBoost = compositionCoupling.available
+    ? cryovolcanic.heatScore * cryovolcanic.waterSupport * (0.16 * saltScore + 0.08 * volatileScore)
+    : 0;
+  const volcanicScore = clamp(volcanic.score + volcanicCompositionBoost, 0, 1);
+  const cryovolcanicScore = clamp(cryovolcanic.score + cryovolcanicCompositionBoost, 0, 1);
+  const resurfacing = resurfacingClass(volcanicScore, cryovolcanicScore);
   const volatileReplenishmentScore = computeVolatileReplenishment(
-    volcanic.score,
-    cryovolcanic.score,
+    volcanicScore,
+    cryovolcanicScore,
     cryovolcanic.waterSupport,
   );
-  const oceanPersistenceScore = computeOceanPersistence({
-    hydrosphere,
-    cryovolcanicHeatScore: cryovolcanic.heatScore,
-    radiogenicHeatingWm2,
-    tidalHeatingEarth,
-    massMoon,
-    gravityG,
-  });
+  const oceanPersistenceScore = clamp(
+    computeOceanPersistence({
+      hydrosphere,
+      cryovolcanicHeatScore: cryovolcanic.heatScore,
+      radiogenicHeatingWm2,
+      tidalHeatingEarth,
+      massMoon,
+      gravityG,
+    }) +
+      (compositionCoupling.available
+        ? (0.07 * saltScore + 0.05 * volatileScore) * cryovolcanic.waterSupport
+        : 0),
+    0,
+    1,
+  );
 
-  if (volcanic.score >= 0.4) notes.push("active-silicate-volcanism");
-  if (cryovolcanic.score >= 0.4) notes.push("active-cryovolcanism");
+  if (volcanicScore >= 0.4) notes.push("active-silicate-volcanism");
+  if (cryovolcanicScore >= 0.4) notes.push("active-cryovolcanism");
   if (volatileReplenishmentScore >= 0.4) notes.push("volatile-replenishment-supported");
   if (oceanPersistenceScore >= 0.4) notes.push("ocean-persistence-supported");
+  if (compositionCoupling.available) {
+    if (sulfurScore >= 0.45) notes.push("composition-sulfur-volcanism-supported");
+    if (saltScore >= 0.45) notes.push("composition-salt-brine-cryovolcanism-supported");
+    if (volatileScore >= 0.45) notes.push("composition-volatile-replenishment-supported");
+  }
   if (persistenceContext?.sustainedTidalHeatingClass === "likely-sustained") {
     notes.push("tidal-heating-likely-sustained");
   } else if (persistenceContext?.sustainedTidalHeatingClass === "damping") {
@@ -328,11 +357,11 @@ export function computeMoonGeology({
   return {
     modelVersion: "moon-geology-v1",
     compositionKey,
-    volcanicActivityScore: volcanic.score,
-    volcanicActivity: activityLabel(volcanic.score),
-    cryovolcanicActivityScore: cryovolcanic.score,
-    cryovolcanicActivity: activityLabel(cryovolcanic.score),
-    resurfacingScore: Math.max(volcanic.score, cryovolcanic.score),
+    volcanicActivityScore: volcanicScore,
+    volcanicActivity: activityLabel(volcanicScore),
+    cryovolcanicActivityScore: cryovolcanicScore,
+    cryovolcanicActivity: activityLabel(cryovolcanicScore),
+    resurfacingScore: Math.max(volcanicScore, cryovolcanicScore),
     resurfacingClass: resurfacing.resurfacingClass,
     resurfacingDominantProcess: resurfacing.dominantProcess,
     volatileReplenishmentScore,
@@ -359,7 +388,23 @@ export function computeMoonGeology({
       ventingScore: cryovolcanic.ventingScore,
       interiorRetention: volcanic.interiorRetention,
       gravitySupport: volcanic.gravitySupport,
+      compositionVolcanicBoost: volcanicCompositionBoost,
+      compositionCryovolcanicBoost: cryovolcanicCompositionBoost,
+      compositionSaltScore: saltScore,
+      compositionSulfurScore: sulfurScore,
+      compositionVolatileScore: volatileScore,
     },
+    compositionResurfacingBias: compositionCoupling.available
+      ? {
+          modelVersion: compositionCoupling.modelVersion,
+          volcanicBoost: volcanicCompositionBoost,
+          cryovolcanicBoost: cryovolcanicCompositionBoost,
+          saltScore,
+          sulfurScore,
+          volatileScore,
+          caveats: compositionCoupling.caveats,
+        }
+      : null,
     notes,
   };
 }

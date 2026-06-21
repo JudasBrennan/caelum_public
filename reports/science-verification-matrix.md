@@ -1,8 +1,8 @@
 # Caelum Science Verification Matrix
 
-Generated: 2026-06-20T20:48:35.003Z
+Generated: 2026-06-21T18:31:00.543Z
 
-App version: 3.0.0
+App version: 3.1.0
 
 Science verification matrix covering benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, units, independent formula oracles, sensitivity, population sanity, browser coverage, and release gates.
 
@@ -93,7 +93,7 @@ rocky-planets | anchor | Rocky planets / Mercury | Radius | PASS | info | 0.3832
 rocky-planets | anchor | Rocky planets / Mercury | Surface gravity | PASS | info | 0.3765 g | 0.3770 g | No action
 rocky-planets | anchor | Rocky planets / Mercury | Surface temperature | PASS | info | 440.0 K | 440.0 K | No action
 rocky-planets | anchor | Rocky planets / Mercury | Core radius fraction | PASS | info | 0.8367 | 0.8500 | No action
-rocky-planets | anchor | Rocky planets / Mercury | Surface magnetic field | PASS | info | 0.0079 Earth | 0.0030 Earth to 0.0300 Earth | No action
+rocky-planets | anchor | Rocky planets / Mercury | Surface magnetic field | PASS | info | 0.0091 Earth | 0.0030 Earth to 0.0300 Earth | No action
 rocky-planets | anchor | Rocky planets / Mercury | Composition class | PASS | info | Iron world | Mercury-like or Iron world | No action
 observability-user-facing | anchor | Climate state / Mercury | Absorbed stellar flux | PASS | info | 2117 W/m2 | 2117 W/m2 | No action
 observability-user-facing | anchor | Climate state / Mercury | Observed dry-body state | PASS | info | Stable | Stable | No action
@@ -111,7 +111,7 @@ rocky-planets | anchor | Rocky planets / Earth | Surface gravity | PASS | info |
 rocky-planets | anchor | Rocky planets / Earth | Surface temperature | PASS | info | 283.0 K | 288.0 K | No action
 rocky-planets | anchor | Rocky planets / Earth | Core radius fraction | PASS | info | 0.5657 | 0.5470 | No action
 rocky-planets | anchor | Rocky planets / Earth | Core radius | PASS | info | 3614 km | 3485 km | No action
-rocky-planets | anchor | Rocky planets / Earth | Surface magnetic field | PASS | info | 0.9579 Earth | 1.000 Earth | No action
+rocky-planets | anchor | Rocky planets / Earth | Surface magnetic field | PASS | info | 0.9600 Earth | 1.000 Earth | No action
 rocky-planets | anchor | Rocky planets / Earth | Composition class | PASS | info | Earth-like | Earth-like | No action
 observability-user-facing | anchor | Climate state / Earth | Absorbed stellar flux | PASS | info | 236.1 W/m2 | 236.1 W/m2 | No action
 observability-user-facing | anchor | Climate state / Earth | Observed dry-body state | PASS | info | Stable | Stable | No action
@@ -331,7 +331,7 @@ stellar-environment | anchor | Stellar environment / Sol | Luminosity fixture | 
 stellar-environment | anchor | Stellar environment / Sol | Equatorial rotation | PASS | info | 23.59 days | 22.00 days to 26.00 days | No action
 stellar-environment | anchor | Stellar environment / Sol | Polar rotation | PASS | info | 33.03 days | 30.00 days to 37.00 days | No action
 stellar-environment | anchor | Stellar environment / Sol | Wind pressure at 1 AU | PASS | info | 0.9989 Earth ratio | 1.000 Earth ratio | No action
-rocky-planets | anchor | Environment coupling / Earth | Magnetopause | PASS | info | 9.930 Earth radii | 8.000 Earth radii to 12.00 Earth radii | No action
+rocky-planets | anchor | Environment coupling / Earth | Magnetopause | PASS | info | 9.940 Earth radii | 8.000 Earth radii to 12.00 Earth radii | No action
 rocky-planets | anchor | Environment coupling / Earth | Surface ocean coverage | PASS | info | 0.7060 fraction | 0.6800 fraction to 0.7400 fraction | Phase 5 implemented: keep Earth ocean coverage as active calibrated row
 rocky-planets | anchor | Environment coupling / Mars | Ancient water timeline cue | PASS | info | true | true | No action
 rocky-planets | anchor | Environment coupling / Jupiter | Variable magnetosphere range | PASS | info | 31.60 Jupiter radii | 20.00 Jupiter radii to 120.0 Jupiter radii | No action
@@ -404,7 +404,7 @@ observability-user-facing | population | Science calibration fixture set | Fixtu
 habitability-biosignatures | population | Hostile calibration fixtures | Hostile worlds do not bypass habitability guardrails | PASS | low | Guardrails hold | No obvious hostile world with high habitability index | Review habitability penalties if this fails.
 moons | population | Moon calibration fixture availability | Europa-like and Titan-like worlds exist for downstream suites | PASS | low | Europa-like calibration; Titan-like calibration | Moon fixture worlds present | Keep moon fixtures updated when moon schema changes.
 observability-user-facing | browser | Validation page | Browser regression suite coverage | INFO | info | Covered by npm run test:browser during release verification | Validation page loads matrix artifact and filters rows | Run browser tests before release; investigate any Validation page failure.
-observability-user-facing | release-gate | science:verify | Release verification command | PASS | info | Recorded at 2026-06-20T20:48:35.003Z | PASS before release | No action required.
+observability-user-facing | release-gate | science:verify | Release verification command | PASS | info | Recorded at 2026-06-21T18:31:00.543Z | PASS before release | No action required.
 observability-user-facing | release-gate | check | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | build | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | bundle | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.

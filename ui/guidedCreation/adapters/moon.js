@@ -531,48 +531,70 @@ function getRecipeForArchetype(archetypeId, context = {}) {
   return getRecipeCatalog(context).find((entry) => entry?.id === archetype.recipeId) || null;
 }
 
+const MOON_RECIPE_COMPOSITION_FIELDS = [
+  "compositionMode",
+  "compositionNormalizeMode",
+  "compositionStructureSource",
+  "manualComponentPct",
+  "manualElementPct",
+  "manualTraceElementAbundance",
+  "compositionSuggestionMeta",
+];
+
+function pickRecipeCompositionInputs(source) {
+  const out = {};
+  for (const field of MOON_RECIPE_COMPOSITION_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(source, field)) out[field] = source[field];
+  }
+  return out;
+}
+
 export function buildMoonRecipeApplyInputs(recipeInputs = {}, appearanceRecipeId = null) {
   const source = recipeInputs && typeof recipeInputs === "object" ? recipeInputs : {};
-  return normalizeMoonInputs({
-    massMoon: source.massMoon,
-    densityGcm3: source.densityGcm3,
-    albedo: source.albedo,
-    semiMajorAxisKm: source.semiMajorAxisKm,
-    eccentricity: source.eccentricity,
-    inclinationDeg: source.inclinationDeg,
-    compositionOverride: source.compositionOverride ?? null,
-    initialRotationPeriodHours: source.initialRotationPeriodHours ?? null,
-    hydrosphereMode: source.hydrosphereMode ?? "core",
-    atmosphereMode: source.atmosphereMode ?? "core",
-    orbitalCouplingMode: source.orbitalCouplingMode ?? "core",
-    waterMassFractionPct: source.waterMassFractionPct ?? null,
-    salinityPct: source.salinityPct ?? null,
-    ammoniaPct: source.ammoniaPct ?? null,
-    differentiatedInterior: source.differentiatedInterior ?? null,
-    radioisotopeMode: source.radioisotopeMode ?? "simple",
-    radioisotopeAbundance: source.radioisotopeAbundance ?? null,
-    u238Abundance: source.u238Abundance ?? null,
-    u235Abundance: source.u235Abundance ?? null,
-    th232Abundance: source.th232Abundance ?? null,
-    k40Abundance: source.k40Abundance ?? null,
-    manualSurfacePressureAtm: source.manualSurfacePressureAtm ?? null,
-    n2Pct: source.n2Pct ?? 0,
-    o2Pct: source.o2Pct ?? 0,
-    co2Pct: source.co2Pct ?? 0,
-    arPct: source.arPct ?? 0,
-    h2oPct: source.h2oPct ?? 0,
-    ch4Pct: source.ch4Pct ?? 0,
-    coPct: source.coPct ?? 0,
-    h2Pct: source.h2Pct ?? 0,
-    hePct: source.hePct ?? 0,
-    so2Pct: source.so2Pct ?? 0,
-    nh3Pct: source.nh3Pct ?? 0,
-    forcedEccentricity: source.forcedEccentricity ?? null,
-    manualResonanceGroupId: source.manualResonanceGroupId ?? null,
-    manualResonanceOrder: source.manualResonanceOrder ?? null,
-    manualResonanceRatio: source.manualResonanceRatio ?? null,
-    appearanceRecipeId: appearanceRecipeId ?? source.appearanceRecipeId ?? null,
-  });
+  return normalizeMoonInputs(
+    {
+      massMoon: source.massMoon,
+      densityGcm3: source.densityGcm3,
+      albedo: source.albedo,
+      semiMajorAxisKm: source.semiMajorAxisKm,
+      eccentricity: source.eccentricity,
+      inclinationDeg: source.inclinationDeg,
+      compositionOverride: source.compositionOverride ?? null,
+      initialRotationPeriodHours: source.initialRotationPeriodHours ?? null,
+      hydrosphereMode: source.hydrosphereMode ?? "core",
+      atmosphereMode: source.atmosphereMode ?? "core",
+      orbitalCouplingMode: source.orbitalCouplingMode ?? "core",
+      waterMassFractionPct: source.waterMassFractionPct ?? null,
+      salinityPct: source.salinityPct ?? null,
+      ammoniaPct: source.ammoniaPct ?? null,
+      differentiatedInterior: source.differentiatedInterior ?? null,
+      radioisotopeMode: source.radioisotopeMode ?? "simple",
+      radioisotopeAbundance: source.radioisotopeAbundance ?? null,
+      u238Abundance: source.u238Abundance ?? null,
+      u235Abundance: source.u235Abundance ?? null,
+      th232Abundance: source.th232Abundance ?? null,
+      k40Abundance: source.k40Abundance ?? null,
+      manualSurfacePressureAtm: source.manualSurfacePressureAtm ?? null,
+      n2Pct: source.n2Pct ?? 0,
+      o2Pct: source.o2Pct ?? 0,
+      co2Pct: source.co2Pct ?? 0,
+      arPct: source.arPct ?? 0,
+      h2oPct: source.h2oPct ?? 0,
+      ch4Pct: source.ch4Pct ?? 0,
+      coPct: source.coPct ?? 0,
+      h2Pct: source.h2Pct ?? 0,
+      hePct: source.hePct ?? 0,
+      so2Pct: source.so2Pct ?? 0,
+      nh3Pct: source.nh3Pct ?? 0,
+      forcedEccentricity: source.forcedEccentricity ?? null,
+      manualResonanceGroupId: source.manualResonanceGroupId ?? null,
+      manualResonanceOrder: source.manualResonanceOrder ?? null,
+      manualResonanceRatio: source.manualResonanceRatio ?? null,
+      ...pickRecipeCompositionInputs(source),
+      appearanceRecipeId: appearanceRecipeId ?? source.appearanceRecipeId ?? null,
+    },
+    { includeCompositionDefaults: false },
+  );
 }
 
 function pushDiagnostic(list, severity, code, title, detail, suggestedActions = []) {

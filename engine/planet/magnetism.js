@@ -1,4 +1,5 @@
 import { fmt } from "../utils.js";
+import { buildRockyBodyCompositionCoupling } from "../compositionCoupling.js";
 
 function rawFieldStrength(cmf, densityGcm3, radiusEarth, massEarth, convBoost) {
   const coreRadiusFraction = Math.sqrt(cmf);
@@ -32,7 +33,9 @@ export function magneticFieldModel({
   ageGyr,
   tidalFraction = 0,
   radioisotopeAbundance = 1,
+  rockyBodyComposition = null,
 }) {
+  const compositionCoupling = buildRockyBodyCompositionCoupling(rockyBodyComposition);
   const none = {
     dynamoActive: false,
     dynamoReason: "",
@@ -69,6 +72,13 @@ export function magneticFieldModel({
 
   let surfaceFieldEarths = rawFieldStrength(cmf, densityGcm3, radiusEarth, massEarth, convBoost);
   surfaceFieldEarths /= EARTH_RAW_FIELD;
+  const compositionFieldFactor = compositionCoupling.available
+    ? Math.max(
+        0.85,
+        Math.min(1.15, 0.85 + 0.15 * compositionCoupling.interior.ironNickelRelativeToEarth),
+      )
+    : 1;
+  surfaceFieldEarths *= compositionFieldFactor;
 
   const dipolarLimit = 96 * Math.sqrt(massEarth) * Math.sqrt(cmf / 0.33);
   const multipolarLimit = dipolarLimit * 50;
@@ -115,5 +125,15 @@ export function magneticFieldModel({
     fieldMorphology: isDipolar ? "dipolar" : "multipolar",
     surfaceFieldEarths,
     fieldLabel,
+    compositionFieldFactor,
+    compositionMagneticContext: compositionCoupling.available
+      ? {
+          modelVersion: compositionCoupling.modelVersion,
+          coreMetalScore: compositionCoupling.interior.coreMetalScore,
+          ironNickelFraction: compositionCoupling.interior.ironNickelFraction,
+          ironNickelRelativeToEarth: compositionCoupling.interior.ironNickelRelativeToEarth,
+          caveats: compositionCoupling.caveats,
+        }
+      : null,
   };
 }

@@ -5,6 +5,7 @@
 
 import { normalizeMoonInputs } from "../../../engine/moon/config.js";
 import { normalizeRingStyleId } from "../../ringAppearanceProfiles.js";
+import { withCompositionInventoryDefaults } from "../compositionInventoryInputs.js";
 import { normalizeGasGiant } from "../gasGiantModel.js";
 import { getGasGiants, makeCollection } from "../systemCollections.js";
 import {
@@ -45,30 +46,31 @@ export function applyCompatibilityStarShape(world) {
 export function ensureLegacyPlanetCollection(world, defaultHostFrameId) {
   if (!world.planets || !world.planets.byId) {
     const legacyInputs = world.planet ? { ...world.planet } : null;
+    const defaultPlanetInputs = withCompositionInventoryDefaults({
+      name: "New Planet",
+      semiMajorAxisAu: 1.0,
+      eccentricity: 0.0167,
+      inclinationDeg: 0.0,
+      longitudeOfPeriapsisDeg: 283.0,
+      subsolarLongitudeDeg: 0.0,
+      rotationPeriodHours: 24.0,
+      axialTiltDeg: 23.44,
+      massEarth: 1.0,
+      cmfPct: -1,
+      albedoBond: 0.3,
+      greenhouseEffect: 1.65,
+      observerHeightM: 1.75,
+      pressureAtm: 1.0,
+      o2Pct: 20.95,
+      co2Pct: 0.04,
+      arPct: 0.93,
+    });
     const p1 = {
       id: "p1",
       name: legacyInputs?.name || "New Planet",
       slotIndex: null,
       locked: false,
-      inputs: legacyInputs || {
-        name: "New Planet",
-        semiMajorAxisAu: 1.0,
-        eccentricity: 0.0167,
-        inclinationDeg: 0.0,
-        longitudeOfPeriapsisDeg: 283.0,
-        subsolarLongitudeDeg: 0.0,
-        rotationPeriodHours: 24.0,
-        axialTiltDeg: 23.44,
-        massEarth: 1.0,
-        cmfPct: -1,
-        albedoBond: 0.3,
-        greenhouseEffect: 1.65,
-        observerHeightM: 1.75,
-        pressureAtm: 1.0,
-        o2Pct: 20.95,
-        co2Pct: 0.04,
-        arPct: 0.93,
-      },
+      inputs: withCompositionInventoryDefaults(legacyInputs || defaultPlanetInputs),
     };
     world.planets = { selectedId: "p1", order: ["p1"], byId: { p1 } };
     world.version = SCHEMA_VERSION;
@@ -83,6 +85,7 @@ export function ensureLegacyPlanetCollection(world, defaultHostFrameId) {
       const planet = world.planets.byId[planetId];
       if (!planet) continue;
       if (!planet.inputs) planet.inputs = {};
+      planet.inputs = withCompositionInventoryDefaults(planet.inputs);
       if (!planet.name) planet.name = planet.inputs.name || "New Planet";
       if (!planet.inputs.name) planet.inputs.name = planet.name;
       const hostFrameId = String(planet.hostFrameId ?? "").trim();
@@ -215,6 +218,7 @@ export function normalizeLegacyPlanetInputs(world) {
       if (inputs.u235Abundance === undefined) inputs.u235Abundance = null;
       if (inputs.th232Abundance === undefined) inputs.th232Abundance = null;
       if (inputs.k40Abundance === undefined) inputs.k40Abundance = null;
+      Object.assign(inputs, withCompositionInventoryDefaults(inputs));
     }
   }
 
@@ -231,6 +235,7 @@ export function normalizeLegacyPlanetInputs(world) {
     if (world.planet.u235Abundance === undefined) world.planet.u235Abundance = null;
     if (world.planet.th232Abundance === undefined) world.planet.th232Abundance = null;
     if (world.planet.k40Abundance === undefined) world.planet.k40Abundance = null;
+    Object.assign(world.planet, withCompositionInventoryDefaults(world.planet));
   }
 
   return world;

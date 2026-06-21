@@ -1,4 +1,5 @@
 import { clamp, round, toFinite } from "../utils.js";
+import { buildRockyBodyCompositionCoupling } from "../compositionCoupling.js";
 
 function classifyShieldingClass(shieldingFraction) {
   const shielding = clamp(toFinite(shieldingFraction, 0), 0, 1);
@@ -31,11 +32,22 @@ export function computeMoonMagnetosphere({
   parentSurfaceFieldEarths = 0,
   insideParentMagnetosphere = false,
   lShell = Infinity,
+  rockyBodyComposition = null,
 } = {}) {
+  const compositionCoupling = buildRockyBodyCompositionCoupling(rockyBodyComposition);
   const diffScore = differentiationScore({ differentiatedInterior, densityGcm3 });
   const massScore = clamp((Math.max(toFinite(massMoon, 0), 0) - 0.75) / 1.75, 0, 1);
   const heatScore = clamp((Math.max(toFinite(internalHeatFluxWm2, 0), 0) - 0.0015) / 0.03, 0, 1);
-  const coreProxyScore = diffScore * clamp(0.35 + massScore * 0.65, 0, 1);
+  const compositionCoreScore = clamp(
+    toFinite(compositionCoupling.interior?.coreMetalScore, 0),
+    0,
+    1,
+  );
+  const baseCoreProxyScore = diffScore * clamp(0.35 + massScore * 0.65, 0, 1);
+  const compositionCoreProxyScore = compositionCoupling.available
+    ? compositionCoreScore * clamp(0.32 + diffScore * 0.46 + massScore * 0.22, 0, 1)
+    : 0;
+  const coreProxyScore = Math.max(baseCoreProxyScore, compositionCoreProxyScore);
   const activityBoost = clamp(
     Math.max(toFinite(tidalHeatingWm2, 0), 0) * 18 +
       Math.max(toFinite(radiogenicHeatingWm2, 0), 0) * 8,
@@ -47,7 +59,8 @@ export function computeMoonMagnetosphere({
       massScore * 0.22 +
       coreProxyScore * 0.2 +
       heatScore * 0.12 +
-      activityBoost * 0.06,
+      activityBoost * 0.06 +
+      (compositionCoupling.available ? compositionCoreScore * 0.04 : 0),
     0,
     1,
   );
@@ -56,11 +69,16 @@ export function computeMoonMagnetosphere({
     ? round(clamp(0.03 + intrinsicFieldScore * 0.22, 0, 0.3), 4)
     : 0;
 
+  const compositionConductivityBoost = compositionCoupling.available
+    ? 0.22 * clamp(toFinite(compositionCoupling.reservoirScores?.salt, 0), 0, 1) +
+      0.08 * clamp(toFinite(compositionCoupling.reservoirScores?.sulfur, 0), 0, 1)
+    : 0;
   const oceanConductivityScore = subsurfaceOceanPresent
     ? clamp(
         0.45 +
           Math.max(toFinite(salinityPct, 0), 0) / 45 +
-          Math.max(toFinite(ammoniaPct, 0), 0) / 90,
+          Math.max(toFinite(ammoniaPct, 0), 0) / 90 +
+          compositionConductivityBoost,
         0,
         1,
       )
@@ -101,6 +119,12 @@ export function computeMoonMagnetosphere({
       : subsurfaceOceanPresent
         ? "A subsurface ocean may exist, but the current parent field or conductivity signal is too weak for strong induced shielding."
         : "No conductive subsurface ocean is available for induced magnetic shielding.",
+    compositionCoupling.available && compositionCoreScore >= 0.5
+      ? "Metal and Fe/Ni inventory increase the bounded core proxy without replacing differentiation constraints."
+      : "",
+    compositionCoupling.available && compositionConductivityBoost > 0.04
+      ? "Salt and sulfur inventory increase the induced-ocean conductivity proxy."
+      : "",
   ]);
 
   return {
@@ -108,13 +132,26 @@ export function computeMoonMagnetosphere({
     intrinsicFieldPlausible,
     intrinsicFieldScore: round(intrinsicFieldScore, 4),
     intrinsicFieldStrengthRelEarth,
+    compositionCoreScore: round(compositionCoreScore, 3),
     inducedFieldPlausible,
     inducedFieldScore: round(inducedFieldScore, 4),
     inducedFieldStrengthRelEarth,
+    oceanConductivityCompositionBoost: round(compositionConductivityBoost, 4),
     intrinsicFieldShielding,
     inducedFieldShielding,
     combinedShieldingFraction,
     shieldingClass: classifyShieldingClass(combinedShieldingFraction),
+    compositionMagneticContext: compositionCoupling.available
+      ? {
+          modelVersion: compositionCoupling.modelVersion,
+          coreMetalScore: round(compositionCoreScore, 3),
+          ironNickelFraction: compositionCoupling.interior.ironNickelFraction,
+          saltScore: compositionCoupling.reservoirScores.salt,
+          sulfurScore: compositionCoupling.reservoirScores.sulfur,
+          conductivityBoost: round(compositionConductivityBoost, 4),
+          caveats: compositionCoupling.caveats,
+        }
+      : null,
     rationale,
   };
 }

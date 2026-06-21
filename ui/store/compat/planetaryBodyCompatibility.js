@@ -1,4 +1,8 @@
 import { classifyPlanetaryBody } from "../../../engine/planetaryClassification.js";
+import {
+  normalizeCompositionInventoryInputs,
+  normalizePresentCompositionInventoryInputs,
+} from "../compositionInventoryInputs.js";
 import { normalizeGasGiant } from "../gasGiantModel.js";
 import {
   PLANETARY_BODY_STORAGE_VERSION,
@@ -139,7 +143,10 @@ function fieldOrFallback(source, key, fallback) {
 }
 
 function normalizeCompositionEvidence(source) {
-  return optionalEvidenceFields(source, ["carbonRichness"], normalizeOptionalScalar);
+  return {
+    ...optionalEvidenceFields(source, ["carbonRichness"], normalizeOptionalScalar),
+    ...normalizePresentCompositionInventoryInputs(source),
+  };
 }
 
 function normalizeDensityEvidence(source) {
@@ -408,6 +415,7 @@ export function planetFromRockyEntry(planet, idx = 1, options = {}) {
       cmfPct: finiteOrNull(inputs.cmfPct),
       wmfPct: finiteOrDefault(inputs.wmfPct, 0),
       hHeEnvelopeMassPct: finiteOrNull(inputs.hHeEnvelopeMassPct),
+      ...normalizeCompositionInventoryInputs(inputs),
       ...normalizeCompositionEvidence(inputs),
       ...normalizeDensityEvidence(inputs),
     },
@@ -697,6 +705,10 @@ export function rockyEntryFromPlanetaryBody(body, idx = 1) {
       "bulkDensityGcm3",
       legacyInputs.bulkDensityGcm3,
     ),
+    ...normalizeCompositionInventoryInputs({
+      ...legacyInputs,
+      ...normalizePresentCompositionInventoryInputs(normalized.composition),
+    }),
     albedoBond: normalized.thermal?.albedoBond ?? legacyInputs.albedoBond,
     internalHeatFluxWm2: fieldOrFallback(
       normalized.thermal,
