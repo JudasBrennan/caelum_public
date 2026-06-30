@@ -1,6 +1,10 @@
 import { calcMoonExact } from "../moon.js";
 import { toFinite } from "../utils.js";
-import { normalizeMoonInputs } from "./config.js";
+import {
+  moonOriginPathwayLabel,
+  normalizeMoonInputs,
+  normalizeMoonOriginPathway,
+} from "./config.js";
 import { computeMoonStabilityLimits } from "./orbit.js";
 import {
   classifyMigrationTrendState,
@@ -74,18 +78,78 @@ function buildTidalHabitableZone({
   };
 }
 
-function classifyFormation({ parentKind, moonInputs, parentOverride, nearestResonance }) {
-  const inclination = Math.max(toFinite(moonInputs?.inclinationDeg, 0), 0);
-  const semiMajorAxisKm = Math.max(toFinite(moonInputs?.semiMajorAxisKm, 0), 0);
-  const parentRadiusKm =
-    Math.max(toFinite(parentOverride?.derived?.radiusEarth, 0), 0.01) * EARTH_RADIUS_KM;
-  const semiMajorAxisRp = parentRadiusKm > 0 ? semiMajorAxisKm / parentRadiusKm : Infinity;
-  const moonMassEarth = Math.max(toFinite(moonInputs?.massMoon, 0), 0) * LUNAR_MASS_IN_EARTH;
-  const parentMassEarth = Math.max(toFinite(parentOverride?.inputs?.massEarth, 0), 0.001);
-  const massRatio = moonMassEarth / parentMassEarth;
+function timelineEffectsForPathway(pathwayId) {
+  switch (pathwayId) {
+    case "circumplanetaryDisk":
+      return {
+        earlyTidalHeatingPulse: "possible",
+        initialEccentricityBias: "low",
+        inclinationExpectation: "regular",
+        volatileRetentionBias: "icyBias",
+        resonanceLikelihood: "high",
+      };
+    case "giantImpactDebrisDisk":
+      return {
+        earlyTidalHeatingPulse: "strong",
+        initialEccentricityBias: "medium",
+        inclinationExpectation: "regular",
+        volatileRetentionBias: "lossRisk",
+        resonanceLikelihood: "medium",
+      };
+    case "capturedIrregular":
+      return {
+        earlyTidalHeatingPulse: "possible",
+        initialEccentricityBias: "high",
+        inclinationExpectation: "irregular",
+        volatileRetentionBias: "neutral",
+        resonanceLikelihood: "low",
+      };
+    case "binaryExchangeCapture":
+      return {
+        earlyTidalHeatingPulse: "strong",
+        initialEccentricityBias: "high",
+        inclinationExpectation: "irregular",
+        volatileRetentionBias: "lossRisk",
+        resonanceLikelihood: "low",
+      };
+    case "coformedCompanion":
+      return {
+        earlyTidalHeatingPulse: "none",
+        initialEccentricityBias: "low",
+        inclinationExpectation: "regular",
+        volatileRetentionBias: "neutral",
+        resonanceLikelihood: "medium",
+      };
+    case "tidalDisruptionReaccretion":
+      return {
+        earlyTidalHeatingPulse: "strong",
+        initialEccentricityBias: "medium",
+        inclinationExpectation: "regular",
+        volatileRetentionBias: "lossRisk",
+        resonanceLikelihood: "medium",
+      };
+    case "unknown":
+    default:
+      return {
+        earlyTidalHeatingPulse: "possible",
+        initialEccentricityBias: "medium",
+        inclinationExpectation: "irregular",
+        volatileRetentionBias: "neutral",
+        resonanceLikelihood: "medium",
+      };
+  }
+}
 
+function inferFormationPathway({
+  parentKind,
+  inclination,
+  semiMajorAxisRp,
+  massRatio,
+  nearestResonance,
+}) {
   if (inclination > 90 || semiMajorAxisRp > 65 || inclination > 35) {
     return {
+      pathwayId: "capturedIrregular",
       scenarioLabel: "Captured irregular",
       confidence: 0.82,
       rationale:
@@ -94,6 +158,7 @@ function classifyFormation({ parentKind, moonInputs, parentOverride, nearestReso
   }
   if (parentKind === "planet" && massRatio >= 0.006) {
     return {
+      pathwayId: "giantImpactDebrisDisk",
       scenarioLabel: "Impact-formed major moon",
       confidence: 0.74,
       rationale:
@@ -101,21 +166,178 @@ function classifyFormation({ parentKind, moonInputs, parentOverride, nearestReso
     };
   }
   if (parentKind === "gasGiant" && semiMajorAxisRp <= 30 && inclination <= 10) {
+    const resonant = nearestResonance?.offsetPct <= 2.5;
     return {
-      scenarioLabel:
-        nearestResonance?.offsetPct <= 2.5 ? "Resonant regular moon" : "Co-accreted regular moon",
-      confidence: nearestResonance?.offsetPct <= 2.5 ? 0.78 : 0.7,
-      rationale:
-        nearestResonance?.offsetPct <= 2.5
-          ? "A low-inclination regular moon in a near resonance fits migration and resonance locking in a circumplanetary disk."
-          : "A close, prograde, low-inclination moon around a giant planet is consistent with formation in a circumplanetary disk.",
+      pathwayId: "circumplanetaryDisk",
+      scenarioLabel: resonant ? "Resonant regular moon" : "Co-accreted regular moon",
+      confidence: resonant ? 0.78 : 0.7,
+      rationale: resonant
+        ? "A low-inclination regular moon in a near resonance fits migration and resonance locking in a circumplanetary disk."
+        : "A close, prograde, low-inclination moon around a giant planet is consistent with formation in a circumplanetary disk.",
     };
   }
   return {
+    pathwayId: "unknown",
     scenarioLabel: "Disk-accreted moon",
     confidence: 0.55,
     rationale:
       "The orbit is regular enough to fit in-system accretion, but the formation pathway is not strongly constrained.",
+  };
+}
+
+function consistencyWarningsForPathway({
+  pathwayId,
+  parentKind,
+  inclination,
+  eccentricity,
+  semiMajorAxisRp,
+  massRatio,
+}) {
+  const warnings = [];
+  const push = (code, message) => warnings.push({ code, message });
+  const regularCloseOrbit = inclination <= 10 && eccentricity <= 0.05 && semiMajorAxisRp <= 25;
+
+  if (pathwayId === "capturedIrregular" && regularCloseOrbit) {
+    push(
+      "CAPTURED_ORIGIN_REGULAR_ORBIT",
+      "Captured irregular origin is possible, but the current orbit is close, circular, and low-inclination.",
+    );
+  }
+  if (pathwayId === "giantImpactDebrisDisk" && parentKind !== "planet") {
+    push(
+      "GIANT_IMPACT_NON_ROCKY_PARENT",
+      "Giant-impact debris moons are primarily a rocky-parent pathway; this parent context lowers confidence.",
+    );
+  }
+  if (pathwayId === "circumplanetaryDisk" && (inclination > 35 || inclination > 90)) {
+    push(
+      "DISK_ORIGIN_IRREGULAR_ORBIT",
+      "Circumplanetary disk moons are expected to be prograde and low-inclination, so this orbit lowers confidence.",
+    );
+  }
+  if (pathwayId === "binaryExchangeCapture" && massRatio < 0.0005) {
+    push(
+      "BINARY_CAPTURE_TINY_MOON",
+      "Binary-exchange capture is usually invoked for large captured moons; a tiny moon is allowed but weakly constrained.",
+    );
+  }
+  if (pathwayId === "tidalDisruptionReaccretion" && semiMajorAxisRp > 8) {
+    push(
+      "REACCRETION_OUTSIDE_ROCHE_CONTEXT",
+      "Tidal-disruption reaccretion is strongest near Roche-limit or ring contexts; this orbit is relatively distant.",
+    );
+  }
+  if (pathwayId === "coformedCompanion" && parentKind === "planet" && massRatio < 0.003) {
+    push(
+      "COFORMED_LOW_MASS_RATIO",
+      "Co-formed companion history is weaker for ordinary low-mass planet moons than for binary or substellar companions.",
+    );
+  }
+
+  return warnings;
+}
+
+function confidenceAfterWarnings(confidence, warnings) {
+  const penalty = Math.min(0.35, (warnings?.length || 0) * 0.14);
+  return Math.max(0.15, Math.round((confidence - penalty) * 100) / 100);
+}
+
+function selectedPathwayBase(pathwayId) {
+  const label = moonOriginPathwayLabel(pathwayId);
+  switch (pathwayId) {
+    case "circumplanetaryDisk":
+      return {
+        scenarioLabel: label,
+        confidence: 0.72,
+        rationale:
+          "User selected a regular moon origin in a circumplanetary disk; current geometry is used only as a consistency check.",
+      };
+    case "giantImpactDebrisDisk":
+      return {
+        scenarioLabel: label,
+        confidence: 0.7,
+        rationale:
+          "User selected a Luna-style giant-impact debris origin; the app treats this as an authored prior.",
+      };
+    case "capturedIrregular":
+      return {
+        scenarioLabel: label,
+        confidence: 0.66,
+        rationale:
+          "User selected capture; current inclination, eccentricity, and distance are used as consistency checks.",
+      };
+    case "binaryExchangeCapture":
+      return {
+        scenarioLabel: label,
+        confidence: 0.58,
+        rationale:
+          "User selected binary-exchange capture; this is a prior for large captured moons, not a solved encounter.",
+      };
+    case "coformedCompanion":
+      return {
+        scenarioLabel: label,
+        confidence: 0.56,
+        rationale:
+          "User selected co-formation; the app treats this as an authored companion-origin prior.",
+      };
+    case "tidalDisruptionReaccretion":
+      return {
+        scenarioLabel: label,
+        confidence: 0.55,
+        rationale:
+          "User selected tidal-disruption reaccretion; the app does not simulate the ring or debris event.",
+      };
+    case "unknown":
+    default:
+      return {
+        scenarioLabel: label,
+        confidence: 0.35,
+        rationale:
+          "User left the origin unconstrained, so the lifecycle timeline uses broad low-confidence origin language.",
+      };
+  }
+}
+
+export function classifyFormation({ parentKind, moonInputs, parentOverride, nearestResonance }) {
+  const inclination = Math.max(toFinite(moonInputs?.inclinationDeg, 0), 0);
+  const eccentricity = Math.max(toFinite(moonInputs?.eccentricity, 0), 0);
+  const semiMajorAxisKm = Math.max(toFinite(moonInputs?.semiMajorAxisKm, 0), 0);
+  const parentRadiusKm =
+    Math.max(toFinite(parentOverride?.derived?.radiusEarth, 0), 0.01) * EARTH_RADIUS_KM;
+  const semiMajorAxisRp = parentRadiusKm > 0 ? semiMajorAxisKm / parentRadiusKm : Infinity;
+  const moonMassEarth = Math.max(toFinite(moonInputs?.massMoon, 0), 0) * LUNAR_MASS_IN_EARTH;
+  const parentMassEarth = Math.max(toFinite(parentOverride?.inputs?.massEarth, 0), 0.001);
+  const massRatio = moonMassEarth / parentMassEarth;
+  const requestedPathway = normalizeMoonOriginPathway(moonInputs?.originPathway);
+  const base =
+    requestedPathway === "auto"
+      ? inferFormationPathway({
+          parentKind,
+          inclination,
+          semiMajorAxisRp,
+          massRatio,
+          nearestResonance,
+        })
+      : { pathwayId: requestedPathway, ...selectedPathwayBase(requestedPathway) };
+  const warnings = consistencyWarningsForPathway({
+    pathwayId: base.pathwayId,
+    parentKind,
+    inclination,
+    eccentricity,
+    semiMajorAxisRp,
+    massRatio,
+  });
+
+  return {
+    pathwayId: base.pathwayId,
+    pathwayLabel: moonOriginPathwayLabel(base.pathwayId),
+    scenarioLabel: base.scenarioLabel,
+    confidence: confidenceAfterWarnings(base.confidence, warnings),
+    source: requestedPathway === "auto" ? "inferred" : "user",
+    rationale: base.rationale,
+    consistencyWarnings: warnings,
+    warningMessages: warnings.map((warning) => warning.message),
+    timelineEffects: timelineEffectsForPathway(base.pathwayId),
   };
 }
 

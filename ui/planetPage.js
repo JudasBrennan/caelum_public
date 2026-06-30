@@ -365,6 +365,7 @@ export function initPlanetPage(mountEl, options = {}) {
       const bodyId = addMoonBtn.dataset.bodyId || "";
       const defaults = {
         name: "Luna",
+        originPathway: "auto",
         semiMajorAxisKm: bodyType === "gasGiant" ? 500000 : 384748,
         eccentricity: bodyType === "gasGiant" ? 0.01 : 0.055,
         inclinationDeg: bodyType === "gasGiant" ? 1 : 5.15,
@@ -2382,6 +2383,9 @@ export function initPlanetPage(mountEl, options = {}) {
     );
     const eraTimelineSection = createEraTimelineSection(d.eraTimeline, {
       id: "planet-era-timeline",
+      title: "Lifecycle Timeline",
+      panelTitle: "Lifecycle Timeline",
+      subtitle: "Formation, current environment, future windows, and broad endpoint context.",
     });
     const derivedDetails = createDerivedDetails(
       [
@@ -3114,6 +3118,9 @@ export function initPlanetPage(mountEl, options = {}) {
 
     const eraTimelineSection = createEraTimelineSection(model.derived?.eraTimeline, {
       id: "planet-era-timeline",
+      title: "Lifecycle Timeline",
+      panelTitle: "Lifecycle Timeline",
+      subtitle: "Formation, current environment, future windows, and broad endpoint context.",
     });
 
     const longTermDynamicsSection = buildLongTermDynamicsSection(world, body?.id);

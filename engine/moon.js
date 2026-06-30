@@ -18,7 +18,11 @@ import {
   formatOceanPhaseDiagnostics,
 } from "./habitability/oceanPhaseDisplay.js";
 import { computeMoonClimate } from "./moon/climate.js";
-import { normalizeMoonInputs, resolveMoonRadioisotopeAbundance } from "./moon/config.js";
+import {
+  moonOriginPathwayLabel,
+  normalizeMoonInputs,
+  resolveMoonRadioisotopeAbundance,
+} from "./moon/config.js";
 import { computeMoonIllumination } from "./moon/illumination.js";
 import { computeMoonGeology } from "./moon/geology.js";
 import { computeMoonBiosphere } from "./moon/biosphere.js";
@@ -34,10 +38,13 @@ import {
 import { buildEclipseTimingContext } from "./contexts/eclipseTimingContext.js";
 import { buildImpactEnvironmentContext } from "./contexts/impactEnvironmentContext.js";
 import { buildInteriorEvolutionContext } from "./contexts/interiorEvolutionContext.js";
+import { buildMoonGeodynamicsContext } from "./contexts/moonGeodynamicsContext.js";
 import { buildMoonOrientationContext } from "./contexts/moonOrientationContext.js";
 import { buildTidalStressMorphologyContext } from "./contexts/secularStressContext.js";
 import { buildStellarHistoryDoseContext } from "./contexts/stellarHistoryDoseContext.js";
 import { calcPlanetExact } from "./planet.js";
+import { buildSolidBodyResponse } from "./physics/solidBodyResponse.js";
+import { solveSolidBodyStructure } from "./physics/solidBodyStructure.js";
 import { calcStar, massToLuminosity, massToRadius } from "./star.js";
 import { buildPlanetaryEraTimelineForMoon } from "./planetaryEraTimeline.js";
 import {
@@ -741,32 +748,6 @@ function buildMoonStabilityContextForHabitabilityBridge(orbit = {}) {
   };
 }
 
-function buildMoonImpactGeodynamicsContext(geology = {}, hydrosphere = {}) {
-  const resurfacingClass = String(geology?.resurfacingClass || "").toLowerCase();
-  const resurfacingPotentialClass =
-    resurfacingClass.includes("intense") || resurfacingClass.includes("active")
-      ? "active"
-      : resurfacingClass.includes("localized")
-        ? "moderate"
-        : resurfacingClass.includes("inactive")
-          ? "limited"
-          : "ancient";
-  const surfaceLiquid = clamp(
-    toFinite(hydrosphere?.surfaceAccessibleLiquidFraction ?? hydrosphere?.liquidOceanFraction, 0),
-    0,
-    1,
-  );
-  const erosionPotentialClass =
-    surfaceLiquid >= 0.45 ? "moderate" : surfaceLiquid >= 0.08 ? "weak" : "minimal";
-  return {
-    modelVersion: "moon-impact-geodynamics-bridge-v1",
-    outputs: {
-      resurfacingPotentialClass,
-      erosionPotentialClass,
-    },
-  };
-}
-
 function buildMoonSummaryResult({
   hostFrame,
   mStarMsol,
@@ -817,6 +798,9 @@ function buildMoonSummaryResult({
   tides,
   compositionClass,
   rockyBodyComposition,
+  solidBodyStructure,
+  solidBodyResponse,
+  moonGeodynamicsContext,
   resonance,
   formation,
   surfaceExomoonCalibration,
@@ -856,11 +840,14 @@ function buildMoonSummaryResult({
       initialRotationPeriodHours: initialRotHours,
       compositionOverride: compositionOverride || null,
       compositionMode: rockyBodyComposition?.compositionMode || "inferred",
+      originPathway: formation?.pathwayId || "auto",
     },
     physical: {
       radiusMoon: rMoonRM,
       gravityG: gMoonG,
       escapeVelocityKmS: vEscKmS,
+      solidBodyStructure,
+      solidBodyResponse,
       surfaceFieldEarths: magnetosphere?.intrinsicFieldStrengthRelEarth || 0,
       effectiveCoreMassFraction: rockyBodyComposition?.effectiveCoreMassFraction,
       effectiveCoreMassFractionPct: rockyBodyComposition?.effectiveCoreMassFractionPct,
@@ -908,6 +895,8 @@ function buildMoonSummaryResult({
     },
     atmosphere: {
       atmosphereClass: atmosphere.atmosphereClass,
+      atmosphereRegime: atmosphere.atmosphereRegime,
+      atmosphereRegimeLabel: classLabel(atmosphere.atmosphereRegime, "Unknown"),
       sourceClass: atmosphere.sourceClass,
       surfacePressurePa: atmosphere.surfacePressurePa,
       compositionSummary: atmosphere.compositionSummary,
@@ -931,6 +920,7 @@ function buildMoonSummaryResult({
       co2ClimateTendencyContext,
       smallBodyReservoirContext,
       interiorEvolutionContext,
+      moonGeodynamicsContext,
       carbonCycleContext,
       oceanChemistryContext,
       nitrogenCycleContext,
@@ -950,6 +940,11 @@ function buildMoonSummaryResult({
       compositionClass: compositionClass || null,
       tidalRegime: tides.tidalRegime,
       smallBodyRegime: tides.smallBodyRegime,
+      baseQMoon: tides.baseQMoon,
+      baseRigidityMoonGPa: tides.baseRigidityMoonGPa,
+      moonMomentOfInertiaFactor: tides.moonMomentOfInertiaFactor,
+      solidBodyResponse: tides.solidBodyResponse,
+      solidBodyStructureClass: tides.solidBodyStructureClass,
       k2Model: tides.k2Model,
       qModel: tides.qModel,
       qPlanet: tides.qPlanet,
@@ -973,6 +968,9 @@ function buildMoonSummaryResult({
     derived: {
       exosphere: surfaceBoundaryExosphere,
       rockyBodyComposition,
+      solidBodyStructure,
+      solidBodyResponse,
+      moonGeodynamicsContext,
       componentMassFractions: rockyBodyComposition?.componentMassFractions,
       elementMassFractions: rockyBodyComposition?.elementMassFractions,
       compositionMode: rockyBodyComposition?.compositionMode,
@@ -989,6 +987,7 @@ function buildMoonSummaryResult({
         solventPathway: unifiedMoonHabitability.breakdown.solventPathway,
       },
       hydrosphere,
+      moonGeodynamicsContext,
       dynamicalPersistence: dynamicalHabitabilityBridge,
       coupledClimatePass,
       impactEnvironmentContext,
@@ -1098,6 +1097,16 @@ function buildMoonSummaryResult({
       dynamicalPersistenceConfidence: dynamicalHabitabilityBridge?.confidence || "unknown",
       tidalRegime: tides.tidalRegime || "regular moon",
       tidalResponseModel: tides.k2Model || "homogeneous-elastic-moon-v1",
+      solidBodyStructure: classLabel(solidBodyStructure?.structureClass, "Not evaluated"),
+      compactnessClass: classLabel(solidBodyStructure?.compactnessClass, "Not evaluated"),
+      moonGeodynamics: classLabel(
+        moonGeodynamicsContext?.outputs?.dominantProcess,
+        "Not evaluated",
+      ),
+      dynamoSummary: classLabel(
+        magnetosphere?.dynamoContext?.dynamoPlausibilityClass,
+        "Not evaluated",
+      ),
       tidalUncertaintyCaveats: Array.isArray(tides.tidalUncertaintyCaveats)
         ? tides.tidalUncertaintyCaveats.join(" | ")
         : "",
@@ -1308,6 +1317,30 @@ export function calcMoonExact({
     0,
     0.9,
   );
+  const preliminaryMoonCoreMassFraction = inferMoonCoreMassFraction({
+    densityGcm3: rhoMoonGcm3,
+    compositionClass: moonComposition?.compositionClass || moonInputs.compositionOverride,
+    differentiatedInterior: moonInputs.differentiatedInterior,
+  });
+  const solidBodyStructure = solveSolidBodyStructure({
+    bodyType: "moon",
+    massMoon: mMoonMM,
+    radiusMoon: rMoonRM,
+    densityGcm3: rhoMoonGcm3,
+    componentMassFractions: moonComposition?.componentMassFractions,
+    elementMassFractions: moonComposition?.elementMassFractions,
+    differentiatedInterior: moonInputs.differentiatedInterior,
+    compositionClass: moonComposition?.compositionClass,
+    compositionOverride: moonInputs.compositionOverride,
+    coreMassFraction: toFinite(moonComposition?.coreMassFraction, preliminaryMoonCoreMassFraction),
+  });
+  const initialSolidBodyResponse = buildSolidBodyResponse({
+    densityKgM3: rhoMoonGcm3 * 1000,
+    gravityMs2: gMoonG * 9.81,
+    radiusM: rMoonRM * 1737.4e3,
+    composition: moonComposition,
+    solidBodyStructure,
+  });
   const effectiveMoonWaterMassFractionPct = compositionDrivenMoonInventory
     ? moonEffectiveWaterMassFraction * 100
     : moonInputs.waterMassFractionPct;
@@ -1354,7 +1387,7 @@ export function calcMoonExact({
     moonMassMoon: mMoonMM,
     moonDensityGcm3: rhoMoonGcm3,
     moonRadiusMoon: rMoonRM,
-    moonRigidityPa: moonComposition?.mu,
+    moonRigidityPa: initialSolidBodyResponse.rigidityPa || moonComposition?.mu,
     moonCompositionClass: moonComposition?.compositionClass || moonInputs.compositionOverride,
     moonSemiMajorAxisKmInput: aMoonKmInput,
     moonEccentricity: eMoon,
@@ -1383,6 +1416,8 @@ export function calcMoonExact({
     orbitalDirection: orbit.orbitalDirection,
     composition: moonComposition,
     hasCompositionOverride: Boolean(moonInputs.compositionOverride),
+    solidBodyStructure,
+    solidBodyResponse: initialSolidBodyResponse,
     innerFateTargetLabel:
       orbit.effectiveInnerLimitKind === "collision" ? "parent collision boundary" : "Roche limit",
   });
@@ -1630,6 +1665,16 @@ export function calcMoonExact({
     ammoniaPct: moonInputs.ammoniaPct,
     differentiatedInterior: moonInputs.differentiatedInterior,
     tidalPersistenceContext,
+    rockyBodyComposition: moonComposition,
+    solidBodyStructure,
+  });
+  const solidBodyResponse = buildSolidBodyResponse({
+    densityKgM3: rhoMoonGcm3 * 1000,
+    gravityMs2: gMoonG * 9.81,
+    radiusM: rMoonRM * 1737.4e3,
+    composition: moonComposition,
+    solidBodyStructure,
+    hydrosphere,
   });
   const climate = computeMoonClimate({
     surfaceTempK: temperature.surfaceK,
@@ -1657,6 +1702,8 @@ export function calcMoonExact({
     hydrosphere,
     tidalPersistenceContext,
     rockyBodyComposition: moonComposition,
+    solidBodyStructure,
+    solidBodyResponse,
   });
   const dynamicalHabitabilityBridge = buildHabitabilityPersistenceBridge({
     bodyKind: "moon",
@@ -1689,6 +1736,10 @@ export function calcMoonExact({
         (parentMagnetopauseRp ?? Number.POSITIVE_INFINITY),
     lShell: orbit.semiMajorAxisKm / Math.max(rPlanetRE * 6371, 1),
     rockyBodyComposition: moonComposition,
+    solidBodyStructure,
+    solidBodyResponse,
+    rotationPeriodHours: (tides.rotationPeriodDays ?? initialRotHours / 24) * 24,
+    ageGyr,
   });
   const radiation = computeMoonRadiationEnvironment({
     starMassMsol: mStarMsol,
@@ -1722,14 +1773,7 @@ export function calcMoonExact({
   });
   const moonMassEarth = mMoonMM * 0.012300037;
   const moonRadiusEarth = (rMoonRM * 1738.1) / 6371;
-  const inferredMoonCoreMassFraction = inferMoonCoreMassFraction({
-    densityGcm3: rhoMoonGcm3,
-    compositionClass: tides.compositionClass,
-    differentiatedInterior:
-      hydrosphere.differentiatedInterior != null
-        ? hydrosphere.differentiatedInterior
-        : moonInputs.differentiatedInterior,
-  });
+  const inferredMoonCoreMassFraction = preliminaryMoonCoreMassFraction;
   const solvedMoonCoreMassFraction = toFinite(moonComposition?.coreMassFraction, NaN);
   const moonCoreMassFraction = Number.isFinite(solvedMoonCoreMassFraction)
     ? clamp(solvedMoonCoreMassFraction, 0, 1)
@@ -1744,6 +1788,8 @@ export function calcMoonExact({
     effectiveCoreMassFractionPct: moonCoreMassFraction * 100,
     effectiveWaterMassFraction: moonEffectiveWaterMassFraction,
     effectiveWaterMassFractionPct: moonEffectiveWaterMassFraction * 100,
+    solidBodyStructure,
+    solidBodyResponse,
   };
   const baselineInteriorEvolutionContext = buildInteriorEvolutionContext({
     bodyType: "moon",
@@ -1929,6 +1975,14 @@ export function calcMoonExact({
     geology,
     rockyBodyComposition: moonRockyBodyComposition,
   });
+  const moonGeodynamicsContext = buildMoonGeodynamicsContext({
+    geology,
+    hydrosphere: effectiveHydrosphere,
+    solidBodyStructure,
+    solidBodyResponse,
+    interiorEvolutionContext,
+    atmosphere,
+  });
   const carbonCycleContext = computeCarbonCycleContext({
     surfaceTempK: effectiveSurfaceTempK,
     pressureAtm: moonPressureAtm,
@@ -2058,7 +2112,7 @@ export function calcMoonExact({
     gravityG: gMoonG,
     escapeVelocityKms: vEscKmS,
     smallBodyReservoirContext,
-    geodynamicsContext: buildMoonImpactGeodynamicsContext(geology, effectiveHydrosphere),
+    geodynamicsContext: moonGeodynamicsContext,
     hydrosphere: effectiveHydrosphere,
   });
   atmosphere = {
@@ -2139,13 +2193,28 @@ export function calcMoonExact({
     moonSpinState: tides.spinState,
     moonObliquityDeg: moonInputs.obliquityDeg ?? moonInputs.axialTiltDeg ?? null,
     momentOfInertiaFactor:
-      moonInputs.momentOfInertiaFactor ?? moonInputs.normalizedMomentOfInertia ?? null,
+      moonInputs.momentOfInertiaFactor ??
+      moonInputs.normalizedMomentOfInertia ??
+      solidBodyResponse.momentOfInertiaFactor ??
+      null,
   });
   const formation = moonSystemContext?.formation || {
+    pathwayId: moonInputs?.originPathway || "auto",
+    pathwayLabel: moonOriginPathwayLabel(moonInputs?.originPathway),
     scenarioLabel: "Single-body solve",
     confidence: 0.3,
+    source: moonInputs?.originPathway && moonInputs.originPathway !== "auto" ? "user" : "inferred",
     rationale:
       "No parent moon-system context was provided, so formation is only weakly constrained.",
+    consistencyWarnings: [],
+    warningMessages: [],
+    timelineEffects: {
+      earlyTidalHeatingPulse: "possible",
+      initialEccentricityBias: "medium",
+      inclinationExpectation: "irregular",
+      volatileRetentionBias: "neutral",
+      resonanceLikelihood: "medium",
+    },
   };
   const habitabilitySummary = buildMoonHabitabilitySummary({
     starHabitableZoneAu: effectiveStarHabitableZoneAu,
@@ -2213,6 +2282,8 @@ export function calcMoonExact({
       radiusMoon: rMoonRM,
       gravityG: gMoonG,
       escapeVelocityKmS: vEscKmS,
+      solidBodyStructure,
+      solidBodyResponse,
       surfaceFieldEarths: magnetosphere.intrinsicFieldStrengthRelEarth,
     },
     temperature: {
@@ -2267,6 +2338,11 @@ export function calcMoonExact({
       k2Moon: tides.k2Moon,
       qMoon: tides.qMoon,
       rigidityMoonGPa: tides.rigidityMoonGPa,
+      baseQMoon: tides.baseQMoon,
+      baseRigidityMoonGPa: tides.baseRigidityMoonGPa,
+      moonMomentOfInertiaFactor: tides.moonMomentOfInertiaFactor,
+      solidBodyResponse: tides.solidBodyResponse,
+      solidBodyStructureClass: tides.solidBodyStructureClass,
       tidalRegime: tides.tidalRegime,
       smallBodyRegime: tides.smallBodyRegime,
       k2Model: tides.k2Model,
@@ -2386,6 +2462,9 @@ export function calcMoonExact({
       tides,
       compositionClass: tides.compositionClass,
       rockyBodyComposition: moonRockyBodyComposition,
+      solidBodyStructure,
+      solidBodyResponse,
+      moonGeodynamicsContext,
       resonance,
       formation,
       surfaceExomoonCalibration: habitabilitySummary.surfaceExomoonCalibration,
@@ -2487,6 +2566,8 @@ export function calcMoonExact({
       effectiveCoreMassFractionPct: moonCoreMassFraction * 100,
       effectiveWaterMassFraction: moonEffectiveWaterMassFraction,
       effectiveWaterMassFractionPct: moonEffectiveWaterMassFraction * 100,
+      solidBodyStructure,
+      solidBodyResponse,
     },
 
     composition: moonRockyBodyComposition,
@@ -2590,6 +2671,7 @@ export function calcMoonExact({
       co2ClimateTendencyContext,
       smallBodyReservoirContext,
       interiorEvolutionContext,
+      moonGeodynamicsContext,
       carbonCycleContext,
       oceanChemistryContext,
       nitrogenCycleContext,
@@ -2601,6 +2683,8 @@ export function calcMoonExact({
     derived: {
       exosphere: surfaceBoundaryExosphere,
       rockyBodyComposition: moonRockyBodyComposition,
+      solidBodyStructure,
+      solidBodyResponse,
       componentMassFractions: moonRockyBodyComposition.componentMassFractions,
       elementMassFractions: moonRockyBodyComposition.elementMassFractions,
       compositionMode: moonRockyBodyComposition.compositionMode,
@@ -2621,6 +2705,7 @@ export function calcMoonExact({
       co2ClimateTendencyContext,
       smallBodyReservoirContext,
       interiorEvolutionContext,
+      moonGeodynamicsContext,
       carbonCycleContext,
       oceanChemistryContext,
       nitrogenCycleContext,
@@ -2690,6 +2775,7 @@ export function calcMoonExact({
 
     interior,
     interiorEvolutionContext,
+    moonGeodynamicsContext,
 
     resonance,
 
@@ -2706,6 +2792,11 @@ export function calcMoonExact({
       k2Moon: tides.k2Moon,
       qMoon: tides.qMoon,
       rigidityMoonGPa: tides.rigidityMoonGPa,
+      baseQMoon: tides.baseQMoon,
+      baseRigidityMoonGPa: tides.baseRigidityMoonGPa,
+      moonMomentOfInertiaFactor: tides.moonMomentOfInertiaFactor,
+      solidBodyResponse: tides.solidBodyResponse,
+      solidBodyStructureClass: tides.solidBodyStructureClass,
       tidalRegime: tides.tidalRegime,
       smallBodyRegime: tides.smallBodyRegime,
       k2Model: tides.k2Model,
@@ -2757,6 +2848,19 @@ export function calcMoonExact({
       radius: `${fmt(rMoonRM, 3)} R☾`,
       gravity: `${fmt(gMoonG, 3)} g`,
       esc: `${fmt(vEscKmS, 2)} km/s`,
+      solidBodyStructure: classLabel(solidBodyStructure.structureClass, "Not evaluated"),
+      compactnessClass: classLabel(solidBodyStructure.compactnessClass, "Not evaluated"),
+      porosity:
+        solidBodyStructure.porosityFraction > 0
+          ? `${fmt(solidBodyStructure.porosityFraction * 100, 1)}%`
+          : "0%",
+      layerSummary: [
+        `Core ${fmt((solidBodyStructure.layerMassFractions?.core || 0) * 100, 1)}%`,
+        `Rock ${fmt((solidBodyStructure.layerMassFractions?.silicateMantle || 0) * 100, 1)}%`,
+        `Ice ${fmt((solidBodyStructure.iceMassFraction || 0) * 100, 1)}%`,
+        `Ocean ${fmt((solidBodyStructure.oceanMassFraction || 0) * 100, 1)}%`,
+      ].join(" | "),
+      materialResponseConfidence: classLabel(solidBodyResponse.confidence, "Unknown"),
       equilibriumTemp: `${Math.round(temperature.equilibriumK)} K`,
       globalEquilibriumTemp: temperature.thermalEnvelope?.globalEquilibriumK
         ? `${fmt(temperature.thermalEnvelope.globalEquilibriumK, 0)} K`
@@ -2870,6 +2974,7 @@ export function calcMoonExact({
             ? `${temperature.radiogenicWm2.toExponential(2)} W/m²`
             : `${fmt(temperature.radiogenicWm2, 4)} W/m²`,
       atmosphereClass: atmosphere.atmosphereClass,
+      atmosphereRegime: classLabel(atmosphere.atmosphereRegime, "Unknown"),
       surfacePressure:
         surfacePressurePa <= 0
           ? "0 Pa"
@@ -2938,6 +3043,15 @@ export function calcMoonExact({
         atmosphere.greenhouseWarmingK <= 0 ? "+0 K" : `+${fmt(atmosphere.greenhouseWarmingK, 1)} K`,
       volcanicActivity: geology.volcanicActivity,
       cryovolcanicActivity: geology.cryovolcanicActivity,
+      moonGeodynamics: classLabel(moonGeodynamicsContext.outputs?.dominantProcess, "Not evaluated"),
+      hydrothermalPotential: classLabel(
+        moonGeodynamicsContext.outputs?.hydrothermalPotentialClass,
+        "Not evaluated",
+      ),
+      rockOceanExchange: classLabel(
+        moonGeodynamicsContext.outputs?.rockOceanExchangeClass,
+        "Not evaluated",
+      ),
       resurfacing: geology.resurfacingClass,
       volatileReplenishment: geology.volatileReplenishmentTendency,
       oceanPersistence: geology.oceanPersistenceTendency,
@@ -3036,6 +3150,10 @@ export function calcMoonExact({
             ? radiation.parentMagnetosphereCompressionClass
             : "Not evaluated",
       magneticShielding: magnetosphere.shieldingClass,
+      dynamoSummary: classLabel(
+        magnetosphere.dynamoContext?.dynamoPlausibilityClass,
+        "Not evaluated",
+      ),
       surfaceRadiation: radiation.surfaceClass,
       subsurfaceRadiation: radiation.subsurfaceClass,
       recession: formatRecession(tides.recessionCmYr),
@@ -3071,6 +3189,12 @@ export function calcMoonExact({
           : `${fmt(resonance.tidalHabitableZone.innerKm, 0)}-${fmt(resonance.tidalHabitableZone.outerKm, 0)} km`
         : "Parent outside stellar HZ",
       formation: `${formation.scenarioLabel} (${fmt(formation.confidence, 2)})`,
+      originPathway: formation.pathwayLabel || formation.scenarioLabel || "Auto / inferred",
+      originConfidence: `${fmt(formation.confidence, 2)}`,
+      originSource: formation.source === "user" ? "User selected" : "Auto / inferred",
+      originWarnings: Array.isArray(formation.warningMessages)
+        ? formation.warningMessages.join(" | ")
+        : "",
       tMoonLock: `${fmt(tides.lockingTimesGyr.moonToPlanet, 6)} Gyr`,
       tPlanetMoon: `${fmt(tides.lockingTimesGyr.planetToMoon, 6)} Gyr`,
       tPlanetStar: `${fmt(tides.lockingTimesGyr.planetToStar, 6)} Gyr`,

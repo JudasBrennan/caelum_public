@@ -11,6 +11,7 @@ import {
 } from "./moon/system.js";
 import { buildHomeSystemContext, resolveHostFrameContext } from "./homeSystem/context.js";
 import { buildSmallBodyReservoirContextForWorld } from "./smallBodyReservoirRouting.js";
+import { summarizeStellarLifecycleTrack } from "./stellarLifecycle.js";
 import { resolveWorldStarConfig } from "./worldStarConfig.js";
 
 function orderedItems(section) {
@@ -43,6 +44,42 @@ function shallowCloneRaw(raw) {
 
 function sortByOrbit(items) {
   return [...items].sort((left, right) => left.orbitAu - right.orbitAu);
+}
+
+function summarizeStellarLifecycleImpactsForHostFrame(
+  homeSystemContext,
+  fallbackSolveContext,
+  hostFrameId,
+  orbitEntries,
+) {
+  const entries = Array.isArray(orbitEntries) ? orbitEntries : [];
+  const solveContext =
+    resolveHostFrameContext(homeSystemContext, hostFrameId) || fallbackSolveContext || null;
+  const track = solveContext?.starModel?.stellarLifecycle || null;
+  if (!track?.samples?.length) return null;
+  const summary = summarizeStellarLifecycleTrack({
+    samples: track.samples,
+    currentSample: track.currentSample,
+    stageSequence: track.stageSequence,
+    planetOrbitsAu: entries.map((entry) => entry.orbitAu),
+  });
+  return {
+    hostFrameId: hostFrameId || null,
+    starId: solveContext?.starId || solveContext?.dominantContributorId || null,
+    currentStage: summary.currentStage,
+    confidence: summary.confidence,
+    mainSequenceLifetimeGyr: summary.mainSequenceLifetimeGyr,
+    remnantFormationAgeGyr: summary.remnantFormationAgeGyr,
+    remnant: summary.remnant,
+    habitableZoneMovement: summary.habitableZoneMovement,
+    planetHzImpacts: summary.planetHzImpacts.map((impact, index) => ({
+      ...impact,
+      bodyId: entries[index]?.id || null,
+      bodyKind: entries[index]?.kind || null,
+      bodyLabel: entries[index]?.name || entries[index]?.id || null,
+    })),
+    warnings: summary.warnings,
+  };
 }
 
 function normalizeHostFrameId(value, fallbackId) {
@@ -964,6 +1001,18 @@ export function buildWorldSnapshot(world, options = {}) {
   const bodiesInOrbitOrder = defaultHostFrameId
     ? bodiesInOrbitOrderByHostFrame[defaultHostFrameId] || []
     : sortByOrbit(orbitEntries);
+  const stellarLifecycleImpactsByHostFrame = Object.create(null);
+  for (const [hostFrameId, hostFrameOrbitEntries] of Object.entries(
+    bodiesInOrbitOrderByHostFrame,
+  )) {
+    const lifecycleSummary = summarizeStellarLifecycleImpactsForHostFrame(
+      homeSystemContext,
+      fallbackHostFrameSolveContext,
+      hostFrameId,
+      hostFrameOrbitEntries,
+    );
+    if (lifecycleSummary) stellarLifecycleImpactsByHostFrame[hostFrameId] = lifecycleSummary;
+  }
 
   return {
     star,
@@ -978,6 +1027,7 @@ export function buildWorldSnapshot(world, options = {}) {
     moonsById,
     bodiesInOrbitOrder,
     bodiesInOrbitOrderByHostFrame,
+    stellarLifecycleImpactsByHostFrame,
     moonsByParentId,
     meta: {
       mode,

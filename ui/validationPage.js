@@ -1,4 +1,11 @@
 import { escapeHtml } from "./uiHelpers.js";
+import { createElement } from "./domHelpers.js";
+import {
+  createSkeletonBlock,
+  createSkeletonKpiStrip,
+  createSkeletonRegion,
+  createSkeletonTable,
+} from "./workflow/skeleton.js";
 
 const REPORT_CANDIDATES = Object.freeze([
   {
@@ -509,13 +516,38 @@ function renderShell(root) {
       </div>
     </div>
     <div class="validation-report" data-validation-content>
-      <div class="panel">
-        <div class="panel__body">
-          <p class="hint">Loading prebuilt science verification matrix...</p>
-        </div>
-      </div>
     </div>
   `;
+  root.querySelector("[data-validation-content]")?.replaceChildren(createValidationSkeleton());
+}
+
+function createValidationSkeleton() {
+  return createSkeletonRegion({
+    label: "Loading science verification matrix",
+    className: "validation-report-skeleton",
+    children: [
+      createSkeletonKpiStrip({ count: 8 }),
+      createElement("div", { className: "panel validation-matrix-panel" }, [
+        createElement("div", { className: "panel__header", attrs: { "aria-hidden": "true" } }, [
+          createSkeletonBlock({ className: "skeleton-line", width: "34%", height: 18 }),
+          createSkeletonBlock({ className: "skeleton-page__button", width: 84, height: 28 }),
+        ]),
+        createElement("div", { className: "panel__body" }, [
+          createElement(
+            "div",
+            { className: "validation-controls", attrs: { "aria-hidden": "true" } },
+            [
+              createSkeletonBlock({ className: "skeleton-page__search", width: "32%", height: 38 }),
+              createSkeletonBlock({ className: "skeleton-page__button", width: 128, height: 38 }),
+              createSkeletonBlock({ className: "skeleton-page__button", width: 116, height: 38 }),
+              createSkeletonBlock({ className: "skeleton-page__button", width: 104, height: 38 }),
+            ],
+          ),
+          createSkeletonTable({ columns: 8, rows: 8 }),
+        ]),
+      ]),
+    ],
+  });
 }
 
 function renderError(contentEl, error) {

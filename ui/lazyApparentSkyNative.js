@@ -35,6 +35,7 @@ export function drawSkyCanvasNative(
   starMeta,
   companionStars,
   options = {},
+  onReady = null,
 ) {
   if (!canDrawSkyCanvas(canvas)) return;
   const state = getSkyState(canvas);
@@ -53,6 +54,14 @@ export function drawSkyCanvasNative(
         starMeta,
         companionStars,
         options,
+        typeof onReady === "function"
+          ? (...args) => {
+              if (state.disposed || state.generation !== token || !canDrawSkyCanvas(canvas)) {
+                return;
+              }
+              onReady(...args);
+            }
+          : null,
       );
     })
     .catch((error) => {

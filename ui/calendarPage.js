@@ -118,6 +118,8 @@ import { buildPageIntroHtml } from "./pageIntro.js";
 import { buildDeleteCalendarProfilePlan } from "./store/destructiveActions.js";
 import { createTutorial } from "./tutorial.js";
 import { attachTooltips, tipIcon, tipIconNode } from "./tooltip.js";
+import { CALENDAR_TOOLTIP_OVERRIDES } from "./calendar/tooltips.js";
+import { createCalendarTransferSkeletonController } from "./calendar/transferSkeleton.js";
 import {
   getSelectedMoon,
   getSelectedPlanet,
@@ -134,25 +136,16 @@ const TIPS = {
   "New profile": "Create a new calendar profile.",
   "Duplicate profile": "Create a copy of the current calendar profile.",
   "Delete profile": "Delete the current calendar profile.",
-  "Reference body":
-    "Planet or moon whose local sky frame supplies the year, day, and phase-cycle context.",
-  "Primary phase cycle":
-    "Main visible phase cycle used for lunar/parent-phase calculations and full/new summaries.",
+  "Reference body": CALENDAR_TOOLTIP_OVERRIDES["Reference body"],
+  "Primary phase cycle": CALENDAR_TOOLTIP_OVERRIDES["Primary phase cycle"],
   "Extra moon":
     "Additional moon shown in day and detailed views; does not replace the primary moon.",
-  "Planet orbital period": "Derived from the selected planet and star. Read-only.",
-  "Moon orbital period": "Primary moon synodic period (new moon to new moon). Read-only.",
-  "Planet rotation": "Length of one planetary day. Derived from the selected planet and read-only.",
-  "Decimal places":
-    "When enabled, rounds derived orbital data (planet period, moon period, rotation)" +
-    " to the selected number of decimal places before feeding into the calendar model." +
-    " This affects month lengths and leap cycles." +
-    " 6 = full engine precision; 0 = whole numbers only." +
-    " When disabled, raw engine values pass through unmodified.",
-  "Months per year":
-    "How many months the calendar splits the year into. Defaults to lunar-cycle-based value.",
-  "Days per month":
-    "How many days each month contains. Defaults to the orbital-derived value for the active basis.",
+  "Planet orbital period": CALENDAR_TOOLTIP_OVERRIDES["Planet orbital period"],
+  "Moon orbital period": CALENDAR_TOOLTIP_OVERRIDES["Moon orbital period"],
+  "Planet rotation": CALENDAR_TOOLTIP_OVERRIDES["Planet rotation"],
+  "Decimal places": CALENDAR_TOOLTIP_OVERRIDES["Decimal places"],
+  "Months per year": CALENDAR_TOOLTIP_OVERRIDES["Months per year"],
+  "Days per month": CALENDAR_TOOLTIP_OVERRIDES["Days per month"],
   "Days per week": "How many days each week contains. Defaults to one quarter of days per month.",
   Basis: "Select which model drives month/week partitioning.",
   Year: "Calendar year shown in Month View.",
@@ -163,15 +156,8 @@ const TIPS = {
   "Day names": "Custom day names, one per line. Missing entries are auto-filled.",
   "Week names": "Custom week labels, one per line. Missing entries are auto-filled.",
   "Month names": "Custom month names, one per line. Missing entries are auto-filled.",
-  "Month lengths":
-    "Enable this to set a custom day count for each month, one per line. " +
-    "Blank or missing lines fall back to the base Days per month value. " +
-    "Use Intercalary Periods in Rules for structural extra days before months, " +
-    "after months, at year end, or appended into a month. " +
-    "Leap rules still add or remove days on top of these overrides. " +
-    "Uncheck to revert to uniform month lengths without losing your entries.",
-  "Year display mode":
-    "Choose how years are shown: custom number, named eras, or pre/post calendar eras (for example BCE/CE).",
+  "Month lengths": CALENDAR_TOOLTIP_OVERRIDES["Month lengths"],
+  "Year display mode": CALENDAR_TOOLTIP_OVERRIDES["Year display mode"],
   "Pre-calendar schema":
     "Pre/Post era formatting (for example BCE/CE). Traditional BCE/CE has no year zero.",
   "Year offset":
@@ -197,8 +183,7 @@ const TIPS = {
     "Choose matching rules for this holiday. Multiple checks mean all selected rules must match the same date.",
   "Start month": "First month where this holiday can occur.",
   "Day of month": "Matches a specific calendar day number in the month.",
-  "Use relative trigger":
-    "Enable rule anchoring relative to moon phases, astronomy markers, or another holiday.",
+  "Use relative trigger": CALENDAR_TOOLTIP_OVERRIDES["Use relative trigger"],
   "Relative trigger type": "Choose what this holiday is relative to.",
   "Relative offset days":
     "Negative values place the holiday before the trigger; positive values place it after.",
@@ -211,15 +196,14 @@ const TIPS = {
   "Moon slot": "Select which displayed moon to test when Moon phase matching is enabled.",
   "Moon phase": "Required moon phase when Moon phase matching is enabled.",
   Holidays: "Configured holiday rules. Edit or delete existing entries here.",
-  "Leap rules": "Rules that add or remove days from a target month on repeating year cycles.",
+  "Leap rules": CALENDAR_TOOLTIP_OVERRIDES["Leap rules"],
   "Leap rule name": "Label for this leap rule.",
   "Leap cycle": "Repeat interval in years.",
   "Leap start year": "First year where this leap rule applies.",
   "Leap month": "Month affected by this leap rule.",
   "Leap day delta": "Days added (+) or removed (-) when the rule applies.",
   "Leap list": "Configured leap rules. Delete to remove a rule.",
-  "Suggest leap rule":
-    "Calculate a recommended ±1-day leap cycle from the source planet orbital year and add it automatically.",
+  "Suggest leap rule": CALENDAR_TOOLTIP_OVERRIDES["Suggest leap rule"],
   "Apply inputs": "Apply current input selections and regenerate the calendar context.",
   "Use selected objects":
     "Use the currently selected moon as the reference body when available; otherwise use the selected planet.",
@@ -399,6 +383,8 @@ const TIPS = {
   "Rule preview":
     "Preview the next resolved occurrences for the holiday or festival currently being edited.",
 };
+
+Object.assign(TIPS, CALENDAR_TOOLTIP_OVERRIDES);
 
 const INTERCALARY_PLACEMENT_OPTIONS = [
   ["year-end", "Year end"],
@@ -2895,6 +2881,9 @@ export function initCalendarPage(mountEl) {
 
   let transferFlows = null;
   let transferFlowsLoading = null;
+  const transferSkeleton = createCalendarTransferSkeletonController(els.outputStatus, {
+    isLoaded: () => !!transferFlows,
+  });
 
   function ensureTransferFlows() {
     if (transferFlows) return Promise.resolve(transferFlows);
@@ -2946,14 +2935,24 @@ export function initCalendarPage(mountEl) {
 
   async function openPrintableCalendar(scope) {
     setOutputStatus("Loading printable calendar tools...", "info");
-    const api = await ensureTransferFlows();
-    return api.openPrintableCalendar(scope);
+    transferSkeleton.show("Loading printable calendar tools");
+    try {
+      const api = await ensureTransferFlows();
+      return api.openPrintableCalendar(scope);
+    } finally {
+      transferSkeleton.clear();
+    }
   }
 
   async function downloadIcs(scope) {
     setOutputStatus("Loading ICS export tools...", "info");
-    const api = await ensureTransferFlows();
-    return api.downloadIcs(scope);
+    transferSkeleton.show("Loading ICS export tools");
+    try {
+      const api = await ensureTransferFlows();
+      return api.downloadIcs(scope);
+    } finally {
+      transferSkeleton.clear();
+    }
   }
 
   const {

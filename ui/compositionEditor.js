@@ -10,26 +10,83 @@ import {
 import { fmt } from "../engine/utils.js";
 import { createElement, replaceChildren } from "./domHelpers.js";
 import { tipIconNode } from "./tooltip.js";
+import { structuredTip } from "./tooltipCopy.js";
 
 export const COMPOSITION_COMPONENT_FIELDS = Object.freeze(
   [
-    ["metal", "Metal core", "Metal", "Fe/Ni metal and sulfide core inventory."],
-    ["silicate", "Silicate mantle", "Silicate", "Rock-forming silicates."],
-    ["waterIce", "H2O inventory", "H2O", "Water ice, liquid water, and hydrated inventory."],
+    [
+      "metal",
+      "Metal core",
+      "Metal",
+      structuredTip({
+        overview: "Fe/Ni metal and sulfide core inventory.",
+        feedsInto:
+          "Core mass fraction, density, differentiation, dynamo context, and solid-body response.",
+        caveat:
+          "Reservoir percentages are bulk composition controls, not a mineral-phase equilibrium solve.",
+        references: "See Science & Maths: rocky body composition and solid-body structure.",
+      }),
+    ],
+    [
+      "silicate",
+      "Silicate mantle",
+      "Silicate",
+      structuredTip({
+        overview: "Rock-forming silicate mantle inventory.",
+        feedsInto:
+          "Mantle fraction, density, thermal response, tectonic/geology context, and material response.",
+        caveat: "Composition is bulk reservoir mass, not detailed mantle mineralogy.",
+        references: "See Science & Maths: rocky body composition and solid-body structure.",
+      }),
+    ],
+    [
+      "waterIce",
+      "H2O inventory",
+      "H2O",
+      structuredTip({
+        overview: "Water inventory across ice, liquid water, and hydrated reservoirs.",
+        feedsInto:
+          "Water mass fraction, ocean/ice context, density, and high-pressure ice interpretation.",
+        caveat:
+          "Phase partitioning is solved downstream from environment; this field is a bulk reservoir input.",
+        references: "See Science & Maths: hydrosphere and water inventory.",
+      }),
+    ],
     ["volatileIce", "Volatile ice", "Volatile", "CO2, CO, N2, CH4, NH3, and related ices."],
     [
       "carbonaceous",
       "Carbonaceous",
       "Carbon",
-      "Organics, graphite, carbonates, and carbon-rich solids.",
+      structuredTip({
+        overview: "Organics, graphite, carbonates, and carbon-rich solids.",
+        feedsInto: "Bulk density, volatile budget, and carbonaceous composition diagnostics.",
+        caveat: "Chemistry is reservoir-level; individual organic species are not simulated.",
+        references: "See Science & Maths: rocky body composition.",
+      }),
     ],
     [
       "sulfur",
       "Sulfur/sulfides",
       "Sulfur",
-      "Elemental sulfur, sulfides, and sulfate-bearing solids.",
+      structuredTip({
+        overview: "Elemental sulfur, sulfides, and sulfate-bearing solids.",
+        feedsInto: "Bulk composition, density, and volatile/mineral reservoir diagnostics.",
+        caveat: "Oxidation state and detailed geochemistry are not solved.",
+        references: "See Science & Maths: rocky body composition.",
+      }),
     ],
-    ["salts", "Salts", "Salts", "Evaporites and dissolved/solid salt reservoirs."],
+    [
+      "salts",
+      "Salts",
+      "Salts",
+      structuredTip({
+        overview: "Evaporites and dissolved/solid salt reservoirs.",
+        feedsInto:
+          "Bulk composition, water-reservoir interpretation, and surface/ocean chemistry context.",
+        caveat: "Specific brine chemistry is not fully simulated.",
+        references: "See Science & Maths: rocky body composition and ocean chemistry.",
+      }),
+    ],
   ]
     .filter(([key]) => ROCKY_BODY_COMPONENT_KEYS.includes(key))
     .map(([key, label, shortLabel, tip]) => ({ key, label, shortLabel, tip })),
@@ -56,7 +113,14 @@ export const COMPOSITION_ELEMENT_FIELDS = Object.freeze(
       key,
       label,
       shortLabel,
-      tip: `${label} mass fraction.`,
+      tip: structuredTip({
+        overview: `${label} mass fraction in the explicit element inventory.`,
+        feedsInto:
+          "Bulk composition checks, reservoir conversion, structure context, and downstream material diagnostics.",
+        caveat:
+          "Element mode is an expert inventory and does not solve complete mineral equilibrium.",
+        references: "See Science & Maths: rocky body composition.",
+      }),
     })),
 );
 
@@ -71,7 +135,14 @@ export const COMPOSITION_TRACE_FIELDS = Object.freeze(
       key,
       label,
       shortLabel,
-      tip: `${label} abundance relative to the reference radiogenic inventory.`,
+      tip: structuredTip({
+        overview: `${label} abundance relative to the reference radiogenic inventory.`,
+        feedsInto:
+          "Radiogenic heating, thermal evolution context, geology state, and solid-body response.",
+        caveat:
+          "Abundance scales heat production; isotope decay chains and crustal concentration are simplified.",
+        references: "See Science & Maths: radiogenic heating.",
+      }),
     })),
 );
 
@@ -174,7 +245,19 @@ function createSegmentedControl({ className, name, idPrefix, options, selectedVa
 function createModeControl(values, idPrefix) {
   const selectedValue = normalizeCompositionMode(values.compositionMode);
   return createElement("div", { className: "composition-editor__control" }, [
-    createLabel("Composition Mode", "Choose inferred, reservoir, or explicit element inventory."),
+    createLabel(
+      "Composition Mode",
+      structuredTip({
+        overview: "Choose how bulk composition is authored.",
+        changes:
+          "Inferred uses solver defaults, reservoir edits broad material groups, and Elements edits an expert element inventory.",
+        feedsInto:
+          "Density, CMF/WMF, internal heat, geology, material response, and derived composition outputs.",
+        caveat:
+          "Changing mode can make previous manual entries inactive until that mode is selected again.",
+        references: "See Science & Maths: rocky body composition.",
+      }),
+    ),
     createSegmentedControl({
       className: "physics-trio-toggle composition-editor__mode",
       name: `${idPrefix}-composition-mode`,
@@ -188,7 +271,16 @@ function createModeControl(values, idPrefix) {
 function createNormalizeControl(values, idPrefix) {
   const selectedValue = normalizeMode(values.compositionNormalizeMode);
   return createElement("div", { className: "composition-editor__control" }, [
-    createLabel("Total Handling", "Warn about totals or normalize manual percentages to 100%."),
+    createLabel(
+      "Total Handling",
+      structuredTip({
+        overview: "Controls how manual composition totals are handled.",
+        changes:
+          "Warn preserves authored percentages; Normalize rescales manual percentages to 100%.",
+        feedsInto: "Composition validation and downstream structure calculations.",
+        caveat: "Normalizing can hide intentionally under/over-specified draft inventories.",
+      }),
+    ),
     createSegmentedControl({
       className: "physics-duo-toggle",
       name: `${idPrefix}-composition-normalize-mode`,
@@ -208,7 +300,17 @@ function createStructureControl(values, idPrefix) {
       dataset: { compositionSection: "structure-source" },
     },
     [
-      createLabel("Structure", "Use inferred structure or the manual reservoir grid."),
+      createLabel(
+        "Structure",
+        structuredTip({
+          overview: "Choose which composition source drives structure outputs.",
+          changes: "Inferred uses solver structure; Components uses the manual reservoir grid.",
+          feedsInto: "Core/mantle/water fractions, density, geology, and solid-body response.",
+          caveat:
+            "Manual reservoir structure is still interpreted by the app's simplified material model.",
+          references: "See Science & Maths: solid-body structure.",
+        }),
+      ),
       createSegmentedControl({
         className: "physics-duo-toggle",
         name: `${idPrefix}-composition-structure-source`,

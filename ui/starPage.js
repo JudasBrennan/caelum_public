@@ -6,6 +6,7 @@ import { bindNumberAndSlider } from "./bind.js";
 import { createElement } from "./domHelpers.js";
 import { createCelestialVisualPreviewController } from "./lazyCelestialVisualPreview.js";
 import { renderDerivedDetails } from "./derivedDetails.js";
+import { createEraTimelineSection } from "./eraTimelinePanel.js";
 import { renderKpiSections } from "./kpiSections.js";
 import { enableOutputSectionTabs } from "./outputSectionTabs.js";
 import { listStellarSystemHostFrames } from "./store/stellarSystemModel.js";
@@ -1714,6 +1715,36 @@ export function initStarPage(mountEl, options = {}) {
     renderKpiSections(kpisEl, outputViewModel.kpiSections);
     renderStarResultSummary(kpisEl, outputViewModel.resultSummary);
     renderOutputStarStrip(kpisEl.querySelector("#star-summary"), focusedStarId, state);
+    const eraTimelineSection = createEraTimelineSection(outputViewModel.eraTimeline, {
+      id: "star-era-timeline",
+      eyebrow: "Stellar chronology",
+      title: "Lifecycle Timeline",
+      panelTitle: "Lifecycle Timeline",
+      subtitle: "Analytic lifecycle track; not a full stellar-structure simulation.",
+    });
+    if (eraTimelineSection) {
+      kpisEl.insertBefore(eraTimelineSection, kpisEl.children[3] || null);
+    }
+    const fateLinkSection = createElement(
+      "section",
+      {
+        className: "kpi-section kpi-section--system-fate-link",
+        attrs: { id: "star-system-fate-link" },
+      },
+      [
+        createElement("div", { className: "kpi-section__title", text: "System Fate" }),
+        createElement("p", {
+          className: "hint",
+          text: "Compare the host lifecycle against saved planets and moons: current candidates, future windows, and long-term risks.",
+        }),
+        createElement("a", {
+          className: "small",
+          attrs: { href: "#/fate" },
+          text: "Open System Fate",
+        }),
+      ],
+    );
+    kpisEl.insertBefore(fateLinkSection, kpisEl.children[4] || null);
 
     renderDerivedDetails(detailsEl, outputViewModel.detailSections, { title: "Derived Details" });
     const derivedDetailsSection = detailsEl.querySelector(".derived-details");

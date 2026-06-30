@@ -6,6 +6,7 @@ import {
 } from "../engine/tectonics.js";
 import { fmt } from "../engine/utils.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
+import { structuredTip } from "./tooltipCopy.js";
 import { createTutorial } from "./tutorial.js";
 import { replaceSelectOptions } from "./domHelpers.js";
 import { escapeHtml } from "./uiHelpers.js";
@@ -33,21 +34,33 @@ import {
 } from "./planet/bodyClassificationSummary.js";
 
 const TIP_LABEL = {
-  "Max Peak Height":
-    "Maximum possible mountain peak height, inversely proportional to surface gravity. " +
-    "Formula: H_max = C / g, where C depends on crustal composition.\n\n" +
-    "Earth-like: C = 9,267 m. Iron worlds: 12,000 m. Ice worlds: 3,000 m.\n\n" +
-    "Lower gravity allows taller mountains (Mars: Olympus Mons \u2248 21,900 m at 0.38 g).",
+  "Max Peak Height": structuredTip({
+    overview: "Maximum possible mountain peak height under the planet's gravity and crust type.",
+    drawnFrom: "Surface gravity and crustal composition constant C in H_max = C / g.",
+    feedsInto: "Mountain range caps, inactive-range erosion limits, and tectonic feature readouts.",
+    interpretAs:
+      "Lower gravity allows taller mountains. Earth-like C = 9,267 m; iron worlds 12,000 m; ice worlds 3,000 m.",
+    caveat: "This is a gravity/material cap, not a terrain generator or local uplift model.",
+    references: "See Science & Maths: tectonic relief and gravity scaling.",
+  }),
   "Mountain Type":
     "Convergent-boundary mountain range classification based on tectonic setting.\n\n" +
     "Andean: oceanic\u2013continental subduction (high volcanic arc + wide plateau). " +
     "Laramide: flat-slab subduction (broad inland deformation, e.g. Rocky Mountains). " +
     "Ural: continent\u2013continent collision (older, lower, no active volcanism). " +
     "Himalayan: active continent\u2013continent collision (highest peaks, wide plateau).",
-  "Erosion Rate":
-    "Rate at which inactive mountain ranges lose height over geological time.\n\n" +
-    "Typical Earth value: ~5 m/Myr for exposed granite peaks. " +
-    "Arid climates erode slower; wet climates erode faster.",
+  "Erosion Rate": structuredTip({
+    overview: "Rate at which inactive mountain ranges lose height over geological time.",
+    drawnFrom:
+      "Planet surface temperature, atmospheric moisture/water-vapour context, water availability, climate state, and baseline rock-weathering assumptions.",
+    feedsInto:
+      "Inactive range height loss, old-mountain survival, tectonic summaries, and erosion warnings.",
+    interpretAs:
+      "Warmer, wetter worlds erode faster; cold, dry, or airless worlds erode more slowly. Output is reported in m/Myr.",
+    caveat:
+      "This is a global analytic rate, not a sediment-transport, glacier, river-network, or local rainfall model.",
+    references: "See Science & Maths: climate erosion and tectonic relief.",
+  }),
   "Mid-Ocean Ridge Height":
     "Elevation of newly-formed oceanic crust at the spreading centre, measured from " +
     "the abyssal plain reference.\n\n" +
@@ -127,14 +140,24 @@ const TIP_LABEL = {
     "Radiogenic heat decays exponentially with age; tidal heating can " +
     "sustain volcanism indefinitely.\n\n" +
     "Scales shield volcano heights and magmatic rift fill.",
-  "Climate Erosion":
-    "Erosion rate adjusted for surface temperature and atmospheric moisture. " +
-    "Warmer, wetter worlds erode faster than cold, dry ones.\n\n" +
-    "Applied to inactive mountain range height loss over time.",
-  "Elastic Lithosphere":
-    "Thickness of the elastic lithosphere (km). Thicker lithosphere " +
-    "supports taller volcanic edifices via flexural strength.\n\n" +
-    "Grows with planet age and mass; thins with tidal heating.",
+  "Climate Erosion": structuredTip({
+    overview: "Erosion rate adjusted for climate and atmospheric moisture.",
+    drawnFrom:
+      "Surface temperature, atmospheric H2O, pressure/water context, and the active planet climate solve.",
+    feedsInto: "Inactive mountain range decay and tectonic-factor summaries.",
+    interpretAs: "Warmer and wetter worlds erode faster than cold, dry worlds.",
+    caveat: "This is a broad climate modifier, not a detailed hydrology or sediment model.",
+    references: "See Science & Maths: climate erosion.",
+  }),
+  "Elastic Lithosphere": structuredTip({
+    overview: "Thickness of the elastic lithosphere in km.",
+    drawnFrom: "Planet age, mass/gravity, internal heat, radiogenic context, and tidal heating.",
+    feedsInto: "Shield volcano flexural support, rift geometry, and tectonic-factor summaries.",
+    interpretAs:
+      "Thicker lithosphere supports taller volcanic edifices; tidal heating and high internal heat thin it.",
+    caveat: "This is an effective elastic thickness, not a full lithosphere thermal model.",
+    references: "See Science & Maths: lithosphere and solid-body response.",
+  }),
   "Arc Distance":
     "Distance from the oceanic trench to the volcanic arc (km). " +
     "Computed as slab depth / tan(slab angle).\n\n" +
@@ -218,6 +241,278 @@ const TIP_LABEL = {
     "graben floor, both fault scarps, volcanic fill, and uplifted shoulders.",
 };
 
+Object.assign(TIP_LABEL, {
+  "Mountain Type": structuredTip({
+    overview: "Convergent-boundary mountain range archetype.",
+    drawnFrom: "Selected tectonic setting and the active mountain profile.",
+    feedsInto: "Cross-section shape, zone labels, uplift style, and example interpretation.",
+    caveat: "Archetypes are schematic and do not generate local terrain.",
+    references: "See Science & Maths: tectonic relief and mountain types.",
+  }),
+  "Mid-Ocean Ridge Height": structuredTip({
+    overview: "Elevation of newly formed oceanic crust at the spreading centre.",
+    drawnFrom: "The tectonics engine's ridge-height baseline and active spreading context.",
+    feedsInto: "Ocean depth curve and ridge KPI readouts.",
+    caveat: "It is a ridge-to-abyssal-plain guide, not a bathymetric map.",
+    references: "See Science & Maths: oceanic plate cooling.",
+  }),
+  "Ocean Depth Curve": structuredTip({
+    overview: "Ocean-floor depth as oceanic crust ages and cools.",
+    drawnFrom: "A two-regime plate-cooling model: young half-space cooling and older flattening.",
+    interpretAs: "Depth increases with crust age, then approaches a mature-plate limit.",
+    caveat: "Sedimentation, hotspots, trenches, and local crustal thickness are not mapped.",
+    references: "Parsons & Sclater 1977; see Science & Maths: oceanic plate cooling.",
+  }),
+  "Cross-Section": structuredTip({
+    overview: "Schematic average-elevation profile across a mountain system.",
+    drawnFrom: "Mountain type, convergence context, gravity/material caps, and zone templates.",
+    interpretAs: "Zone averages can sit below individual peak limits.",
+    caveat: "It is an explanatory cross-section, not a terrain generator.",
+    references: "See Science & Maths: tectonic relief.",
+  }),
+  "Inactive Range": structuredTip({
+    overview: "Mountain range that is no longer actively uplifting.",
+    drawnFrom: "Original height, age since activity ended, erosion rate, and max peak cap.",
+    interpretAs: "Height decreases over time according to the configured/global erosion rate.",
+    caveat: "Linear erosion is a global simplification, not local drainage or glaciation.",
+    references: "See Science & Maths: climate erosion and tectonic relief.",
+  }),
+  "Slab Angle": structuredTip({
+    overview: "Dip angle of a subducting slab in degrees.",
+    feedsInto: "Volcanic arc distance using d = slab depth / tan(angle).",
+    interpretAs: "Steeper slabs place arcs closer to the trench; shallower slabs push arcs inland.",
+    caveat: "The model uses a representative slab depth rather than a full subduction geometry.",
+    references: "Syracuse & Abers 2006; see Science & Maths: tectonic relief.",
+  }),
+  "Spreading Rate": structuredTip({
+    overview: "Rate at which new oceanic crust is created at mid-ocean ridges.",
+    feedsInto: "Ocean depth curve, ridge context, and tectonic activity summaries.",
+    interpretAs:
+      "Mobile-lid worlds can use Earth-like mm/yr ranges; stagnant-lid worlds trend to zero.",
+    caveat: "This is a regime parameter, not a global plate reconstruction.",
+    references: "Dalton et al. 2022; see Science & Maths: plate spreading.",
+  }),
+  Pratt: structuredTip({
+    overview: "Isostasy mode where topography is supported by lateral density differences.",
+    feedsInto: "Mountain compensation interpretation and cross-section context.",
+    caveat: "This is an idealised end-member, not a full crust/mantle density model.",
+    references: "Pratt 1855; Turcotte & Schubert 2014.",
+  }),
+  Isostasy: structuredTip({
+    overview: "How topographic loads are compensated by the mantle.",
+    changes:
+      "Airy uses crustal roots; Pratt uses density differences at uniform compensation depth.",
+    feedsInto: "Mountain root/compensation interpretation and cross-section summaries.",
+    caveat: "Both modes are simplified end-members.",
+    references: "Turcotte & Schubert 2014; see Science & Maths: isostasy.",
+  }),
+  "Continental Margin": structuredTip({
+    overview: "Transition from continent to deep ocean.",
+    drawnFrom: "Shelf width, shelf break depth, slope angle, and margin profile settings.",
+    feedsInto: "Margin width and continental margin chart.",
+    caveat: "It is a schematic margin, not local bathymetry or sediment routing.",
+    references: "See Science & Maths: continental margins.",
+  }),
+  "Shield Volcano": structuredTip({
+    overview: "Large, gently sloped volcano built by repeated lava flows.",
+    drawnFrom:
+      "Gravity limit, flexural lithosphere support, basal spreading, volcanic activity, and stagnant/mobile-lid context.",
+    feedsInto: "Max shield height, shield volcano rows, and volcanic factor summaries.",
+    caveat: "The model does not simulate magma plumbing, eruption chronology, or edifice collapse.",
+    references: "McGovern & Solomon 1993/1998; see Science & Maths: shield volcano limits.",
+  }),
+  "Rift Valley": structuredTip({
+    overview: "Extensional feature where crust pulls apart and a graben drops down.",
+    drawnFrom: "Graben width/depth, fault angle, volcanic fill, and shoulder uplift settings.",
+    feedsInto: "Rift valley cross-section and rift summary readouts.",
+    caveat: "It is a geometric tectonic profile, not a terrain mesh or stress simulation.",
+    references: "See Science & Maths: rift geometry.",
+  }),
+  "Planet Factors": structuredTip({
+    overview: "Summary of planetary controls applied to tectonic features.",
+    drawnFrom:
+      "Gravity, composition, volcanic activity, climate erosion, elastic lithosphere, age, and heating context.",
+    interpretAs: "Use this to see why the same feature differs between worlds.",
+    caveat:
+      "These are analytic controls, not a full mantle-convection or plate-tectonics simulation.",
+    references: "See Science & Maths: tectonic relief and solid-body response.",
+  }),
+  "Convergence Rate": structuredTip({
+    overview: "Rate at which plates converge at a collision or subduction boundary.",
+    feedsInto: "Mountain uplift scaling and active range height.",
+    interpretAs:
+      "Faster convergence drives taller ranges, with sub-linear scaling due to caps and erosion.",
+    caveat: "The model does not solve stress accumulation or earthquake cycles.",
+    references: "See Science & Maths: tectonic relief.",
+  }),
+  Gravity: structuredTip({
+    overview: "Surface gravity in Earth g.",
+    drawnFrom: "Solved planet mass and radius.",
+    feedsInto: "Maximum mountain height, shield volcano limits, and relief scaling.",
+    caveat: "Gravity is global; local terrain strength is simplified by composition classes.",
+    references: "See Science & Maths: gravity and relief scaling.",
+  }),
+  Composition: structuredTip({
+    overview: "Crustal material class used by tectonic relief limits.",
+    drawnFrom: "Planet composition and derived crust/material context.",
+    feedsInto: "Peak-height constant, mountain caps, and material interpretation.",
+    caveat: "Material classes are broad; detailed mineralogy is not solved.",
+    references: "See Science & Maths: rocky body composition.",
+  }),
+  "Volcanic Activity": structuredTip({
+    overview: "Combined volcanic activity index.",
+    drawnFrom: "Radiogenic heating, age, tidal heating, and geodynamic context.",
+    feedsInto: "Shield volcano height scaling, magmatic rift fill, and tectonic summaries.",
+    caveat: "This is an activity scalar, not an eruption forecast.",
+    references: "See Science & Maths: radiogenic and tidal heating.",
+  }),
+  "Arc Distance": structuredTip({
+    overview: "Distance from trench to volcanic arc.",
+    drawnFrom: "Representative slab depth divided by tan(slab angle).",
+    interpretAs: "Steeper slab angles produce arcs closer to the trench.",
+    caveat: "Actual arcs vary with slab age, hydration, mantle flow, and convergence geometry.",
+    references: "Syracuse & Abers 2006; see Science & Maths: subduction geometry.",
+  }),
+  "Original Height": structuredTip({
+    overview: "Initial elevation before an inactive range began eroding.",
+    feedsInto: "Current inactive-range height after erosion over age.",
+    caveat: "The original height is authored; the app does not reconstruct it from past tectonics.",
+  }),
+  "Range Age": structuredTip({
+    overview: "Time since an inactive range stopped actively forming.",
+    feedsInto: "Cumulative height loss from erosion rate x age.",
+    caveat: "Age is applied as a simple elapsed time, not a changing climate history.",
+    references: "See Science & Maths: climate erosion.",
+  }),
+  "Shield Height": structuredTip({
+    overview: "Authored or capped height of a shield volcano.",
+    drawnFrom: "Input height clamped by max shield height and activity/lithosphere limits.",
+    caveat: "Local collapse, landslides, and caldera formation are not simulated.",
+    references: "See Science & Maths: shield volcano limits.",
+  }),
+  "Shield Slope": structuredTip({
+    overview: "Average flank slope angle of a shield volcano.",
+    feedsInto: "Base radius through R = H / tan(theta).",
+    interpretAs: "Shallower slopes produce wider volcanic shields.",
+    caveat: "Real volcano slopes vary by elevation, lava type, and flank stability.",
+    references: "See Science & Maths: shield volcano geometry.",
+  }),
+  "Graben Width": structuredTip({
+    overview: "Width of the down-dropped rift block.",
+    feedsInto: "Rift valley total width and cross-section geometry.",
+    caveat: "It is a geometric control, not a crustal strain simulation.",
+    references: "See Science & Maths: rift geometry.",
+  }),
+  "Graben Depth": structuredTip({
+    overview: "Depth of the rift floor below surrounding terrain.",
+    feedsInto: "Rift valley relief and cross-section geometry.",
+    caveat: "Sediment fill and erosion are not dynamically applied.",
+    references: "See Science & Maths: rift geometry.",
+  }),
+  "Fault Angle": structuredTip({
+    overview: "Dip angle of the bounding normal faults.",
+    feedsInto: "Rift geometry and width/depth interpretation.",
+    interpretAs: "Steeper faults produce narrower grabens for the same depth.",
+    caveat: "Fault networks are simplified to representative boundary faults.",
+    references: "See Science & Maths: rift geometry.",
+  }),
+  "Volcanic Fill": structuredTip({
+    overview: "Thickness of lava or volcanic material filling the rift floor.",
+    feedsInto: "Rift cross-section shape and apparent floor elevation.",
+    caveat: "Composition, eruption timing, and flow emplacement are not simulated.",
+    references: "See Science & Maths: rift geometry.",
+  }),
+  "Shoulder Height": structuredTip({
+    overview: "Uplift of rift shoulders above surrounding terrain.",
+    feedsInto: "Rift cross-section relief.",
+    caveat: "Isostatic/flexural rebound is simplified into one height control.",
+    references: "See Science & Maths: rift geometry.",
+  }),
+  "Shelf Width": structuredTip({
+    overview: "Width of the continental shelf.",
+    feedsInto: "Continental margin total width and margin chart.",
+    caveat: "Shelf geometry is schematic and does not model sediment supply or sea-level history.",
+    references: "See Science & Maths: continental margins.",
+  }),
+  "Shelf Depth": structuredTip({
+    overview: "Depth at the continental shelf break.",
+    feedsInto: "Continental margin profile and slope geometry.",
+    caveat: "The app uses a representative value rather than a glacioeustatic history.",
+    references: "See Science & Maths: continental margins.",
+  }),
+  "Margin Slope": structuredTip({
+    overview: "Angle of the continental slope below the shelf break.",
+    feedsInto: "Continental margin width and chart geometry.",
+    caveat: "Active/passive margin complexity is compressed into one slope value.",
+    references: "See Science & Maths: continental margins.",
+  }),
+  "Ridge Height": structuredTip({
+    overview: "Mid-ocean ridge elevation above the abyssal plain.",
+    drawnFrom: "Ridge-height setting and oceanic crust model.",
+    feedsInto: "Ocean depth curve and tectonic KPI rows.",
+    caveat: "Hotspots, transform offsets, and local bathymetry are not represented.",
+    references: "See Science & Maths: oceanic plate cooling.",
+  }),
+  "Max Ocean Depth": structuredTip({
+    overview: "Maximum depth reached by old oceanic crust in the plate-cooling model.",
+    drawnFrom: "Oceanic crust age-depth curve and mature-plate flattening limit.",
+    caveat: "Trenches and sediment-loaded basins are not modelled as local features.",
+    references: "Parsons & Sclater 1977; see Science & Maths: oceanic plate cooling.",
+  }),
+  "Inferred Ocean Coverage": structuredTip({
+    overview: "Science-model liquid-ocean surface fraction.",
+    drawnFrom: "Planet water inventory, gravity-scaled relief, basin capacity, and climate state.",
+    feedsInto: "Tectonic context and downstream climate/carbon-cycle science outputs.",
+    caveat: "This is separate from authored visual/population ocean overrides.",
+    references: "See Science & Maths: surface ocean coverage.",
+  }),
+  "Authored Ocean Override": structuredTip({
+    overview: "Manual ocean percentage from population or visual authoring.",
+    drawnFrom: "Authored override value when present.",
+    interpretAs:
+      "It changes authored land/ocean split outputs without rewriting inferred science coverage.",
+    caveat:
+      "Climate, carbon-cycle, and tectonic science read the inferred coverage unless stated otherwise.",
+    references: "See Science & Maths: surface ocean coverage.",
+  }),
+  "Exposed Land": structuredTip({
+    overview: "Estimated unflooded surface fraction after inferred basin fill.",
+    drawnFrom: "Inferred ocean coverage and surface basin capacity context.",
+    feedsInto: "Downstream science land context where available.",
+    caveat: "This is not a terrain map or coastline generator.",
+    references: "See Science & Maths: surface ocean coverage.",
+  }),
+  "Cross-Section Width": structuredTip({
+    overview: "Total width of the mountain cross-section.",
+    drawnFrom: "The sum of active tectonic zone widths in the selected mountain profile.",
+    caveat: "A schematic width, not a mapped orogen footprint.",
+  }),
+  "Highest Zone": structuredTip({
+    overview: "Average elevation of the highest zone in the mountain cross-section.",
+    drawnFrom: "Selected mountain type, convergence scaling, and gravity/material caps.",
+    caveat: "Individual peaks can exceed the zone average up to the max peak limit.",
+  }),
+  "Margin Width": structuredTip({
+    overview: "Total width from coast to abyssal plain.",
+    drawnFrom: "Shelf, slope, and continental-rise geometry.",
+    caveat: "Margin shape is schematic and not a coastline/bathymetry model.",
+    references: "See Science & Maths: continental margins.",
+  }),
+  "Base Radius": structuredTip({
+    overview: "Horizontal distance from shield-volcano summit to base.",
+    drawnFrom: "Volcano height and flank slope using R = H / tan(theta).",
+    interpretAs: "Lower slopes produce broader bases.",
+    caveat: "The volcano is treated as a simple conical/profile geometry.",
+    references: "See Science & Maths: shield volcano geometry.",
+  }),
+  "Rift Total Width": structuredTip({
+    overview: "Total width of the rift valley cross-section.",
+    drawnFrom: "Graben, fault scarp, volcanic fill, and shoulder geometry.",
+    caveat: "This is profile geometry, not a map of rift segmentation.",
+    references: "See Science & Maths: rift geometry.",
+  }),
+});
+
 const ZONE_COLORS = [
   "var(--accent)", // zone 0
   "var(--muted)", // zone 1
@@ -294,10 +589,7 @@ export function getPlanetTectonicContext(world) {
     massEarth: model.inputs?.massEarth || 1,
     ageGyr: Number(starConfig?.ageGyr) || 4.6,
     surfaceTempK: model.derived.surfaceTempK || 288,
-    h2oPct:
-      model.derived.hydrosphere?.surfaceAccessibleLiquidFraction != null
-        ? model.derived.hydrosphere.surfaceAccessibleLiquidFraction * 100
-        : model.inputs?.h2oPct || 0,
+    h2oPct: Number.isFinite(Number(model.inputs?.h2oPct)) ? Number(model.inputs.h2oPct) : 0,
     compositionClass: model.derived.compositionClass || "Earth-like",
     tidalHeatingWm2: model.derived.planetTidalHeatingWm2 || 0,
     radioisotopeAbundance: model.derived.radioisotopeAbundance ?? 1,

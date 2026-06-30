@@ -2,6 +2,7 @@ import * as store from "./store.js";
 import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import { isXlsxFile, importLegacyWorldsmithWorkbook } from "./legacyXlsxImport.js";
 import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
+import { structuredTip } from "./tooltipCopy.js";
 import { createSolPresetEnvelope } from "./solPreset.js";
 import { createRealmspacePresetEnvelope } from "./realmspacePreset.js";
 import { createArrakisPresetEnvelope } from "./arrakisPreset.js";
@@ -30,6 +31,11 @@ import {
   clearOwnedSessionStorageKeys as clearOwnedSessionStorageKeysFromPersistence,
 } from "./store/persistenceBridge.js";
 import { buildImportPreviewSummary } from "../engine/worldAdapters.js";
+import {
+  createSkeletonKpiStrip,
+  createSkeletonRegion,
+  createSkeletonTable,
+} from "./workflow/skeleton.js";
 
 const {
   exportEnvelope,
@@ -52,35 +58,124 @@ const { normalizeWorld } = store;
 let importExportCompatibilityOverrides = null;
 
 const TIP_LABEL = {
-  Export:
-    "Export the full world model as JSON, including star, system, planets, moons, moon-world inputs, assignments, and settings.",
-  Backups: "Automatic restore points created before imports are applied.",
-  Import:
-    "Validate and import a previously exported JSON world file or a WorldSmith 8.x XLSX workbook.",
-  "Download JSON": "Download the current world as a JSON file.",
-  "Copy to clipboard": "Copy the current export JSON to your clipboard.",
-  "Refresh view": "Regenerate the export preview from current saved data.",
-  "Clear saved data":
-    "Remove all Caelum saved data from this browser, including backups. This cannot be undone.",
-  "Start fresh":
-    "Remove only the current saved world. Browser backups remain available for restore.",
-  "Create backup now": "Create a manual backup of the current saved world.",
-  "Delete backups": "Delete the backup library while keeping the current saved world.",
-  "Validate import": "Check import JSON structure and show a pre-import summary.",
-  "Replace current world": "Apply the validated import and replace the current saved world.",
-  "Save import as backup": "Store the validated import in the backup library without applying it.",
-  "Replace without backup": "Apply the validated import without creating a pre-replacement backup.",
-  "Import Sol preset":
-    "Load and import a built-in Sol preset (Mercury-Pluto, Jupiter-Neptune, asteroid and Kuiper belts, flagship moons, and Halley).",
-  "Import Realmspace preset":
-    "Load a Forgotten Realms / Spelljammer preset (Anadia-Chandos, Coliar, Glyth, Selune, and Calendar of Harptos).",
-  "Import Arrakis preset":
-    "Load the Arrakis (Dune) preset: Canopus system with Seban, Menaris, Arrakis, Ven, gas giants Extaris and Revona, moons Krelln and Arvon, and Imperial Standard calendar.",
-  "Import file": "Select either a JSON export file or a WorldSmith 8.x XLSX workbook.",
-  "Import JSON text": "Paste JSON here for validation and import.",
-  "Export JSON text": "Read-only JSON export preview.",
-  "Moon world data":
-    "Moon atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs are recalculated from the exported moon inputs when the world is loaded again.",
+  Export: structuredTip({
+    overview: "Export the full saved world model as JSON.",
+    drawnFrom:
+      "Current saved star/system, planets, gas giants, moons, calendars, visuals, settings, and backups metadata where applicable.",
+    interpretAs:
+      "Use this for moving a world between browsers or sharing a complete editable snapshot.",
+    caveat:
+      "Derived outputs are recalculated when the world is loaded again from the saved inputs.",
+  }),
+  Backups: structuredTip({
+    overview: "Automatic and manual restore points for saved worlds.",
+    drawnFrom: "The browser backup library stored alongside the current world.",
+    interpretAs: "Use backups to roll back imports or major edits without an external file.",
+    caveat: "Browser storage can still be cleared by the user, browser, or device policies.",
+  }),
+  Import: structuredTip({
+    overview:
+      "Validate and import a previously exported JSON world file or WorldSmith 8.x XLSX workbook.",
+    feedsInto: "The import preview, backup flow, and current saved world replacement actions.",
+    changes: "Only Replace actions alter the current world; validation and save-as-backup do not.",
+    caveat: "Imports can replace the active saved world. Create or keep a backup before applying.",
+  }),
+  "Download JSON": structuredTip({
+    overview: "Download the current world export as a JSON file.",
+    drawnFrom: "The export preview generated from current saved world data.",
+    caveat: "Derived outputs are recalculated from saved inputs after import.",
+  }),
+  "Copy to clipboard": structuredTip({
+    overview: "Copy the current world export JSON to the clipboard.",
+    drawnFrom: "The export preview generated from current saved world data.",
+    caveat: "Clipboard access can fail if browser permissions or focus rules block it.",
+  }),
+  "Refresh view": structuredTip({
+    overview: "Regenerate the export preview from current saved data.",
+    changes: "Updates the read-only JSON text and export status without changing the world.",
+    caveat: "Use this after edits if the preview appears stale.",
+  }),
+  "Clear saved data": structuredTip({
+    overview: "Remove all Caelum saved data from this browser, including backups.",
+    changes: "Clears the current world and the backup library from local browser storage.",
+    caveat: "This cannot be undone unless you already have an external export file.",
+  }),
+  "Start fresh": structuredTip({
+    overview: "Remove only the current saved world.",
+    changes: "Clears the active world but leaves browser backups available for restore.",
+    caveat: "Export first if you need an external copy.",
+  }),
+  "Create backup now": structuredTip({
+    overview: "Create a manual backup of the current saved world.",
+    changes: "Adds a new restore point to the browser backup library.",
+    caveat: "Backups live in browser storage, not in a remote account.",
+  }),
+  "Delete backups": structuredTip({
+    overview: "Delete the backup library while keeping the current saved world.",
+    changes: "Removes restore points from browser storage.",
+    caveat: "This cannot be undone unless you already exported the worlds externally.",
+  }),
+  "Validate import": structuredTip({
+    overview: "Check import structure and show a pre-import summary.",
+    drawnFrom: "The selected file or pasted JSON text, parsed against the current import schema.",
+    interpretAs: "Validation is a dry run; it does not replace the current world.",
+    caveat: "Large files are still subject to browser import limits.",
+  }),
+  "Replace current world": structuredTip({
+    overview: "Apply the validated import and replace the current saved world.",
+    changes: "Creates a pre-replacement backup, then saves the imported world as current.",
+    caveat: "Review the preview summary first, especially for older or external files.",
+  }),
+  "Save import as backup": structuredTip({
+    overview: "Store the validated import in the backup library without applying it.",
+    changes: "Adds a backup entry but leaves the active world unchanged.",
+    caveat: "Use Restore Backup later if you want to switch to it.",
+  }),
+  "Replace without backup": structuredTip({
+    overview: "Apply the validated import without creating a pre-replacement backup.",
+    changes: "Immediately replaces the current saved world with the import.",
+    caveat: "Use only when you already have an external export or do not need rollback.",
+  }),
+  "Import Sol preset": structuredTip({
+    overview: "Load the built-in Sol preset into the import preview.",
+    changes:
+      "Prepares a Solar System world with major planets, belts, flagship moons, and Halley for replacement or backup save.",
+    caveat: "Applying the preset can replace the current world; review the preview first.",
+  }),
+  "Import Realmspace preset": structuredTip({
+    overview: "Load the built-in Realmspace/Spelljammer preset into the import preview.",
+    changes:
+      "Prepares Anadia through Chandos, Coliar, Glyth, Selune, and Calendar of Harptos for replacement or backup save.",
+    caveat: "Applying the preset can replace the current world; review the preview first.",
+  }),
+  "Import Arrakis preset": structuredTip({
+    overview: "Load the built-in Arrakis preset into the import preview.",
+    changes:
+      "Prepares the Canopus system, Arrakis context, neighbouring bodies, gas giants, moons, and Imperial Standard calendar.",
+    caveat: "Applying the preset can replace the current world; review the preview first.",
+  }),
+  "Import file": structuredTip({
+    overview: "Select a JSON world export or supported legacy XLSX workbook.",
+    feedsInto: "Import validation, migration, preview, and apply actions.",
+    caveat:
+      "Older formats are migrated where possible, but unsupported fields may be ignored or warned.",
+  }),
+  "Import JSON text": structuredTip({
+    overview: "Paste JSON world export text for validation and import.",
+    feedsInto: "Import validation, preview, backup save, and replacement actions.",
+    caveat: "Pasted text must fit browser import limits and match a supported schema.",
+  }),
+  "Export JSON text": structuredTip({
+    overview: "Read-only JSON export preview for the current saved world.",
+    drawnFrom: "Saved world data normalised into the current export envelope.",
+    caveat: "Editing this text does not edit the saved world; use Import to validate changed JSON.",
+  }),
+  "Moon world data": structuredTip({
+    overview: "Moon-page science outputs reconstructed after import.",
+    drawnFrom: "Exported moon inputs and the current moon engine.",
+    caveat:
+      "Atmosphere, hydrosphere, climate, geology, biosphere, and habitability outputs are recalculated when loaded.",
+  }),
 };
 
 const JSON_IMPORT_LIMIT_LABEL = getImportLimitLabel("json");
@@ -979,6 +1074,25 @@ export function initImportExportPage(root) {
     return previewChildren;
   }
 
+  function createImportPreviewSkeleton(label = "Preparing import preview") {
+    return createSkeletonRegion({
+      label,
+      className: "io-preview-skeleton",
+      children: [
+        createSkeletonKpiStrip({ count: 4 }),
+        createSkeletonTable({ columns: 2, rows: 6 }),
+      ],
+    });
+  }
+
+  function showImportPreviewSkeleton(label = "Preparing import preview") {
+    if (!importPreviewEl) return;
+    pendingImport = null;
+    importPreviewEl.style.display = "block";
+    if (importActionsEl) importActionsEl.style.display = "none";
+    replaceChildren(importPreviewEl, createImportPreviewSkeleton(label));
+  }
+
   function showImportPreview(world, options = {}) {
     let normalisedWorld = null;
     let meta = null;
@@ -1362,8 +1476,12 @@ export function initImportExportPage(root) {
   });
 
   btnImport.addEventListener("click", async () => {
+    if ((txtImport.value || "").trim()) showImportPreviewSkeleton("Preparing import preview");
     const data = await parseImportText(txtImport.value);
-    if (!data) return;
+    if (!data) {
+      hideImportPreview();
+      return;
+    }
     await validateImportData(data);
   });
 
@@ -1384,6 +1502,9 @@ export function initImportExportPage(root) {
     if (!f) return;
     try {
       const kind = isXlsxFile(f) ? "xlsx" : "json";
+      showImportPreviewSkeleton(
+        kind === "xlsx" ? "Preparing workbook import preview" : "Preparing import preview",
+      );
       assertImportFileWithinLimit(f, kind);
       await maybeWarnLargeImport(
         statusImport,

@@ -14,6 +14,7 @@ import {
   buildRockyMoonParentOverride,
   solveMoonSystem,
 } from "../engine/moon/system.js";
+import { MOON_ORIGIN_PATHWAYS, moonOriginPathwayLabel } from "../engine/moon/config.js";
 import { fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { createElement } from "./domHelpers.js";
@@ -88,6 +89,7 @@ import {
   getProjectedPrimaryStar,
 } from "./store.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
+import { structuredTip } from "./tooltipCopy.js";
 import { createTutorial } from "./tutorial.js";
 import { createContextCockpit } from "./workflow/contextCockpit.js";
 import { createCreationModeStrip } from "./workflow/creationModeStrip.js";
@@ -122,16 +124,38 @@ const TIP_LABEL = {
     "Surface gravity on the moon relative to Earth.\n\nEarth = 1 g = 9.8 m/s\u00B2.\nMoon = 0.17 g = 1.62 m/s\u00B2.",
   "Escape Velocity":
     "Speed required to escape the gravitational pull of the moon.\n\nMoon = 2.38 km/s. Earth = 11.2 km/s.",
-  Albedo:
-    "Bond albedo of the moon, measuring reflectivity on a scale of 0 to 1.\n\n0 = perfect absorber. 1 = perfect reflector.\n\nMercury = 0.068\nVenus = 0.77\nEarth = 0.306\nMoon = 0.11\nJupiter = 0.343\nSaturn = 0.342\nUranus = 0.30\nNeptune = 0.29\nPluto = 0.49",
+  Albedo: structuredTip({
+    overview: "Bond albedo of the moon, measuring reflected stellar energy from 0 to 1.",
+    feedsInto:
+      "Equilibrium temperature, surface temperature, surface-ice stability, climate state, and visual brightness.",
+    interpretAs: "0 absorbs everything; 1 reflects everything. Earth's Moon is about 0.11.",
+    caveat: "This is a global average, not a surface albedo map.",
+    references: "See Science & Maths: climate energy balance.",
+  }),
   "Moon Zone (Inner)":
     "Closest stable orbit for the moon. Any closer and tidal forces tear it apart (the Roche limit).",
   "Moon Zone (Outer)":
     "Farthest stable orbit for the moon. Beyond this distance the moon is no longer gravitationally bound.",
-  "Semi-Major Axis":
-    "Orbital distance from the planet in km.\n\nFor moons of habitable Earth-like planets, the semi-major axis should fall between Moon Zone (Inner) and half of Moon Zone (Outer). Multiple major moons should be spaced at least 10 planetary radii apart.\n\nThe app clamps this value on Apply to keep the orbit inside the Moon Zone.\n\nMoon = 384,748 km.",
-  Eccentricity:
-    "Orbital eccentricity of the moon (0\u20131).\n\n0 = perfect circle. 1 = parabola.\n\nMajor moons should have very low eccentricities.\n\nMoon = 0.055.",
+  "Semi-Major Axis": structuredTip({
+    overview: "Average orbital distance from the parent planet in km.",
+    feedsInto:
+      "Orbital period, lock state, tidal heating, eclipse forcing, Hill/Roche safety, orbital fate, and visualizer moon placement.",
+    interpretAs:
+      "For moons of habitable Earth-like planets, this should usually fall between the inner moon zone and about half of the outer moon zone.",
+    caveat:
+      "The app clamps this value on Apply to keep the orbit inside the moon zone; multiple major moons should be spaced generously.",
+    references: "See Science & Maths: moon orbital stability.",
+  }),
+  Eccentricity: structuredTip({
+    overview: "Orbital eccentricity of the moon.",
+    feedsInto:
+      "Periapsis/apoapsis, tidal heating, forced-eccentricity checks, orbital fate, and visualizer orbit shape.",
+    interpretAs:
+      "0 is circular; values approaching 1 are extremely elongated. Earth's Moon is about 0.055.",
+    caveat:
+      "Sustained eccentricity usually needs resonance or perturbation support; otherwise tides tend to damp it over time.",
+    references: "See Science & Maths: moon tides and Keplerian orbit geometry.",
+  }),
   Periapsis:
     "Closest approach of the moon to the planet during orbit.\n\nShould fall between Moon Zone (Inner) and Moon Zone (Outer).",
   Apoapsis:
@@ -181,8 +205,15 @@ const TIP_LABEL = {
     "Shows whether the moon inventory came from bulk density, the manual composition override, or a class hint.",
   "Core Mass Fraction":
     "Estimated differentiated core share of total moon mass. This is inferred from density, class, and the differentiated-interior input.",
-  "Material Response":
-    "Rigidity and tidal quality factor passed from the shared composition solver into the tidal heating and spin-lock calculations.",
+  "Material Response": structuredTip({
+    overview: "Rigidity and tidal quality factor used by the moon tidal model.",
+    drawnFrom:
+      "Bulk density, composition override, water/ice inventory, and solid-body composition solver.",
+    feedsInto: "Tidal heating, spin locking, orbital recession, and stress morphology.",
+    caveat:
+      "This is an effective material response for analytic tides, not a layered viscoelastic interior model.",
+    references: "See Science & Maths: solid-body response and tidal heating.",
+  }),
   "Composition Override":
     "Override the density-derived composition class with a specific interior state. Density is a good proxy for cold, solid moons, but it underestimates tidal heating by 10\u2013100\u00D7 for moons with extreme interiors.\n\nAuto (from density): Default. Best for geologically quiet moons.\n\nVery icy: Cometary or outer solar system bodies dominated by volatile ices. Low density (<1 g/cm\u00B3).\n\nIcy: Mostly water ice with some rock. Ganymede, Callisto, Rhea. Density 1\u20132 g/cm\u00B3.\n\nSubsurface ocean: A global liquid ocean beneath a thin ice shell dramatically softens the body and amplifies tidal dissipation. Use for moons showing signs of geological activity despite low density (cryovolcanism, plumes, young surface). Calibrated to Enceladus: predicted heating matches Cassini observations within 10%. WARNING: over-predicts for large moons like Titan (\u223C37\u00D7 too high) \u2014 use Icy for those.\n\nMixed rock/ice: Roughly half rock, half ice. Europa\u2019s density (3.0 g/cm\u00B3) places it here. Good default for moons of giant planets with intermediate density.\n\nRocky: Solid silicate mantle, like Earth\u2019s Moon (3.34 g/cm\u00B3). Appropriate for tidally quiet rocky moons.\n\nPartially molten: Extreme tidal heating has melted the interior, creating a magma ocean or mushy mantle. This makes the body much softer than solid rock, dramatically increasing dissipation. Use for moons in strong orbital resonances with high volcanic activity. Calibrated to Io: predicted heating matches observed 10\u00B9\u2074 W within 1%.\n\nIron-rich: Dense metallic body (>5 g/cm\u00B3). Very stiff, dissipates little energy. Mercury-like composition.",
   Dynamics: "Optional inputs that affect tidal evolution timescales.",
@@ -259,8 +290,18 @@ const TIP_LABEL = {
     "Primordial spin period of the moon before tidal braking. Faster spin (shorter period) means more angular momentum to dissipate and a longer time to reach tidal lock.\n\nDefault: 12 hours (model assumption from accretion dynamics). Range varies widely \u2014 fast-spinning bodies can be as short as 2\u20133 hours (near breakup), while captured moons may spin much slower.\n\nThis value feeds directly into the tidal locking timescale calculation.",
   "Surface & Habitability":
     "Compact summary block for the moon's environment and life-facing implications.\n\nThis section is intentionally light on direct inputs; use it as a reminder that the habitability outputs below depend on the water, atmosphere, radiation, and orbital-coupling controls above.",
-  "Tidal Heating":
-    "Surface heat flux from tidal deformation of the moon by its parent body. Uses the Wisdom (2008) formula with higher-order eccentricity corrections that remain accurate up to e \u2248 0.8.\n\nHigher eccentricity and closer orbits produce more heating. Io: ~0.3\u20132 W/m\u00B2 (highest in the Solar System). Earth's geothermal flux: 0.09 W/m\u00B2.\n\nTidal-thermal feedback: for rocky moons (\u03C1 \u2265 3.2), when tidal flux exceeds ~0.02 W/m\u00B2 the model automatically lowers Q and \u03BC toward partially-molten values, modelling the positive feedback loop that drives Io-like volcanism in orbital resonances.",
+  "Tidal Heating": structuredTip({
+    overview: "Surface heat flux from tidal deformation of the moon by its parent body.",
+    drawnFrom:
+      "Moon radius, density/composition, parent mass, semi-major axis, eccentricity or forced eccentricity, rigidity, and tidal Q.",
+    feedsInto:
+      "Surface temperature, volcanism, stress morphology, subsurface-ocean support, habitability energy context, and orbital evolution.",
+    interpretAs:
+      "Higher eccentricity and closer orbits produce more heating. Io is roughly 0.3-2 W/m2; Earth's geothermal flux is about 0.09 W/m2.",
+    caveat:
+      "Only solid-body tidal dissipation is modelled. Ocean tides, detailed resonance capture, and full thermal-orbital evolution are not simulated.",
+    references: "Wisdom 2008; Peale et al. 1979; see Science & Maths: moon tidal heating.",
+  }),
   "Tidal Heating (\u00D7 Earth)":
     "Tidal surface heat flux normalised to Earth's mean geothermal heat flux (0.09 W/m\u00B2).\n\n<1 = less than Earth's internal heat. >1 = more. Io \u2248 4\u00D7 Earth (equilibrium model).",
   "Stress Morphology":
@@ -269,8 +310,17 @@ const TIP_LABEL = {
     "Rate of orbital migration due to tidal dissipation. Positive = outward (planet spins faster than moon orbits, like Earth\u2013Moon at +3.8 cm/yr). Negative = inward (planet spins slower, like Phobos spiralling toward Mars).\n\nDriven by two competing effects: the planet\u2019s tidal bulge transfers angular momentum, while the moon\u2019s own dissipation damps the orbit inward.",
   // Keep this tooltip aligned with the live orbital-fate solver.
   // Stage 1 switched the current estimate to an integrated model.
-  "Orbital Fate":
-    "Integrated tidal-evolution estimate for when the moon reaches the Roche limit (tidal disruption) or escapes the stable outer moon zone.\n\nThe current migration rate is propagated as an a^(-11/2) tidal law, which reduces distortion in long-lived inward and outward fate estimates. This is still an approximate estimate: the model assumes the current tidal regime continues over geological time.",
+  "Orbital Fate": structuredTip({
+    overview:
+      "Integrated tidal-evolution estimate for whether the moon reaches the Roche limit or escapes the stable outer moon zone.",
+    drawnFrom:
+      "Current orbit, parent/moon mass, tidal migration rate, Roche limit, outer moon-zone limit, and the integrated a^(-11/2) tidal law.",
+    interpretAs:
+      "Disruption means inward decay toward the Roche limit; escape means outward migration beyond the stable outer zone.",
+    caveat:
+      "This assumes the current tidal regime continues over geological time. It is not a full orbital-history integration.",
+    references: "See Science & Maths: orbital fate and tidal migration.",
+  }),
   "Nearest Resonance":
     "Closest sibling-moon mean-motion resonance identified by the coupled moon-system solver.",
   "Laplace Status":
@@ -280,6 +330,16 @@ const TIP_LABEL = {
   "Tidal HZ": "Moon tidal-habitable-zone readout from the coupled moon-system solver.",
   Formation:
     "First-pass moon formation classifier derived from orbit geometry, inclination, distance from the parent, and regular versus irregular moon architecture.",
+  "Origin Pathway": structuredTip({
+    overview: "The moon's formation or capture pathway used as a lifecycle prior.",
+    changes:
+      "Auto infers the pathway from parent type, orbit distance, inclination, eccentricity, mass ratio, and resonance context. A user selection pins the origin prior.",
+    feedsInto:
+      "Formation/origin KPI, Lifecycle Timeline birth era, origin confidence, and consistency warnings.",
+    caveat:
+      "This does not simulate the impact, capture encounter, circumplanetary disk, ring event, or migration history.",
+    references: "See Science & Maths: moon origin pathways and lifecycle timelines.",
+  }),
   Limits: "Derived orbital limits and lock times for the selected moon.",
   "Tidal locking": "Lock times and current lock state for the moon\u2013planet\u2013star system.",
   "Equilibrium Temp":
@@ -331,9 +391,17 @@ const TIP_LABEL = {
   "Climate Zones":
     "Moon climate-zone summary from the parent-coupled moon climate model.\n\n" +
     "The current implementation reuses the Koppen-style zone classifier with moon-specific mean temperature, water state, pressure, and effective seasonal forcing.",
-  "Surface Ices":
-    "High-level description of exposed surface-ice stability on the moon.\n\n" +
-    "This rolls together surface temperature, volatile inventory, and atmosphere into a quick read such as stable frost, seasonal ice, or ice-free terrain. Use it as the compact visual companion to the deeper hydrosphere outputs.",
+  "Surface Ices": structuredTip({
+    overview: "High-level description of exposed surface-ice stability on the moon.",
+    drawnFrom:
+      "Surface temperature, volatile inventory, albedo, atmosphere state, hydrosphere mode, and host/parent energy forcing.",
+    feedsInto:
+      "Moon visual appearance, surface habitability context, exosphere sputtering context, and hydrosphere interpretation.",
+    interpretAs:
+      "Use it as the compact visual companion to deeper hydrosphere outputs such as stable frost, seasonal ice, or ice-free terrain.",
+    caveat: "This is not a volatile transport simulation or a local polar cold-trap map.",
+    references: "See Science & Maths: moon hydrosphere and surface ices.",
+  }),
   Seasonality:
     "Qualitative description of the moon's climate variability.\n\n" +
     "This combines seasonal forcing, eclipse duty cycle, and parentshine contrast to indicate whether the moon behaves as a low-, moderate-, strong-, or extreme-seasonality world.",
@@ -356,8 +424,15 @@ const TIP_LABEL = {
   Atmosphere:
     "Derived moon atmosphere class from the retained volatile inventory.\n\n" +
     "Airless and exosphere states indicate no meaningful surface atmosphere. Thin, substantial, and dense volatile atmospheres represent retained or replenished gases near the surface.",
-  Exosphere:
-    "Surface-boundary exosphere context for icy moons. Sputtered O2/H2 here is abiotic, not breathable air, not retained surface pressure, and not a biosignature claim.",
+  Exosphere: structuredTip({
+    overview: "Surface-boundary exosphere context for icy moons.",
+    drawnFrom:
+      "Surface ice, parent magnetosphere/sputtering context, volatile source terms, and retained-atmosphere checks.",
+    interpretAs:
+      "Sputtered O2/H2 is abiotic, not breathable air, not retained surface pressure, and not a biosignature claim.",
+    caveat: "This is a source and boundary diagnostic, not a full plasma-chemistry simulation.",
+    references: "See Science & Maths: icy moon sputtered exospheres.",
+  }),
   Source:
     "Exosphere source mechanism. Radiolysis-sputtering means parent magnetospheric particles dissociate exposed water ice and eject products into a tenuous exosphere.",
   "O2 production":
@@ -480,10 +555,18 @@ const TIP_LABEL = {
     "Methane interpretation using oxygen level, haze likelihood, outgassing, hydrothermal context, and replenishment demand. Methane can be geologic or photochemical.",
   "CO Buildup Risk":
     "Carbon-monoxide buildup risk in low-UV or high-CO2 atmospheres. CO can create false-positive or false-negative biosignature context.",
-  "Radiogenic Heating":
-    "Internal heat from radioactive decay (U, Th, K) on the moon\u2019s surface." +
-    "\n\nScales from Earth\u2019s 44 TW by moon mass and the system\u2019s radioisotope " +
-    "abundance setting. Typically small compared to tidal heating.",
+  "Radiogenic Heating": structuredTip({
+    overview: "Internal heat from radioactive decay of U, Th, and K in the moon.",
+    drawnFrom:
+      "Moon mass, composition/radioisotope settings, isotope abundances, and Earth reference heat production.",
+    feedsInto:
+      "Internal heat budget, ocean persistence, cryovolcanism, volatile replenishment, and solid-body activity context.",
+    interpretAs:
+      "Usually smaller than strong tidal heating, but important for older or less tidally stressed rocky/icy moons.",
+    caveat:
+      "This is a bulk heat estimate, not a full thermal evolution or mantle convection model.",
+    references: "See Science & Maths: radiogenic heat and moon solid-body evolution.",
+  }),
   "Magnetospheric Radiation":
     "Charged-particle radiation dose from the host planet\u2019s magnetosphere." +
     "\n\nScales as B\u00B3 at the moon\u2019s orbit (dipole field), calibrated to " +
@@ -524,6 +607,336 @@ const TIP_LABEL = {
   "Habitability Gates":
     "Quick count of how many surface and subsurface habitability gates currently pass.",
 };
+
+Object.assign(TIP_LABEL, {
+  "Star Luminosity": structuredTip({
+    overview: "Host-frame luminosity used for moon irradiation.",
+    drawnFrom:
+      "The selected parent body's stellar host frame, including pair or companion context where applicable.",
+    feedsInto: "Equilibrium temperature, surface temperature, ice stability, and climate state.",
+    caveat: "This is host-frame forcing, not a detailed time-variable binary irradiation model.",
+    references: "See Science & Maths: environment forcing and multi-star host frames.",
+  }),
+  "Planet Mass": structuredTip({
+    overview: "Parent planet mass.",
+    drawnFrom: "The selected parent body.",
+    feedsInto: "Moon orbital period, Hill/Roche stability, tidal force, and tidal heating context.",
+    caveat: "Changing the parent changes the allowed moon zone and inherited environment.",
+    references: "See Science & Maths: moon orbital stability.",
+  }),
+  "Planet Semi-Major Axis": structuredTip({
+    overview: "Parent body's orbital distance from its stellar host frame.",
+    drawnFrom: "Selected parent orbit.",
+    feedsInto: "Moon stellar flux, equilibrium temperature, eclipses, and host-frame environment.",
+    caveat: "For eccentric parent orbits, mean context is used for most baseline calculations.",
+    references: "See Science & Maths: Keplerian orbit geometry.",
+  }),
+  Mass: structuredTip({
+    overview: "Moon mass in lunar masses.",
+    feedsInto:
+      "Radius/density context, gravity, escape velocity, tides, orbital evolution, and solid-body activity.",
+    caveat:
+      "Moons should remain less massive than their parent; extreme cases may behave more like binary planets.",
+    references: "See Science & Maths: moon mass, tides, and stability.",
+  }),
+  Density: structuredTip({
+    overview: "Bulk moon density.",
+    feedsInto:
+      "Radius, composition class, material response, tidal Q/rigidity, and interior interpretation.",
+    caveat: "Density is a proxy; use composition/interior overrides for oceanic or molten moons.",
+    references: "See Science & Maths: moon solid-body response.",
+  }),
+  Radius: structuredTip({
+    overview: "Moon radius in lunar radii.",
+    drawnFrom: "Moon mass and density unless overridden by the current body model.",
+    feedsInto: "Gravity, escape velocity, surface area, atmosphere retention, and tides.",
+    caveat: "Shape, oblateness, and local relief are not modelled.",
+    references: "See Science & Maths: moon bulk properties.",
+  }),
+  Gravity: structuredTip({
+    overview: "Moon surface gravity relative to Earth.",
+    drawnFrom: "Moon mass and radius.",
+    feedsInto: "Atmosphere retention, ocean pressure, surface habitability, and geology context.",
+    caveat: "Local terrain gravity variation is not modelled.",
+    references: "See Science & Maths: moon bulk properties.",
+  }),
+  "Escape Velocity": structuredTip({
+    overview: "Speed needed for gas or particles to escape the moon.",
+    drawnFrom: "Moon mass and radius.",
+    feedsInto:
+      "Atmospheric escape, retained volatiles, exosphere context, and habitability warnings.",
+    caveat: "Escape outcomes also depend on temperature, molecular mass, XUV, and source terms.",
+    references: "See Science & Maths: atmospheric escape.",
+  }),
+  "Moon Zone (Inner)": structuredTip({
+    overview: "Closest stable moon orbit before Roche/tidal disruption risk.",
+    drawnFrom: "Parent mass/radius, moon density, and Roche-limit context.",
+    caveat: "This is an analytic guardrail, not a collision or tidal-disruption simulation.",
+    references: "See Science & Maths: Roche limits and moon stability.",
+  }),
+  "Moon Zone (Outer)": structuredTip({
+    overview: "Outer moon stability boundary within the parent Hill sphere.",
+    drawnFrom:
+      "Parent orbit/host mass, parent mass, and prograde/retrograde stability assumptions.",
+    caveat: "Long-term perturbations and sibling moons are summarised elsewhere.",
+    references: "See Science & Maths: Hill sphere and moon stability.",
+  }),
+  Periapsis: structuredTip({
+    overview: "Closest point of the moon's orbit to its parent.",
+    drawnFrom: "Semi-major axis and eccentricity.",
+    feedsInto: "Roche safety, tidal heating, orbital fate, and visualizer markers.",
+    caveat: "Sustained close periapsis can be unstable even if the average orbit looks safe.",
+    references: "See Science & Maths: Keplerian orbit geometry.",
+  }),
+  Apoapsis: structuredTip({
+    overview: "Farthest point of the moon's orbit from its parent.",
+    drawnFrom: "Semi-major axis and eccentricity.",
+    feedsInto: "Outer moon-zone safety, Hill stability, and visualizer markers.",
+    caveat:
+      "Apoapsis near the outer stability boundary can make escape/perturbation risk stronger.",
+    references: "See Science & Maths: Keplerian orbit geometry.",
+  }),
+  Inclination: structuredTip({
+    overview: "Tilt of the moon orbit relative to the parent orbital plane.",
+    feedsInto:
+      "Eclipse likelihood, orbital direction label, visualizer orientation, and coupling diagnostics.",
+    caveat:
+      "Inclination effects are diagnostic; the app does not run a full secular moon integration.",
+    references: "See Science & Maths: orbital inclination and eclipses.",
+  }),
+  "Orbital Period (sidereal)": structuredTip({
+    overview: "Moon orbit period relative to background stars.",
+    drawnFrom: "Parent mass and moon semi-major axis through Keplerian dynamics.",
+    feedsInto: "Tidal evolution, rotation, calendar context, and visualizer animation.",
+    references: "See Science & Maths: Keplerian orbital periods.",
+  }),
+  "Orbital Period (synodic)": structuredTip({
+    overview: "Time between repeated lunar phases as seen from the parent.",
+    drawnFrom: "Moon sidereal period and parent orbital year.",
+    feedsInto: "Calendar lunar month, phase markers, and tide/sky context.",
+    caveat: "Complex multi-moon phase interactions are not fully scheduled here.",
+    references: "See Science & Maths: synodic periods.",
+  }),
+  "Rotation Period": structuredTip({
+    overview: "Moon spin period.",
+    drawnFrom: "Tidal lock state or despinning estimate from the moon tide model.",
+    feedsInto: "Day/night contrast, thermal range, climate tendency, and visual rotation.",
+    caveat:
+      "Detailed spin-orbit resonance capture beyond the supported lock/despin logic is not solved.",
+    references: "See Science & Maths: tidal locking.",
+  }),
+  "Total Tidal Force": structuredTip({
+    overview: "Combined tide-raising force on the parent from moon and star.",
+    drawnFrom: "Moon mass/distance and star/parent orbital context.",
+    interpretAs: "Compared against Earth system tides for readability.",
+    caveat: "This is force context, not a full ocean tide simulation.",
+    references: "See Science & Maths: tidal forces.",
+  }),
+  "Moon locked to Planet?": structuredTip({
+    overview: "Whether the moon is expected to be tidally locked to its parent.",
+    drawnFrom: "Moon orbit, mass/radius, material response, and system age.",
+    caveat: "The lock test is an analytic timescale comparison, not a spin history integration.",
+    references: "See Science & Maths: tidal locking.",
+  }),
+  "Derived Data": structuredTip({
+    overview: "Read-only parent and host-frame context used by moon calculations.",
+    drawnFrom: "Selected parent body, host star/frame, planet solver, and saved system topology.",
+    caveat: "In binary systems this is host-frame context, not a full multi-body time series.",
+    references: "See Science & Maths: multi-star host frames and moon stability.",
+  }),
+  "Environment Forcing": structuredTip({
+    overview: "Canonical forcing inherited by the moon solver.",
+    drawnFrom:
+      "Host-frame bolometric light, XUV, prebiotic UV, stellar wind, companion contributions, parent orbit, planetshine, and eclipses.",
+    feedsInto: "Temperature, surface ice, atmosphere, radiation, and habitability outputs.",
+    caveat: "Forcing is bounded context, not full radiative transfer or climate integration.",
+    references: "See Science & Maths: environment forcing.",
+  }),
+  Orbit: structuredTip({
+    overview: "Orbital inputs controlling moon distance, periods, tides, and stability.",
+    feedsInto:
+      "Moon zone checks, tidal heating, lock state, eclipses, visualizer placement, and orbital fate.",
+    references: "See Science & Maths: moon orbital stability.",
+  }),
+  Physical: structuredTip({
+    overview: "Bulk moon inputs controlling size, gravity, escape, and composition.",
+    feedsInto:
+      "Atmosphere retention, tides, solid-body response, hydrosphere, and habitability outputs.",
+    references: "See Science & Maths: moon bulk properties.",
+  }),
+  Composition: structuredTip({
+    overview: "Density-derived or overridden bulk composition class.",
+    feedsInto: "Material response, tidal Q/rigidity, hydrosphere, geology, and solid-body outputs.",
+    caveat:
+      "Use Composition Override for subsurface-ocean or molten interiors where density is not enough.",
+    references: "See Science & Maths: moon solid-body response.",
+  }),
+  "Interior Composition": structuredTip({
+    overview: "Shared rocky-body inventory for the moon.",
+    drawnFrom: "Density, composition override, water/ammonia inputs, and differentiation controls.",
+    feedsInto: "Bulk mix, element mix, core fraction, rigidity, tidal Q, and internal heat.",
+    caveat: "This is a bulk inventory model, not detailed mineralogy.",
+    references: "See Science & Maths: rocky body composition and solid-body structure.",
+  }),
+  "Composition Override": structuredTip({
+    overview: "Manual interior-state override for tidal/material response.",
+    changes:
+      "Overrides density-derived class for cases like subsurface oceans, partially molten interiors, very icy bodies, or iron-rich moons.",
+    feedsInto: "Rigidity, tidal Q, tidal heating, lock state, and solid-body activity.",
+    caveat: "Choose special states only when you intend that interior behaviour.",
+    references: "See Science & Maths: solid-body response and tidal heating.",
+  }),
+  "Moon Science Modes": structuredTip({
+    overview:
+      "Top-level complexity controls for moon hydrosphere, atmosphere, and orbital coupling.",
+    changes: "Switches between compact Core handling and deeper Full/Manual controls.",
+    caveat:
+      "The engine still computes outputs; Manual exposes inputs rather than bypassing science checks.",
+  }),
+  "Hydrosphere Mode": structuredTip({
+    overview: "Controls how moon water and interior-water state are authored.",
+    changes:
+      "Core infers water heuristically; Full adds explicit water/salinity/ammonia; Manual exposes physical water/interior inputs.",
+    feedsInto: "Surface water, subsurface ocean, ice shell, surface ices, and habitability.",
+    references: "See Science & Maths: moon hydrosphere.",
+  }),
+  "Atmosphere Mode": structuredTip({
+    overview: "Controls how moon atmosphere inputs are authored and checked.",
+    changes:
+      "Core uses retained-volatile heuristics; Full adds diagnostics; Manual exposes pressure and gas mix inputs.",
+    feedsInto: "Surface pressure, greenhouse, atmosphere stability, haze/clouds, and habitability.",
+    references: "See Science & Maths: moon atmosphere.",
+  }),
+  "Orbital Coupling": structuredTip({
+    overview: "Controls whether sibling-moon resonance and forced eccentricity are considered.",
+    changes:
+      "Full derives resonance forcing from sibling moons; Manual exposes resonance group and forced-eccentricity controls.",
+    feedsInto: "Tidal heating, orbital fate, tidal habitable zone, and geology.",
+    caveat: "This is resonance diagnostics, not a full multi-moon N-body integration.",
+    references: "See Science & Maths: moon resonances and tidal heating.",
+  }),
+  "Water Mass Fraction": structuredTip({
+    overview: "Explicit moon water inventory as percent of total mass.",
+    feedsInto:
+      "Surface water, buried ocean depth, ice shell, high-pressure ice, and habitability context.",
+    caveat: "Core mode ignores this and infers water from composition.",
+    references: "See Science & Maths: moon hydrosphere.",
+  }),
+  "Forced Eccentricity": structuredTip({
+    overview: "Minimum eccentricity sustained by resonance or perturbation forcing.",
+    feedsInto: "Effective eccentricity, tidal heating, orbital fate, and resonance diagnostics.",
+    caveat: "Auto forcing is capped; larger values require explicit Manual mode.",
+    references: "See Science & Maths: moon resonances and tidal heating.",
+  }),
+  "Equilibrium Temp": structuredTip({
+    overview: "Airless radiative equilibrium temperature.",
+    drawnFrom:
+      "Host luminosity, moon albedo, orbital distance, planetshine, and eclipse cooling context.",
+    caveat: "It excludes atmosphere and many local surface effects.",
+    references: "See Science & Maths: climate energy balance.",
+  }),
+  "Surface Temp": structuredTip({
+    overview: "Estimated mean moon surface temperature.",
+    drawnFrom:
+      "Radiative equilibrium, tidal heating, radiogenic heating, atmosphere, planetshine, and eclipse context.",
+    caveat: "It is a global mean, not a local thermal map.",
+    references: "See Science & Maths: moon climate.",
+  }),
+  "Climate State": structuredTip({
+    overview: "High-level moon climate regime.",
+    drawnFrom:
+      "Surface water, temperature, atmosphere, planetshine, eclipses, and internal heating.",
+    caveat: "It is a compact regime label, not a full climate simulation.",
+    references: "See Science & Maths: moon climate.",
+  }),
+  Planetshine: structuredTip({
+    overview:
+      "Average climate forcing from the parent body's reflected starlight and thermal emission.",
+    drawnFrom:
+      "Parent reflected starlight, thermal emission, moon distance, and parent properties.",
+    feedsInto: "Surface temperature, seasonality, and ice stability.",
+    interpretAs:
+      "Close-in large moons should show stronger parentshine than distant or small-parent cases.",
+    caveat: "Spatial variation across near/far side is summarized rather than fully mapped.",
+    references: "See Science & Maths: planetshine.",
+  }),
+  "Eclipse Cooling": structuredTip({
+    overview: "Fraction of stellar energy lost to eclipses by the parent body.",
+    drawnFrom:
+      "Moon orbit, parent radius, star geometry, inclination, and eclipse likelihood context.",
+    feedsInto: "Equilibrium temperature, climate state, and surface-ice stability.",
+    caveat: "Exact eclipse schedules require additional orbital node/epoch data.",
+    references: "See Science & Maths: eclipses.",
+  }),
+  Atmosphere: structuredTip({
+    overview: "Derived moon atmosphere class.",
+    drawnFrom:
+      "Volatile inventory, escape, source terms, surface temperature, and atmosphere mode inputs.",
+    caveat:
+      "Airless and exosphere states indicate no meaningful surface atmosphere. Thin/exosphere states do not imply breathable or stable surface pressure.",
+    references: "See Science & Maths: moon atmosphere.",
+  }),
+  "Surface Pressure": structuredTip({
+    overview: "Total modeled moon surface pressure.",
+    drawnFrom:
+      "Retained volatile inventory or manual atmosphere inputs checked by the moon solver.",
+    feedsInto: "Greenhouse warming, heat redistribution, collapse risk, and habitability context.",
+    caveat: "Pressure can be transient if source/sink balance is unfavourable.",
+    references: "See Science & Maths: moon atmosphere.",
+  }),
+  "Volcanic Activity": structuredTip({
+    overview: "Derived silicate-volcanism signal for rocky or molten moons.",
+    drawnFrom: "Tidal heating, radiogenic heating, interior class, size, and gravity.",
+    feedsInto: "Resurfacing, outgassing, volatile replenishment, and geology summaries.",
+    interpretAs:
+      "High values indicate Io-like or strongly molten rocky interiors that are likely to refresh the surface.",
+    caveat: "It is an activity class, not an eruption forecast.",
+    references: "See Science & Maths: moon geologic activity.",
+  }),
+  "Cryovolcanic Activity": structuredTip({
+    overview: "Icy-moon plume/resurfacing signal.",
+    drawnFrom: "Subsurface water, internal heating, composition, and venting ease.",
+    feedsInto:
+      "Exosphere sources, volatile replenishment, surface renewal, and ocean habitability context.",
+    caveat: "Plume timing and chemistry are not explicitly simulated.",
+    references: "See Science & Maths: moon cryovolcanism.",
+  }),
+  "Subsurface Ocean": structuredTip({
+    overview: "Buried liquid-water ocean support score.",
+    drawnFrom:
+      "Water inventory, heat budget, salinity/ammonia, ice shell, gravity, and pressure context.",
+    caveat: "It estimates plausibility and depth, not full ocean circulation.",
+    references: "See Science & Maths: moon hydrosphere.",
+  }),
+  "Ice Shell": structuredTip({
+    overview: "Estimated frozen shell thickness above liquid water.",
+    drawnFrom: "Thermal balance, water inventory, ocean state, and internal heat context.",
+    caveat: "Convection, fractures, and local thinning are simplified.",
+    references: "See Science & Maths: moon hydrosphere.",
+  }),
+  "High-pressure Ice Barrier": structuredTip({
+    overview: "Risk that dense ice phases separate ocean from rock.",
+    drawnFrom: "Ocean depth, gravity, and pressure thresholds.",
+    caveat: "It is a barrier-risk flag, not a full high-pressure phase diagram.",
+    references: "See Science & Maths: high-pressure ice.",
+  }),
+  "Ocean Chemistry": structuredTip({
+    overview: "Qualitative surface/subsurface ocean chemistry context.",
+    drawnFrom:
+      "Salinity/ammonia, CO2, carbonate buffering, rock-ocean access, and hydrothermal support.",
+    caveat: "It is not an exact pH, circulation, or biogeochemistry model.",
+    references: "See Science & Maths: ocean chemistry.",
+  }),
+  "Magnetospheric Radiation": structuredTip({
+    overview: "Charged-particle radiation dose from the parent magnetosphere.",
+    drawnFrom:
+      "Parent magnetic context, moon orbital distance, magnetopause exposure, and calibration cases.",
+    feedsInto: "Surface radiation, habitability, exosphere sputtering, and warning summaries.",
+    caveat:
+      "This is an upper-context estimate; ring absorption and local plasma losses are not fully simulated.",
+    references: "See Science & Maths: magnetospheric radiation.",
+  }),
+});
 
 const MOON_COMPONENT_DISPLAY = Object.freeze([
   ["metal", "Metal"],
@@ -1119,6 +1532,18 @@ export function initMoonPage(mountEl, options = {}) {
             <input id="name" type="text" />
           </div>
 
+          <div class="form-row">
+            <div>
+              <div class="label">Origin Pathway ${tipIcon(TIP_LABEL["Origin Pathway"] || "")}</div>
+              <div class="hint">Auto infers from orbit and parent context.</div>
+            </div>
+            <select id="originPathway" aria-label="Origin Pathway">
+              ${MOON_ORIGIN_PATHWAYS.map(
+                (pathway) => `<option value="${pathway.id}">${pathway.label}</option>`,
+              ).join("")}
+            </select>
+          </div>
+
           <div class="flow-spacer flow-spacer--sm"></div>
           <div class="label">Orbit ${tipIcon(TIP_LABEL["Orbit"] || "")}</div>
 
@@ -1292,6 +1717,7 @@ export function initMoonPage(mountEl, options = {}) {
   const moonSelectedMetaEl = wrap.querySelector("#moonSelectedMeta");
   const moonNextStepRecommendationEl = wrap.querySelector("#moonNextStepRecommendation");
   const nameEl = wrap.querySelector("#name");
+  const originPathwayEl = wrap.querySelector("#originPathway");
 
   const aEl = wrap.querySelector("#a");
   const eEl = wrap.querySelector("#e");
@@ -1591,6 +2017,7 @@ export function initMoonPage(mountEl, options = {}) {
     const compositionPatch = collectCompositionEditorPatch(moonCompositionEditorEl);
     return {
       name: nameEl.value || "New Moon",
+      originPathway: originPathwayEl.value || "auto",
       semiMajorAxisKm: Number(aEl.value),
       eccentricity: Number(eEl.value),
       inclinationDeg: Number(incEl.value),
@@ -2268,6 +2695,18 @@ export function initMoonPage(mountEl, options = {}) {
           },
           buildMoonKpi("Composition", model.display.compositionClass),
           buildMoonKpi(
+            "Origin Pathway",
+            model.display.originPathway || moonOriginPathwayLabel(state.moon.originPathway),
+            [model.display.originSource, model.display.originWarnings, model.formation?.rationale]
+              .filter(Boolean)
+              .join(" | "),
+          ),
+          buildMoonKpi(
+            "Origin Confidence",
+            model.display.originConfidence || "0.00",
+            model.display.originSource,
+          ),
+          buildMoonKpi(
             "Bulk Mix",
             compositionInventory.componentSummary,
             compositionInventory.sourceLabel,
@@ -2337,6 +2776,10 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Radius", model.display.radius, "derived"),
           buildMoonKpi("Gravity", model.display.gravity),
           buildMoonKpi("Escape Velocity", model.display.esc),
+          buildMoonKpi("Structure", model.display.solidBodyStructure),
+          buildMoonKpi("Compactness", model.display.compactnessClass),
+          buildMoonKpi("Layers", model.display.layerSummary),
+          buildMoonKpi("Response Confidence", model.display.materialResponseConfidence),
         ],
       }),
       collapsedMoonKpiSection({
@@ -2345,6 +2788,7 @@ export function initMoonPage(mountEl, options = {}) {
         density: "compact",
         items: [
           buildMoonKpi("Atmosphere", model.display.atmosphereClass, model.display.atmosphereSource),
+          buildMoonKpi("Atmosphere Regime", model.display.atmosphereRegime),
           buildMoonKpi(
             "Exosphere",
             model.display.exosphere,
@@ -2525,6 +2969,8 @@ export function initMoonPage(mountEl, options = {}) {
           buildMoonKpi("Moon System Torque", parentBudgetValue, parentBudgetMeta),
           buildMoonKpi("Tidal HZ", model.display.tidalHabitableZone),
           buildMoonKpi("Formation", model.display.formation),
+          buildMoonKpi("Origin Pathway", model.display.originPathway),
+          buildMoonKpi("Origin Source", model.display.originSource, model.display.originWarnings),
           buildMoonKpi("Orbital Recession", model.display.recession),
           buildMoonKpi(
             "Orbital Fate",
@@ -2576,6 +3022,13 @@ export function initMoonPage(mountEl, options = {}) {
             `score ${fmt(geology.cryovolcanicActivityScore ?? 0, 2)}`,
           ),
           buildMoonKpi(
+            "Geodynamics",
+            model.display.moonGeodynamics,
+            `${model.display.hydrothermalPotential || "Hydrothermal unknown"} | ${
+              model.display.rockOceanExchange || "exchange unknown"
+            }`,
+          ),
+          buildMoonKpi(
             "Resurfacing",
             compactResurfacing,
             `${model.display.resurfacing}\n${
@@ -2612,6 +3065,7 @@ export function initMoonPage(mountEl, options = {}) {
           ),
           buildMoonKpi("Surface Radiation", model.display.surfaceRadiation),
           buildMoonKpi("Magnetic Shielding", model.display.magneticShielding),
+          buildMoonKpi("Dynamo", model.display.dynamoSummary),
         ],
       }),
       collapsedMoonKpiSection({
@@ -2709,6 +3163,10 @@ export function initMoonPage(mountEl, options = {}) {
 
     const eraTimelineSection = createEraTimelineSection(model.derived?.eraTimeline, {
       id: "moon-era-timeline",
+      title: "Lifecycle Timeline",
+      panelTitle: "Lifecycle Timeline",
+      subtitle:
+        "From origin pathway to current state and broad endpoint; not a capture or impact simulation.",
     });
     if (eraTimelineSection) {
       kpisEl.insertBefore(eraTimelineSection, kpisEl.children[2] || null);
@@ -2721,6 +3179,12 @@ export function initMoonPage(mountEl, options = {}) {
           title: "Identity & Class",
           items: [
             { label: "Name", value: state.moonName || state.moon.name || "Moon" },
+            {
+              label: "Origin Pathway",
+              value:
+                model.display.originPathway || moonOriginPathwayLabel(state.moon.originPathway),
+              meta: model.display.originSource,
+            },
             { label: "Composition", value: model.display.compositionClass },
             { label: "Composition Source", value: compositionInventory.sourceLabel },
             { label: "Element Mix", value: compositionInventory.elementSummary },
@@ -2742,6 +3206,11 @@ export function initMoonPage(mountEl, options = {}) {
             { label: "Radius", value: model.display.radius },
             { label: "Gravity", value: model.display.gravity },
             { label: "Escape Velocity", value: model.display.esc },
+            { label: "Structure", value: model.display.solidBodyStructure },
+            { label: "Compactness", value: model.display.compactnessClass },
+            { label: "Porosity", value: model.display.porosity },
+            { label: "Layer Summary", value: model.display.layerSummary },
+            { label: "Response Confidence", value: model.display.materialResponseConfidence },
           ],
         },
         {
@@ -2753,6 +3222,7 @@ export function initMoonPage(mountEl, options = {}) {
               value: model.display.atmosphereClass,
               meta: model.display.atmosphereSource,
             },
+            { label: "Atmosphere Regime", value: model.display.atmosphereRegime },
             { label: "Surface Pressure", value: model.display.surfacePressure },
             {
               label: "Atmosphere Mix",
@@ -3000,6 +3470,13 @@ export function initMoonPage(mountEl, options = {}) {
               meta: `score ${fmt(geology.cryovolcanicActivityScore ?? 0, 2)}`,
             },
             {
+              label: "Geodynamics",
+              value: model.display.moonGeodynamics,
+              meta: `${model.display.hydrothermalPotential || "Hydrothermal unknown"} | ${
+                model.display.rockOceanExchange || "exchange unknown"
+              }`,
+            },
+            {
               label: "Resurfacing",
               value: compactResurfacing,
               meta:
@@ -3055,6 +3532,7 @@ export function initMoonPage(mountEl, options = {}) {
             },
             { label: "Surface Radiation", value: model.display.surfaceRadiation },
             { label: "Magnetic Shielding", value: model.display.magneticShielding },
+            { label: "Dynamo", value: model.display.dynamoSummary },
           ],
         },
         {
@@ -3204,6 +3682,7 @@ export function initMoonPage(mountEl, options = {}) {
     populatePlanetOptions();
 
     nameEl.value = state.moonName;
+    originPathwayEl.value = state.moon.originPathway || "auto";
     aEl.value = state.moon.semiMajorAxisKm;
     eEl.value = state.moon.eccentricity;
     incEl.value = state.moon.inclinationDeg;
@@ -3293,6 +3772,7 @@ export function initMoonPage(mountEl, options = {}) {
   }
 
   nameEl.addEventListener("change", applyFromInputs);
+  originPathwayEl.addEventListener("change", applyFromInputs);
   compOverrideEl.addEventListener("change", applyFromInputs);
   moonPlanetSelectEl.addEventListener("change", applyFromInputs);
   moonParentUnlockEl?.addEventListener("click", (e) => {
@@ -3341,7 +3821,11 @@ export function initMoonPage(mountEl, options = {}) {
     e.preventDefault();
     const w = loadWorld();
     const baseInputs = getSelectedMoon(w)?.inputs || w.moon;
-    createMoonFromInputs(baseInputs, { name: "New Moon", planetId: w.planets.selectedId });
+    const parentId =
+      w.selectedBodyType === "gasGiant"
+        ? w.system?.gasGiants?.selectedId || null
+        : w.planets?.selectedId || null;
+    createMoonFromInputs(baseInputs, { name: "New Moon", planetId: parentId });
     loadIntoInputs();
     render();
   });
@@ -3386,6 +3870,7 @@ export function initMoonPage(mountEl, options = {}) {
     // Spreadsheet defaults
     state.moon = {
       name: "Luna",
+      originPathway: "auto",
       semiMajorAxisKm: 384748,
       eccentricity: 0.055,
       inclinationDeg: 5.15,

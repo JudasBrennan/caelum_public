@@ -19,6 +19,7 @@ import {
   buildRemoveClusterSystemPlan,
 } from "./store/destructiveActions.js";
 import { attachTooltips, tipAttr, tipIcon } from "./tooltip.js";
+import { structuredTip } from "./tooltipCopy.js";
 import { createTutorial } from "./tutorial.js";
 import {
   getClusterAdjustments,
@@ -92,6 +93,46 @@ const TIP_LABEL = {
   "Import Cluster":
     "Parse the pasted tab-separated cluster table and replace the current neighbourhood with the imported systems.",
 };
+
+Object.assign(TIP_LABEL, {
+  "Stellar Density": structuredTip({
+    overview:
+      "Total density of all stellar-mass objects per cubic light-year, including stars, white dwarfs, brown dwarfs, and other compact/remnant buckets.",
+    feedsInto:
+      "Neighbourhood object counts, generated systems, class breakdowns, and local-cluster visual density.",
+    interpretAs:
+      "The default 0.004/ly^3 matches the HIPPARCOS-calibrated solar-neighbourhood stellar density of about 0.14 stars/pc^3.",
+    caveat:
+      "Class fractions sum to 100% of this value, so Total Stellar-Mass Objects approximately matches the raw estimate apart from rounding.",
+    references: "See Science & Maths: local stellar neighbourhood.",
+  }),
+  "Random Seed": structuredTip({
+    overview:
+      "Integer seed for the deterministic PRNG used to place generated systems in 3-D space.",
+    feedsInto:
+      "Neighbour coordinates, distance ordering, cluster table rows, and visualizer cluster layout.",
+    interpretAs: "The same seed and inputs always reproduce the same local neighbourhood.",
+    caveat:
+      "Generated neighbours use statistical placement, not a catalogue lookup. For radii above 50 ly, Z is compressed to approximate thin-disk geometry.",
+    references: "See Science & Maths: local cluster generation.",
+  }),
+  "GHZ Probability": structuredTip({
+    overview: "Probability-style Galactic Habitable Zone score from 0 to 1.",
+    drawnFrom: "A Gaussian model centred at 53% of galactic radius with sigma at 10% of radius.",
+    interpretAs:
+      "Scores fall toward the core due to higher disruption/supernova pressure and toward the outer disk due to lower metallicity and fewer rocky planets.",
+    caveat:
+      "This is a broad galactic context score, not a guarantee that individual systems are habitable.",
+    references: "Lineweaver et al. 2004; see Science & Maths: Galactic Habitable Zone.",
+  }),
+  "Cluster Import Table": structuredTip({
+    overview: "Paste a tab-separated list of system name, coordinates, distance, and constituents.",
+    changes: "Imported rows replace the generated cluster with authored neighbour systems.",
+    interpretAs: "The system at (0, 0, 0) is treated as the home star.",
+    caveat:
+      "Importing cluster rows changes the local neighbourhood view, not the main saved planets/moons.",
+  }),
+});
 
 function formatLy(value, dp = 2) {
   return `${fmt(value, dp)} ly`;

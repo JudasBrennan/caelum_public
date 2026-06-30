@@ -2,6 +2,7 @@ import { calcClimateZones } from "../engine/climate.js";
 import { buildDynamicalContext } from "../engine/dynamics/context.js";
 import { fmt } from "../engine/utils.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
+import { structuredTip } from "./tooltipCopy.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { createElement, replaceChildren, replaceSelectOptions } from "./domHelpers.js";
 import { solvePlanetExactForWorld, solvePlanetaryBodyForWorld } from "./bodySolveHelpers.js";
@@ -29,63 +30,114 @@ import {
 // ── Tooltips ────────────────────────────────────────────────
 
 const TIP_LABEL = {
-  "Climate Zones":
-    "Procedural K\u00f6ppen climate classification derived from the planet\u2019s surface " +
-    "temperature, axial tilt, atmospheric circulation cells, and water budget.\n\n" +
-    "Each latitude band is classified using the standard A/B/C/D/E master classes.  " +
-    "Ferrel-cell (mid-latitude) bands show both warm-current coast and cold-current " +
-    "coast variants.\n\n" +
-    "Reference: Peel et al. (2007, Hydrol. Earth Syst. Sci.).",
-  "Latitude Temperature":
-    "Equator-pole temperature gradient modelled as T(lat) = T_eq \u2212 \u0394T \u00d7 sin\u00b2(lat).  " +
-    "The gradient \u0394T decreases with atmospheric pressure (thicker atmospheres " +
-    "redistribute heat more efficiently) and increases with lower gravity.\n\n" +
-    "Seasonal amplitude scales with axial tilt and sin(latitude).",
-  "Aridity Index":
-    "Moisture availability index from 0 (hyperarid) to 1 (saturated).  " +
-    "Driven by circulation cell dynamics: Hadley ITCZ = wet, Hadley subsidence = dry, " +
-    "Ferrel = moderate, Polar = dry.  Scaled by the planet\u2019s water regime and " +
-    "atmospheric H\u2082O content.\n\n" +
-    "Below 0.25 = desert (BW).  Below 0.45 = steppe (BS).",
-  Altitude:
-    "Reference altitude above sea level.  Temperature decreases at the environmental " +
-    "lapse rate (~6.5 \u00b0C/km on Earth), scaled by surface gravity.\n\n" +
-    "Higher altitudes shift tropical zones to temperate, temperate to continental, " +
-    "and eventually everything becomes polar.\n\n" +
-    "Reference: International Standard Atmosphere (ISA).",
-  "Zone Count":
-    "Number of procedural latitude bands generated for this planet.\n\n" +
-    "Band count scales with the number of atmospheric circulation cells " +
-    "(Hadley, Ferrel, Polar) and whether mid-latitude bands are split into " +
-    "warm-coast and cold-coast variants.",
-  "Mean Surface Temp":
-    "Global mean surface temperature derived from stellar luminosity, " +
-    "orbital distance, albedo, and greenhouse effect.\n\n" +
-    "This is the equatorial baseline before latitude and altitude adjustments.",
-  "Dominant Class":
-    "The most common Köppen master class across all latitude bands.\n\n" +
-    "A = Tropical, B = Arid, C = Temperate, D = Continental, E = Polar, " +
-    "X = Special (e.g., tidally locked permanent night-side).",
-  "Water Regime":
-    "Planet-wide water availability category from the Planets page.\n\n" +
-    "Summarizes inventory, while Inferred Ocean Coverage estimates the flooded surface " +
-    "from water inventory, basin capacity, and climate state. These contexts drive " +
-    "atmospheric H2O content and aridity across climate zones.",
-  "Inferred Ocean Coverage":
-    "Estimated liquid-ocean surface coverage inherited from the Planet solver. It is inferred from water inventory, gravity-scaled relief, basin capacity, and current climate state.",
-  "Exposed Land":
-    "Estimated unflooded land fraction after the inferred basin fill. Climate aridity, weathering, productivity, and visuals use this context when no manual override is set.",
-  "Coverage Confidence":
-    "Confidence in the inferred ocean/land split. Lower confidence means missing inputs forced fallback assumptions.",
-  "Climate Legend":
-    "Colour key for the Köppen master classes shown in the latitude band chart.\n\n" +
-    "Only classes that appear in the current zone set are displayed.",
-  "Zone Card":
-    "Each card shows one latitude band: its Köppen code, name, temperature range, " +
-    "and aridity index.\n\n" +
-    "Expand a card for environment description, location context, " +
-    "warmest/coldest month temperatures, and exact aridity value.",
+  "Climate Zones": structuredTip({
+    overview: "Procedural Koppen-style climate classification across latitude bands.",
+    drawnFrom:
+      "Surface temperature, axial tilt, atmospheric circulation cells, water regime, ocean/land context, and aridity estimates.",
+    interpretAs:
+      "Each latitude band is assigned a broad A/B/C/D/E master class; mid-latitude bands can show warm-current and cold-current variants.",
+    caveat:
+      "This is a procedural worldbuilding classifier, not a coupled global circulation model.",
+    references: "Peel et al. 2007; see Science & Maths: climate zones.",
+  }),
+  "Latitude Temperature": structuredTip({
+    overview: "Latitude temperature gradient used to seed climate-zone bands.",
+    drawnFrom: "Mean surface temperature, atmospheric pressure, gravity, axial tilt, and latitude.",
+    interpretAs:
+      "The model uses T(lat) = T_eq - deltaT x sin^2(lat). Pressure reduces the gradient; lower gravity increases it; axial tilt scales seasonal amplitude.",
+    caveat: "This is a zonal approximation, not a weather or ocean-current simulation.",
+    references: "See Science & Maths: latitude temperature model.",
+  }),
+  "Aridity Index": structuredTip({
+    overview: "Moisture availability index from 0 hyperarid to 1 saturated.",
+    drawnFrom:
+      "Circulation-cell position, water regime, atmospheric H2O content, inferred ocean coverage, and exposed land context.",
+    interpretAs:
+      "Below 0.25 tends toward desert; below 0.45 tends toward steppe. Hadley ITCZ is wet, Hadley subsidence is dry, Ferrel is moderate, Polar is dry.",
+    caveat:
+      "This is a latitude-band climate signal, not a rainfall map or hydrological cycle simulation.",
+    references: "See Science & Maths: climate zones and aridity.",
+  }),
+  "Mean Surface Temp": structuredTip({
+    overview: "Global mean surface temperature used by the climate-zone model.",
+    drawnFrom:
+      "The active planet solver: stellar luminosity, orbital distance, albedo, greenhouse effect, atmosphere, and climate modifiers.",
+    feedsInto:
+      "Latitude temperatures, climate-zone classes, aridity context, and altitude adjustments.",
+    caveat: "This is the climate-zone baseline, not a local weather forecast or seasonal map.",
+    references: "See Science & Maths: climate energy balance.",
+  }),
+  "Water Regime": structuredTip({
+    overview: "Planet-wide water availability category inherited from the Planet page.",
+    drawnFrom: "Water Mass Fraction and the planet solver's water-regime classification.",
+    feedsInto:
+      "Atmospheric H2O context, aridity, climate-zone classes, and inferred wet/dry band behaviour.",
+    caveat:
+      "This summarizes inventory; Inferred Ocean Coverage estimates flooded surface separately.",
+    references: "See Science & Maths: water inventory and climate zones.",
+  }),
+  "Inferred Ocean Coverage": structuredTip({
+    overview: "Estimated liquid-ocean surface coverage inherited from the Planet solver.",
+    drawnFrom: "Water inventory, gravity-scaled relief, basin capacity, and current climate state.",
+    feedsInto: "Aridity, land/ocean climate context, and climate-zone interpretation.",
+    caveat: "This is a global estimate, not a bathymetry or coastline map.",
+    references: "See Science & Maths: inferred ocean coverage.",
+  }),
 };
+
+Object.assign(TIP_LABEL, {
+  Altitude: structuredTip({
+    overview: "Reference altitude above sea level for climate-zone adjustment.",
+    feedsInto: "Latitude-band temperatures and resulting climate-zone classes.",
+    interpretAs:
+      "Higher altitude cools the band using an environmental lapse-rate approximation scaled by gravity.",
+    caveat: "This is a global reference altitude, not a terrain/elevation map.",
+    references: "International Standard Atmosphere; see Science & Maths: climate zones.",
+  }),
+  "Zone Count": structuredTip({
+    overview: "Number of generated latitude climate bands.",
+    drawnFrom:
+      "Atmospheric circulation-cell count and whether mid-latitude warm/cold-current variants are split.",
+    interpretAs: "More bands give a finer procedural climate summary.",
+    caveat: "Bands are zonal averages, not local regional climates.",
+    references: "See Science & Maths: climate zones.",
+  }),
+  "Dominant Class": structuredTip({
+    overview: "Most common Koppen master class across generated latitude bands.",
+    drawnFrom: "Area-weighted or band-level climate-zone classifications.",
+    interpretAs:
+      "A quick summary of whether the world trends tropical, arid, temperate, continental, polar, or special.",
+    caveat: "Dominance can hide important minority climates.",
+    references: "See Science & Maths: climate zones.",
+  }),
+  "Exposed Land": structuredTip({
+    overview: "Estimated unflooded surface fraction after inferred basin fill.",
+    drawnFrom: "Planet water inventory, basin capacity, and inferred ocean coverage.",
+    feedsInto: "Aridity, productivity, weathering context, and visual/population defaults.",
+    caveat: "This is a global fraction, not a coastline map.",
+    references: "See Science & Maths: inferred ocean coverage.",
+  }),
+  "Coverage Confidence": structuredTip({
+    overview: "Confidence label for inferred ocean/land split.",
+    drawnFrom: "Availability and quality of water inventory, relief, basin, and climate inputs.",
+    interpretAs: "Lower confidence means fallback assumptions had more influence.",
+    caveat: "Confidence is about the estimate pathway, not a measured uncertainty interval.",
+    references: "See Science & Maths: inferred ocean coverage.",
+  }),
+  "Climate Legend": structuredTip({
+    overview: "Colour key for climate master classes shown in the latitude chart.",
+    drawnFrom: "Climate classes present in the current generated zone set.",
+    caveat: "It explains chart colours only; full class interpretation lives in the zone cards.",
+  }),
+  "Zone Card": structuredTip({
+    overview: "Detailed readout for one generated latitude climate band.",
+    drawnFrom: "Latitude temperature, aridity index, circulation context, and water/ocean context.",
+    interpretAs:
+      "Expand a card for environmental description, location context, seasonal temperatures, and exact aridity.",
+    caveat: "Each card is a zonal average rather than a local biome map.",
+    references: "See Science & Maths: climate zones.",
+  }),
+});
 
 // ── Master class colors ─────────────────────────────────────
 

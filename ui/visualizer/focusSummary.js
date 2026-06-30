@@ -19,6 +19,14 @@ function fmtLuminosityLsol(value, digits = 2) {
   return fmtNumber(num, digits);
 }
 
+function titleCase(value) {
+  return String(value || "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function describeMoonSolventPathway(moonCalc) {
   if (moonCalc?.exosphere?.abioticOxygenSource) {
     return "Icy-moon O2 is exosphere-only and abiotic; it is not breathable air or life evidence.";
@@ -253,6 +261,24 @@ function summarizeStar(snapshot) {
     { label: "Luminosity", value: `${fmtLuminosityLsol(snapshot?.starLuminosityLsun, 2)} Lsol` },
     { label: "Temperature", value: `${fmtNumber(snapshot?.starTempK, 0)} K` },
   ];
+  if (snapshot?.starLifecycleStage?.label) {
+    lines.push({
+      label: "Lifecycle stage",
+      value: snapshot.starLifecycleStage.label,
+    });
+  }
+  if (snapshot?.starLifecycleConfidence) {
+    lines.push({
+      label: "Track confidence",
+      value: titleCase(snapshot.starLifecycleConfidence),
+    });
+  }
+  if (snapshot?.starLifecycleRemnant?.label) {
+    lines.push({
+      label: "Endpoint",
+      value: snapshot.starLifecycleRemnant.label,
+    });
+  }
 
   const localClimateDrivers =
     hierarchySummary?.localClimateDrivers?.length > 0
@@ -290,6 +316,10 @@ function summarizeStar(snapshot) {
     title: snapshot?.starName || "Star",
     subtitle,
     lines,
+    note:
+      Array.isArray(snapshot?.starLifecycleWarnings) && snapshot.starLifecycleWarnings.length
+        ? snapshot.starLifecycleWarnings[0]
+        : undefined,
   };
 }
 

@@ -30,7 +30,7 @@ export function createPageHeader({
   helpAction = null,
   statusBadge = "",
 } = {}) {
-  const header = createElement("div", { className: "workflow-page-shell__header" });
+  const header = createElement("div", { className: "panel__header workflow-page-shell__header" });
   const titleWrap = createElement("div", { className: "workflow-page-shell__title-wrap" });
   const heading = createElement("h1", { className: "panel__title workflow-page-shell__title" });
   if (iconClass) {

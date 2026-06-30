@@ -106,7 +106,7 @@ import {
   buildVisualizerEmptyStateMarkup,
   syncVisualizerEmptyState,
 } from "./visualizer/emptyState.js";
-
+import { mountVisualizerCanvasLoadingSkeleton } from "./visualizer/canvasLoadingSkeleton.js";
 export function initVisualiserPage(root, options = {}) {
   root.innerHTML = `
     <div class="page">
@@ -736,7 +736,7 @@ export function initVisualiserPage(root, options = {}) {
   });
 
   const vizWrap = root.querySelector(".viz-wrap") || canvas?.parentElement;
-
+  const clearCanvasSkeleton = mountVisualizerCanvasLoadingSkeleton(vizWrap);
   /* ── Cluster helpers ───────────────────────────────────────── */
 
   function refreshClusterSnapshot() {
@@ -2264,6 +2264,7 @@ export function initVisualiserPage(root, options = {}) {
       regime: snapshot.starRegime,
       tempK: snapshot.starTempK,
       massMsol: snapshot.starMassMsol,
+      lifecycleStageId: snapshot.starLifecycleStage?.id,
     });
     const starTint = parseHexColorNumber(snapshot.starColourHex, 0xfff4dc);
     const starCoreHex = mixHex(snapshot.starColourHex, "#ffffff", starVisualStyle.coreMix);
@@ -2320,7 +2321,7 @@ export function initVisualiserPage(root, options = {}) {
       384,
     );
     const starSurfaceTex = getNativeProceduralTexture(
-      `star-surface:v3:${snapshot.starColourHex}:${starSurfaceSeed}:${Math.round(Number(snapshot.starTempK) || 5776)}:${Math.round(starActivity * 100)}`,
+      `star-surface:v4:${snapshot.starColourHex}:${starSurfaceSeed}:${Math.round(Number(snapshot.starTempK) || 5776)}:${Math.round(starActivity * 100)}:${snapshot.starLifecycleStage?.id || "none"}`,
       (cctx, size) => {
         paintStarSurfaceTexture(cctx, size, {
           baseHex: snapshot.starColourHex,
@@ -2329,6 +2330,7 @@ export function initVisualiserPage(root, options = {}) {
           activity: starActivity,
           regime: snapshot.starRegime,
           massMsol: snapshot.starMassMsol,
+          lifecycleStageId: snapshot.starLifecycleStage?.id,
         });
       },
       512,
@@ -3546,7 +3548,7 @@ export function initVisualiserPage(root, options = {}) {
       const g = gasGiants[gi];
       const placement = computeGasGiantPlacement(g, gi, metrics, snapshot.starMassMsol);
       if (!placement) continue;
-      const gPos = orbitOffsetToScreen(placement.ox, placement.oy, cx, cy);
+      const gPos = orbitOffsetToScreen(placement.ox, placement.oy, cx, cy, placement.oyVert || 0);
       if (!Number.isFinite(gPos.x) || !Number.isFinite(gPos.y)) continue;
       const gr = nativeGasRadiusPx(g, metrics);
       const pos = toThreeXY(metrics, gPos.x, gPos.y);
@@ -5112,10 +5114,10 @@ export function initVisualiserPage(root, options = {}) {
   }
 
   /* ── Draw dispatcher ────────────────────────────────────────── */
-
   function draw(snapshotArg) {
     if (disposed || !root.isConnected || !canvas || !canvas.isConnected) return;
     if (!nativeThree) return;
+    clearCanvasSkeleton();
     if (state.mode === "cluster") {
       renderVisualizerFocusSummary({
         focusSummaryEl,

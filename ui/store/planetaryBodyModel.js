@@ -319,8 +319,6 @@ function toApparentOrbitSample(body) {
 }
 
 function moonParentKindForBody(body) {
-  const family = body?.classification?.family;
-  if (family === "brownDwarf") return null;
   return body?.legacyKind === "gasGiant" ? "gasGiant" : "planet";
 }
 

@@ -5,6 +5,7 @@ import { createArchetypeGrid } from "./archetypeGrid.js";
 import { createDiagnosticList } from "./diagnosticList.js";
 import { createGuidedQuestionStep } from "./questionStep.js";
 import { createRecommendationCard } from "./recommendationCard.js";
+import { createSkeletonPanel, createSkeletonRegion } from "../../workflow/skeleton.js";
 
 function createSection(title, child) {
   return createElement("section", { className: "guided-panel__section" }, [
@@ -100,6 +101,25 @@ function createStatusSummary(status = null) {
       : null,
     diagnostics.length ? createDiagnosticList({ diagnostics }) : null,
   ]);
+}
+
+function createRecommendationContent({
+  recommendation = null,
+  previewContent = null,
+  status = null,
+} = {}) {
+  const searchStatus = String(status?.searchStatus || "").trim();
+  if (!recommendation && searchStatus === "searching") {
+    return createSkeletonRegion({
+      label: "Searching for recommendation",
+      className: "guided-recommendation-skeleton",
+      children: [createSkeletonPanel({ lines: 4 })],
+    });
+  }
+  return createRecommendationCard({
+    recommendation,
+    previewContent,
+  });
 }
 
 export function createGuidedPanel({
@@ -202,9 +222,10 @@ export function createGuidedPanel({
       sectionVisibility.recommendation
         ? createSection(
             recommendationSectionTitle,
-            createRecommendationCard({
+            createRecommendationContent({
               recommendation,
               previewContent,
+              status,
             }),
           )
         : null,

@@ -1,4 +1,9 @@
 import { clamp } from "../../engine/utils.js";
+import {
+  eccentricAnomalyToTrueAnomaly,
+  mappedCometOrbitOffset,
+  trueAnomalyToEccentricAnomaly,
+} from "./cometOrbitPath.js";
 
 export function computePlanetPlacement(planetNode, metrics, options) {
   const {
@@ -123,18 +128,6 @@ export function computeGasGiantPlacement(
   return { r, baseAngle, angle, ox, oy: oyFlat, oyVert };
 }
 
-function trueAnomalyToEccentricAnomaly(trueAnomalyRad, eccentricity) {
-  const e = clamp(Number(eccentricity) || 0, 0, 0.9999);
-  if (!(e > 0)) return trueAnomalyRad;
-  return (
-    2 *
-    Math.atan2(
-      Math.sqrt(1 - e) * Math.sin(trueAnomalyRad * 0.5),
-      Math.sqrt(1 + e) * Math.cos(trueAnomalyRad * 0.5),
-    )
-  );
-}
-
 export function computeCometPlacement(
   comet,
   metrics,
@@ -161,24 +154,25 @@ export function computeCometPlacement(
       ? solveKeplerEquation(meanAnomaly, eccentricity)
       : meanAnomaly;
   const semiMinorPx = semiMajorPx * Math.sqrt(1 - eccentricity * eccentricity);
-  const cFocusPx = semiMajorPx * eccentricity;
   const radiusAu =
     eccentricity > 0
       ? semiMajorAxisAu * (1 - eccentricity * Math.cos(eccentricAnomaly))
       : semiMajorAxisAu;
   const argPeriapsisRad = ((Number(comet?.longitudeOfPeriapsisDeg) || 0) * Math.PI) / 180;
-  const cosW = Math.cos(argPeriapsisRad);
-  const sinW = Math.sin(argPeriapsisRad);
-  const xf = semiMajorPx * Math.cos(eccentricAnomaly) - cFocusPx;
-  const zf = semiMinorPx * Math.sin(eccentricAnomaly);
-  const ox = xf * cosW - zf * sinW;
-  const oy = xf * sinW + zf * cosW;
-  const angle = Math.atan2(oy, ox);
   const incDeg = Number(comet?.inclinationDeg) || 0;
   const incRad = (incDeg * Math.PI) / 180;
-  const oyVert = oy * Math.sin(incRad);
-  const oyFlat = oy * Math.cos(incRad);
-  const radiusPx = Math.hypot(xf, zf);
+  const mappedOffset = mappedCometOrbitOffset({
+    comet,
+    eccentricAnomalyRad: eccentricAnomaly,
+    argPeriapsisRad,
+    inclinationRad: incRad,
+    minAu: metrics.minAu,
+    maxAu: metrics.maxAu,
+    maxR: metrics.maxR,
+    mapAuToPx,
+  });
+  const angle = Math.atan2(mappedOffset.oy, mappedOffset.ox);
+  const radiusPx = mappedOffset.radiusPx;
 
   return {
     semiMajorPx,
@@ -190,9 +184,10 @@ export function computeCometPlacement(
     meanMotion,
     periodDays,
     angle,
-    ox,
-    oy: oyFlat,
-    oyVert,
+    trueAnomalyRad: eccentricAnomalyToTrueAnomaly(eccentricAnomaly, eccentricity),
+    ox: mappedOffset.ox,
+    oy: mappedOffset.oy,
+    oyVert: mappedOffset.oyVert,
   };
 }
 

@@ -37,7 +37,7 @@ export function renderMoonParentSelector(
       })),
     ),
     createOptgroupNode(
-      "Gas Giants",
+      "Giant / Substellar Parents",
       (gasGiants || []).map((gasGiant) => ({
         value: gasGiant?.moonParentId || gasGiant?.id || "",
         label: `${gasGiant?.name || gasGiant?.id || "Gas Giant"}${

@@ -590,6 +590,7 @@ export function buildMoonRecipeApplyInputs(recipeInputs = {}, appearanceRecipeId
       manualResonanceGroupId: source.manualResonanceGroupId ?? null,
       manualResonanceOrder: source.manualResonanceOrder ?? null,
       manualResonanceRatio: source.manualResonanceRatio ?? null,
+      originPathway: source.originPathway ?? "auto",
       ...pickRecipeCompositionInputs(source),
       appearanceRecipeId: appearanceRecipeId ?? source.appearanceRecipeId ?? null,
     },

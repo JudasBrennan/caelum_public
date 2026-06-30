@@ -1,8 +1,8 @@
 # Caelum Science Verification Matrix
 
-Generated: 2026-06-21T18:31:00.543Z
+Generated: 2026-06-30T19:01:57.001Z
 
-App version: 3.1.0
+App version: 3.2.0
 
 Science verification matrix covering benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, units, independent formula oracles, sensitivity, population sanity, browser coverage, and release gates.
 
@@ -12,9 +12,9 @@ Anchor benchmarks are only one family. Physics invariants, metamorphic trends, b
 
 Metric | Value
 --- | ---
-Model areas | 27
-Verification rows | 348
-Passed rows | 339
+Model areas | 30
+Verification rows | 359
+Passed rows | 350
 Warnings | 0
 Failures | 0
 Modeling gaps | 0
@@ -26,6 +26,7 @@ Release gates passed | 1
 Model area | Trust | Registry keys | Coverage
 --- | --- | --- | ---
 Stellar Environment | strong | stellarHistoryDose | anchor, metamorphic, unit, source-coverage
+Stellar Lifecycle | strong | stellarLifecycle | source-coverage
 Rocky Planets | strong | planetRadiationEnvironment, surfaceClimate, geodynamics, interiorEvolution | anchor, invariant, metamorphic, unit, sensitivity, source-coverage
 Hydrosphere And Ocean Chemistry | strong | co2ClimateTendency, productivity, nitrogenCycle | invariant, metamorphic, boundary, cross-system, source-coverage
 Atmosphere And Climate Coupling | strong | atmosphereEvolution, coupledClimatePass, co2ClimateTendency, surfaceClimate | invariant, metamorphic, boundary, cross-system, unit, oracle, sensitivity, source-coverage
@@ -36,6 +37,8 @@ Small Bodies And Impacts | strong | smallBodyReservoir, impactEnvironment | anch
 Habitability, Productivity, And Biosignatures | strong | productivity, nitrogenCycle, stellarHistoryDose | invariant, population, source-coverage
 Observability And User-Facing Science | strong | observability, observerFrame, eclipseTiming | anchor, population, browser, source-coverage, release-gate
 Surface ocean coverage and hypsometry context | strong | surfaceOceanCoverage | source-coverage
+System fate aggregate timeline | strong | systemFate | source-coverage
+Moon solid-body structure and response context | strong | moonSolidBodyStructure | source-coverage
 Icy moon sputtered oxygen exosphere | strong | icyMoonExosphere | source-coverage
 Radius-valley boundary context | strong | radiusValleyBoundary | source-coverage
 Host-frame stability | strong | hostFrame.stability | source-coverage
@@ -251,7 +254,7 @@ moons | anchor | Moons / Titan | Radius | PASS | info | 2575 km | 2575 km | No a
 moons | anchor | Moons / Titan | Surface gravity | PASS | info | 1.354 m/s2 | 1.352 m/s2 | No action
 moons | anchor | Moons / Titan | Escape velocity | PASS | info | 2.647 km/s | 2.639 km/s | No action
 moons | anchor | Moons / Titan | Sidereal period | PASS | info | 15.95 days | 15.95 days | No action
-moons | anchor | Moons / Titan | Surface temperature | PASS | info | 93.98 K | 94.00 K | No action: revisit after Phase 1 thermal-envelope implementation
+moons | anchor | Moons / Titan | Surface temperature | PASS | info | 93.99 K | 94.00 K | No action: revisit after Phase 1 thermal-envelope implementation
 moons | anchor | Moons / Titan | Tidally locked | PASS | info | Yes | Yes | No action
 moons | anchor | Moons / Enceladus | Radius | PASS | info | 251.9 km | 252.1 km | No action
 moons | anchor | Moons / Enceladus | Surface gravity | PASS | info | 0.1134 m/s2 | 0.1130 m/s2 | No action
@@ -264,7 +267,7 @@ moons | anchor | Moons / Triton | Radius | PASS | info | 1353 km | 1353 km | No 
 moons | anchor | Moons / Triton | Surface gravity | PASS | info | 0.7810 m/s2 | 0.7790 m/s2 | No action
 moons | anchor | Moons / Triton | Escape velocity | PASS | info | 1.457 km/s | 1.455 km/s | No action
 moons | anchor | Moons / Triton | Sidereal period | PASS | info | 5.880 days | 5.877 days | No action
-moons | anchor | Moons / Triton | Surface temperature | PASS | info | 36.47 K | 38.00 K | No action: revisit after Phase 1 thermal-envelope implementation
+moons | anchor | Moons / Triton | Surface temperature | PASS | info | 36.48 K | 38.00 K | No action: revisit after Phase 1 thermal-envelope implementation
 moons | anchor | Moons / Triton | Tidally locked | PASS | info | Yes | Yes | No action
 moons | anchor | Moons / Miranda | Radius | PASS | info | 235.4 km | 235.8 km | No action
 moons | anchor | Moons / Miranda | Surface gravity | PASS | info | 0.0775 m/s2 | 0.0790 m/s2 | No action
@@ -287,25 +290,25 @@ moons | anchor | Moons / Charon | Sidereal period | PASS | info | 6.392 days | 6
 moons | anchor | Moons / Charon | Observable surface temperature range | PASS | info | 14.70 K to 62.10 K | 53.00 K | Phase 1 implemented: keep envelope comparison as calibration anchor
 moons | anchor | Moons / Charon | Global-equilibrium temperature | INFO | info | 41.60 K | 53.00 K | No tuning action: use observable envelope row for Phase 1 calibration
 moons | anchor | Moons / Charon | Tidally locked | PASS | info | Yes | Yes | No action
-moons | anchor | Moons / Io | Tidal heat | PASS | info | 9.575e+13 W | 1.000e+14 W | No action
-moons | anchor | Moons / Enceladus | Tidal heat | PASS | info | 3.002e+8 W | 5.000e+9 W | No action
+moons | anchor | Moons / Io | Tidal heat | PASS | info | 9.571e+13 W | 1.000e+14 W | No action
+moons | anchor | Moons / Enceladus | Tidal heat | PASS | info | 5.120e+8 W | 5.000e+9 W | No action
 moons | anchor | Moon volatiles / Triton | Primary atmosphere species | PASS | info | N2 | N2 | No action
 moons | anchor | Moon volatiles / Io | Primary atmosphere species | PASS | info | SO2 | SO2 | No action
 moons | anchor | Moon volatiles / Titan | N2 retained | PASS | info | true | true | No action
 moons | anchor | Moon volatiles / Titania | No substantial atmosphere | PASS | info | true | true | No action
-moons | anchor | Dedicated tidal validation / Io | Tidal heating power | PASS | info | 1.008e+14 W | 1.000e+14 W | No action: keep as broad tidal validation anchor
-moons | anchor | Dedicated tidal validation / Io | Surface heat flux | PASS | info | 2.417 W/m2 | 2.240 W/m2 | No action: keep as broad tidal validation anchor
-moons | anchor | Dedicated tidal validation / Europa | Tidal heating power | PASS | info | 1.425e+12 W | 1.000e+12 W | No action: keep as broad tidal validation anchor
-moons | anchor | Dedicated tidal validation / Europa | Surface heat flux | PASS | info | 0.0466 W/m2 | 0.0500 W/m2 | No action: keep as broad tidal validation anchor
-moons | anchor | Dedicated tidal validation / Enceladus | Tidal heating power | PASS | info | 1.748e+10 W | 1.580e+10 W | No action: keep as broad tidal validation anchor
-moons | anchor | Dedicated tidal validation / Enceladus | Surface heat flux | PASS | info | 0.0219 W/m2 | 0.0200 W/m2 | No action: keep as broad tidal validation anchor
-moons | anchor | Dedicated tidal validation / Titan | Tidal heating power | PASS | info | 6.538e+11 W | 3.500e+12 W | No action: keep as broad tidal validation anchor
-moons | anchor | Dedicated tidal validation / Titan | Surface heat flux | PASS | info | 0.0079 W/m2 | 0.0050 W/m2 | No action: keep as broad tidal validation anchor
-moons | anchor | Dedicated tidal validation / Moon | Tidal heating power | PASS | info | 2.736e+9 W | 3.000e+9 W | No action: keep as broad tidal validation anchor
-moons | anchor | Dedicated tidal validation / Moon | Orbital recession | PASS | info | 3.450 cm/yr | 3.830 cm/yr | No action: keep as broad tidal validation anchor
+moons | anchor | Dedicated tidal validation / Io | Tidal heating power | PASS | info | 9.113e+13 W | 1.000e+14 W | No action: keep as broad tidal validation anchor
+moons | anchor | Dedicated tidal validation / Io | Surface heat flux | PASS | info | 2.186 W/m2 | 2.240 W/m2 | No action: keep as broad tidal validation anchor
+moons | anchor | Dedicated tidal validation / Europa | Tidal heating power | PASS | info | 2.306e+12 W | 1.000e+12 W | No action: keep as broad tidal validation anchor
+moons | anchor | Dedicated tidal validation / Europa | Surface heat flux | PASS | info | 0.0754 W/m2 | 0.0500 W/m2 | No action: keep as broad tidal validation anchor
+moons | anchor | Dedicated tidal validation / Enceladus | Tidal heating power | PASS | info | 2.797e+10 W | 1.580e+10 W | No action: keep as broad tidal validation anchor
+moons | anchor | Dedicated tidal validation / Enceladus | Surface heat flux | PASS | info | 0.0350 W/m2 | 0.0200 W/m2 | No action: keep as broad tidal validation anchor
+moons | anchor | Dedicated tidal validation / Titan | Tidal heating power | PASS | info | 1.778e+12 W | 3.500e+12 W | No action: keep as broad tidal validation anchor
+moons | anchor | Dedicated tidal validation / Titan | Surface heat flux | PASS | info | 0.0214 W/m2 | 0.0050 W/m2 | No action: keep as broad tidal validation anchor
+moons | anchor | Dedicated tidal validation / Moon | Tidal heating power | PASS | info | 2.377e+9 W | 3.000e+9 W | No action: keep as broad tidal validation anchor
+moons | anchor | Dedicated tidal validation / Moon | Orbital recession | PASS | info | 3.455 cm/yr | 3.830 cm/yr | No action: keep as broad tidal validation anchor
 moons | anchor | Dedicated tidal validation / Phobos | Orbital recession | PASS | info | -1.765 cm/yr | -1.800 cm/yr | Phase 2 implemented: keep as broad tidal small-body validation anchor
 moons | anchor | Dedicated tidal validation / Deimos | Orbital recession | PASS | info | 0.0016 cm/yr | 0.0060 cm/yr | No action: keep as broad tidal validation anchor
-moons | anchor | Dedicated tidal validation / Mimas | Surface heat flux | PASS | info | 0.0099 W/m2 | 0.0010 W/m2 | No action: keep as broad tidal validation anchor
+moons | anchor | Dedicated tidal validation / Mimas | Surface heat flux | PASS | info | 0.0169 W/m2 | 0.0010 W/m2 | No action: keep as broad tidal validation anchor
 orbital-dynamics | anchor | Orbital and tidal dynamics / Venus-Earth | Mutual Hill separation | PASS | info | 26.35 R_H,m | 26.40 R_H,m | Keep as source-bounded calibration anchor for surfaced orbital architecture spacing.
 orbital-dynamics | anchor | Orbital and tidal dynamics / Jupiter-Saturn | Mutual Hill separation | PASS | info | 7.894 R_H,m | 7.890 R_H,m | Keep as source-bounded calibration anchor for surfaced orbital architecture spacing.
 orbital-dynamics | anchor | Orbital and tidal dynamics / Earth | Synchronous orbit distance | PASS | info | 42164 km | 42164 km | Keep as source-bounded calibration anchor for surfaced synchronous-orbit context.
@@ -337,8 +340,9 @@ rocky-planets | anchor | Environment coupling / Mars | Ancient water timeline cu
 rocky-planets | anchor | Environment coupling / Jupiter | Variable magnetosphere range | PASS | info | 31.60 Jupiter radii | 20.00 Jupiter radii to 120.0 Jupiter radii | No action
 rocky-planets | anchor | Environment coupling / Europa | Subsurface ocean timeline cue | PASS | info | true | true | No action
 rocky-planets | anchor | Environment coupling / Europa | Sputtered oxygen exosphere class | PASS | info | Europa-like | Europa-like | Phase 5 implemented: keep Europa exosphere as active calibration row
-rocky-planets | anchor | Environment coupling / Europa | Sputtered oxygen O2 production | PASS | info | 12.01 kg/s | 6.000 kg/s to 18.00 kg/s | Phase 5 implemented: keep Europa O2 production as broad range anchor
+rocky-planets | anchor | Environment coupling / Europa | Sputtered oxygen O2 production | PASS | info | 11.60 kg/s | 6.000 kg/s to 18.00 kg/s | Phase 5 implemented: keep Europa O2 production as broad range anchor
 stellar-environment | source-coverage | Stellar Environment | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
+stellar-lifecycle | source-coverage | Stellar Lifecycle | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 rocky-planets | source-coverage | Rocky Planets | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 hydrosphere-ocean | source-coverage | Hydrosphere And Ocean Chemistry | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 atmosphere-climate | source-coverage | Atmosphere And Climate Coupling | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
@@ -349,6 +353,8 @@ small-bodies-impacts | source-coverage | Small Bodies And Impacts | Registry sou
 habitability-biosignatures | source-coverage | Habitability, Productivity, And Biosignatures | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 observability-user-facing | source-coverage | Observability And User-Facing Science | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-surfaceoceancoverage | source-coverage | Surface ocean coverage and hypsometry context | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
+context-systemfate | source-coverage | System fate aggregate timeline | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
+context-moonsolidbodystructure | source-coverage | Moon solid-body structure and response context | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-icymoonexosphere | source-coverage | Icy moon sputtered oxygen exosphere | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-radiusvalleyboundary | source-coverage | Radius-valley boundary context | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-hostframe-stability | source-coverage | Host-frame stability | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
@@ -380,12 +386,20 @@ stellar-environment | unit | Solar luminosity | Solar flux at 1 AU | PASS | low 
 orbital-dynamics | oracle | Earth orbit | Independent Kepler period | PASS | low | 1 yr | 1 yr | No action required.
 atmosphere-climate | oracle | Earth absorbed flux | Independent inverse-square absorbed flux | PASS | low | 236.133 W/m2 | 236.162 W/m2 | No action required.
 moons | oracle | Earth synchronous orbit | Independent synchronous radius | PASS | low | 42163 km | about 42164 km | No action required.
+stellar-lifecycle | stellar-lifecycle | Solar analog | Present Sun remains main sequence | PASS | low | Main sequence | Main sequence | Review lifecycle stage windows, remnant screens, and HZ sampling if this fails.
+stellar-lifecycle | stellar-lifecycle | Solar analog future | Post-MS state brightens and expands | PASS | low | Main sequence: L=0.964, R=0.991; Subgiant branch: L=5.511, R=5.197 | Subgiant luminosity and radius exceed current solar values | Review lifecycle stage windows, remnant screens, and HZ sampling if this fails.
+stellar-lifecycle | stellar-lifecycle | Mass-lifetime ordering | Higher-mass stars leave MS sooner | PASS | low | 75.741 -> 1.115 Gyr | decrease with mass | Review lifecycle stage windows, remnant screens, and HZ sampling if this fails.
+stellar-lifecycle | stellar-lifecycle | Lifecycle HZ track | Solar HZ migrates outward before remnant cooling | PASS | low | 0.023 - 34.811 AU | inner edge expands beyond present-day Earth orbit | Review lifecycle stage windows, remnant screens, and HZ sampling if this fails.
+stellar-lifecycle | stellar-lifecycle | Planet HZ interval | Earth-like orbit has a current conservative HZ interval | PASS | low | conservative; longest=6.02 Gyr | current conservative HZ with multi-Gyr continuous interval | Review lifecycle stage windows, remnant screens, and HZ sampling if this fails.
+stellar-lifecycle | stellar-lifecycle | Planet HZ hazard | Close solar orbit is flagged for engulfment | PASS | low | engulfed=true; age=12.355 Gyr; late=true | engulfment and late-habitability caveats | Review lifecycle stage windows, remnant screens, and HZ sampling if this fails.
+stellar-lifecycle | stellar-lifecycle | Fixture benchmark matrix | Representative masses and metallicities stay in broad ranges | PASS | low | 8 masses x 3 metallicities | stage order, lifetime, and remnant ranges all pass | Review lifecycle stage windows, remnant screens, and HZ sampling if this fails.
+stellar-lifecycle | stellar-lifecycle | Massive-star endpoint | Core-collapse endpoint is compact remnant | PASS | low | Neutron star remnant; Neutron star | neutron star or black hole endpoint | Review lifecycle stage windows, remnant screens, and HZ sampling if this fails.
 atmosphere-climate | metamorphic | Orbit distance | Moving outward lowers absorbed flux | PASS | low | 236.13 -> 163.98 W/m2 | decrease | Investigate sign, unit, or coupling regression if this trend fails.
 stellar-environment | metamorphic | Stellar luminosity | Increasing luminosity raises surface temperature | PASS | low | 283 -> 296 K | increase | Investigate sign, unit, or coupling regression if this trend fails.
 atmosphere-climate | metamorphic | Albedo | Increasing albedo lowers absorbed flux | PASS | low | 236.13 -> 170.13 W/m2 | decrease | Investigate sign, unit, or coupling regression if this trend fails.
 hydrosphere-ocean | metamorphic | Water inventory | Increasing WMF does not reduce water coverage before phase transitions | PASS | low | 0.046 -> 0.995 | nondecrease | Investigate sign, unit, or coupling regression if this trend fails.
 rocky-planets | metamorphic | Stellar XUV | Increasing XUV does not reduce atmosphere-loss stress | PASS | low | 0.5 -> 5 | increase | Investigate sign, unit, or coupling regression if this trend fails.
-moons | metamorphic | Moon eccentricity | Increasing eccentricity raises tidal heating | PASS | low | 0.351254 -> 35.446348 W/m2 | increase | Investigate sign, unit, or coupling regression if this trend fails.
+moons | metamorphic | Moon eccentricity | Increasing eccentricity raises tidal heating | PASS | low | 0.417771 -> 42.158765 W/m2 | increase | Investigate sign, unit, or coupling regression if this trend fails.
 hydrosphere-ocean | boundary | Dry planet | Dry boundary | PASS | low | Dry | Dry | Review threshold logic and user-facing caveats if this boundary fails.
 hydrosphere-ocean | boundary | Snowball planet | Snowball transfers liquid to ice | PASS | low | ice=0.874; liquid=0 | ice present and accessible liquid limited | Review threshold logic and user-facing caveats if this boundary fails.
 hydrosphere-ocean | boundary | Deep waterworld | High-pressure ice boundary is surfaced | PASS | low | ice-vii | caution/plausible/likely or stable phase diagnostic | Review threshold logic and user-facing caveats if this boundary fails.
@@ -404,7 +418,7 @@ observability-user-facing | population | Science calibration fixture set | Fixtu
 habitability-biosignatures | population | Hostile calibration fixtures | Hostile worlds do not bypass habitability guardrails | PASS | low | Guardrails hold | No obvious hostile world with high habitability index | Review habitability penalties if this fails.
 moons | population | Moon calibration fixture availability | Europa-like and Titan-like worlds exist for downstream suites | PASS | low | Europa-like calibration; Titan-like calibration | Moon fixture worlds present | Keep moon fixtures updated when moon schema changes.
 observability-user-facing | browser | Validation page | Browser regression suite coverage | INFO | info | Covered by npm run test:browser during release verification | Validation page loads matrix artifact and filters rows | Run browser tests before release; investigate any Validation page failure.
-observability-user-facing | release-gate | science:verify | Release verification command | PASS | info | Recorded at 2026-06-21T18:31:00.543Z | PASS before release | No action required.
+observability-user-facing | release-gate | science:verify | Release verification command | PASS | info | Recorded at 2026-06-30T19:01:57.001Z | PASS before release | No action required.
 observability-user-facing | release-gate | check | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | build | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | bundle | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.

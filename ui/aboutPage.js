@@ -454,6 +454,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Discovered the electron and showed that atoms have internal structure, making composition something measurable rather than merely named.",
   },
+  "3.2.0": {
+    name: "Saul Perlmutter",
+    born: 1959,
+    died: null,
+    country: "United States",
+    summary:
+      "Led one of the teams that used distant supernovae to discover the accelerating expansion of the universe, turning stellar endpoints into evidence about cosmic fate.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -493,6 +501,19 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "3.2.0",
+      "(from 3.1.0)",
+      [
+        "<b>System Fate</b> &mdash; A new main-nav workspace compares saved worlds across stellar time, showing current Promising Worlds, future windows, major risks, body drilldowns, and copy-ready fate reports.",
+        "<b>Stellar Lifecycle Tracks</b> &mdash; Stars now expose analytic lifecycle stages, evolved luminosity and radius context, moving habitable zones, mass-loss and remnant endpoints, confidence labels, and model-limit caveats.",
+        "<b>Birth-To-Endpoint Timelines</b> &mdash; Star, planet, moon, and System Fate views now show clearer lifecycle rows from origin through current era, next transition, risks, and broad endpoint.",
+        "<b>Moon Origin And Solid-Body Depth</b> &mdash; Moons now include an Origin Pathway selector and deeper solid-body response context for tides, geology, oceans, atmospheres, magnetospheres, and habitability caveats.",
+        "<b>Structured Help And Loading States</b> &mdash; High-value tooltips now explain what each item is, where it comes from, and what it feeds into, while skeleton loaders make route changes and heavier previews feel less blank.",
+        "<b>Science Verification Matrix</b> &mdash; The matrix and calibration artifacts were regenerated for this release and are available to the dev server and production build outputs.",
+      ],
+      { open: true },
+    ),
+    release(
       "3.1.0",
       "(from 3.0.0)",
       [
@@ -503,7 +524,7 @@ function changelogHTML() {
         "<b>Density-Aware Validation</b> &mdash; Seeded and manual inventories now compare against body-aware density expectations, reducing false cautions for compressed rocky planets while preserving warnings for unsupported mixes.",
         "<b>Science Verification Matrix</b> &mdash; The matrix and calibration artifacts were regenerated for this release and are available to the dev server and production build outputs.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "3.0.0",

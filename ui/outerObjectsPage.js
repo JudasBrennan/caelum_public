@@ -26,6 +26,7 @@ import {
   OORT_CLOUD_SEED_VOLATILES,
 } from "./store/oortCloudModel.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
+import { structuredTip } from "./tooltipCopy.js";
 import { createTutorial } from "./tutorial.js";
 import {
   getSelectedComet,
@@ -194,6 +195,49 @@ const TIP_LABEL = {
   Appearance:
     "Visualizer-facing appearance preview for the selected comet. Volatile class sets the core coma and tail palette, while the current activity state controls how vivid that plume appears.",
 };
+
+Object.assign(TIP_LABEL, {
+  "Debris disks": structuredTip({
+    overview:
+      "Debris regions of planetesimals, dust, and ice, similar to asteroid or Kuiper-belt zones.",
+    drawnFrom:
+      "The selected host frame's star/pair context, gas giants, frost line, stable belt region, and saved disk entries.",
+    interpretAs:
+      "This page edits disks for the selected host frame only, so multistar systems can keep separate belt families.",
+    caveat:
+      "Disk suggestions are resonance and thermal heuristics, not a collisional disk simulation.",
+    references: "See Science & Maths: debris disks and resonances.",
+  }),
+  "Host Frame": structuredTip({
+    overview: "Select which stellar host frame these outer objects belong to.",
+    changes:
+      "Changing host frame changes the visible debris disks, authored comets, Oort context, frost line, giants, and stability checks.",
+    feedsInto:
+      "Disk suggestions, comet scope, Oort cloud inference, and visualizer outer-object rendering.",
+    caveat:
+      "Host-frame scoping prevents editing one star or pair's outer objects from overwriting another's.",
+    references: "See Science & Maths: multi-star host frames.",
+  }),
+  Comets: structuredTip({
+    overview: "Authored comet nuclei, volatile classes, orbit parameters, comae, and tails.",
+    drawnFrom:
+      "Saved comet entries for the selected host frame plus optional Oort/debris source context.",
+    interpretAs:
+      "Comet periapsis should be the closest point to the selected host; visualizer tails and arcs are summaries.",
+    caveat:
+      "The app does not simulate dust/plasma tail physics or long-term perturbation histories.",
+    references: "See Science & Maths: comet orbits and activity.",
+  }),
+  "Oort Cloud": structuredTip({
+    overview: "Inferred or authored distant comet reservoir for the selected host frame.",
+    drawnFrom:
+      "Stellar mass, galactic environment, giant-planet architecture, age, retention modifiers, and Auto/Guided/Manual settings.",
+    feedsInto: "Oort reservoir summary, long-period comet seeding, and outer-object context.",
+    caveat:
+      "This is a Solar-calibrated proxy and authoring aid, not a direct simulation of cloud formation or stellar encounters.",
+    references: "See Science & Maths: Oort cloud model.",
+  }),
+});
 
 const DEFAULT_NEW_COMET = Object.freeze({
   name: "New comet",

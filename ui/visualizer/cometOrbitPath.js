@@ -44,6 +44,39 @@ export function eccentricAnomalyToTrueAnomaly(eccentricAnomalyRad, eccentricity)
   );
 }
 
+export function mappedCometOrbitOffset({
+  comet,
+  eccentricAnomalyRad,
+  argPeriapsisRad,
+  inclinationRad,
+  minAu,
+  maxAu,
+  maxR,
+  mapAuToPx,
+}) {
+  const orbit = getClippedCometOrbitConfig(comet);
+  const radiusAu =
+    orbit.e > 0.0001 ? orbit.aAu * (1 - orbit.e * Math.cos(eccentricAnomalyRad)) : orbit.aAu;
+  const radiusPx = mapAuToPx(radiusAu, minAu, maxAu, maxR);
+  const trueAnomalyRad = eccentricAnomalyToTrueAnomaly(eccentricAnomalyRad, orbit.e);
+  const cosW = Math.cos(argPeriapsisRad);
+  const sinW = Math.sin(argPeriapsisRad);
+  const cosI = Math.cos(inclinationRad);
+  const sinI = Math.sin(inclinationRad);
+  const xOrb = radiusPx * Math.cos(trueAnomalyRad);
+  const zOrb = radiusPx * Math.sin(trueAnomalyRad);
+  const xr = xOrb * cosW - zOrb * sinW;
+  const zr = xOrb * sinW + zOrb * cosW;
+  return {
+    radiusAu,
+    radiusPx,
+    trueAnomalyRad,
+    ox: xr,
+    oy: zr * cosI,
+    oyVert: zr * sinI,
+  };
+}
+
 function getCometOrbitSamplingConfig(orbit, sampleCount) {
   const count = Math.max(48, Math.round(Number.isFinite(sampleCount) ? sampleCount : 960));
   const closed = orbit.maxTrueAnomaly >= Math.PI - 1e-6;
@@ -79,19 +112,17 @@ export function projectCometPointAtEccentricAnomaly({
   orbitOffsetToScreen,
   screenToThree,
 }) {
-  const orbit = getClippedCometOrbitConfig(comet);
-  const semiMajorPx = mapAuToPx(orbit.aAu, minAu, maxAu, maxR);
-  const semiMinorPx = semiMajorPx * Math.sqrt(1 - orbit.e * orbit.e);
-  const cFocusPx = semiMajorPx * orbit.e;
-  const cosW = Math.cos(argPeriapsisRad);
-  const sinW = Math.sin(argPeriapsisRad);
-  const cosI = Math.cos(inclinationRad);
-  const sinI = Math.sin(inclinationRad);
-  const xf = semiMajorPx * Math.cos(eccentricAnomalyRad) - cFocusPx;
-  const zf = semiMinorPx * Math.sin(eccentricAnomalyRad);
-  const xr = xf * cosW - zf * sinW;
-  const zr = xf * sinW + zf * cosW;
-  const projected = orbitOffsetToScreen(xr, zr * cosI, cx, cy, zr * sinI);
+  const offset = mappedCometOrbitOffset({
+    comet,
+    eccentricAnomalyRad,
+    argPeriapsisRad,
+    inclinationRad,
+    minAu,
+    maxAu,
+    maxR,
+    mapAuToPx,
+  });
+  const projected = orbitOffsetToScreen(offset.ox, offset.oy, cx, cy, offset.oyVert);
   return screenToThree(projected.x, projected.y, z);
 }
 

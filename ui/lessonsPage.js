@@ -11,6 +11,7 @@
 import { CURRICULUM } from "./lessons/curriculum.js";
 import { loadKaTeX, renderAllMath } from "./katexLoader.js";
 import { scrollIntoViewRespectingMotion } from "./motion.js";
+import { createSkeletonRegion, createSkeletonText } from "./workflow/skeleton.js";
 
 const MODE_KEY = "worldsmith.lessons.mode";
 
@@ -116,7 +117,18 @@ export function initLessonsPage(mountEl) {
 
     const renderToken = ++renderSequence;
     body.dataset.lessonState = "loading";
-    body.innerHTML = `<div class="hint">Loading lesson...</div>`;
+    body.replaceChildren(
+      createSkeletonRegion({
+        label: `Loading lesson ${lesson.title}`,
+        className: "lesson-skeleton",
+        children: [
+          createSkeletonText({
+            lines: 4,
+            widths: ["84%", "96%", "72%", "46%"],
+          }),
+        ],
+      }),
+    );
 
     let lessonRuntime;
     try {

@@ -2,7 +2,134 @@
 
 All notable changes to Caelum will be documented in this file.
 
-## Unreleased
+## Unreleased (post-3.2.0)
+
+## 3.2.0 - 2026-06-30
+
+### Added
+
+**System Fate workspace**
+(engine/systemFateTimeline.js, ui/fatePage.js,
+ui/systemFate/systemFateTimelineModel.js, ui/systemFateTimelinePanel.js,
+ui/sciencePage.js)
+
+Added a new main-nav System Fate route that summarizes how the saved system
+changes across stellar time. The workspace combines host-frame stellar
+lifecycle tracks, per-orbit HZ exposure, object Era Timeline evidence, and
+current body models into an overview dashboard, interactive fate lanes,
+selected-age exposure preview, candidate/risk rankings, body drilldowns, and a
+copy-ready fate report.
+
+The feature remains a bounded exposure and worldbuilding summary: it does not
+integrate future climate, atmospheres, oceans, geology, orbital dynamics, or
+biology. Massive-star endpoints keep the supernova transition caveat that
+explosion energy, nucleosynthesis, fallback, and light curves are not modeled.
+
+**Object lifecycle timelines and moon origins**
+(engine/planetaryEraTimeline.js, engine/moon/system.js, engine/moon.js,
+ui/eraTimelinePanel.js, ui/moonPage.js, ui/planetPage.js, ui/starPage.js,
+ui/systemFateTimelinePanel.js, ui/sciencePage.js)
+
+Star, planet, and moon timelines now present a clearer birth-to-endpoint
+Lifecycle Timeline with role chips, endpoint cards, confidence labels, and
+visible model-limit notes. System Fate adds a Lifecycle view that compares
+each saved body's origin, current era, next broad transition, and endpoint
+alongside the existing habitable-zone exposure timeline.
+
+Moons now include an Origin Pathway selector with Auto/Inferred as the default
+and explicit priors for circumplanetary disk, giant-impact debris disk,
+captured irregular, binary-exchange capture, co-formed companion, tidal
+disruption/reaccretion, and unknown authored cases. Selected pathways feed the
+formation KPI, moon Lifecycle Timeline birth era, confidence, and consistency
+warnings without rewriting the authored orbit or core climate outputs.
+
+**Stellar lifecycle tracks**
+(engine/stellarLifecycle.js, engine/star.js, ui/star/outputModel.js,
+ui/sciencePage.js, scripts/science-verification/verificationRows.mjs)
+
+Stars now resolve a static analytic lifecycle track alongside the existing
+stellar property model. The new track exposes current lifecycle stage,
+post-main-sequence luminosity/radius states in evolved mode, current mass loss,
+core-mass proxies, likely remnant endpoint, sampled HZ migration, confidence,
+and caveats for single-star evolution limits.
+
+The Star page output model now includes lifecycle summary/detail sections, the
+Science & Maths page documents the lifecycle formulas and boundaries, and the
+Science Verification Matrix includes a dedicated Stellar Lifecycle model area
+with stage, HZ, remnant, and mass-lifetime invariant rows.
+
+The Star page now also promotes lifecycle stage, stage progress, remnant
+formation timing, current mass loss, HZ drift/reach, and rotation confidence
+into KPI sections, and renders the lifecycle track as a first-class Era
+Timeline instead of leaving that context buried in Derived Details.
+
+Stellar lifecycle timeline rows now show explicit model-limit warnings for
+each lifecycle stage, including the supernova transition caveat that Caelum
+does not simulate explosion energy, nucleosynthesis, fallback, remnant kicks,
+or light curves.
+
+Lifecycle planet-impact summaries now include conservative and optimistic HZ
+intervals, current HZ status, longest continuous HZ exposure, first/last HZ
+contact, late-habitability flags, red-giant irradiation, stellar-envelope
+engulfment, snowline context, and remnant-era caveats. World snapshots expose
+those summaries by host frame for saved planets and giants.
+
+Guided creation diagnostics, visualizer snapshots, visualizer focus summaries,
+and star surface styling now consume lifecycle stage data so post-main-sequence
+stars and compact remnants are visible outside the Star page. A module-worker
+client with cache and synchronous fallback supports detailed lifecycle-track
+requests without changing the static ESM architecture.
+
+The lifecycle verification suite now includes representative mass/metallicity
+fixtures, HZ interval and engulfment checks, worker fallback/cache coverage,
+and snapshot/visualizer/guided integration tests.
+
+**Science page coverage for context-engine outputs**
+(ui/sciencePage.js, tests/sciencePageReference.ui.test.js)
+
+The Science & Maths page now documents the app-visible context outputs for
+exoplanet observability, atmosphere source-sink ledgers, productivity and
+nitrogen limits, rocky-body composition coupling, planetary subtype evidence,
+and star/planet/moon era timelines. The new entries focus on how to interpret
+the visible science cards and where the models stop, rather than exposing
+every internal helper score.
+
+**Moon solid-body science depth**
+(engine/physics/solidBodyStructure.js, engine/physics/solidBodyResponse.js,
+engine/physics/dynamo.js, engine/contexts/moonGeodynamicsContext.js,
+engine/moon.js, engine/moon/tides.js, engine/moon/geology.js,
+engine/moon/hydrosphere.js, engine/moon/atmosphere.js,
+engine/moon/magnetosphere.js, ui/moonPage.js, ui/sciencePage.js)
+
+Moons now resolve a shared solid-body structure and response context before
+their tide, hydrosphere, geology, magnetosphere, atmosphere, and display
+diagnostics are assembled. The new layer distinguishes rocky differentiated
+moons, icy/ocean worlds, volatile-rich icy bodies, and small porous moons, then
+exposes layer-aware inertia, effective rigidity, Love number, material Q,
+geodynamics, rock-ocean exchange, hydrothermal potential, atmosphere regime,
+and dynamo plausibility outputs.
+
+The implementation keeps the app's static ES module shape while documenting
+the limits clearly: this is a bounded response and context model, not a 1-D
+thermochemical or MESA-grade stellar/interior simulation. New focused tests
+cover the structure and response kernels plus Luna, Europa, Enceladus, Titan,
+and Phobos-style calibration behavior.
+
+**Structured tooltip UX pass**
+(ui/tooltipCopy.js, ui/calendar/tooltips.js, ui/star/constants.js,
+ui/planet/tooltips.js, ui/moonPage.js, ui/tectonicsPage.js,
+ui/systemFateTimelinePanel.js, ui/eraTimelinePanel.js)
+
+Tooltips now follow the structured help standard from the style guide across
+the highest-value science, workflow, visualizer, calendar, import/export,
+population, composition, System Fate, and Era Timeline surfaces. Revised help
+copy starts with a plain overview, then adds data lineage, input/output impact,
+interpretation guidance, caveats, and Science & Maths references where useful.
+
+The pass adds a shared `structuredTip` helper, a repeatable tooltip audit
+script, display-time `Overview:` normalization for remaining low-risk legacy
+copy, and focused coverage tests without changing the lightweight hover/click
+tooltip interaction model.
 
 ## 3.1.0 - 2026-06-21
 

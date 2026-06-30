@@ -95,10 +95,86 @@ export function getStarVisualStyle(input = {}) {
     ? Number(input.tempK)
     : Number(input?.starTempK);
   const regime = inferStarVisualRegime(input);
+  const lifecycleStageId = String(
+    input?.lifecycleStageId || input?.starLifecycleStage?.id || input?.stageId || "",
+  );
   if (regime !== "brownDwarf") {
+    if (lifecycleStageId === "white_dwarf") {
+      return {
+        regime,
+        isBrownDwarf: false,
+        lifecycleStageId,
+        coreMix: 0.72,
+        limbMix: 0.08,
+        brightMix: 0.82,
+        darkMix: 0.36,
+        faculaMix: 0.18,
+        coronaOpacityScale: 0.38,
+        haloOpacityScale: 0.44,
+        rimOpacityScale: 0.48,
+        burstOpacityScale: 0.12,
+        surfaceContrastScale: 0.42,
+        activityScale: 0.18,
+        glowRadiusScale: 0.74,
+        glowOpacityScale: 0.56,
+        rimWarmHex: "#d9f4ff",
+      };
+    }
+    if (
+      lifecycleStageId === "neutron_star" ||
+      lifecycleStageId === "black_hole" ||
+      lifecycleStageId === "no_remnant"
+    ) {
+      return {
+        regime,
+        isBrownDwarf: false,
+        lifecycleStageId,
+        coreMix: 0.12,
+        limbMix: 0.72,
+        brightMix: 0.2,
+        darkMix: 0.86,
+        faculaMix: 0.1,
+        coronaOpacityScale: 0.08,
+        haloOpacityScale: 0.1,
+        rimOpacityScale: 0.08,
+        burstOpacityScale: 0.02,
+        surfaceContrastScale: 0.3,
+        activityScale: 0.04,
+        glowRadiusScale: 0.42,
+        glowOpacityScale: 0.12,
+        rimWarmHex: "#9fb4ff",
+      };
+    }
+    if (
+      lifecycleStageId === "red_giant" ||
+      lifecycleStageId === "core_helium_burning" ||
+      lifecycleStageId === "asymptotic_giant_branch" ||
+      lifecycleStageId === "supergiant"
+    ) {
+      return {
+        regime,
+        isBrownDwarf: false,
+        lifecycleStageId,
+        coreMix: 0.2,
+        limbMix: 0.34,
+        brightMix: 0.44,
+        darkMix: 0.72,
+        faculaMix: 0.72,
+        coronaOpacityScale: 0.72,
+        haloOpacityScale: 0.92,
+        rimOpacityScale: 0.9,
+        burstOpacityScale: 0.42,
+        surfaceContrastScale: 0.82,
+        activityScale: 0.62,
+        glowRadiusScale: 1.28,
+        glowOpacityScale: 1.15,
+        rimWarmHex: "#ffad78",
+      };
+    }
     return {
       regime,
       isBrownDwarf: false,
+      lifecycleStageId: lifecycleStageId || null,
       coreMix: 0.34,
       limbMix: 0.2,
       brightMix: 0.58,
@@ -158,6 +234,7 @@ export function paintStarSurfaceTexture(
     activity = 0.2,
     regime = null,
     massMsol = null,
+    lifecycleStageId = null,
   } = {},
 ) {
   const s = Math.max(64, Number(size) || 512);
@@ -165,7 +242,7 @@ export function paintStarSurfaceTexture(
   const cy = s * 0.5;
   const r = s * 0.48;
   const baseRgb = hexToRgb(baseHex);
-  const visualStyle = getStarVisualStyle({ regime, tempK, massMsol });
+  const visualStyle = getStarVisualStyle({ regime, tempK, massMsol, lifecycleStageId });
   const coreRgb = hexToRgb(mixHex(baseHex, "#fff7e6", visualStyle.coreMix));
   const limbRgb = hexToRgb(mixHex(baseHex, "#1d1410", visualStyle.limbMix));
   const brightRgb = hexToRgb(mixHex(baseHex, "#fff3dc", visualStyle.brightMix));

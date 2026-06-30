@@ -7,6 +7,24 @@ import {
 
 export const MOON_SCIENCE_MODES = ["core", "full", "manual"];
 export const MOON_RADIOISOTOPE_MODES = ["simple", "advanced"];
+export const MOON_ORIGIN_PATHWAYS = Object.freeze([
+  { id: "auto", label: "Auto / inferred" },
+  { id: "circumplanetaryDisk", label: "Circumplanetary disk" },
+  { id: "giantImpactDebrisDisk", label: "Giant impact debris disk" },
+  { id: "capturedIrregular", label: "Captured irregular" },
+  { id: "binaryExchangeCapture", label: "Binary exchange capture" },
+  { id: "coformedCompanion", label: "Co-formed companion" },
+  { id: "tidalDisruptionReaccretion", label: "Tidal disruption reaccretion" },
+  { id: "unknown", label: "Unknown / authored" },
+]);
+
+const MOON_ORIGIN_PATHWAY_IDS = new Set(MOON_ORIGIN_PATHWAYS.map((pathway) => pathway.id));
+const MOON_ORIGIN_PATHWAY_ALIASES = new Map(
+  MOON_ORIGIN_PATHWAYS.flatMap((pathway) => [
+    [pathway.id.toLowerCase(), pathway.id],
+    [pathway.label.toLowerCase(), pathway.id],
+  ]),
+);
 
 function normalizeMode(mode, fallback = "core") {
   const value = String(mode || "").toLowerCase();
@@ -16,6 +34,26 @@ function normalizeMode(mode, fallback = "core") {
 function normalizeRadioisotopeMode(mode) {
   const value = String(mode || "").toLowerCase();
   return MOON_RADIOISOTOPE_MODES.includes(value) ? value : "simple";
+}
+
+export function normalizeMoonOriginPathway(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "auto";
+  if (MOON_ORIGIN_PATHWAY_IDS.has(raw)) return raw;
+  const compact = raw.replace(/[-_\s/]+/g, "").toLowerCase();
+  const direct = MOON_ORIGIN_PATHWAY_ALIASES.get(raw.toLowerCase());
+  if (direct) return direct;
+  const compactMatch = MOON_ORIGIN_PATHWAYS.find(
+    (pathway) =>
+      pathway.id.replace(/[-_\s/]+/g, "").toLowerCase() === compact ||
+      pathway.label.replace(/[-_\s/]+/g, "").toLowerCase() === compact,
+  );
+  return compactMatch?.id || "auto";
+}
+
+export function moonOriginPathwayLabel(value) {
+  const id = normalizeMoonOriginPathway(value);
+  return MOON_ORIGIN_PATHWAYS.find((pathway) => pathway.id === id)?.label || "Auto / inferred";
 }
 
 function normalizeFiniteOrNull(value) {
@@ -139,6 +177,7 @@ export function normalizeMoonInputs(raw = {}, options = {}) {
   const includeCompositionDefaults = options.includeCompositionDefaults !== false;
   return {
     ...source,
+    originPathway: normalizeMoonOriginPathway(source.originPathway),
     ...normalizeMoonCompositionInputs(source, { includeDefaults: includeCompositionDefaults }),
     compositionOverride:
       source.compositionOverride === undefined

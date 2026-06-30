@@ -3,8 +3,9 @@ import {
   resolveMeanOceanDepthKm,
   resolveSurfaceOceanFractions,
 } from "./contexts/surfaceOceanCoverageAccessors.js";
+import { moonOriginPathwayLabel } from "./moon/config.js";
 
-const MODEL_VERSION = "planetary-era-timeline-v1";
+const MODEL_VERSION = "object-lifecycle-timeline-v2";
 
 const CATEGORY_ORDER = Object.freeze({
   formation: 0,
@@ -248,6 +249,13 @@ function addEra(eras, timelineContext, era = {}) {
     drivers: compactDrivers(era.drivers || []),
     evidenceCodes: Array.isArray(era.evidenceCodes) ? era.evidenceCodes : [],
     warningCodes: Array.isArray(era.warningCodes) ? era.warningCodes : [],
+    warnings: Array.isArray(era.warnings) ? era.warnings.filter(Boolean) : [],
+    warningMessages: Array.isArray(era.warningMessages) ? era.warningMessages.filter(Boolean) : [],
+    caveats: Array.isArray(era.caveats) ? era.caveats.filter(Boolean) : [],
+    lifecycleRole: era.lifecycleRole || null,
+    timeBasis: era.timeBasis || null,
+    endpointCandidate: era.endpointCandidate === true,
+    originPathwayId: era.originPathwayId || null,
   };
   eras.push(normalized);
   return normalized;
@@ -2901,6 +2909,212 @@ function addBrownDwarfFutureEras(eras, context, model) {
   });
 }
 
+function moonOriginTimelineCopy(formation = {}) {
+  const pathwayId = firstString(formation.pathwayId, "unknown");
+  switch (pathwayId) {
+    case "circumplanetaryDisk":
+      return {
+        id: "moon-origin-circumplanetary-disk",
+        label: "Circumplanetary disk origin",
+        headline: "Regular moon accreted in a disk around its parent",
+        detail:
+          "The origin prior supports disk accretion, orbital migration, and possible resonance capture around a giant or massive parent. The app does not simulate the disk.",
+        earlyEra: {
+          id: "moon-early-disk-migration",
+          label: "Disk migration and resonance setup",
+          category: "orbital",
+          headline: "Early disk migration may have shaped the moon system",
+          detail:
+            "This is a qualitative migration context used for the lifecycle timeline, not a circumplanetary disk evolution solve.",
+          evidenceCodes: ["MOON_CIRCUMPLANETARY_DISK"],
+        },
+      };
+    case "giantImpactDebrisDisk":
+      return {
+        id: "moon-origin-giant-impact",
+        label: "Giant impact debris disk",
+        headline: "Large rocky moon assembled from impact debris",
+        detail:
+          "The selected or inferred pathway uses a Luna-style impact-debris prior. The model does not simulate the impact, debris disk, or accretion timescale.",
+        earlyEra: {
+          id: "moon-early-impact-debris-cooling",
+          label: "Impact debris cooling and tidal recession",
+          category: "interior",
+          headline: "Early hot debris and tidal recession shaped the young moon",
+          detail:
+            "The lifecycle row records a broad high-energy birth context, not a thermal or orbital integration.",
+          evidenceCodes: ["MOON_GIANT_IMPACT_DEBRIS"],
+        },
+      };
+    case "capturedIrregular":
+      return {
+        id: "moon-origin-captured-irregular",
+        label: "Captured irregular origin",
+        headline: "Captured body on an irregular-moon pathway",
+        detail:
+          "Capture is treated as an origin prior from orbit architecture. The app does not simulate encounter geometry or energy loss.",
+        earlyEra: {
+          id: "moon-early-capture-circularization",
+          label: "Capture circularization context",
+          category: "orbital",
+          headline: "Capture may imply an early eccentricity or inclination damping phase",
+          detail:
+            "This row is a caveated capture-history annotation, not an encounter or damping simulation.",
+          evidenceCodes: ["MOON_CAPTURED_IRREGULAR"],
+        },
+      };
+    case "binaryExchangeCapture":
+      return {
+        id: "moon-origin-binary-exchange-capture",
+        label: "Binary exchange capture",
+        headline: "Large capture aided by binary disruption",
+        detail:
+          "The selected origin is a Triton-style prior. The model does not solve the binary encounter, circularization energy, or lost companion.",
+        earlyEra: {
+          id: "moon-early-high-energy-capture",
+          label: "High-energy capture settling",
+          category: "orbital",
+          headline: "A large captured moon may have undergone strong early circularization",
+          detail:
+            "The row flags possible early tidal heating without calculating a capture energy budget.",
+          evidenceCodes: ["MOON_BINARY_EXCHANGE_CAPTURE"],
+        },
+      };
+    case "coformedCompanion":
+      return {
+        id: "moon-origin-coformed-companion",
+        label: "Co-formed companion origin",
+        headline: "Companion-like formation prior",
+        detail:
+          "The origin prior treats the moon as a co-formed companion. This is more plausible for high-mass or substellar systems than ordinary small moons.",
+        earlyEra: {
+          id: "moon-early-companion-settling",
+          label: "Companion-orbit settling",
+          category: "orbital",
+          headline: "Early orbit settling is inferred only qualitatively",
+          detail:
+            "The app does not reconstruct formation migration or scattering history for companion-like moons.",
+          evidenceCodes: ["MOON_COFORMED_COMPANION"],
+        },
+      };
+    case "tidalDisruptionReaccretion":
+      return {
+        id: "moon-origin-reaccreted-ring",
+        label: "Tidal disruption reaccretion",
+        headline: "Moon assembled from disrupted or ring material",
+        detail:
+          "The origin prior flags a Roche/ring-style reaccretion pathway. The app does not simulate ring spreading or debris reaccretion.",
+        earlyEra: {
+          id: "moon-early-ring-reaccretion",
+          label: "Ring and reaccretion context",
+          category: "formation",
+          headline: "Young surface or ring context may matter",
+          detail:
+            "This row is a broad origin annotation, not a ring evolution or surface-age model.",
+          evidenceCodes: ["MOON_TIDAL_DISRUPTION_REACCRETION"],
+        },
+      };
+    case "unknown":
+    default:
+      return {
+        id: "moon-origin-unknown",
+        label: "Unconstrained moon origin",
+        headline: "Formation pathway is intentionally broad",
+        detail:
+          "The moon lifecycle uses a low-confidence origin prior because the formation or capture pathway is not constrained.",
+        earlyEra: null,
+      };
+  }
+}
+
+function addMoonOriginEras(eras, context, model, compositionClass) {
+  const formation = model.formation || {};
+  const pathwayId = firstString(formation.pathwayId, "unknown");
+  const copy = moonOriginTimelineCopy(formation);
+  const warningMessages = [
+    ...(Array.isArray(formation.warningMessages) ? formation.warningMessages : []),
+    ...(Array.isArray(formation.consistencyWarnings)
+      ? formation.consistencyWarnings.map((warning) => warning?.message || warning?.code)
+      : []),
+  ].filter(Boolean);
+
+  addEra(eras, context, {
+    id: copy.id,
+    label: copy.label || moonOriginPathwayLabel(pathwayId),
+    category: "formation",
+    startGyr: 0,
+    endGyr: formationEnd(context.currentAgeGyr, 0.1),
+    state: context.currentAgeGyr == null ? "conditional" : "past",
+    confidence:
+      (formation.confidence ?? 0) >= 0.7 ? "medium" : pathwayId === "unknown" ? "low" : "low",
+    severity: warningMessages.length ? "caution" : "info",
+    headline: copy.headline,
+    detail: copy.detail,
+    lifecycleRole: "birth",
+    timeBasis: formation.source === "user" ? "user-prior" : "heuristic",
+    originPathwayId: pathwayId,
+    drivers: [
+      makeDriver(
+        "originPathway",
+        "Origin pathway",
+        formation.pathwayLabel || moonOriginPathwayLabel(pathwayId),
+        "",
+      ),
+      makeDriver(
+        "source",
+        "Origin source",
+        formation.source === "user" ? "User selected" : "Auto / inferred",
+        "",
+      ),
+      makeDriver("composition", "Composition", compositionClass, ""),
+      makeDriver("formation", "Formation", formation.scenarioLabel, ""),
+    ],
+    evidenceCodes: ["MOON_ORIGIN_PATHWAY"],
+    warningCodes: warningMessages.length ? ["MOON_ORIGIN_CONSISTENCY_WARNING"] : [],
+    warningMessages,
+  });
+
+  if (!copy.earlyEra) return;
+  addEra(eras, context, {
+    ...copy.earlyEra,
+    startGyr: 0.001,
+    endGyr: formationEnd(context.currentAgeGyr, 0.25),
+    state: context.currentAgeGyr == null ? "conditional" : "past",
+    confidence: pathwayId === "unknown" ? "low" : "low",
+    severity: formation.timelineEffects?.earlyTidalHeatingPulse === "strong" ? "caution" : "info",
+    lifecycleRole: "early",
+    timeBasis: formation.source === "user" ? "user-prior" : "heuristic",
+    originPathwayId: pathwayId,
+    drivers: [
+      makeDriver(
+        "originPathway",
+        "Origin pathway",
+        formation.pathwayLabel || moonOriginPathwayLabel(pathwayId),
+        "",
+      ),
+      makeDriver(
+        "earlyHeating",
+        "Early heat pulse",
+        formation.timelineEffects?.earlyTidalHeatingPulse,
+        "",
+      ),
+      makeDriver(
+        "resonance",
+        "Resonance likelihood",
+        formation.timelineEffects?.resonanceLikelihood,
+        "",
+      ),
+    ],
+    warningCodes: [
+      ...(Array.isArray(copy.earlyEra.warningCodes) ? copy.earlyEra.warningCodes : []),
+      "NO_ORIGIN_EVENT_SIMULATION",
+    ],
+    warnings: [
+      "The lifecycle row uses an origin prior; it does not calculate exact capture, impact, disk, or migration history.",
+    ],
+  });
+}
+
 function addMoonEras(eras, context, model) {
   const compositionClass = firstString(
     model.tides?.compositionClass,
@@ -2915,25 +3129,7 @@ function addMoonEras(eras, context, model) {
   const resonance = model.resonance || {};
   const habitabilitySummary = model.habitability?.summary || {};
 
-  addEra(eras, context, {
-    id: "moon-accretion-or-capture",
-    label: "Moon formation or capture",
-    category: "formation",
-    startGyr: 0,
-    endGyr: formationEnd(context.currentAgeGyr, 0.1),
-    state: context.currentAgeGyr == null ? "conditional" : "past",
-    confidence: "low",
-    severity: "info",
-    headline: "Formation pathway is broad unless the model exposes a specific scenario",
-    detail: firstString(model.formation?.scenarioLabel)
-      ? `Current formation context: ${model.formation.scenarioLabel}.`
-      : "The current moon model does not solve a unique formation history.",
-    drivers: [
-      makeDriver("composition", "Composition", compositionClass, ""),
-      makeDriver("formation", "Formation", model.formation?.scenarioLabel, ""),
-    ],
-    evidenceCodes: ["MOON_FORMATION"],
-  });
+  addMoonOriginEras(eras, context, model, compositionClass);
 
   if (compositionClass) {
     addEra(eras, context, {
@@ -3374,6 +3570,262 @@ function eraCounts(eras = []) {
   );
 }
 
+function lifecycleRoleCounts(eras = []) {
+  return eras.reduce(
+    (counts, era) => {
+      if (era.lifecycleRole) counts[era.lifecycleRole] = (counts[era.lifecycleRole] || 0) + 1;
+      return counts;
+    },
+    { birth: 0, early: 0, current: 0, transition: 0, risk: 0, endpoint: 0 },
+  );
+}
+
+function unsupportedPhysicsForTimeline(subjectKind, family = "") {
+  if (subjectKind === "moon") {
+    return [
+      "No capture encounter simulation.",
+      "No impact hydrodynamics.",
+      "No circumplanetary disk evolution.",
+      "No full resonance-capture integration.",
+      "No long-term N-body survival simulation.",
+    ];
+  }
+  if (family === "brownDwarf") {
+    return [
+      "No star-formation collapse simulation.",
+      "No detailed brown-dwarf atmosphere grid.",
+      "No long-term dynamical survival integration.",
+    ];
+  }
+  return [
+    "No planet formation N-body simulation.",
+    "No time-dependent climate integration.",
+    "No mantle, core, ocean, or atmosphere evolution solve.",
+    "No stochastic impact history.",
+  ];
+}
+
+function accuracyTierForTimeline(subjectKind, family = "") {
+  if (subjectKind === "moon") return "inferred-prior";
+  if (family === "brownDwarf") return "evidence-summary";
+  return "evidence-summary";
+}
+
+function annotateLifecycleRoles(eras = []) {
+  const firstFormation = eras.find((era) => era.category === "formation");
+  const current = pickCurrentEra(eras);
+  for (const era of eras) {
+    if (!era.lifecycleRole) {
+      if (era === firstFormation) era.lifecycleRole = "birth";
+      else if (era === current || era.state === "current") era.lifecycleRole = "current";
+      else if (era.endpointCandidate) era.lifecycleRole = "endpoint";
+      else if (era.state === "future") era.lifecycleRole = "transition";
+      else if (era.state === "conditional") era.lifecycleRole = "risk";
+      else if (era.state === "past") era.lifecycleRole = "early";
+    }
+    if (!era.timeBasis) {
+      if (era.state === "current") era.timeBasis = "computed";
+      else if (era.category === "formation") era.timeBasis = "heuristic";
+      else if (era.endpointCandidate) era.timeBasis = "threshold";
+      else era.timeBasis = "heuristic";
+    }
+  }
+  return eras;
+}
+
+function endpointEraForTimeline(eras = []) {
+  return (
+    eras.find((era) => era.lifecycleRole === "endpoint") ||
+    eras.find((era) => era.endpointCandidate) ||
+    eras.filter((era) => era.state === "future" || era.state === "conditional").at(-1) ||
+    null
+  );
+}
+
+function birthEraForTimeline(eras = []) {
+  return (
+    eras.find((era) => era.lifecycleRole === "birth") ||
+    eras.find((era) => era.category === "formation") ||
+    eras[0] ||
+    null
+  );
+}
+
+function endpointTimingLabel(era) {
+  if (!era) return "Endpoint not resolved";
+  return era.timingLabel || formatEraTiming(era);
+}
+
+function addPlanetaryEndpointEra(eras, context, model) {
+  if (eras.some((era) => era.lifecycleRole === "endpoint" || era.endpointCandidate)) return;
+  const family = context.family || modelClassification(model).family;
+  const solverFamily = context.solverFamily || modelClassification(model).solverFamily;
+  const currentAge = firstFinite(context.currentAgeGyr, 0);
+  const maxAge = firstFinite(context.maxAgeGyr);
+  const startGyr =
+    maxAge != null && currentAge != null && maxAge > currentAge
+      ? maxAge
+      : futureStartGyr(context, 5, 0.5);
+  let id = "planetary-endpoint-unknown";
+  let label = "Long-term endpoint unresolved";
+  let category = "reference";
+  let confidence = "low";
+  let headline = "The current model cannot resolve a unique final endpoint";
+  let detail =
+    "The lifecycle view stops at broad stellar exposure and current-state thresholds; it does not integrate future climate, impacts, or orbital dynamics.";
+
+  if (solverFamily === "brownDwarf" || family === "brownDwarf") {
+    id = "brown-dwarf-cooling-endpoint";
+    label = "Long-term substellar cooling endpoint";
+    category = "substellar";
+    confidence = "medium";
+    headline = "Substellar objects continue cooling and fading";
+    detail =
+      "The endpoint is a qualitative cooling state, not a detailed brown-dwarf atmosphere or luminosity-grid calculation.";
+  } else if (
+    solverFamily === "gasGiant" ||
+    family === "gasGiant" ||
+    (GIANT_FAMILIES.has(family) && solverFamily !== "volatile")
+  ) {
+    id = "giant-stellar-evolution-endpoint";
+    label = "Giant-planet stellar-evolution endpoint";
+    category = "envelope";
+    confidence = "low";
+    headline = "The giant's endpoint is governed by long-term stellar exposure";
+    detail =
+      "The app records broad irradiation or survival context for giant planets; it does not solve envelope erosion through post-main-sequence evolution.";
+  } else if (solverFamily === "volatile" || VOLATILE_SOLVER_FAMILIES.has(family)) {
+    id = "volatile-body-evolution-endpoint";
+    label = "Volatile-body evolution endpoint";
+    category = "envelope";
+    confidence = "low";
+    headline = "Volatile-rich worlds have a broad irradiation or stripped-remnant endpoint";
+    detail =
+      "The endpoint is a model-limit summary from current volatile/envelope state and stellar context, not a time-dependent escape calculation.";
+  } else {
+    id = "rocky-remnant-era-endpoint";
+    label = "Rocky remnant-era endpoint";
+    category = "habitability";
+    confidence = "medium";
+    headline = "Long-term fate is dominated by changing stellar irradiation";
+    detail =
+      "The endpoint follows broad host-lifecycle exposure: possible engulfment, hot post-HZ remnant, frozen survivor, or unknown survival state depending on orbit.";
+  }
+
+  addEra(eras, context, {
+    id,
+    label,
+    category,
+    startGyr,
+    endGyr: null,
+    state: "future",
+    confidence,
+    severity: confidence === "medium" ? "caution" : "info",
+    headline,
+    detail,
+    lifecycleRole: "endpoint",
+    timeBasis: maxAge == null ? "heuristic" : "threshold",
+    endpointCandidate: true,
+    drivers: [
+      makeDriver("family", "Family", family, "Selects endpoint language"),
+      makeDriver(
+        "hostLifetime",
+        "Host lifecycle limit",
+        maxAge == null ? "Unknown" : formatGyr(maxAge),
+        "Bounds broad post-current stellar exposure",
+      ),
+    ],
+    warningCodes: ["NO_TIME_DEPENDENT_FUTURE_EVOLUTION"],
+    warnings: [
+      "Endpoint language is broad context only; future climate, orbital survival, and impact history are not integrated.",
+    ],
+  });
+}
+
+function addMoonEndpointEra(eras, context, model) {
+  if (eras.some((era) => era.lifecycleRole === "endpoint" || era.endpointCandidate)) return;
+  const tides = model.tides || {};
+  const timeToRoche = firstFinite(tides.timeToRocheGyr);
+  const timeToEscape = firstFinite(tides.timeToEscapeGyr);
+  const currentAge = firstFinite(context.currentAgeGyr, 0);
+  const finiteRoche = timeToRoche != null && timeToRoche < 1000;
+  const finiteEscape = timeToEscape != null && timeToEscape < 1000;
+  const hasRocheEndpoint = finiteRoche && (!finiteEscape || timeToRoche <= timeToEscape);
+  const hasEscapeEndpoint = finiteEscape && !hasRocheEndpoint;
+
+  if (hasRocheEndpoint || hasEscapeEndpoint) {
+    addEra(eras, context, {
+      id: hasRocheEndpoint ? "moon-endpoint-roche-disruption" : "moon-endpoint-orbital-escape",
+      label: hasRocheEndpoint ? "Roche-limit disruption endpoint" : "Orbital escape endpoint",
+      category: "orbital",
+      startGyr:
+        currentAge == null ? null : currentAge + (hasRocheEndpoint ? timeToRoche : timeToEscape),
+      endGyr: null,
+      state: "future",
+      confidence: "medium",
+      severity: "warning",
+      headline: hasRocheEndpoint
+        ? "Current tidal migration points inward toward disruption"
+        : "Current tidal migration points outward toward escape",
+      detail:
+        "The endpoint follows the current orbital-fate estimate and assumes the present tidal regime persists.",
+      lifecycleRole: "endpoint",
+      timeBasis: "threshold",
+      endpointCandidate: true,
+      drivers: [
+        makeDriver("orbitalFate", "Orbital fate", model.display?.orbitalFate, ""),
+        makeDriver(
+          "timeToRoche",
+          "Time to Roche limit",
+          timeToRoche == null ? "" : formatGyr(timeToRoche),
+          "",
+        ),
+        makeDriver(
+          "timeToEscape",
+          "Time to escape",
+          timeToEscape == null ? "" : formatGyr(timeToEscape),
+          "",
+        ),
+      ],
+      warningCodes: ["NO_FULL_ORBITAL_HISTORY"],
+      warnings: [
+        "This is not a long-term N-body integration; sibling interactions and changing tides can alter the endpoint.",
+      ],
+    });
+    return;
+  }
+
+  addEra(eras, context, {
+    id: "moon-endpoint-long-lived-satellite",
+    label: "Long-lived satellite endpoint",
+    category: "orbital",
+    startGyr: futureStartGyr(context, 5, 0.5),
+    endGyr: null,
+    state: "future",
+    confidence: "low",
+    severity: "info",
+    headline: "No near-term Roche or escape endpoint is resolved",
+    detail:
+      "The moon remains a long-lived satellite in the current analytic tide model, with later fate inherited from parent and host-star evolution.",
+    lifecycleRole: "endpoint",
+    timeBasis: "heuristic",
+    endpointCandidate: true,
+    drivers: [
+      makeDriver("orbitalFate", "Orbital fate", model.display?.orbitalFate || "Stable", ""),
+      makeDriver(
+        "hostLifecycle",
+        "Host lifecycle",
+        context.maxAgeGyr == null ? "Unknown" : formatGyr(context.maxAgeGyr),
+        "",
+      ),
+    ],
+    warningCodes: ["NO_LONG_TERM_N_BODY_SURVIVAL_SOLVE"],
+    warnings: [
+      "Parent stellar evolution, impacts, capture perturbations, and full multi-moon stability are not integrated.",
+    ],
+  });
+}
+
 function makeTimeline({ subjectKind, model = {}, star = {}, systemContext = {}, builder }) {
   const { family, solverFamily } = modelClassification(model);
   const currentAgeGyr = ageFromModel(model, star, systemContext);
@@ -3387,18 +3839,32 @@ function makeTimeline({ subjectKind, model = {}, star = {}, systemContext = {}, 
   };
   const eras = [];
   builder(eras, context);
+  if (subjectKind === "moon") addMoonEndpointEra(eras, context, model);
+  else addPlanetaryEndpointEra(eras, context, model);
   addSubtypeEras(eras, context, model);
+  annotateLifecycleRoles(eras);
   sortEras(eras);
   const currentEra = pickCurrentEra(eras);
+  const birthEra = birthEraForTimeline(eras);
+  const endpointEra = endpointEraForTimeline(eras);
+  const unsupportedPhysics = unsupportedPhysicsForTimeline(subjectKind, context.family || family);
   return {
     modelVersion: MODEL_VERSION,
+    timelineKind: "lifecycle",
     subjectKind,
     family,
     solverFamily,
     subtypeIds: subtypeIds(model),
     currentAgeGyr: currentAgeGyr == null ? null : round(currentAgeGyr, 4),
     maxAgeGyr: maxAgeGyr == null ? null : round(maxAgeGyr, 4),
+    birthEraId: birthEra?.id || null,
     currentEraId: currentEra?.id || null,
+    endpointEraId: endpointEra?.id || null,
+    endpointLabel: endpointEra?.label || "Endpoint unresolved",
+    endpointConfidence: endpointEra?.confidence || "low",
+    endpointTimingLabel: endpointTimingLabel(endpointEra),
+    accuracyTier: accuracyTierForTimeline(subjectKind, context.family || family),
+    unsupportedPhysics,
     confidence: timelineConfidence(eras),
     summary: summarizeTimeline(
       eras,
@@ -3406,6 +3872,7 @@ function makeTimeline({ subjectKind, model = {}, star = {}, systemContext = {}, 
     ),
     futureSummary: futureSummary(eras),
     eraCounts: eraCounts(eras),
+    lifecycleRoleCounts: lifecycleRoleCounts(eras),
     eras,
     markers: [
       {

@@ -3,6 +3,7 @@ import { waterBoilingK } from "../planet/composition.js";
 import { EARTH_INTERNAL_HEAT_FLUX_WM2 } from "../habitability/constants.js";
 import { estimateBottomOceanTemperature } from "../habitability/oceanThermalProfile.js";
 import { normalizeHabitabilityInventory } from "../habitability/species.js";
+import { estimateEquivalentWaterInventory } from "../physics/waterInventory.js";
 import {
   HIGH_PRESSURE_ICE_BANDS,
   OCEAN_PRESSURE_MODELS,
@@ -11,8 +12,6 @@ import {
   estimateOceanColumnPressurePa,
 } from "../habitability/highPressureIce.js";
 
-const LUNAR_MASS_KG = 7.342e22;
-const LUNAR_RADIUS_M = 1737.4e3;
 const WATER_DENSITY_KG_M3 = 1000;
 const MIN_LIQUID_PRESSURE_ATM = 0.006;
 
@@ -91,15 +90,12 @@ function resolveWaterMassFraction({ waterPresent, compositionKey, mode, waterMas
 }
 
 function estimateEquivalentWaterDepthM({ massMoon, radiusMoon, waterMassFraction }) {
-  const bodyMassKg = Math.max(toFinite(massMoon, 0), 0) * LUNAR_MASS_KG;
-  const radiusMeters = Math.max(toFinite(radiusMoon, 0), 0) * LUNAR_RADIUS_M;
-  const fraction = clamp(toFinite(waterMassFraction, 0), 0, 1);
-  if (bodyMassKg <= 0 || radiusMeters <= 0 || fraction <= 0) return 0;
-
-  const waterMassKg = bodyMassKg * fraction;
-  const surfaceAreaM2 = 4 * Math.PI * radiusMeters ** 2;
-  if (surfaceAreaM2 <= 0) return 0;
-  return waterMassKg / (surfaceAreaM2 * WATER_DENSITY_KG_M3);
+  return estimateEquivalentWaterInventory({
+    massMoon,
+    radiusMoon,
+    waterMassFraction,
+    waterDensityKgM3: WATER_DENSITY_KG_M3,
+  }).equivalentWaterDepthM;
 }
 
 function surfaceCoverageFromDepthKm(depthKm) {
@@ -334,6 +330,8 @@ export function hydrosphereStateFromMoon({
   ammoniaPct = 0,
   differentiatedInterior = null,
   tidalPersistenceContext = null,
+  rockyBodyComposition = null,
+  solidBodyStructure = null,
 } = {}) {
   const notes = ["moon-hydrosphere-v1"];
   const persistenceContext = normalizeTidalPersistenceContext(tidalPersistenceContext);
@@ -355,13 +353,30 @@ export function hydrosphereStateFromMoon({
     compositionClass,
     densityGcm3,
   });
+  const compositionWaterMassFraction = clamp(
+    Math.max(
+      toFinite(rockyBodyComposition?.effectiveWaterMassFraction, 0),
+      toFinite(rockyBodyComposition?.componentMassFractions?.waterIce, 0) +
+        toFinite(rockyBodyComposition?.componentMassFractions?.volatileIce, 0) * 0.35,
+      toFinite(solidBodyStructure?.iceMassFraction, 0) +
+        toFinite(solidBodyStructure?.oceanMassFraction, 0),
+    ),
+    0,
+    0.9,
+  );
+  const hasCompositionWaterInventory = compositionWaterMassFraction > 0.0001;
   const explicitWaterInventoryPresent =
-    (mode === "full" || mode === "manual") && Math.max(toFinite(waterMassFractionPct, 0), 0) > 0;
+    (mode === "full" || mode === "manual") &&
+    (Math.max(toFinite(waterMassFractionPct, 0), 0) > 0 || hasCompositionWaterInventory);
+  const resolvedWaterMassFractionPct =
+    Math.max(toFinite(waterMassFractionPct, 0), 0) > 0
+      ? waterMassFractionPct
+      : compositionWaterMassFraction * 100;
   const waterMassFraction = resolveWaterMassFraction({
     waterPresent: water?.present === true || explicitWaterInventoryPresent,
     compositionKey,
     mode,
-    waterMassFractionPct,
+    waterMassFractionPct: resolvedWaterMassFractionPct,
   });
   const equivalentWaterDepthM = estimateEquivalentWaterDepthM({
     massMoon,

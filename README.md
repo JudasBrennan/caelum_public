@@ -1,4 +1,4 @@
-# Caelum 3.1.0
+# Caelum 3.2.0
 
 Caelum is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -13,6 +13,21 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- System Fate is now a main-nav workspace for comparing saved worlds across
+  stellar time, including moving habitable zones, future windows, major risks,
+  body drilldowns, and copy-ready reports.
+- Stars now expose analytic lifecycle tracks with stage timing, evolved
+  luminosity/radius context, mass-loss/core-mass proxies, remnant endpoints,
+  HZ migration, confidence labels, and model-limit caveats.
+- Star, planet, moon, and System Fate views now include clearer
+  birth-to-endpoint lifecycle timelines, while moons gain an Origin Pathway
+  selector that feeds formation evidence without rewriting authored orbits.
+- Moons now use deeper solid-body structure and material-response context for
+  tides, geology, hydrosphere, atmosphere, magnetosphere, dynamo plausibility,
+  and habitability caveats.
+- Loading skeletons now cover route transitions and heavier generated previews,
+  and high-value tooltips now follow the structured overview/source/caveat
+  pattern from the style guide.
 - Planets and moons now share a manual rocky-body composition inventory with
   inferred, reservoir, and expert-element modes.
 - The composition editor can seed scientifically bounded starter values for
@@ -119,6 +134,7 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - `Climate Zones`
 - `Population`
 - `Calendar`
+- `System Fate`
 - `Lessons`
 - `Science and Maths`
 - `Validation`

@@ -67,6 +67,14 @@ function classifyAtmosphere(totalPressurePa) {
   return "Dense volatile atmosphere";
 }
 
+function classifyAtmosphereRegime(totalPressurePa) {
+  if (totalPressurePa <= 1e-6) return "exosphere";
+  if (totalPressurePa < 10) return "exosphere";
+  if (totalPressurePa < 1200) return "seasonal-volatile-atmosphere";
+  if (totalPressurePa < 10000) return "thin-collisional-atmosphere";
+  return "thick-pressure-bearing-atmosphere";
+}
+
 function deriveSourceClass({
   retainedSpecies,
   dominantSpecies,
@@ -299,6 +307,8 @@ export function computeMoonAtmosphere({
   return {
     hasAtmosphere: totalPressurePa > 0.01,
     atmosphereClass: classifyAtmosphere(totalPressurePa),
+    atmosphereRegime: classifyAtmosphereRegime(totalPressurePa),
+    atmosphereRegimeModelVersion: "moon-atmosphere-regime-v1",
     sourceClass: deriveSourceClass({
       retainedSpecies,
       dominantSpecies,

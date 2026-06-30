@@ -13,7 +13,23 @@ function moon(
   densityGcm3,
   albedo,
   compositionOverride = null,
+  originPathway = null,
 ) {
+  const resolvedOriginPathway =
+    originPathway ||
+    (id === "m_luna"
+      ? "giantImpactDebrisDisk"
+      : id === "m_triton"
+        ? "binaryExchangeCapture"
+        : id === "m_phobos" || id === "m_deimos"
+          ? "capturedIrregular"
+          : String(planetId || "").startsWith("gg_") &&
+              inclinationDeg <= 10 &&
+              semiMajorAxisKm < 6_000_000
+            ? "circumplanetaryDisk"
+            : inclinationDeg > 30 || eccentricity > 0.1
+              ? "capturedIrregular"
+              : "auto");
   return {
     id,
     name,
@@ -28,6 +44,7 @@ function moon(
       densityGcm3,
       albedo,
       compositionOverride,
+      originPathway: resolvedOriginPathway,
     },
   };
 }

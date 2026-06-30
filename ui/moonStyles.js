@@ -449,6 +449,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.0549,
       inclinationDeg: 5.145,
       compositionOverride: null,
+      originPathway: "giantImpactDebrisDisk",
     },
   },
   {
@@ -472,6 +473,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.0074,
       inclinationDeg: 0.192,
       compositionOverride: null,
+      originPathway: "circumplanetaryDisk",
     },
   },
   {
@@ -495,6 +497,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.0011,
       inclinationDeg: 0.177,
       compositionOverride: null,
+      originPathway: "circumplanetaryDisk",
     },
   },
 
@@ -537,6 +540,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.0094,
       inclinationDeg: 0.466,
       compositionOverride: "Subsurface ocean",
+      originPathway: "circumplanetaryDisk",
     },
   },
   {
@@ -578,6 +582,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.0047,
       inclinationDeg: 0.009,
       compositionOverride: "Subsurface ocean",
+      originPathway: "circumplanetaryDisk",
     },
   },
   {
@@ -616,6 +621,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.0288,
       inclinationDeg: 0.306,
       compositionOverride: null,
+      originPathway: "circumplanetaryDisk",
     },
   },
   {
@@ -636,6 +642,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.000016,
       inclinationDeg: 157.345,
       compositionOverride: null,
+      originPathway: "binaryExchangeCapture",
     },
   },
 
@@ -673,6 +680,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.0041,
       inclinationDeg: 0.036,
       compositionOverride: "Partially molten",
+      originPathway: "circumplanetaryDisk",
     },
   },
   {
@@ -697,6 +705,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.08,
       inclinationDeg: 1.0,
       compositionOverride: "Partially molten",
+      originPathway: "circumplanetaryDisk",
     },
   },
 
@@ -749,6 +758,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.014,
       inclinationDeg: 0.3,
       compositionOverride: null,
+      originPathway: "circumplanetaryDisk",
       hydrosphereMode: "full",
       atmosphereMode: "manual",
       orbitalCouplingMode: "full",
@@ -813,6 +823,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.014,
       inclinationDeg: 0.3,
       compositionOverride: null,
+      originPathway: "circumplanetaryDisk",
       hydrosphereMode: "full",
       atmosphereMode: "manual",
       orbitalCouplingMode: "full",
@@ -865,6 +876,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.02,
       inclinationDeg: 0.45,
       compositionOverride: null,
+      originPathway: "circumplanetaryDisk",
     },
   },
   {
@@ -884,6 +896,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.015,
       inclinationDeg: 1.09,
       compositionOverride: null,
+      originPathway: "capturedIrregular",
     },
   },
   {
@@ -903,6 +916,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.0002,
       inclinationDeg: 0.93,
       compositionOverride: null,
+      originPathway: "capturedIrregular",
     },
   },
   {
@@ -922,6 +936,7 @@ export const MOON_RECIPES = [
       eccentricity: 0.4,
       inclinationDeg: 145.0,
       compositionOverride: null,
+      originPathway: "capturedIrregular",
     },
   },
 ];

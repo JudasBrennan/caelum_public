@@ -1,5 +1,6 @@
 import { clamp, round, toFinite } from "../utils.js";
 import { buildRockyBodyCompositionCoupling } from "../compositionCoupling.js";
+import { buildSolidBodyDynamoContext } from "../physics/dynamo.js";
 
 function classifyShieldingClass(shieldingFraction) {
   const shielding = clamp(toFinite(shieldingFraction, 0), 0, 1);
@@ -33,6 +34,10 @@ export function computeMoonMagnetosphere({
   insideParentMagnetosphere = false,
   lShell = Infinity,
   rockyBodyComposition = null,
+  solidBodyStructure = null,
+  solidBodyResponse = null,
+  rotationPeriodHours = null,
+  ageGyr = null,
 } = {}) {
   const compositionCoupling = buildRockyBodyCompositionCoupling(rockyBodyComposition);
   const diffScore = differentiationScore({ differentiatedInterior, densityGcm3 });
@@ -54,13 +59,37 @@ export function computeMoonMagnetosphere({
     0,
     1,
   );
-  const intrinsicFieldScore = clamp(
+  const localIntrinsicFieldScore = clamp(
     diffScore * 0.4 +
       massScore * 0.22 +
       coreProxyScore * 0.2 +
       heatScore * 0.12 +
       activityBoost * 0.06 +
       (compositionCoupling.available ? compositionCoreScore * 0.04 : 0),
+    0,
+    1,
+  );
+  const dynamoContext = buildSolidBodyDynamoContext({
+    bodyType: "moon",
+    massEarth: toFinite(massMoon, 0) * 0.012300037,
+    radiusEarth: solidBodyStructure?.radiusEarth,
+    coreMassFraction:
+      rockyBodyComposition?.effectiveCoreMassFraction ??
+      rockyBodyComposition?.coreMassFraction ??
+      solidBodyStructure?.coreMassFraction,
+    metalFraction:
+      rockyBodyComposition?.componentMassFractions?.metal ??
+      solidBodyStructure?.componentMassFractions?.metal,
+    differentiatedInterior,
+    internalHeatFluxWm2,
+    tidalHeatingWm2,
+    radiogenicHeatingWm2,
+    rotationPeriodHours,
+    ageGyr,
+    solidBodyStructure,
+  });
+  const intrinsicFieldScore = clamp(
+    Math.max(localIntrinsicFieldScore, dynamoContext.dynamoScore * 0.9),
     0,
     1,
   );
@@ -133,6 +162,8 @@ export function computeMoonMagnetosphere({
     intrinsicFieldScore: round(intrinsicFieldScore, 4),
     intrinsicFieldStrengthRelEarth,
     compositionCoreScore: round(compositionCoreScore, 3),
+    dynamoContext,
+    solidBodyResponseModelVersion: solidBodyResponse?.modelVersion || null,
     inducedFieldPlausible,
     inducedFieldScore: round(inducedFieldScore, 4),
     inducedFieldStrengthRelEarth,

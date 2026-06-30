@@ -5,6 +5,7 @@ function buildMoonDraftDefaults(bodyType = "planet") {
   const isGasGiant = String(bodyType || "") === "gasGiant";
   return {
     name: "Luna",
+    originPathway: "auto",
     semiMajorAxisKm: isGasGiant ? 500000 : 384748,
     eccentricity: isGasGiant ? 0.01 : 0.055,
     inclinationDeg: isGasGiant ? 1 : 5.15,

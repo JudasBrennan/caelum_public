@@ -28,6 +28,12 @@ function ensurePanelId(container, panel, index) {
   return panel.id;
 }
 
+function expandSectionPanel(panel) {
+  if (panel?.tagName === "DETAILS") {
+    panel.open = true;
+  }
+}
+
 function setActiveOutputSection(container, panelId) {
   const panels = directSectionPanels(container);
   const ids = new Set(panels.map((panel) => panel.id));
@@ -52,6 +58,7 @@ function setActiveOutputSection(container, panelId) {
     const active = activeId === ALL_SECTIONS_TAB_ID || panel.id === activeId;
     panel.hidden = !active;
     panel.setAttribute("aria-hidden", active ? "false" : "true");
+    if (active) expandSectionPanel(panel);
   }
 }
 
@@ -97,6 +104,7 @@ export function enableOutputSectionTabs(container, options = {}) {
       panel.removeAttribute("aria-hidden");
       panel.removeAttribute("role");
       panel.removeAttribute("aria-labelledby");
+      expandSectionPanel(panel);
     }
     return container;
   }

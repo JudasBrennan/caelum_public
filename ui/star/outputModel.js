@@ -99,6 +99,8 @@ export function buildStarResultSummary({
   isBrownDwarf,
   energeticRecurrenceText,
   formatLuminosityLsol,
+  lifecycleStageLabel,
+  lifecycleConfidence,
 } = {}) {
   const name = String(focusedStar?.name || "Focused star").trim() || "Focused star";
   const spectralKind = describeSpectralKind(classValue, isBrownDwarf);
@@ -125,6 +127,10 @@ export function buildStarResultSummary({
   const activityCopy = activity?.teffBin
     ? `Activity reads as ${activity.teffBin}/${activity.ageBand}, with energetic flares about every ${energeticRecurrenceText}.`
     : "";
+  const lifecycleCopy =
+    lifecycleStageLabel && !isBrownDwarf
+      ? `Lifecycle track: ${lifecycleStageLabel} (${lifecycleConfidence || "unrated"} confidence).`
+      : "";
   const blocked =
     topologyHealth?.blocked || /blocked|inverted|caution/i.test(topologyHealth?.headline || "");
   const tone =
@@ -136,7 +142,7 @@ export function buildStarResultSummary({
 
   return {
     tone,
-    body: `${name} is ${article} ${spectralKind}${luminosityCopy}. ${zoneCopy} ${lifeCopy} ${topologyCopy} ${activityCopy}`.trim(),
+    body: `${name} is ${article} ${spectralKind}${luminosityCopy}. ${zoneCopy} ${lifeCopy} ${topologyCopy} ${activityCopy} ${lifecycleCopy}`.trim(),
     items: [
       { label: "Focus", value: name },
       { label: "Temperate zone", value: zoneValue ? `${zoneValue} AU` : "n/a" },
@@ -261,6 +267,54 @@ export function createStarOutputModelHelpers({
     const lifeMeta = isBrownDwarfModel(model)
       ? "Use the current temperate zone and moon outputs instead"
       : "";
+    const lifecycle = model?.stellarLifecycle || null;
+    const lifecycleSample = lifecycle?.currentSample || null;
+    const lifecycleStage = lifecycleSample?.stage || null;
+    const lifecycleSummary = lifecycle?.summary || {};
+    const lifecycleRemnant = lifecycleSample?.remnant || lifecycleSummary?.remnant || null;
+    const lifecycleConfidence = titleCaseLabel(lifecycleSample?.confidence || "");
+    const lifecycleStageValue = lifecycleStage?.label || "Unavailable";
+    const lifecycleModeMeta =
+      lifecycle?.activeForPhysicalOutput === false
+        ? "Track available; physical output uses static ZAMS mode"
+        : lifecycle?.physicalStateSource === "lifecycle-post-main-sequence"
+          ? "Physical output follows lifecycle post-MS state"
+          : "Track available; physical output follows current stellar mode";
+    const lifecycleHzMovement = lifecycleSummary?.habitableZoneMovement || {};
+    const lifecycleCurrentHz = lifecycleSample?.habitableZoneAu || {};
+    const lifecycleHzDriftValue =
+      Number.isFinite(lifecycleCurrentHz.innerAu) && Number.isFinite(lifecycleHzMovement.innerMaxAu)
+        ? `${formatNumber(lifecycleCurrentHz.innerAu, 3)} -> ${formatNumber(lifecycleHzMovement.innerMaxAu, 3)} AU`
+        : Number.isFinite(lifecycleHzMovement.innerMinAu) &&
+            Number.isFinite(lifecycleHzMovement.innerMaxAu)
+          ? `${formatNumber(lifecycleHzMovement.innerMinAu, 3)} - ${formatNumber(lifecycleHzMovement.innerMaxAu, 3)} AU`
+          : "n/a";
+    const lifecycleHzOuterReachValue =
+      Number.isFinite(lifecycleCurrentHz.outerAu) && Number.isFinite(lifecycleHzMovement.outerMaxAu)
+        ? `${formatNumber(lifecycleCurrentHz.outerAu, 3)} -> ${formatNumber(lifecycleHzMovement.outerMaxAu, 3)} AU`
+        : Number.isFinite(lifecycleHzMovement.outerMaxAu)
+          ? `${formatNumber(lifecycleHzMovement.outerMaxAu, 3)} AU`
+          : "n/a";
+    const lifecycleHzSampledRangeMeta =
+      Number.isFinite(lifecycleHzMovement.innerMinAu) &&
+      Number.isFinite(lifecycleHzMovement.outerMaxAu)
+        ? `Full sampled span ${formatNumber(lifecycleHzMovement.innerMinAu, 3)}-${formatNumber(lifecycleHzMovement.outerMaxAu, 3)} AU`
+        : "n/a";
+    const lifecycleWarnings = Array.isArray(lifecycleSummary?.warnings)
+      ? lifecycleSummary.warnings
+      : [];
+    const lifecycleStageWindowValue =
+      lifecycleStage?.endsAtGyr == null
+        ? `${formatNumber(lifecycleStage?.startsAtGyr, 3)} Gyr onward`
+        : `${formatNumber(lifecycleStage?.startsAtGyr, 3)} - ${formatNumber(lifecycleStage?.endsAtGyr, 3)} Gyr`;
+    const lifecycleStageProgressValue = `${formatNumber((lifecycleStage?.progress || 0) * 100, 1)}%`;
+    const lifecycleRemnantFormationValue = lifecycleSample?.remnantFormationAgeGyr
+      ? `${formatNumber(lifecycleSample.remnantFormationAgeGyr, 3)} Gyr`
+      : "Unavailable";
+    const lifecycleMassLossRateValue = Number.isFinite(lifecycleSample?.massLossRateMsolPerYr)
+      ? `${formatNumber(lifecycleSample.massLossRateMsolPerYr, 12)} Msol/yr`
+      : "n/a";
+    const lifecycleCaveatMeta = lifecycleWarnings.join(" ");
     const topologyLabel =
       state.topologyKind === "quad"
         ? state.quadLayoutKind === "paired"
@@ -447,6 +501,8 @@ export function createStarOutputModelHelpers({
       isBrownDwarf: isBrownDwarfModel(model),
       energeticRecurrenceText,
       formatLuminosityLsol,
+      lifecycleStageLabel: lifecycleStage?.label,
+      lifecycleConfidence: lifecycleSample?.confidence,
     });
 
     const kpiSections = [
@@ -471,6 +527,13 @@ export function createStarOutputModelHelpers({
               tipLabel: isBrownDwarfModel(model) ? "Brown Dwarf Class" : "Class",
             },
           ),
+          ...(isBrownDwarfModel(model)
+            ? []
+            : [
+                starKpi("Lifecycle Stage", lifecycleStageValue, lifecycleModeMeta, {
+                  tipLabel: "Stellar Evolution",
+                }),
+              ]),
           starKpi(
             "Radius",
             formatNumber(model.radiusRsol, 3),
@@ -506,8 +569,68 @@ export function createStarOutputModelHelpers({
             `${model.populationLabel} | [Fe/H] = ${formatNumber(model.inputs.metallicityFeH, 2)}`,
             { tipLabel: "Stellar Population" },
           ),
+          starKpi("Evolution Mode", model.evolutionMode === "evolved" ? "Evolved" : "ZAMS"),
+          starKpi(
+            "Physics Mode",
+            focusedStar.physicsMode === "advanced" ? "Advanced" : "Simple",
+            focusedStar.physicsMode === "advanced"
+              ? "Manual R/L/T resolution can override the automatic track"
+              : "Properties are derived from mass, age, and mode",
+            { tipLabel: "Physics Mode" },
+          ),
         ],
       }),
+      ...(isBrownDwarfModel(model)
+        ? []
+        : [
+            collapsedKpiSection({
+              id: "star-lifecycle",
+              title: "Lifecycle Track",
+              density: "compact",
+              items: [
+                starKpi("Lifecycle Stage", lifecycleStageValue, lifecycleModeMeta, {
+                  tipLabel: "Stellar Evolution",
+                }),
+                starKpi(
+                  "Track Confidence",
+                  lifecycleConfidence || "Unsupported",
+                  lifecycleModeMeta,
+                ),
+                starKpi("Stage Window", lifecycleStageWindowValue, lifecycleModeMeta),
+                starKpi("Stage Progress", lifecycleStageProgressValue, lifecycleStageValue),
+                starKpi(
+                  "Main-sequence Lifetime",
+                  formatNumber(lifecycleSample?.mainSequenceLifetimeGyr, 3),
+                  "Gyr",
+                ),
+                starKpi(
+                  "Current Mass",
+                  formatNumber(lifecycleSample?.currentMassMsol, 4),
+                  `Msol | lost ${formatNumber(lifecycleSample?.massLostMsol, 4)} Msol`,
+                ),
+                starKpi("Mass-loss Rate", lifecycleMassLossRateValue, "Current lifecycle sample"),
+                starKpi(
+                  "Remnant Endpoint",
+                  lifecycleRemnant?.label || "Unavailable",
+                  lifecycleRemnant?.formationChannel || "",
+                ),
+                starKpi(
+                  "Remnant Formation",
+                  lifecycleRemnantFormationValue,
+                  lifecycleRemnant?.massMsol
+                    ? `${formatNumber(lifecycleRemnant.massMsol, 4)} Msol endpoint`
+                    : lifecycleRemnant?.formationChannel || "",
+                ),
+                starKpi("HZ Inner Drift", lifecycleHzDriftValue, lifecycleHzSampledRangeMeta),
+                starKpi("HZ Outer Reach", lifecycleHzOuterReachValue, lifecycleHzSampledRangeMeta),
+                starKpi(
+                  "Lifecycle Caveats",
+                  lifecycleWarnings.length ? `${lifecycleWarnings.length} note(s)` : "None",
+                  lifecycleCaveatMeta,
+                ),
+              ],
+            }),
+          ]),
       collapsedKpiSection({
         id: "star-physical",
         title: "Physical State",
@@ -535,7 +658,15 @@ export function createStarOutputModelHelpers({
         id: "star-environment",
         title: "Environment",
         density: "compact",
-        items: [starKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" })],
+        items: [
+          starKpi(zoneLabel, zoneValue, zoneMeta, { tipLabel: "Habitable Zone" }),
+          ...(isBrownDwarfModel(model)
+            ? []
+            : [
+                starKpi("HZ Inner Drift", lifecycleHzDriftValue, lifecycleHzSampledRangeMeta),
+                starKpi("HZ Outer Reach", lifecycleHzOuterReachValue, lifecycleHzSampledRangeMeta),
+              ]),
+        ],
       }),
       collapsedKpiSection({
         id: "star-stellar-environment",
@@ -560,6 +691,9 @@ export function createStarOutputModelHelpers({
             rotationActivityMeta,
           ),
           starKpi("Rotation Period", rotationPeriodValue, rotationPeriodMeta),
+          starKpi("Gyrochronology Confidence", rotationConfidenceValue, gyroConfidenceMeta),
+          starKpi("Equatorial Rotation", rotationVelocityValue, rotationVelocityMeta),
+          starKpi("Differential Shear", differentialShearValue, differentialShearMeta),
           starKpi("Rossby Number", rossbyValue, rossbyMeta),
           starKpi(
             "Rotation Activity Factor",
@@ -624,6 +758,62 @@ export function createStarOutputModelHelpers({
           },
         ],
       },
+      ...(isBrownDwarfModel(model)
+        ? []
+        : [
+            {
+              id: "star-details-lifecycle",
+              title: "Lifecycle Track",
+              items: [
+                {
+                  label: "Current Stage",
+                  value: lifecycleStageValue,
+                  meta: lifecycleModeMeta,
+                },
+                {
+                  label: "Stage Window",
+                  value:
+                    lifecycleStage?.endsAtGyr == null
+                      ? `${formatNumber(lifecycleStage?.startsAtGyr, 3)} Gyr onward`
+                      : `${formatNumber(lifecycleStage?.startsAtGyr, 3)} - ${formatNumber(lifecycleStage?.endsAtGyr, 3)} Gyr`,
+                  meta: `progress ${formatNumber((lifecycleStage?.progress || 0) * 100, 1)}%`,
+                },
+                {
+                  label: "Main-sequence Lifetime",
+                  value: `${formatNumber(lifecycleSample?.mainSequenceLifetimeGyr, 3)} Gyr`,
+                },
+                {
+                  label: "Current Mass",
+                  value: `${formatNumber(lifecycleSample?.currentMassMsol, 4)} Msol`,
+                  meta: `lost ${formatNumber(lifecycleSample?.massLostMsol, 4)} Msol; ${formatNumber(lifecycleSample?.massLossRateMsolPerYr, 12)} Msol/yr`,
+                },
+                {
+                  label: "Core Masses",
+                  value: `He ${formatNumber(lifecycleSample?.coreMasses?.heliumCoreMsol, 4)} Msol`,
+                  meta: `CO ${formatNumber(lifecycleSample?.coreMasses?.carbonOxygenCoreMsol, 4)} Msol`,
+                },
+                {
+                  label: "Remnant Endpoint",
+                  value: lifecycleRemnant?.label || "Unavailable",
+                  meta: lifecycleRemnant?.massMsol
+                    ? `${formatNumber(lifecycleRemnant.massMsol, 4)} Msol | forms near ${formatNumber(lifecycleRemnant.formationAgeGyr, 3)} Gyr`
+                    : lifecycleRemnant?.formationChannel || "",
+                },
+                {
+                  label: "HZ Track",
+                  value: lifecycleHzDriftValue,
+                  meta: Number.isFinite(lifecycleHzMovement.outerMaxAu)
+                    ? `outer edge reaches ${formatNumber(lifecycleHzMovement.outerMaxAu, 3)} AU`
+                    : "No standard HZ for this remnant state",
+                },
+                {
+                  label: "Lifecycle Caveats",
+                  value: lifecycleWarnings.length ? `${lifecycleWarnings.length} note(s)` : "None",
+                  meta: lifecycleWarnings.join(" "),
+                },
+              ],
+            },
+          ]),
       {
         id: "star-details-physical",
         title: "Physical State",
@@ -775,6 +965,7 @@ export function createStarOutputModelHelpers({
       classLabel,
       classValue,
       detailSections,
+      eraTimeline: lifecycle?.eraTimeline || null,
       isMulti,
       kpiSections,
       resultSummary,

@@ -419,6 +419,17 @@ export function buildVisualizerSnapshot(world, options = {}) {
       ? starRadiusKmRaw
       : starRadiusRsol * SOL_RADIUS_KM;
   const starColourHex = String(starCalc?.starColourHex || starColourHexFromTempK(starTempK));
+  const starLifecycle = starCalc?.stellarLifecycle || null;
+  const starLifecycleStage =
+    starLifecycle?.currentSample?.stage || starLifecycle?.summary?.currentStage || null;
+  const starLifecycleRemnant =
+    starLifecycle?.summary?.remnant || starLifecycle?.currentSample?.remnant || null;
+  const starLifecycleWarnings = [
+    ...(Array.isArray(starLifecycle?.summary?.warnings) ? starLifecycle.summary.warnings : []),
+    ...(Array.isArray(starLifecycle?.currentSample?.caveats)
+      ? starLifecycle.currentSample.caveats
+      : []),
+  ];
   const activityModelVersion =
     solveContext?.starContext?.component?.activityModelVersion === "v1" ? "v1" : "v2";
   const activityModel = computeStellarActivityModel(
@@ -514,6 +525,7 @@ export function buildVisualizerSnapshot(world, options = {}) {
     starLuminosityLsun,
     starMetallicityFeH,
     starEvolutionMode: starOverrides?.ev || primaryStar?.evolutionMode || "zams",
+    starLifecycleStageId: starLifecycleStage?.id || null,
     teffBin: flareParams?.teffBin,
     ageBand: flareParams?.ageBand,
     N32: Number(flareParams?.N32) || 0,
@@ -1012,6 +1024,12 @@ export function buildVisualizerSnapshot(world, options = {}) {
     starRadiusKm,
     starColourHex,
     starRegime: String(starCalc?.regime || "star"),
+    starLifecycleStage,
+    starLifecycleConfidence:
+      starLifecycle?.summary?.confidence || starLifecycle?.currentSample?.confidence || null,
+    starLifecycleRemnant,
+    starLifecycleHabitableZoneMovement: starLifecycle?.summary?.habitableZoneMovement || null,
+    starLifecycleWarnings: [...new Set(starLifecycleWarnings)],
     starRotationPeriodDays: starCalc?.stellarEnvironment?.rotation?.periodDays ?? null,
     starRossbyNumber: starCalc?.stellarEnvironment?.rotation?.rossbyNumber ?? null,
     starActivityLevel,

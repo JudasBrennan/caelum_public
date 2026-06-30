@@ -4,6 +4,7 @@ import { buildSystemPosterSnapshotInputs } from "../engine/worldAdapters.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { downloadCanvasPng, makeTimestampToken } from "./canvasExport.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
+import { structuredTip } from "./tooltipCopy.js";
 import {
   renderManualBodyList,
   renderLongTermDynamicsDiagnostics,
@@ -114,6 +115,192 @@ const TIP_LABEL = {
 };
 
 /* ── System Poster ────────────────────────────────────── */
+
+Object.assign(TIP_LABEL, {
+  "Orbit Placement Mode": structuredTip({
+    overview: "Controls whether planet orbits are assigned by generated slots or edited manually.",
+    changes:
+      "Guided mode generates orbit slots and drag/drop assignments. Manual mode lets each planet keep its authored semi-major axis from the Planets page.",
+    feedsInto:
+      "Orbit slot lists, planet assignments, system poster ordering, visualizer placement, and downstream stability summaries.",
+    caveat:
+      "Switching from Guided to Manual copies slot distances into planet inputs; it does not run an orbital optimisation.",
+    references: "See Science & Maths: orbital architecture and host frames.",
+  }),
+  "Host Frame": structuredTip({
+    overview: "Selected stellar frame whose orbits are being arranged.",
+    changes:
+      "The orbit ladder, planet list, KPIs, and poster preview follow this selected single-star or pair-barycentre frame.",
+    drawnFrom: "Saved stellar hierarchy and host-frame context from the Star page.",
+    caveat:
+      "Changing the displayed frame does not automatically move existing bodies between hosts.",
+    references: "See Science & Maths: multi-star host frames.",
+  }),
+  "Selected Host": structuredTip({
+    overview: "Read-only summary of the active host frame.",
+    drawnFrom:
+      "The current host-frame selection, stellar topology, component masses, luminosities, and pair metadata.",
+    interpretAs:
+      "Use it to confirm whether you are arranging circumstellar S-type or circumbinary P-type orbits.",
+    caveat: "Edit stellar topology and component properties on the Star page.",
+    references: "See Science & Maths: multi-star host frames.",
+  }),
+  "Star Mass": structuredTip({
+    overview: "Primary star mass in solar masses.",
+    drawnFrom: "The solved Star page model.",
+    feedsInto: "Host mass, orbit stability limits, Hill sphere context, and generated orbit slots.",
+    caveat: "For pair hosts, use Host Mass for the effective selected-frame mass.",
+    references: "See Science & Maths: stellar mass and orbital dynamics.",
+  }),
+  "Host Mass": structuredTip({
+    overview: "Effective central mass for the selected host frame.",
+    drawnFrom:
+      "Single-star frames use one star. Pair frames use the combined mass of the binary/pair barycentre.",
+    feedsInto:
+      "Orbit periods, stability context, Hill sphere estimates, and poster/visualizer frame summaries.",
+    caveat: "This is a host-frame approximation, not a full multi-body integration.",
+    references: "See Science & Maths: multi-star host frames.",
+  }),
+  "Habitable Zone": structuredTip({
+    overview: "Flux-defined orbital region receiving roughly Earth-like stellar heating.",
+    drawnFrom:
+      "Selected host-frame luminosity and temperature-dependent habitable-zone flux thresholds.",
+    feedsInto: "Orbit-slot colouring, system poster bands, and habitability triage.",
+    caveat: "The habitable zone is a screening band, not a climate or life guarantee.",
+    references: "See Science & Maths: habitable-zone model.",
+  }),
+  "Star Luminosity": structuredTip({
+    overview: "Primary star radiative output in solar luminosities.",
+    drawnFrom: "The solved Star page model.",
+    feedsInto: "Habitable zone, frost line, planet irradiation, and apparent-sky outputs.",
+    caveat: "For pair hosts, Host Luminosity is the selected-frame value to read first.",
+    references: "See Science & Maths: stellar luminosity.",
+  }),
+  "Host Luminosity": structuredTip({
+    overview: "Radiative output used by the selected host frame.",
+    drawnFrom:
+      "Local star luminosity plus host-frame companion treatment, or combined luminosity for a circumbinary pair.",
+    feedsInto: "Habitable zone, frost line, planet/moon climate context, and System Fate.",
+    caveat:
+      "Wide companion flux is summarised; detailed time-varying irradiation is not simulated here.",
+    references: "See Science & Maths: multi-star host frames.",
+  }),
+  "Habitable Zone (Inner)": structuredTip({
+    overview: "Inner AU boundary of the selected host-frame habitable zone.",
+    drawnFrom: "Host luminosity and inner habitable-zone flux threshold.",
+    interpretAs:
+      "Bodies inside this value receive more stellar flux than the conservative inner boundary.",
+    caveat:
+      "Atmosphere and water inventory can still make worlds inside/outside the band interesting.",
+    references: "See Science & Maths: habitable-zone model.",
+  }),
+  "Habitable Zone (Outer)": structuredTip({
+    overview: "Outer AU boundary of the selected host-frame habitable zone.",
+    drawnFrom: "Host luminosity and outer habitable-zone flux threshold.",
+    interpretAs:
+      "Bodies beyond this value receive less stellar flux than the conservative outer boundary.",
+    caveat: "Greenhouse strength, pressure, and internal heating are handled on body pages.",
+    references: "See Science & Maths: habitable-zone model.",
+  }),
+  "H2O Frost Line": structuredTip({
+    overview: "Formation-context distance beyond which water ice can condense.",
+    drawnFrom: "Selected host luminosity and the app's frost-line temperature threshold.",
+    feedsInto: "Gas-giant placement guidance, debris context, and system poster markers.",
+    caveat: "It is a formation marker, not a current surface-ice stability guarantee.",
+    references: "See Science & Maths: frost line.",
+  }),
+  "Spacing Factor": structuredTip({
+    overview: "Logarithmic spacing factor for generated orbit slots.",
+    feedsInto: "Slot distances, orbit-slot count, and guided planet placement.",
+    interpretAs: "Higher values spread generated orbit slots farther apart.",
+    caveat: "This is a layout heuristic, not a proof of long-term orbital stability.",
+    references: "See Science & Maths: orbital architecture.",
+  }),
+  "System Inner Limit": structuredTip({
+    overview: "Inner minimum orbit distance for the generated planetary system.",
+    drawnFrom: "Roche/host-frame stability constraints in the system model.",
+    feedsInto: "Whether the first orbit slot is valid and where generated slots begin.",
+    caveat: "It is a guardrail, not a tidal-evolution simulation.",
+    references: "See Science & Maths: Roche limits and orbital stability.",
+  }),
+  "Orbit 1": structuredTip({
+    overview: "Semi-major axis of the innermost generated orbit slot.",
+    feedsInto: "All later generated orbit slots and guided planet placement.",
+    caveat: "It must remain beyond the system inner limit to be accepted.",
+    references: "See Science & Maths: orbital architecture.",
+  }),
+  "Orbit 2": structuredTip({
+    overview: "Generated orbit slots available for inner planets.",
+    drawnFrom:
+      "Orbit 1, spacing factor, host-frame limits, gas-giant constraints, and debris constraints.",
+    interpretAs:
+      "Green slots intersect the habitable zone; grey slots are beyond the frost line; crowded slots are flagged.",
+    caveat: "Slot validity is a planning aid, not a full N-body stability result.",
+    references: "See Science & Maths: orbital architecture.",
+  }),
+  "Planets in system": structuredTip({
+    overview: "Assignable planets for the selected host-frame orbit ladder.",
+    changes:
+      "Drag or assign planets to valid slots so system order, poster layout, and derived architecture stay aligned.",
+    caveat: "Only one planet can occupy a slot. Manual-mode orbits are edited on the Planets page.",
+    references: "See Science & Maths: orbital architecture.",
+  }),
+  "Orbit slots": structuredTip({
+    overview: "Available generated slots after host, giant-planet, and debris constraints.",
+    drawnFrom: "The system orbit-placement model and currently saved bodies.",
+    interpretAs: "Use these as recommended slots, not mandatory completed orbits.",
+    caveat: "They are heuristic authoring rails rather than a full stability search.",
+    references: "See Science & Maths: orbital architecture.",
+  }),
+  "System poster": structuredTip({
+    overview: "Visual lineup of saved system bodies in orbital order.",
+    drawnFrom:
+      "Saved star/system bodies, selected host frame, body radii, orbit distances, habitable-zone and frost-line markers.",
+    interpretAs:
+      "Use it as a readable overview; sizes are power-scaled so small bodies remain visible.",
+    caveat: "The poster is not physically to scale and does not animate orbital phase.",
+    references: "See Science & Maths: system architecture and visual scaling notes.",
+  }),
+  "Multistar info panel": structuredTip({
+    overview: "Optional poster overlay for stellar hierarchy and host-frame context.",
+    drawnFrom: "Saved stellar topology and selected host-frame summary.",
+    interpretAs:
+      "Useful for checking whether orbit layout is tied to a local star or a pair barycentre.",
+    caveat: "Hierarchy cards are explanatory and not drawn as a full orbital simulation.",
+    references: "See Science & Maths: multi-star host frames.",
+  }),
+  "Long-term dynamics": structuredTip({
+    overview: "Read-only long-cycle diagnostics for architecture risks and supports.",
+    drawnFrom:
+      "Selected host frame, body orbits, companion hierarchy, migration evidence, and Trojan stability checks.",
+    interpretAs:
+      "Flags are evidence classes for worldbuilding review, not automatic orbit repair instructions.",
+    caveat: "This is not an N-body integration or secular simulation.",
+    references: "See Science & Maths: long-term dynamics.",
+  }),
+  "Secular Forcing": structuredTip({
+    overview: "Qualitative signal for long-cycle gravitational forcing.",
+    drawnFrom: "Host-frame architecture, hierarchical companions, inclination, and orbit context.",
+    interpretAs: "Higher concern means cycles such as Kozai-Lidov forcing may matter.",
+    caveat: "It is a susceptibility label, not a solved time series.",
+    references: "See Science & Maths: secular dynamics.",
+  }),
+  "Migration Evidence": structuredTip({
+    overview: "Evidence-consistent migration-history label.",
+    drawnFrom:
+      "Current orbit architecture, resonant hints, giant-planet placement, and body context.",
+    interpretAs: "A strong label suggests migration is plausible, not uniquely reconstructed.",
+    caveat: "Past migration pathways are not simulated backward.",
+    references: "See Science & Maths: migration history.",
+  }),
+  "Trojan Reservoir": structuredTip({
+    overview: "Support level for L4/L5 Trojan populations.",
+    drawnFrom: "Mass-ratio stability, host/body context, and reservoir/source hints.",
+    interpretAs: "Stable triangular points are necessary but not sufficient for rich Trojans.",
+    caveat: "Capture history and long-term perturbations are not explicitly simulated.",
+    references: "See Science & Maths: Lagrange points and Trojan reservoirs.",
+  }),
+});
 
 function drawSystemPoster(canvas, data, opts = {}) {
   if (!canvas) return;

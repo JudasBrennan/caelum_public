@@ -178,6 +178,8 @@ export function updateMoonInWorld(world, moonId, patch) {
       (!moon.locked || nextPlanetId === moon.planetId)
     ) {
       moon.planetId = nextPlanetId;
+      moon.parentBodyId = null;
+      moon.parentKind = null;
       if (nextPlanetId == null) moon.locked = false;
     }
   }
@@ -209,6 +211,8 @@ export function assignMoonToPlanetInWorld(world, moonId, planetIdOrNull, { force
   if (!force && moon.locked && nextPlanetId !== moon.planetId) return world;
 
   moon.planetId = nextPlanetId;
+  moon.parentBodyId = null;
+  moon.parentKind = null;
   if (nextPlanetId == null) moon.locked = false;
   if (world.moons.selectedId === moonId) syncSelectedMoonSnapshot(world);
   return syncBodyStorage(world);

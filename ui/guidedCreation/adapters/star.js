@@ -1234,6 +1234,10 @@ function buildStarDiagnostics(archetype, solved, answers = {}, flowState = {}) {
   const activity = solved?.activityModel?.activity || {};
   const energeticFlareRatePerDay = Number(activity.energeticFlareRatePerDay);
   const giantPlanetProbability = Number(model.giantPlanetProbability);
+  const lifecycle = model?.stellarLifecycle || null;
+  const lifecycleStage =
+    lifecycle?.currentSample?.stage || lifecycle?.summary?.currentStage || null;
+  const lifecycleStageId = String(lifecycleStage?.id || "");
   const architectureLabel = systemArchitectureLabel(
     answers.system_architecture,
     flowState?.context,
@@ -1256,6 +1260,57 @@ function buildStarDiagnostics(archetype, solved, answers = {}, flowState = {}) {
     `${flowState?.uxMode === "guided" ? "Guided search" : "Quick apply"} will use the ${architectureLabel} layout.`,
     [],
   );
+
+  if (lifecycleStageId === "terminal_main_sequence" || Number(lifecycleStage?.progress) >= 0.92) {
+    pushDiagnostic(
+      diagnostics,
+      "warning",
+      "near-terminal-main-sequence",
+      "Star is near the end of core-hydrogen burning",
+      `Lifecycle preview places the star in ${lifecycleStage?.label || "a late main-sequence stage"}.`,
+      ["Review the lifecycle timeline after apply if long-term habitability matters."],
+    );
+  }
+
+  if (
+    lifecycleStageId &&
+    lifecycleStageId !== "main_sequence" &&
+    lifecycleStageId !== "terminal_main_sequence" &&
+    !["white_dwarf", "neutron_star", "black_hole", "no_remnant"].includes(lifecycleStageId)
+  ) {
+    pushDiagnostic(
+      diagnostics,
+      "warning",
+      "post-main-sequence-host",
+      "Post-main-sequence host",
+      `Lifecycle preview places the star in ${lifecycleStage?.label || "a post-main-sequence stage"}.`,
+      ["Treat HZ results as temporary history context, not a stable Earth-like target."],
+    );
+  }
+
+  if (["white_dwarf", "neutron_star", "black_hole", "no_remnant"].includes(lifecycleStageId)) {
+    pushDiagnostic(
+      diagnostics,
+      "warning",
+      "compact-remnant-host",
+      "Compact-remnant host",
+      `Lifecycle preview reaches ${lifecycleStage?.label || "a compact-remnant stage"}.`,
+      [
+        "Caelum does not model accretion disks, relativistic effects, or remnant habitability in detail.",
+      ],
+    );
+  }
+
+  if (Number(model.maxAgeGyr) > 0 && Number(model.maxAgeGyr) < 1) {
+    pushDiagnostic(
+      diagnostics,
+      "warning",
+      "short-lived-high-mass-host",
+      "Short-lived high-mass star",
+      `The main-sequence lifetime is only about ${fmt(model.maxAgeGyr, 2)} Gyr.`,
+      ["Use this for dramatic young systems, not long-lived biosphere targets."],
+    );
+  }
 
   if (
     answers.activity_target === "quiet" &&

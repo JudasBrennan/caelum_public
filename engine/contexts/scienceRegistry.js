@@ -101,6 +101,46 @@ export const CONTEXT_SCIENCE_REGISTRY = Object.freeze({
     knownLimitations:
       "M-dwarf and evolved-star histories are especially uncertain; unsupported evolution modes produce caveats rather than precise water-loss amounts.",
   },
+  stellarLifecycle: {
+    key: "stellarLifecycle",
+    label: "Stellar lifecycle track context",
+    formulaName: "Static analytic single-star lifecycle stage and remnant track",
+    sourceSummary:
+      "Main-sequence lifetimes and terminal main-sequence anchors follow Hurley, Pols, and Tout. Post-main-sequence stage windows, wind-loss screens, initial-final mass relation, compact-remnant classes, moving HZ intervals, and orbit-level hazard flags are bounded analytic diagnostics for app-scale worldbuilding.",
+    sourceUrls: [
+      "https://doi.org/10.1046/j.1365-8711.2000.03426.x",
+      "https://doi.org/10.1086/527028",
+      "https://doi.org/10.1093/mnras/stv1161",
+      "https://doi.org/10.1088/0004-637X/765/2/131",
+    ],
+    assumptions:
+      "The track is a static single-star approximation. It samples stage windows, remnant endpoint, mass loss, HZ movement, per-orbit HZ intervals, and broad engulfment/remnant caveats without tabulated isochrones or time-stepped stellar interiors.",
+    validInputRange:
+      "Hydrogen-burning stars from about 0.075 to 100 Msol, ages 0-200 Gyr, and metallicities clamped to the app's Hurley/Tout-supported range.",
+    outputKind: "semiQuantitative",
+    calibrationRequired: true,
+    knownLimitations:
+      "No MESA/MIST grid interpolation, radial structure, nuclear reaction network, rotation, binary mass transfer, hydrodynamic engulfment, climate hysteresis, pulsation, thermal pulses, compact-remnant accretion, or supernova fallback integration.",
+  },
+  systemFate: {
+    key: "systemFate",
+    label: "System fate aggregate timeline",
+    formulaName: "Current body model plus host-frame lifecycle HZ exposure and era caveats",
+    sourceSummary:
+      "The System Fate page aggregates existing stellar lifecycle samples, per-orbit HZ exposure intervals, planet/moon era timelines, and current body habitability context into a comparative system-level dashboard.",
+    sourceUrls: [
+      "https://doi.org/10.1046/j.1365-8711.2000.03426.x",
+      "https://doi.org/10.1088/0004-637X/765/2/131",
+    ],
+    assumptions:
+      "Rankings and selected-age previews are exposure diagnostics. Body climates, ocean loss, atmospheres, geology, orbital dynamics, and biology are not integrated forward in time.",
+    validInputRange:
+      "Saved systems with a supported host-frame stellar lifecycle track and planets, giants, brown dwarfs, or major moons with finite host or parent orbits.",
+    outputKind: "qualitative",
+    calibrationRequired: true,
+    knownLimitations:
+      "No future climate simulation, no ocean-loss reservoir integration, no N-body orbital evolution, no biological prediction, and no supernova energetics, nucleosynthesis, fallback, or light curves.",
+  },
   planetRadiationEnvironment: {
     key: "planetRadiationEnvironment",
     label: "Rocky planet radiation environment context",
@@ -368,6 +408,27 @@ export const CONTEXT_SCIENCE_REGISTRY = Object.freeze({
     calibrationRequired: false,
     knownLimitations:
       "Does not prove plate tectonics; stagnant-lid and episodic regimes remain plausible.",
+  },
+  moonSolidBodyStructure: {
+    key: "moonSolidBodyStructure",
+    label: "Moon solid-body structure and response context",
+    formulaName: "Layer-aware bulk structure, moment-of-inertia, Love-number, and material-Q proxy",
+    sourceSummary:
+      "Differentiated rocky moons, porous minor moons, and icy ocean worlds need different inertia, rigidity, and tidal-response assumptions. This context uses bulk density, composition reservoirs, water inventory, and solved hydrosphere state to choose bounded layer and response classes.",
+    sourceUrls: [
+      "https://doi.org/10.1016/0019-1035(79)90093-4",
+      "https://doi.org/10.1016/S0032-0633(02)00175-1",
+      "https://doi.org/10.1006/icar.2002.6838",
+      "https://doi.org/10.1029/2018JE005341",
+    ],
+    assumptions:
+      "Outputs are structure and response classes for the static engine. They can vary k2, Q, inertia, porosity, water inventory, dynamo support, and geodynamic context, but they do not integrate radial thermochemistry.",
+    validInputRange:
+      "Moons and minor satellites with mass, radius or density, composition reservoirs, optional differentiated interior flags, orbital tide context, and optional hydrosphere state.",
+    outputKind: "semiQuantitative",
+    calibrationRequired: true,
+    knownLimitations:
+      "Not a MESA-grade or 1-D thermochemical interior solver; no radial pressure-temperature grid, mineral phase equilibrium, viscoelastic shell solve, or time-dependent ocean/silicate evolution.",
   },
   interiorEvolution: {
     key: "interiorEvolution",

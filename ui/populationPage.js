@@ -1,6 +1,7 @@
 import { calcPopulation, TECH_ERAS } from "../engine/population.js";
 import { fmt } from "../engine/utils.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
+import { structuredTip } from "./tooltipCopy.js";
 import { escapeHtml } from "./uiHelpers.js";
 import { statRowsHTML } from "./statRows.js";
 import { enableKpiInteractions } from "./planet/outputRender.js";
@@ -28,109 +29,209 @@ import {
 
 // ── Tooltips ────────────────────────────────────────────────
 
-const TIP_LABEL = {
-  Population:
-    "Procedural population model combining land-use analysis, " +
-    "logistic (Verhulst) growth, and Zipf rank-size distribution.\n\n" +
-    "Land area, habitability, and productivity are auto-derived from the " +
-    "planet\u2019s water regime and climate zones; civilization parameters " +
-    "(tech era, growth rate, time) are user-configurable.",
-  "Technology Era":
-    "Civilization technology level determining base population density " +
-    "(people per km\u00b2 of productive land) and default growth rate.\n\n" +
-    "Hunter-Gatherer: ~0.05/km\u00b2.  Medieval: ~30/km\u00b2.  " +
-    "Industrial: ~200/km\u00b2.  Sci-Fi High: ~1,000/km\u00b2.",
-  "Growth Rate":
-    "Intrinsic growth rate r (per year) for the Verhulst logistic model. " +
-    "This is the maximum rate when population is far below carrying capacity.\n\n" +
-    "The effective rate slows automatically as P approaches K: " +
-    "r_eff = r \u00d7 (1 \u2212 P/K).\n\n" +
-    "Reference: Verhulst (1838, Correspondance math\u00e9matique et physique).",
-  "Carrying Capacity":
-    "Maximum sustainable population K = productive area \u00d7 density \u00d7 " +
-    "crop-efficiency factor.\n\n" +
-    "Crops feed ~4\u00d7 more people per unit area than livestock (FAO, 2020). " +
-    "A 100% crop world supports ~1.3\u00d7 more than the 77/23 Earth default.",
-  "Ocean Coverage":
-    "Percentage of the planet\u2019s surface covered by ocean. " +
-    "Auto mode follows the inferred surface-ocean coverage from water inventory and basin capacity when available; override only sets authored population/visual land-ocean split outputs.\n\n" +
-    "Earth: ~71%.  Mars-like (Dry): ~0%.",
-  Habitability:
-    "Fraction of land area that is habitable, derived from climate zones. " +
-    "K\u00f6ppen master classes E (polar) and X (special) are excluded.\n\n" +
-    "Area-weighted by spherical zone geometry.",
-  Productivity:
-    "Fraction of habitable land that is productive (arable or grazing-suitable). " +
-    "Based on aridity index: deserts ~5%, steppes ~30%, " +
-    "temperate/tropical ~80\u2013100%.",
-  "Crop Fraction":
-    "Percentage of productive land used for crops versus livestock grazing.\n\n" +
-    "Earth: ~77% crops, ~23% livestock (FAO, 2020). " +
-    "Crops feed ~4\u00d7 more people per unit area.",
-  "Zipf Exponent":
-    "Controls how unevenly population is distributed across regions. " +
-    "P(rank) = P(1) / rank^q.\n\n" +
-    "q = 1.0: standard Zipf\u2019s law (2nd region = \u00bd of 1st). " +
-    "q < 1.0: more even.  q > 1.0: more concentrated.\n\n" +
-    "Empirical range for Earth: q \u2248 0.8\u20131.2.\n\n" +
-    "Reference: Zipf (1949, Human Behavior and the Principle of Least Effort).",
-  "Current Population":
-    "Projected population after logistic growth from the initial population " +
-    "over the elapsed time.\n\n" +
-    "P(t) = K / (1 + ((K − P₀) / P₀) × e^(−r × t)).\n\n" +
-    "Approaches carrying capacity K as time increases.",
-  Saturation:
-    "Population as a percentage of carrying capacity (P / K × 100%).\n\n" +
-    "Below ~50%: growth is near-exponential.  " +
-    "Above ~50%: growth decelerates as resources become scarce.",
-  "Habitable Density":
-    "People per km² of habitable land area.\n\n" +
-    "Habitable land excludes polar (E) and special (X) climate zones.",
-  "Surface Area":
-    "Total surface area of the planet (4πr²).\n\n" +
-    "Split into ocean and land fractions by the ocean coverage percentage.",
-  "Land Area":
-    "Non-ocean portion of the planet's surface.\n\n" + "Land Area = Surface Area × (1 − Ocean%).",
-  "Habitable Area":
-    "Portion of land area with climate zones suitable for settlement " +
-    "(excludes polar and special zones).\n\n" +
-    "Derived from climate zone data or the habitable % override.",
-  "Productive Area":
-    "Arable and grazing-suitable land within the habitable area.\n\n" +
-    "Productivity fraction is driven by aridity index: " +
-    "deserts ~5%, steppes ~30%, temperate/tropical ~80–100%.",
-  "Doubling Time":
-    "Time for the population to double at the current effective growth rate.\n\n" +
-    "t₂ = ln(2) / r_eff.  Increases as population approaches " +
-    "carrying capacity because r_eff slows.",
-  "Overall Density":
-    "People per km² of total land area (including uninhabitable land).\n\n" +
-    "Compare with habitable density to gauge how much land is actually settled.",
-  "Initial Population":
-    "Starting population P₀ at time t = 0 for the logistic growth curve.\n\n" +
-    "Smaller values produce a longer exponential phase before the S-curve inflects.",
-  "Time Elapsed":
-    "Number of years elapsed since the initial population.\n\n" +
-    "The orange marker on the growth curve shows the current time position.",
-  Continents:
-    "Number of major landmasses for the Zipf rank-size distribution.\n\n" +
-    "Population is divided among continents by Zipf's law, " +
-    "then each continent is further subdivided into regions.",
-  "Regions per Continent":
-    "Number of regional subdivisions within each continent.\n\n" +
-    "Regions within a continent also follow a Zipf rank-size distribution " +
-    "with the same exponent q.",
-  "Land Use Cascade":
-    "Visual breakdown showing how the planet's surface area cascades " +
-    "from total surface → land → habitable → productive.\n\n" +
-    "Each bar shows the split as a percentage.",
-  "Growth Curve":
-    "Logistic (Verhulst) S-curve showing population over time.\n\n" +
-    "The dashed line marks carrying capacity K.  " +
-    "The orange marker shows the current elapsed time.",
-};
+const TIP_LABEL = {};
 
 // ── Planet context extraction ───────────────────────────────
+
+Object.assign(TIP_LABEL, {
+  Population: structuredTip({
+    overview: "Procedural population model for a selected rocky world or supported surface body.",
+    drawnFrom:
+      "Solved planet radius, inferred/overridden ocean fraction, climate-zone habitability, productivity context, and user-authored civilisation settings.",
+    interpretAs:
+      "It estimates capacity, growth state, density, and regional distribution for worldbuilding use.",
+    caveat:
+      "This is not an economic, demographic, migration, or political simulation; it is a bounded carrying-capacity model.",
+    references: "See Science & Maths: population and habitability context.",
+  }),
+  "Technology Era": structuredTip({
+    overview: "Civilisation technology band used to seed density and default growth assumptions.",
+    feedsInto:
+      "Carrying capacity, default growth rate, current population projection, and density outputs.",
+    typicalRange:
+      "Hunter-gatherer is sparse; medieval and industrial eras raise productive-land density; sci-fi high assumes intensive infrastructure.",
+    caveat: "Era is a coarse worldbuilding proxy, not a full development-history model.",
+    references: "See Science & Maths: population carrying capacity.",
+  }),
+  "Growth Rate": structuredTip({
+    overview: "Intrinsic yearly growth rate for the logistic population curve.",
+    feedsInto:
+      "Current population, saturation, doubling time, and growth-curve shape over elapsed time.",
+    interpretAs:
+      "The effective rate slows as population approaches carrying capacity: r_eff = r x (1 - P/K).",
+    caveat:
+      "The model does not simulate age structure, disease, shocks, migration, or policy changes.",
+    references: "Verhulst 1838; see Science & Maths: logistic growth.",
+  }),
+  "Carrying Capacity": structuredTip({
+    overview: "Maximum population supported by the modelled productive land.",
+    drawnFrom:
+      "Productive area, technology-era density, crop fraction, and crop/livestock efficiency assumptions.",
+    interpretAs:
+      "Values near or above current population indicate how close the model is to resource saturation.",
+    caveat:
+      "It represents broad food/land capacity, not trade, energy supply, imports, or non-agricultural limits.",
+    references: "See Science & Maths: population carrying capacity.",
+  }),
+  "Ocean Coverage": structuredTip({
+    overview: "Population-page land/ocean split.",
+    feedsInto:
+      "Land area, habitable area, productive area, carrying capacity, and density outputs.",
+    drawnFrom:
+      "Auto mode follows solved inferred surface-ocean coverage when available; manual mode uses the authored population override.",
+    caveat:
+      "Manual population overrides affect population/visual land-use outputs and do not rewrite the planet hydrosphere.",
+    references: "See Science & Maths: surface ocean coverage.",
+  }),
+  Habitability: structuredTip({
+    overview: "Fraction of land treated as broadly settlement-suitable.",
+    feedsInto: "Habitable area, habitable density, productivity, and carrying capacity.",
+    drawnFrom:
+      "Auto mode uses area-weighted climate zones; polar/special zones are excluded unless you override the percentage.",
+    caveat:
+      "This is a land-use suitability screen, not a guarantee of comfort, technology, or biosphere support.",
+    references: "See Science & Maths: climate zones and habitability context.",
+  }),
+  Productivity: structuredTip({
+    overview: "Fraction of habitable land treated as agriculturally or grazing productive.",
+    feedsInto: "Productive area, carrying capacity, and the land-use cascade.",
+    drawnFrom:
+      "Auto mode uses aridity/productivity context; manual mode uses the authored productivity percentage.",
+    caveat: "Soil, irrigation, infrastructure, and crop choice are simplified into one scalar.",
+    references: "See Science & Maths: productivity context.",
+  }),
+  "Crop Fraction": structuredTip({
+    overview: "Share of productive land assigned to crop production instead of grazing.",
+    feedsInto: "Carrying capacity through the crop/livestock efficiency factor.",
+    interpretAs:
+      "Higher crop fractions support more people per productive area; lower values imply more grazing or less intensive food production.",
+    caveat: "This is a food-efficiency proxy, not a complete diet or land-management model.",
+    references: "See Science & Maths: population carrying capacity.",
+  }),
+  "Zipf Exponent": structuredTip({
+    overview: "Controls how unevenly population is distributed across generated regions.",
+    feedsInto: "Continent and region population ranks in the distribution table.",
+    interpretAs:
+      "q = 1 approximates classic Zipf behaviour; lower q is more even, higher q concentrates more population in the top-ranked region.",
+    caveat: "It shapes settlement hierarchy only; it does not place cities spatially.",
+    references: "Zipf 1949; see Science & Maths: rank-size distribution.",
+  }),
+  "Current Population": structuredTip({
+    overview: "Projected population after the selected elapsed time.",
+    drawnFrom:
+      "Initial population, carrying capacity, intrinsic growth rate, and elapsed years through the logistic equation.",
+    interpretAs: "It approaches carrying capacity asymptotically as time increases.",
+    caveat: "External shocks, migration, technology shifts, and collapse cycles are not simulated.",
+    references: "Verhulst 1838; see Science & Maths: logistic growth.",
+  }),
+  Saturation: structuredTip({
+    overview: "Current population as a share of carrying capacity.",
+    drawnFrom: "Current projected population divided by carrying capacity.",
+    interpretAs:
+      "Low saturation leaves room for near-exponential growth; high saturation means growth slows strongly.",
+    caveat: "A high value is a model pressure signal, not a prediction of social stability.",
+    references: "See Science & Maths: logistic growth.",
+  }),
+  "Habitable Density": structuredTip({
+    overview: "Population density over habitable land only.",
+    drawnFrom: "Current population divided by habitable land area.",
+    interpretAs:
+      "Compare with overall density to see whether population is concentrated into a small suitable fraction.",
+    caveat: "The model does not distribute settlements within individual climate zones.",
+    references: "See Science & Maths: population carrying capacity.",
+  }),
+  "Surface Area": structuredTip({
+    overview: "Total surface area of the selected body.",
+    drawnFrom: "Solved body radius using 4 x pi x r^2.",
+    feedsInto: "Land area, ocean area, habitable area, and productive area.",
+    caveat:
+      "Oblateness, terrain roughness, and elevation hypsometry do not change this simple spherical area.",
+    references: "See Science & Maths: geometry and population context.",
+  }),
+  "Land Area": structuredTip({
+    overview: "Non-ocean area available before habitability/productivity filtering.",
+    drawnFrom: "Surface area multiplied by 1 - ocean fraction.",
+    feedsInto: "Habitable area, productive area, carrying capacity, and density outputs.",
+    caveat: "Manual ocean overrides on this page do not change the physical hydrosphere model.",
+    references: "See Science & Maths: surface ocean coverage.",
+  }),
+  "Habitable Area": structuredTip({
+    overview: "Land area that passes the model's broad settlement-suitability screen.",
+    drawnFrom: "Land area multiplied by habitability percentage.",
+    feedsInto: "Productive area, habitable density, and carrying capacity.",
+    caveat:
+      "Local hazards, latitude-level detail, and infrastructure are outside this page's model.",
+    references: "See Science & Maths: climate zones and habitability context.",
+  }),
+  "Productive Area": structuredTip({
+    overview: "Habitable land that is treated as food-productive.",
+    drawnFrom: "Habitable area multiplied by productivity percentage.",
+    feedsInto: "Carrying capacity and land-use cascade outputs.",
+    caveat:
+      "This collapses soils, irrigation, rainfall, and land management into one productivity factor.",
+    references: "See Science & Maths: productivity context.",
+  }),
+  "Doubling Time": structuredTip({
+    overview: "Time needed for the current population to double at the current effective rate.",
+    drawnFrom: "ln(2) divided by the logistic effective growth rate.",
+    interpretAs:
+      "Doubling time increases as population nears carrying capacity because r_eff slows.",
+    caveat: "Undefined or very large values can appear when growth is near zero or saturated.",
+    references: "See Science & Maths: logistic growth.",
+  }),
+  "Overall Density": structuredTip({
+    overview: "Population density over all land, including unsuitable land.",
+    drawnFrom: "Current population divided by total land area.",
+    interpretAs: "Compare with habitable density to estimate how constrained settlement is.",
+    caveat: "It does not distinguish urban, rural, wilderness, or protected land.",
+    references: "See Science & Maths: population carrying capacity.",
+  }),
+  "Initial Population": structuredTip({
+    overview: "Starting population at t = 0 for the logistic growth model.",
+    feedsInto: "Current population, saturation trajectory, and growth curve.",
+    interpretAs:
+      "Smaller starts spend longer in the early exponential phase before approaching the S-curve midpoint.",
+    caveat:
+      "The model does not infer initial population from colonisation history or biosphere state.",
+    references: "See Science & Maths: logistic growth.",
+  }),
+  "Time Elapsed": structuredTip({
+    overview: "Years advanced along the logistic growth curve.",
+    feedsInto: "Current population, saturation, and the orange marker on the growth chart.",
+    interpretAs: "Increasing time moves the projection toward carrying capacity.",
+    caveat: "It is scenario time, not necessarily the planet's geological or stellar age.",
+    references: "See Science & Maths: logistic growth.",
+  }),
+  Continents: structuredTip({
+    overview: "Number of top-level landmass groups used for rank-size distribution.",
+    feedsInto: "Generated continent and region population breakdowns.",
+    caveat: "The model does not map actual coastlines or terrain geometry.",
+    references: "See Science & Maths: rank-size distribution.",
+  }),
+  "Regions per Continent": structuredTip({
+    overview: "Number of regional subdivisions generated under each continent.",
+    feedsInto: "Regional population table and settlement hierarchy.",
+    caveat: "Regions are procedural rank buckets, not geographic polygons.",
+    references: "See Science & Maths: rank-size distribution.",
+  }),
+  "Land Use Cascade": structuredTip({
+    overview: "Visual funnel from total surface area to productive land.",
+    drawnFrom:
+      "Surface area, ocean fraction, habitability percentage, and productivity percentage.",
+    interpretAs: "Each step shows how much area remains available after the previous filter.",
+    caveat:
+      "It shows modelled land suitability only, not legal, cultural, or ecological restrictions.",
+    references: "See Science & Maths: population carrying capacity.",
+  }),
+  "Growth Curve": structuredTip({
+    overview: "Logistic population curve for the selected scenario.",
+    drawnFrom: "Initial population, carrying capacity, growth rate, and elapsed time.",
+    interpretAs:
+      "The dashed line is carrying capacity and the marker is the current elapsed-time point.",
+    caveat: "It is a smooth model curve and does not include boom/bust events.",
+    references: "Verhulst 1838; see Science & Maths: logistic growth.",
+  }),
+});
 
 function getPopulationContext(world) {
   const fallback = {

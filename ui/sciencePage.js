@@ -561,6 +561,26 @@ function buildStellarEvolution() {
       with smooth luminosity and radius growth that accelerates near turn-off.</p>
       ${cite("Hurley, Pols &amp; Tout (2000), MNRAS 315, 543")}`,
     ),
+
+    formula(
+      "Analytic Stellar Lifecycle Track",
+      `<div class="sci-formula__eq">${eq("S(t) = \\{\\text{MS},\\,\\text{TMS},\\,\\text{subgiant},\\,\\text{giant},\\,\\text{He burning},\\,\\text{AGB/supergiant},\\,\\text{remnant}\\}")}</div>
+      <div class="sci-formula__eq">${eq("t_i = t_{\\text{MS}} + f_i(M)\\,t_{\\text{MS}}")}</div>
+      <div class="sci-formula__eq">${eq("M_{\\text{rem}} \\approx \\begin{cases}0.109M+0.394 & M < 7.8 \\\\ 1.3\\text{--}2.1 & 10 \\le M < 25 \\\\ \\text{fallback/direct-collapse BH screen} & M \\ge 25\\end{cases}")}</div>
+      <div class="sci-formula__eq">${eq("I_{\\text{HZ}}(a) = \\bigcup\\,[t_a,t_b]\\;\\text{where}\\; d_{\\text{in}}(t) \\le a \\le d_{\\text{out}}(t)")}</div>
+      <div class="sci-formula__eq">${eq("t_{\\text{HZ}} = \\sum |I_i|,\\quad t_{\\text{longest}} = \\max |I_i|,\\quad a \\le 0.00465047\\,R_\\star(t) \\Rightarrow \\text{engulfment flag}")}</div>
+      <p>The lifecycle provider turns the existing Hurley/Tout main-sequence lifetime into a compact, static timeline. It samples stage windows, current mass loss, core-mass proxies, remnant endpoint class, and the moving habitable zone without loading tabulated MESA/MIST grids. The Star page renders those samples as an Era Timeline so current phase, high-energy youth, HZ migration, and remnant endpoint are visible outside Derived Details.</p>
+      <p>When a saved planet or giant has an orbit, Caelum can also summarize lifecycle exposure for that orbit: current conservative/optimistic HZ status, total and longest continuous HZ duration, first entry and last exit ages, temporary late-habitability flags, red-giant irradiation, stellar-envelope engulfment, and compact-remnant caveats.</p>
+      ${vars([
+        ["S(t)", "Current lifecycle stage at age t"],
+        ["f_i(M)", "Mass-dependent duration fractions for post-main-sequence stages"],
+        ["M_{\\text{rem}}", "Approximate endpoint remnant mass"],
+        ["I_{\\text{HZ}}(a)", "Sampled HZ intervals for an orbit a"],
+        ["0.00465047", "Solar radii converted to AU"],
+      ])}
+      <p><b>Important limit:</b> post-main-sequence luminosities, radii, winds, HZ intervals, and compact remnants are diagnostic approximations. They are useful for worldbuilding timelines and HZ migration, but they do not solve radial stellar structure, nuclear networks, convection, rotation, binaries, hydrodynamic engulfment, climate hysteresis, accretion disks, or supernova fallback.</p>
+      ${cite("Hurley, Pols &amp; Tout (2000), MNRAS 315, 543; Kalirai et al. (2008), ApJ 676, 594; Spera et al. (2015), MNRAS 451, 4086; Kopparapu et al. (2013/2014)")}`,
+    ),
   ].join("");
 }
 
@@ -1271,6 +1291,55 @@ function buildOrbitalMechanics() {
     ),
 
     formula(
+      "Moon Origin Pathways",
+      `<div class="sci-formula__eq">${eq("P_{\\text{origin}} \\in \\{\\text{disk},\\,\\text{impact},\\,\\text{capture},\\,\\text{exchange},\\,\\text{coformed},\\,\\text{reaccretion},\\,\\text{unknown}\\}")}</div>
+      <p>Moon origins are treated as <b>model priors</b>, not solved formation events. If the user leaves Origin Pathway on Auto, Caelum infers a broad pathway from parent type, mass ratio, orbit distance, eccentricity, inclination, and retrograde context. If the user selects a pathway, that choice becomes a visible prior that changes the formation label, confidence, warnings, and Lifecycle Timeline birth era without silently rewriting the orbit or climate model.</p>
+      ${dataTable(
+        ["Pathway", "What it means in the model", "Typical warning"],
+        [
+          [
+            "Circumplanetary disk",
+            "Regular moon assembled in a disk around a giant or massive parent, with possible migration or resonance capture.",
+            "Lower confidence for highly inclined, eccentric, or retrograde orbits.",
+          ],
+          [
+            "Giant impact debris disk",
+            "Large rocky moon assembled from impact debris around a rocky parent.",
+            "Low confidence around gas giants or substellar parents.",
+          ],
+          [
+            "Captured irregular",
+            "Captured body on an inclined, distant, eccentric, or retrograde orbit.",
+            "Lower confidence for close, circular, low-inclination regular orbits.",
+          ],
+          [
+            "Binary exchange capture",
+            "Large capture aided by disruption of a binary small-body pair, Triton-style.",
+            "Usually more plausible for large captured moons than tiny irregulars.",
+          ],
+          [
+            "Co-formed companion",
+            "Companion-like formation with a planetary or substellar primary.",
+            "Lower confidence for ordinary low-mass planet moons.",
+          ],
+          [
+            "Tidal disruption reaccretion",
+            "Ring or Roche-disrupted material reassembled into a moon.",
+            "Lower confidence without Roche or ring context.",
+          ],
+          [
+            "Unknown / authored",
+            "No constrained origin prior.",
+            "Keeps confidence intentionally low.",
+          ],
+        ],
+      )}
+      <p>The pathway also exposes qualitative timeline effects such as early tidal-heating pulse, initial eccentricity bias, inclination expectation, volatile-retention bias, and resonance likelihood. Those effects are explanatory hooks only in this release.</p>
+      <p><b>Important limit:</b> Caelum does not simulate capture encounters, impact hydrodynamics, circumplanetary disk evolution, debris reaccretion, binary exchange dynamics, or long-term N-body survival from the origin event.</p>
+      ${cite("Canup (2004); Mosqueira &amp; Estrada (2003); Agnor &amp; Hamilton (2006); Cuk &amp; Gladman (2005); Charnoz et al. (2010); Caelum moon-origin prior model")}`,
+    ),
+
+    formula(
       "Long-Term Dynamical History",
       `<p>Caelum now composes secular/Kozai susceptibility, first-order precession, Cassini-state readiness, migration-history evidence, and Trojan-reservoir diagnostics into one read-only long-term dynamics layer. These outputs explain long-cycle risks and history clues; they do not change authored orbits, climate temperatures, calendar periods, or apparent-size geometry.</p>
       <div class="sci-formula__eq">${eq("i_{\\text{crit}} = \\cos^{-1}\\!\\sqrt{3/5} = 39.23^\\circ")}</div>
@@ -1570,6 +1639,24 @@ function buildPhotometry() {
       <div class="sci-formula__eq">${eq("\\theta_{\\text{moon}} = \\frac{R_{\\text{moon}}}{a_{\\text{moon}}}, \\quad \\theta_\\star = \\frac{R_\\star}{d_{\\text{planet}}}")}</div>
       <p>If ${iq("\\theta_{\\text{moon}} \\ge \\theta_\\star")}: total eclipses. Otherwise: annular only.</p>`,
     ),
+
+    formula(
+      "Exoplanet Observability And Detectability",
+      `<div class="sci-formula__eq">${eq("\\delta_{\\text{transit}} = \\left(\\frac{R_p}{R_\\star}\\right)^2")}</div>
+      <div class="sci-formula__eq">${eq("P_{\\text{transit}} \\approx \\frac{R_\\star + R_p}{a}")}</div>
+      <div class="sci-formula__eq">${eq("K \\approx 28.43\\,\\text{m/s}\\,\\left(\\frac{M_p}{M_J}\\right)\\left(\\frac{P}{1\\,\\text{yr}}\\right)^{-1/3}\\left(\\frac{M_\\star}{M_\\odot}\\right)^{-2/3}")}</div>
+      <div class="sci-formula__eq">${eq("\\theta_{\\text{sep}}\\,[\\text{arcsec}] \\approx \\frac{a\\,[\\text{AU}]}{d\\,[\\text{pc}]}")}</div>
+      <p>Planet pages separate geometric observability from interpretive atmosphere readiness. Transit depth, geometric transit probability, radial-velocity semi-amplitude, and direct-imaging angular separation are first-pass physical signals.</p>
+      <p><b>Transmission readiness</b> is a bounded class derived from scale height, transit signal, clouds, haze, atmosphere persistence, stellar activity noise, and radiation context. It estimates whether an atmosphere is easier or harder to interpret; it is not a telescope-specific exposure-time calculator.</p>
+      <p><b>Biosignature observability</b> combines the transmission feature score with non-biological caveats, false-positive risk, and productivity context. A strong score means the modeled atmosphere would be easier to characterise, not that biology has been detected.</p>
+      ${vars([
+        ["\\delta_{\\text{transit}}", "Fractional stellar dimming during transit"],
+        ["P_{\\text{transit}}", "Geometric transit probability"],
+        ["K", "Radial-velocity semi-amplitude for a near-circular orbit"],
+        ["\\theta_{\\text{sep}}", "Maximum angular separation for direct-imaging context"],
+      ])}
+      ${cite("Winn (2010), Exoplanet Transits and Occultations; Perryman (2018), The Exoplanet Handbook; Seager &amp; Sasselov (2000), ApJ 537, 916")}`,
+    ),
   ].join("");
 }
 
@@ -1633,6 +1720,34 @@ function buildAtmosphereColour() {
       <p><b>Small bodies:</b> debris disks, Oort-cloud injection, comets, and gas-giant architecture route into impact flux, crater retention, volatile delivery, ring/source persistence, and era timelines. These are source/tendency classes, not stochastic impact predictions.</p>
       <p><b>Nitrogen:</b> atmospheric N&#8322; can support background pressure and pressure broadening, while fixed-nitrogen availability can limit productivity. This is a nutrient and pressure-buffer screen, not evidence for biology or a full nitrogen cycle.</p>
       ${cite("Kopparapu et al. (2013); Walker, Hays & Kasting (1981); Luger & Barnes (2015); Zahnle & Catling (2017); NASA Planetary Fact Sheets; Vitousek & Howarth (1991)")}`,
+    ),
+
+    formula(
+      "Atmosphere Source-Sink Ledger",
+      `<div class="sci-formula__eq">${eq("I_{\\text{source}} = 1 - \\prod_i (1 - s_i), \\quad I_{\\text{sink}} = 1 - \\prod_j (1 - k_j)")}</div>
+      <div class="sci-formula__eq">${eq("B_{\\text{net}} = I_{\\text{source}} - I_{\\text{sink}}")}</div>
+      <p>The atmosphere ledger is an order-of-magnitude source-sink diagnostic, not a mass-balance solver. It keeps the user's gas mix visible, then reports whether the surrounding context suggests a replenished, stable, declining, or rapidly lost atmosphere.</p>
+      ${dataTable(
+        ["Ledger side", "Examples"],
+        [
+          [
+            "Sources",
+            "Volcanic outgassing, cryovolcanic outgassing, impact delivery, comet delivery, retained volatiles, composition volatile budgets, ocean buffering, radiolytic sputtered O<sub>2</sub>.",
+          ],
+          [
+            "Sinks",
+            "Jeans escape, XUV escape, wind stripping, pickup-ion loss, photolysis H escape, condensation collapse, weathering sequestration, surface adsorption, cold trapping.",
+          ],
+        ],
+      )}
+      <p>Each active source or sink contributes a bounded score. The combined source index and sink index use retained-product combination so multiple weak terms can matter without any single term forcing the result. The strongest terms are shown as the dominant source and dominant sink.</p>
+      <p>Composition inventories can add C/N/S/H/O reservoir context, but the ledger does not assume every reservoir becomes atmospheric gas. Escape and wind terms remain confidence-bounded tendencies, especially for moons and active cool-star environments.</p>
+      ${vars([
+        ["s_i", "Bounded source score for source term i"],
+        ["k_j", "Bounded sink score for sink term j"],
+        ["B_{\\text{net}}", "Net source-minus-sink balance used for trend labels"],
+      ])}
+      ${cite("Catling &amp; Kasting (2017), Atmospheric Evolution on Inhabited and Lifeless Worlds; Zahnle &amp; Catling (2017), ApJ 843, 122; Luger &amp; Barnes (2015), Astrobiology 15, 119")}`,
     ),
 
     formula(
@@ -2196,6 +2311,40 @@ function buildPopulationDynamics() {
     ),
 
     formula(
+      "Productivity And Nitrogen Limiting Factors",
+      `<div class="sci-formula__eq">${eq("P_{\\text{prod}} = \\min(S_{\\text{climate}}, S_{\\text{light}}, S_{\\text{solvent}}, S_{\\text{nutrients}}, S_{\\text{carbon}}, S_{\\text{oxygen}}, S_{\\text{radiation}}, S_{\\text{pressure}})\\,(0.55 + 0.45A_{\\text{surface}})")}</div>
+      <p>Primary productivity is treated as a limiting-factor screen. It estimates environmental potential only; it does not assert life, ecology, agriculture, or biosignatures.</p>
+      ${dataTable(
+        ["Limiter", "What it represents"],
+        [
+          ["Climate", "How much of the surface climate is clement enough for active chemistry."],
+          ["Light", "Surface light after stellar flux, haze, cloud, and atmospheric attenuation."],
+          ["Solvent", "Accessible liquid water or subsurface-liquid pathway."],
+          ["Nutrients", "Ocean chemistry support and fixed-nitrogen availability."],
+          ["Carbon", "CO<sub>2</sub> availability and carbon-cycle context."],
+          [
+            "Oxygenation",
+            "O<sub>2</sub> and N<sub>2</sub> support for aerobic-style surface complexity.",
+          ],
+          [
+            "Radiation",
+            "Surface protection after atmosphere, ozone/photochemistry, and magnetic shielding.",
+          ],
+          [
+            "Pressure",
+            "Whether the atmosphere provides enough working pressure for surface processes.",
+          ],
+        ],
+      )}
+      <p>Nitrogen is split into three roles. Bulk N<sub>2</sub> can provide background pressure, N<sub>2</sub> plus greenhouse gases can support pressure broadening, and fixed nitrogen controls nutrient availability. A large N<sub>2</sub> reservoir is therefore not automatically usable biology.</p>
+      ${vars([
+        ["S_x", "Bounded score for each environmental limiter"],
+        ["A_{\\text{surface}}", "Land/ocean surface-area opportunity factor"],
+      ])}
+      ${cite("Vitousek &amp; Howarth (1991), Biogeochemistry 13, 87; Kasting &amp; Catling (2003), ARAA 41, 429; Catling &amp; Kasting (2017)")}`,
+    ),
+
+    formula(
       "Carrying Capacity",
       `<div class="sci-formula__eq">${eq("K = A \\cdot d \\cdot \\frac{1 + (C_e - 1)\\,f_c}{1 + (C_e - 1) \\cdot 0.77}")}</div>
       ${vars([
@@ -2333,6 +2482,74 @@ function buildInteriorComposition() {
     ),
 
     formula(
+      "Composition Inventory Coupling",
+      `<div class="sci-formula__eq">${eq("A_{\\text{trace}} = 0.39U + 0.40Th + 0.17K")}</div>
+      <p>Manual rocky-body inventories are separated into <b>component reservoirs</b> and <b>element inventories</b>. Component reservoirs describe bulk material pools such as metal, silicate, water ice, volatile ice, carbonaceous material, sulfur, and salts. Element inventories expose major and trace elements for chemistry and diagnostics.</p>
+      ${dataTable(
+        ["Coupling target", "Inventory signals used"],
+        [
+          [
+            "Atmosphere",
+            "C/N/S/H/O volatile budgets, sulfur sources, water reservoirs, and caveats about incomplete retention.",
+          ],
+          [
+            "Ocean chemistry",
+            "Water, salts, sulfur, carbonaceous material, sodium/chlorine, and rock-ocean access.",
+          ],
+          [
+            "Interior heat",
+            "K, U, and Th trace values as present-day Earth-relative radiogenic heat multipliers.",
+          ],
+          [
+            "Geology and magnetism",
+            "Metal fraction, silicate inventory, density consistency, and heat-production context.",
+          ],
+          [
+            "Visual/material cues",
+            "Iron-rich, sulfur-rich, salt-rich, and dark carbonaceous diagnostics.",
+          ],
+        ],
+      )}
+      <p>The coupling layer is deliberately diagnostic. It passes bounded reservoir scores downstream, but it is not a mineral-equilibrium solver and does not infer a complete petrologic or atmospheric evolution history from element boxes alone.</p>
+      ${vars([
+        [
+          "U, Th, K",
+          "Earth-relative trace element abundances supplied in the composition inventory",
+        ],
+        [
+          "A_{\\text{trace}}",
+          "Trace-radiogenic abundance multiplier used by supported heat contexts",
+        ],
+      ])}
+      ${cite("McDonough &amp; Sun (1995), Chemical Geology 120, 223; Arevalo, McDonough &amp; Luong (2009), Earth Planet. Sci. Lett. 278, 361; Catling &amp; Kasting (2017)")}`,
+    ),
+
+    formula(
+      "Moon Solid-Body Structure And Tidal Response",
+      `<div class="sci-formula__eq">${eq("\\text{class} = f(M, R, \\rho, \\text{ice}, \\text{metal}, \\text{silicate}, \\text{ocean}, \\phi)")}</div>
+      <div class="sci-formula__eq">${eq("I = CMR^2, \\quad C \\in [0.31, 0.40]")}</div>
+      <div class="sci-formula__eq">${eq("k_2 = \\frac{1.5}{1 + 19\\mu_{\\text{eff}}/(2\\rho g R)}, \\quad Q = Q(\\text{structure}, \\text{ocean}, \\text{melt})")}</div>
+      <p>Moons now pass through a shared solid-body layer before geology, tides, magnetism, hydrosphere, and display diagnostics are assembled. The layer classifies bodies as small-porous-body, compact-rocky-moon, differentiated-rocky-moon, ice-rock-ocean-world, volatile-rich-icy-body, iron-rich-body, or planetary-rocky-body, then derives a layer-aware moment-of-inertia factor, effective rigidity, Love number, and material Q.</p>
+      <p>This is a static, composition-aware response model. It lets icy ocean worlds, porous captured moons, and differentiated rocky moons produce different tidal heating, hydrothermal potential, dynamo support, crater retention, and rock-ocean exchange labels. It is <b>not a 1-D thermochemical interior solver</b>: there is no radial pressure-temperature grid, mineral phase equilibrium, viscoelastic shell solve, or time-dependent mantle/ocean evolution.</p>
+      ${vars([
+        ["\\phi", "Porosity proxy from small size, low density, and carbonaceous/icy inventory"],
+        [
+          "C",
+          "Moment-of-inertia factor; lower values indicate more differentiated mass distribution",
+        ],
+        [
+          "\\mu_{\\text{eff}}",
+          "Layer-aware effective rigidity used by the tidal Love-number proxy",
+        ],
+        [
+          "Q",
+          "Material dissipation factor; lowered by ocean/melt response and raised by cold rigid bodies",
+        ],
+      ])}
+      ${cite("Peale, Cassen &amp; Reynolds (1979), Science 203, 892; Hussmann, Sohl &amp; Spohn (2002), Icarus 156, 143; Sohl et al. (2003), JGR 108; Vance et al. (2018), JGR Planets 123, 180")}`,
+    ),
+
+    formula(
       "Stellar CMF Derivation",
       `<div class="sci-formula__eq">${eq("\\text{Fe/Mg} = 0.83 \\cdot 10^{[\\text{Fe/H}]}")}</div>
       <div class="sci-formula__eq">${eq("\\text{CMF} = \\frac{\\text{Fe/Mg} \\cdot 55.85}{\\text{Fe/Mg} \\cdot 55.85 + 172}")}</div>
@@ -2379,6 +2596,38 @@ function buildInteriorComposition() {
       )}
       <p>Water regime labels: Dry (&lt; 0.01%), Shallow oceans (&lt; 0.1%), Extensive (&lt; 1%),
       Global ocean (&lt; 10%), Deep ocean (&lt; 30%), Ice world (&ge; 30%).</p>`,
+    ),
+
+    formula(
+      "Planetary Subtype Evidence Overlays",
+      `<p>Planetary subtypes are conservative evidence overlays on top of the main planet family. They add context such as ocean world, steam world, lava world, iron-rich world, carbon-rich world, desert world, Hycean candidate, super-puff, chthonian candidate, or rogue planet without rewriting the selected family.</p>
+      ${dataTable(
+        ["Subtype family", "Typical evidence"],
+        [
+          [
+            "Water/ocean/icy",
+            "Water mass fraction, hydrosphere state, climate phase, radius-density context, and ice-line history.",
+          ],
+          [
+            "Lava/steam/desert",
+            "Surface temperature, insolation, atmosphere state, water availability, and runaway or arid climate flags.",
+          ],
+          [
+            "Iron/carbon-rich",
+            "Density, core fraction, stellar or manual composition context, and inventory evidence.",
+          ],
+          [
+            "Hycean/super-puff",
+            "Low-density volatile envelopes, mass-radius scale, temperature envelope, and atmosphere context.",
+          ],
+          [
+            "Chthonian/rogue",
+            "Envelope-loss or no-host evidence plus thermal, orbit, and stellar-history caveats.",
+          ],
+        ],
+      )}
+      <p>The primary subtype shown in the UI is priority-ranked so unusual cases surface first, but supporting subtype evidence remains visible as explanation. Boundary traits such as radiusValley and volatileCandidate are handled as contextual flags rather than absolute origin labels.</p>
+      ${cite("Madhusudhan et al. (2021), ApJ 918, 1; Fulton et al. (2017), AJ 154, 109; Baraffe et al. (2014), Protostars and Planets VI")}`,
     ),
 
     formula(
@@ -3363,6 +3612,93 @@ function buildSystemArchitecture() {
       <p>The Star page guardrail summary labels layouts as <b>Good</b>, <b>Caution</b>, <b>Unstable</b>, or <b>Blocked</b> by comparing the chosen outer orbit against this threshold and against the simpler periapsis-versus-apocentre overlap test.</p>
       ${cite("Mardling &amp; Aarseth (2001), MNRAS 321, 398; Caelum hierarchy guardrails in engine/homeSystem/stability.js")}`,
     ),
+
+    formula(
+      "Lifecycle Timeline Evidence Model",
+      `<div class="sci-formula__eq">${eq("\\text{state} \\in \\{\\text{past},\\;\\text{current},\\;\\text{future},\\;\\text{conditional}\\}")}</div>
+      <div class="sci-formula__eq">${eq("\\text{role} \\in \\{\\text{birth},\\;\\text{early},\\;\\text{current},\\;\\text{transition},\\;\\text{risk},\\;\\text{endpoint}\\}")}</div>
+      <div class="sci-formula__eq">${eq("\\text{state}(t) = \\begin{cases}\\text{future} & t_{\\text{now}} < t_{\\text{start}} \\\\ \\text{past} & t_{\\text{now}} > t_{\\text{end}} \\\\ \\text{current} & \\text{otherwise}\\end{cases}")}</div>
+      <p>Lifecycle Timelines are evidence-weighted summaries assembled from the same source contexts used elsewhere in the app. They add explicit birth, current, transition/risk, and endpoint roles to the older Era Timeline object shape, so star, planet, moon, and System Fate pages can read from formation to broad endpoint without creating a parallel renderer.</p>
+      <p>Stellar timelines group formation/ignition, saturated high-energy youth, lifecycle phase, HZ migration, supernova transition risk where applicable, and remnant endpoint. Planet and moon timelines group formation, volatile delivery or loss, high-XUV exposure, atmosphere trends, ocean chemistry, tidal support, magnetosphere/radiation context, haze, carbon-cycle limits, subtype evidence, orbital fate, parent stellar fate, and small-body forcing.</p>
+      <p>Rows are labelled as past, current, future, or conditional when age bounds allow it, and each row carries confidence, drivers, caveats, source-model versions, and model-limit notes. The timeline is not a reconstructed history and does not run a time-stepped stellar-structure, climate, geology, biology, or orbital evolution simulation.</p>
+      ${dataTable(
+        ["Accuracy tier", "Used for", "How to read it"],
+        [
+          [
+            "Analytic",
+            "Stellar lifecycle tracks and broad remnant endpoints.",
+            "Stage order and broad timing are useful, but this is not a MESA-grade stellar-structure solve.",
+          ],
+          [
+            "Evidence-summary",
+            "Planet and giant timelines assembled from current climate, atmosphere, interior, orbit, and stellar-exposure outputs.",
+            "Good for worldbuilding chronology and visible risks, not exact climate history.",
+          ],
+          [
+            "Inferred-prior",
+            "Moon origin pathways and other formation/history priors.",
+            "A plausible scenario label with confidence and warnings, not proof of the actual event.",
+          ],
+        ],
+      )}
+      ${dataTable(
+        ["Timeline ingredient", "How it contributes"],
+        [
+          [
+            "Atmosphere ledger",
+            "Current replenishment or loss tendency, dominant source, dominant sink, and future collapse/loss risk.",
+          ],
+          [
+            "Stellar history",
+            "High-XUV, wind-compression, flare, and activity intervals that can shape escape or radiation context.",
+          ],
+          [
+            "Climate and carbon cycle",
+            "Greenhouse, cloud, haze, thermostat, snowball, runaway, or CO<sub>2</sub> tendency evidence.",
+          ],
+          [
+            "Moons and tides",
+            "Shared dynamical context, resonance support, tidal heating, exospheres, and parent-radiation environment.",
+          ],
+          [
+            "Small bodies",
+            "Impact flux, volatile delivery, debris, rings, Oort-cloud injection, and crater-retention context.",
+          ],
+        ],
+      )}
+      <p><b>Shared limits:</b> Lifecycle Timelines do not model N-body formation, capture dynamics, impact hydrodynamics, disk evolution, stochastic bombardment, time-dependent climate, mantle/ocean thermochemistry, biosphere evolution, or detailed interior evolution. Stellar rows also do not solve full radial stellar structure, nuclear networks, convection, rotation, binary mass transfer, hydrodynamic engulfment, explosion energy, nucleosynthesis, fallback, remnant kicks, or light curves.</p>
+      ${cite("Caelum planetary-era context model; Catling &amp; Kasting (2017); Luger &amp; Barnes (2015); Zahnle &amp; Catling (2017)")}`,
+    ),
+
+    formula(
+      "System Fate Aggregate Model",
+      `<div class="sci-formula__eq">${eq("\\text{lane}_{i} = \\text{body}_{i,\\text{current}} + \\text{HZ exposure}_{i}(t) + \\text{era caveats}_{i}")}</div>
+      <div class="sci-formula__eq">${eq("\\text{preview}(t_*) = \\{S_\\star(t_*),\\;L_\\star(t_*),\\;R_\\star(t_*),\\;\\text{HZ}(t_*),\\;\\text{lane status}_i(t_*)\\}")}</div>
+      <p>The System Fate page is a whole-system aggregation layer. It combines the host-frame stellar lifecycle track, per-orbit habitable-zone exposure intervals, current planet/moon model outputs, and object Lifecycle Timeline caveats into lanes, rankings, selected-age previews, lifecycle endpoint rows, and a copy-ready report.</p>
+      <p><b>Important limit:</b> the selected-age scrubber previews stellar exposure only. It does not integrate each body's future climate, ocean inventory, atmosphere chemistry, geology, orbit, biosphere, or population. A future HZ window is a worldbuilding flag, not a guarantee of future surface habitability.</p>
+      ${dataTable(
+        ["System Fate source", "How it is used"],
+        [
+          [
+            "Stellar lifecycle track",
+            "Host stage, luminosity, radius, remnant endpoint, moving HZ, and giant/remnant caveats.",
+          ],
+          [
+            "Per-orbit HZ exposure",
+            "Current HZ status, conservative/optimistic windows, late-stage windows, engulfment, drag, and remnant flags.",
+          ],
+          [
+            "Planet and moon Lifecycle Timelines",
+            "Body-specific origin, current era, next transition, endpoint, atmosphere, hydrosphere, tidal, radiation, interior, and model-limit evidence.",
+          ],
+          [
+            "Current body model",
+            "Candidate/risk rankings use the current solved habitability, water, climate, radiation, and subtype context.",
+          ],
+        ],
+      )}
+      ${cite("Caelum system-fate aggregation model; Hurley, Pols &amp; Tout (2000); Kopparapu et al. (2013/2014)")}`,
+    ),
   ].join("");
 }
 
@@ -3643,13 +3979,13 @@ function wireCalculators(root) {
 
 const SECTIONS = [
   { id: "stellar", title: "Stellar Physics", count: 9, builder: buildStellarPhysics },
-  { id: "evolution", title: "Stellar Evolution", count: 7, builder: buildStellarEvolution },
+  { id: "evolution", title: "Stellar Evolution", count: 8, builder: buildStellarEvolution },
   { id: "planetary", title: "Planetary Physics", count: 14, builder: buildPlanetaryPhysics },
   { id: "gasgiant", title: "Gas Giant Physics", count: 13, builder: buildGasGiantPhysics },
   {
     id: "interior",
     title: "Interior &amp; Composition",
-    count: 7,
+    count: 10,
     builder: buildInteriorComposition,
   },
   {
@@ -3658,16 +3994,16 @@ const SECTIONS = [
     count: 14,
     builder: buildTectonicsScience,
   },
-  { id: "orbital", title: "Orbital Mechanics", count: 22, builder: buildOrbitalMechanics },
+  { id: "orbital", title: "Orbital Mechanics", count: 23, builder: buildOrbitalMechanics },
   { id: "lagrange", title: "Lagrange Points", count: 4, builder: buildLagrangePoints },
-  { id: "photometry", title: "Photometry &amp; Magnitudes", count: 8, builder: buildPhotometry },
-  { id: "atmosphere", title: "Atmosphere &amp; Colour", count: 10, builder: buildAtmosphereColour },
+  { id: "photometry", title: "Photometry &amp; Magnitudes", count: 9, builder: buildPhotometry },
+  { id: "atmosphere", title: "Atmosphere &amp; Colour", count: 11, builder: buildAtmosphereColour },
   { id: "climate", title: "Climate Classification", count: 8, builder: buildClimateClassification },
   { id: "activity", title: "Stellar Activity", count: 7, builder: buildStellarActivity },
   { id: "calendar", title: "Calendar Systems", count: 5, builder: buildCalendarSystems },
   { id: "cluster", title: "Local Cluster", count: 7, builder: buildLocalCluster },
-  { id: "population", title: "Population Dynamics", count: 5, builder: buildPopulationDynamics },
-  { id: "system", title: "System Architecture", count: 7, builder: buildSystemArchitecture },
+  { id: "population", title: "Population Dynamics", count: 6, builder: buildPopulationDynamics },
+  { id: "system", title: "System Architecture", count: 8, builder: buildSystemArchitecture },
   { id: "debris", title: "Debris Disks", count: 12, builder: buildDebrisDisks },
   {
     id: "divergences",

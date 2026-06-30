@@ -271,6 +271,8 @@ export function computeMoonGeology({
   hydrosphere = null,
   tidalPersistenceContext = null,
   rockyBodyComposition = null,
+  solidBodyStructure = null,
+  solidBodyResponse = null,
 } = {}) {
   const notes = ["moon-geology-v1"];
   const compositionCoupling = buildRockyBodyCompositionCoupling(rockyBodyComposition);
@@ -299,15 +301,29 @@ export function computeMoonGeology({
   const sulfurScore = clamp(toFinite(compositionCoupling.reservoirScores?.sulfur, 0), 0, 1);
   const saltScore = clamp(toFinite(compositionCoupling.reservoirScores?.salt, 0), 0, 1);
   const volatileScore = clamp(toFinite(compositionCoupling.reservoirScores?.volatile, 0), 0, 1);
-  const silicateScore = clamp(toFinite(compositionCoupling.reservoirScores?.silicate, 0), 0, 1);
+  const silicateScore = clamp(
+    Math.max(
+      toFinite(compositionCoupling.reservoirScores?.silicate, 0),
+      toFinite(solidBodyStructure?.silicateMassFraction, 0),
+    ),
+    0,
+    1,
+  );
+  const iceScore = clamp(toFinite(solidBodyStructure?.iceMassFraction, 0), 0, 1);
+  const porosityScore = clamp(toFinite(solidBodyStructure?.porosityFraction, 0), 0, 0.7) / 0.7;
+  const responseConfidence = String(solidBodyResponse?.confidence || "");
   const volcanicCompositionBoost = compositionCoupling.available
     ? volcanic.heatScore *
       (0.12 * sulfurScore + 0.06 * silicateScore) *
       (0.35 + 0.65 * volcanic.interiorRetention)
     : 0;
-  const cryovolcanicCompositionBoost = compositionCoupling.available
-    ? cryovolcanic.heatScore * cryovolcanic.waterSupport * (0.16 * saltScore + 0.08 * volatileScore)
-    : 0;
+  const cryovolcanicCompositionBoost =
+    (compositionCoupling.available
+      ? cryovolcanic.heatScore *
+        cryovolcanic.waterSupport *
+        (0.16 * saltScore + 0.08 * volatileScore)
+      : 0) +
+    0.05 * iceScore * cryovolcanic.heatScore;
   const volcanicScore = clamp(volcanic.score + volcanicCompositionBoost, 0, 1);
   const cryovolcanicScore = clamp(cryovolcanic.score + cryovolcanicCompositionBoost, 0, 1);
   const resurfacing = resurfacingClass(volcanicScore, cryovolcanicScore);
@@ -341,6 +357,10 @@ export function computeMoonGeology({
     if (saltScore >= 0.45) notes.push("composition-salt-brine-cryovolcanism-supported");
     if (volatileScore >= 0.45) notes.push("composition-volatile-replenishment-supported");
   }
+  if (solidBodyStructure?.structureClass)
+    notes.push(`structure-${solidBodyStructure.structureClass}`);
+  if (porosityScore >= 0.2 && cryovolcanicScore >= 0.25) notes.push("porous-hydrothermal-pathways");
+  if (responseConfidence === "low") notes.push("material-response-low-confidence");
   if (persistenceContext?.sustainedTidalHeatingClass === "likely-sustained") {
     notes.push("tidal-heating-likely-sustained");
   } else if (persistenceContext?.sustainedTidalHeatingClass === "damping") {
@@ -393,6 +413,11 @@ export function computeMoonGeology({
       compositionSaltScore: saltScore,
       compositionSulfurScore: sulfurScore,
       compositionVolatileScore: volatileScore,
+      structureClass: solidBodyStructure?.structureClass || "unknown",
+      compactnessClass: solidBodyStructure?.compactnessClass || "unknown",
+      iceMassFraction: solidBodyStructure?.iceMassFraction ?? 0,
+      porosityFraction: solidBodyStructure?.porosityFraction ?? 0,
+      materialResponseConfidence: solidBodyResponse?.confidence || "unknown",
     },
     compositionResurfacingBias: compositionCoupling.available
       ? {

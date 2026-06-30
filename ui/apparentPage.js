@@ -17,14 +17,24 @@ import {
   observerRefToSelectValue,
 } from "../engine/contexts/observerFrameContext.js";
 import { attachTooltips, tipIcon } from "./tooltip.js";
+import { structuredTip } from "./tooltipCopy.js";
 import { drawSkyCanvasNative, disposeSkyCanvasNative } from "./lazyApparentSkyNative.js";
 import { getSelectedPlanet, loadWorld } from "./store.js";
 import { createTutorial } from "./tutorial.js";
 import { createDiagnosticEmptyState, workflowHtml } from "./workflow/diagnosticOrientation.js";
 import { createObjectSelectorPanel } from "./workflow/objectSelectorPanel.js";
+import { createSkeletonCanvas } from "./workflow/skeleton.js";
 
 const TIP_LABEL = {
-  "Reference body": "Planet or moon used as the observer frame for apparent brightness and size.",
+  "Reference body": structuredTip({
+    overview: "Planet or moon used as the observer frame for apparent brightness and size.",
+    changes:
+      "Changing this observer changes which bodies are compared, the home-world distances, moon rows, and eclipse context.",
+    feedsInto: "Star apparent table, body apparent table, moon apparent table, and sky preview.",
+    caveat:
+      "The apparent model is a geometry/brightness estimate, not a full sky-rendering ephemeris.",
+    references: "See Science & Maths: apparent magnitude and angular size.",
+  }),
   "Moon phase":
     "Phase angle applied to all moons uniformly. 0\u00b0 = full (opposition), " +
     "180\u00b0 = new (conjunction, invisible).\n\n" +
@@ -32,12 +42,15 @@ const TIP_LABEL = {
     "lets you explore the full range.",
   "Star apparent table":
     "Star apparent magnitude/brightness/size as seen from each body orbit in the current system.",
-  "Body apparent table":
-    "Planetary object visibility from the selected home world. Phase functions vary by body " +
-    "type (types 1\u20134). Bond albedo is auto-converted to geometric albedo via an " +
-    "approximate phase integral. Star luminosity scales planet brightness via a " +
-    "-2.5 log10(L) correction. Phase angles above 160\u00b0 are flagged as too " +
-    "extreme to observe. Distance per object can be overridden.",
+  "Body apparent table": structuredTip({
+    overview: "Planetary object visibility from the selected observer world.",
+    drawnFrom: "Object radius, distance, phase angle, body type, albedo, and host-star luminosity.",
+    interpretAs:
+      "Lower magnitudes are brighter. Phase angles above 160 degrees are flagged as too extreme to observe.",
+    caveat:
+      "Phase functions are class approximations and distance can be overridden for scenario testing.",
+    references: "See Science & Maths: apparent magnitude and phase functions.",
+  }),
   "Body type":
     "Phase function classification. " +
     "Type 1 (Rocky, airless): Bowell HG system, G=0.28. " +
@@ -51,11 +64,15 @@ const TIP_LABEL = {
     "Moon absolute magnitude includes a -2.5\u00b7log10(L) correction for the host star\u2019s " +
     "luminosity (implemented as dividing by \u221aL inside the log argument). Brighter stars " +
     "illuminate moons more strongly, making them appear brighter from the home world.",
-  "Angular diameter":
-    "Apparent angular size of the object as seen from the home world. " +
-    "Shown in degrees (\u00b0) for very large objects, arcminutes (\u2032) for medium, " +
-    "or arcseconds (\u2033) for small.\n\n" +
-    "Reference: Sun from Earth \u2248 31.6\u2032, Full Moon \u2248 31.1\u2032.",
+  "Angular diameter": structuredTip({
+    overview: "Apparent angular size of the object as seen from the observer world.",
+    drawnFrom: "Object radius and line-of-sight distance.",
+    interpretAs:
+      "Shown in degrees for very large objects, arcminutes for medium objects, or arcseconds for small objects. The Sun from Earth is about 31.6 arcmin; the full Moon about 31.1 arcmin.",
+    caveat:
+      "This is apparent size only; it does not include glare, atmosphere, or telescope limits.",
+    references: "See Science & Maths: angular size.",
+  }),
   Object:
     "Current row object in the apparent-size tables. For stars this is the emitting sun; for bodies and moons it is the target being compared from the selected home world.",
   "Orbit (AU)":
@@ -412,8 +429,20 @@ export function initApparentPage(mountEl) {
   const skyWrapEl = wrap.querySelector("#skyCanvasWrap");
   const skyHintEl = wrap.querySelector("#skyCanvasHint");
   const skyPairAnimationToggleEl = wrap.querySelector("#skyPairAnimationToggle");
+  const skySkeletonEl = createSkeletonCanvas({
+    aspectRatio: "5 / 2",
+    label: "Loading sky comparison",
+    className: "apparent-sky-skeleton",
+  });
+  skyWrapEl?.appendChild(skySkeletonEl);
   let skyRendererReady = true;
   let observerCandidates = [];
+
+  function clearSkySkeleton() {
+    if (!skySkeletonEl || skySkeletonEl.hidden) return;
+    skySkeletonEl.hidden = true;
+    skySkeletonEl.setAttribute("aria-busy", "false");
+  }
 
   function setText(node, text) {
     if (node) node.textContent = text == null ? "" : String(text);
@@ -635,6 +664,7 @@ export function initApparentPage(mountEl) {
     // Sky canvas
     const starModel = sample.starModel;
     if (!sample.homeBodyRef) {
+      clearSkySkeleton();
       // No home planet — show placeholder message on the canvas.
       const rect = skyWrapEl?.getBoundingClientRect?.();
       if (rect && skyCanvasEl) {
@@ -676,6 +706,7 @@ export function initApparentPage(mountEl) {
         {
           animatePrimaryPair: state.animatePrimaryPair,
         },
+        clearSkySkeleton,
       );
     }
   }

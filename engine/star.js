@@ -17,6 +17,7 @@
 import { calcBrownDwarf, computeBrownDwarfXuvModel } from "./brownDwarf.js";
 import { classifyMainSequenceSpectralClassFromTempK } from "./starClassification.js";
 import { computeStellarEnvironmentModel } from "./stellarEnvironment.js";
+import { buildStellarEraTimeline, computeStellarLifecycleTrack } from "./stellarLifecycle.js";
 import { clamp, fmt, toFinite } from "./utils.js";
 import { BROWN_DWARF_MIN_MSOL, classifyHostRegimeByMass } from "./substellarRegime.js";
 
@@ -693,8 +694,13 @@ export function calcStar({
   const evolutionFeH = evolved ? clamp(toFinite(metallicityFeH, 0), -3, MAX_EVOLUTION_FEH) : 0;
   const Z = evolved ? feHtoZ(evolutionFeH) : Z_SUN_SSE;
 
-  const radiusRsolAuto = evolved ? evolvedRadius(m, Z, age) : massToRadius(m);
-  const luminosityLsolAuto = evolved ? evolvedLuminosity(m, Z, age) : massToLuminosity(m);
+  const stellarLifecycle = computeStellarLifecycleTrack({
+    massMsol: m,
+    ageGyr: age,
+    metallicityFeH: toFinite(metallicityFeH, 0),
+    sampleCount: 48,
+  });
+  const lifecycleSample = stellarLifecycle.currentSample;
 
   // Three-way Stefan-Boltzmann resolution.
   // Solar-normalised SB: L = R² × (T/5776)⁴
@@ -705,6 +711,26 @@ export function calcStar({
   const hasR = Number.isFinite(rOv) && rOv > 0;
   const hasL = Number.isFinite(lOv) && lOv > 0;
   const hasT = Number.isFinite(tOv) && tOv > 0;
+  const lifecycleStageId = lifecycleSample?.stage?.id || "main_sequence";
+  const lifecyclePhysicalAvailable =
+    Number.isFinite(lifecycleSample?.radiusRsol) &&
+    lifecycleSample.radiusRsol > 0 &&
+    Number.isFinite(lifecycleSample?.luminosityLsol) &&
+    lifecycleSample.luminosityLsol > 0;
+  const lifecyclePostMainSequence =
+    lifecycleStageId !== "main_sequence" && lifecycleStageId !== "terminal_main_sequence";
+  const useLifecyclePhysicalState =
+    evolved && lifecyclePostMainSequence && lifecyclePhysicalAvailable && !hasR && !hasL && !hasT;
+  const radiusRsolAuto = useLifecyclePhysicalState
+    ? lifecycleSample.radiusRsol
+    : evolved
+      ? evolvedRadius(m, Z, age)
+      : massToRadius(m);
+  const luminosityLsolAuto = useLifecyclePhysicalState
+    ? lifecycleSample.luminosityLsol
+    : evolved
+      ? evolvedLuminosity(m, Z, age)
+      : massToLuminosity(m);
 
   let radiusRsol, luminosityLsol, resolutionMode;
 
@@ -783,6 +809,11 @@ export function calcStar({
     ageGyr: age,
     luminosityLsol,
   });
+  const stellarEraTimeline = buildStellarEraTimeline({
+    lifecycleTrack: stellarLifecycle,
+    currentAgeGyr: age,
+    xuvSaturationAgeGyr: xuvModel.saturationAgeGyr,
+  });
   const stellarEnvironment = computeStellarEnvironmentModel({
     massMsol: m,
     ageGyr: age,
@@ -800,6 +831,24 @@ export function calcStar({
     rotation.confidence === "unsupported"
       ? "Unsupported"
       : `${rotation.confidence.charAt(0).toUpperCase()}${rotation.confidence.slice(1)} confidence`;
+  const currentPhysicalStateSource = useLifecyclePhysicalState
+    ? "lifecycle-post-main-sequence"
+    : evolved
+      ? "hurley-main-sequence"
+      : "zams-static";
+  const stellarLifecycleOutput = {
+    ...stellarLifecycle,
+    eraTimeline: stellarEraTimeline,
+    activeForPhysicalOutput: evolved,
+    physicalStateSource: currentPhysicalStateSource,
+    outputPhysicalState: {
+      radiusRsol,
+      luminosityLsol,
+      tempK,
+      overridden: hasR || hasL || hasT,
+      resolutionMode,
+    },
+  };
 
   return {
     inputs: { massMsol: m, ageGyr: age, metallicityFeH: toFinite(metallicityFeH, 0) },
@@ -845,6 +894,14 @@ export function calcStar({
     },
     xuvModel,
     stellarEnvironment,
+    stellarLifecycle: stellarLifecycleOutput,
+    evolutionDiagnostics: {
+      mode: evolved ? "evolved" : "zams",
+      physicalStateSource: currentPhysicalStateSource,
+      stage: stellarLifecycle.currentSample?.stage || null,
+      confidence: stellarLifecycle.currentSample?.confidence || "unsupported",
+      caveats: stellarLifecycle.currentSample?.caveats || [],
+    },
 
     // handy pre-formatted strings for UI
     display: {

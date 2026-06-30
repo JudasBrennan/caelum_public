@@ -150,7 +150,7 @@ function show(el, { pinned = false } = {}) {
   activeBubble.id = `tooltipBubble-${++activeBubbleId}`;
   activeBubble.setAttribute("role", "tooltip");
   // data-tip is HTML-escaped; decode entities by leveraging DOM
-  activeBubble.textContent = unescapeAttr(text);
+  activeBubble.textContent = normalizeTooltipText(unescapeAttr(text));
   document.body.appendChild(activeBubble);
   updateTriggerState(activeEl, true);
 
@@ -252,4 +252,17 @@ function unescapeAttr(s) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
+}
+
+function normalizeTooltipText(text) {
+  const value = String(text || "").trim();
+  if (!value) return "";
+  if (
+    /^(Overview|Feeds into|Drawn from|Changes|Interpret as|Typical range|Caveat|References):/i.test(
+      value,
+    )
+  ) {
+    return value;
+  }
+  return `Overview: ${value}`;
 }

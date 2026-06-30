@@ -14,6 +14,11 @@ import {
   selectSpinOrbitResonance,
 } from "../physics/rotation.js";
 import {
+  buildSolidBodyResponse,
+  estimateEffectiveRigidityAndQ,
+  estimateMomentOfInertiaFactor,
+} from "../physics/solidBodyResponse.js";
+import {
   classifySmallBodyRegime,
   estimateSmallBodyLoveNumber,
   estimateSmallBodyRigidity,
@@ -57,6 +62,11 @@ function estimateHostTidalQualityFactor({ isGasGiant, planetMassEarth }) {
   const mass = clamp(Number(planetMassEarth) || 1, 0.05, 10);
   const massScaling = mass < 1 ? mass ** -0.9 : mass ** -0.25;
   return clamp(EARTHLIKE_HOST_TIDAL_QUALITY_FACTOR * massScaling, 10, 300);
+}
+
+function toNumberOrFallback(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
 function buildMoonSpinState({ tidallyEvolved, resonance }) {
@@ -175,6 +185,8 @@ export function computeMoonTidalState({
   orbitalDirection,
   composition,
   hasCompositionOverride,
+  solidBodyStructure = null,
+  solidBodyResponse = null,
   innerFateTargetLabel = "Roche limit",
 }) {
   const inputValidationMassMoon = Math.max(0, Number(moonMassMoon) || 0);
@@ -202,7 +214,9 @@ export function computeMoonTidalState({
   const moonSemiMajorAxisM = moonSemiMajorAxisKm * 1000;
   const planetSemiMajorAxisM = auToMeters(planetSemiMajorAxisAu);
 
-  const inertiaMoon = 0.4 * moonMassKg * moonRadiusM ** 2;
+  const inertiaContext = estimateMomentOfInertiaFactor({ solidBodyStructure });
+  const moonMomentOfInertiaFactor = toNumberOrFallback(inertiaContext.momentOfInertiaFactor, 0.4);
+  const inertiaMoon = moonMomentOfInertiaFactor * moonMassKg * moonRadiusM ** 2;
   const planetMomentOfInertiaFactor = isGasGiant ? 0.25 : 0.3307;
   const inertiaPlanet = planetMomentOfInertiaFactor * planetMassKg * planetRadiusM ** 2;
 
@@ -216,10 +230,34 @@ export function computeMoonTidalState({
     gravityMs2: moonGravityMs2,
   });
 
-  let moonResponseRigidity = composition.mu;
-  let qMoon = composition.Q;
+  const suppliedSolidBodyResponse =
+    solidBodyResponse && typeof solidBodyResponse === "object"
+      ? solidBodyResponse
+      : buildSolidBodyResponse({
+          densityKgM3: moonDensityKgM3,
+          gravityMs2: moonGravityMs2,
+          radiusM: moonRadiusM,
+          composition,
+          solidBodyStructure,
+        });
+  const layerMaterial = estimateEffectiveRigidityAndQ({
+    composition,
+    solidBodyStructure,
+  });
+  let moonResponseRigidity = toNumberOrFallback(
+    suppliedSolidBodyResponse.rigidityPa,
+    layerMaterial.rigidityPa,
+  );
+  let qMoon = toNumberOrFallback(
+    suppliedSolidBodyResponse.tidalQualityFactor,
+    layerMaterial.tidalQualityFactor,
+  );
   let k2Model = "homogeneous-elastic-moon-v1";
   let qModel = hasCompositionOverride ? "composition-override-q-v1" : "density-derived-moon-q-v1";
+  if (solidBodyStructure || solidBodyResponse) {
+    k2Model = "layer-aware-elastic-moon-v1";
+    qModel = "layer-aware-material-q-v1";
+  }
   if (smallBodyRegime.appliesSmallBodyTides) {
     moonResponseRigidity = estimateSmallBodyRigidity({
       densityGcm3: moonDensityGcm3,
@@ -327,9 +365,10 @@ export function computeMoonTidalState({
     if (meltFraction > 0.01) {
       tidalFeedbackActive = true;
       effectiveRigidity = Math.exp(
-        Math.log(composition.mu) * (1 - meltFraction) + Math.log(MELT_MU) * meltFraction,
+        Math.log(Math.max(moonResponseRigidity, 1e6)) * (1 - meltFraction) +
+          Math.log(MELT_MU) * meltFraction,
       );
-      effectiveQ = composition.Q * (1 - meltFraction) + MELT_Q * meltFraction;
+      effectiveQ = qMoon * (1 - meltFraction) + MELT_Q * meltFraction;
       const k2Effective = calcK2LoveNumber({
         densityKgM3: moonDensityKgM3,
         gravityMs2: moonGravityMs2,
@@ -421,6 +460,14 @@ export function computeMoonTidalState({
     k2Moon,
     qMoon,
     rigidityMoonGPa: moonResponseRigidity / 1e9,
+    baseQMoon: composition.Q,
+    baseRigidityMoonGPa: composition.mu / 1e9,
+    moonMomentOfInertiaFactor,
+    solidBodyResponse: {
+      ...suppliedSolidBodyResponse,
+      momentOfInertiaFactor: moonMomentOfInertiaFactor,
+    },
+    solidBodyStructureClass: solidBodyStructure?.structureClass || null,
     tidalRegime: smallBodyRegime.tidalRegime,
     smallBodyRegime,
     k2Model,
@@ -429,7 +476,10 @@ export function computeMoonTidalState({
     qPlanetModel,
     k2Planet,
     k2PlanetEffective: k2PlanetEff,
-    tidalUncertaintyCaveats: smallBodyRegime.caveats,
+    tidalUncertaintyCaveats: [
+      ...(smallBodyRegime.caveats || []),
+      ...(suppliedSolidBodyResponse.caveats || []),
+    ],
     massModel: {
       inputValidationMassMoon,
       physicsMassMoon,
