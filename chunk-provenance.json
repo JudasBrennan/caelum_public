@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-30T19:02:00.022Z",
+  "generatedAt": "2026-06-30T19:18:16.038Z",
   "lazyChunkCount": 120,
   "largestLazyChunk": {
     "file": "chunks/chunk-K6EXVWDB.js",
@@ -755,16 +755,16 @@
       ]
     },
     {
-      "file": "chunks/aboutPage-I4SRH5D2.js",
-      "bytes": 73348,
+      "file": "chunks/aboutPage-T5VRTWNW.js",
+      "bytes": 72802,
       "kind": "chunk",
-      "appBytes": 73236,
+      "appBytes": 72690,
       "vendorBytes": 0,
       "pureVendor": false,
       "topContributors": [
         {
           "file": "ui/aboutPage.js",
-          "bytesInOutput": 73236,
+          "bytesInOutput": 72690,
           "vendor": false
         }
       ]

@@ -9065,7 +9065,7 @@
       "format": "esm"
     },
     "ui/aboutPage.js": {
-      "bytes": 80676,
+      "bytes": 80103,
       "imports": [
         {
           "path": "ui/appIdentity.js",
@@ -11511,7 +11511,7 @@
       },
       "bytes": 55817
     },
-    "dist/chunks/aboutPage-I4SRH5D2.js": {
+    "dist/chunks/aboutPage-T5VRTWNW.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-GZQ4AGKB.js",
@@ -11528,10 +11528,10 @@
       "entryPoint": "ui/aboutPage.js",
       "inputs": {
         "ui/aboutPage.js": {
-          "bytesInOutput": 73236
+          "bytesInOutput": 72690
         }
       },
-      "bytes": 73348
+      "bytes": 72802
     },
     "dist/chunks/sciencePage-EYGNAJ5A.js": {
       "imports": [
@@ -15251,7 +15251,7 @@
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/aboutPage-I4SRH5D2.js",
+          "path": "dist/chunks/aboutPage-T5VRTWNW.js",
           "kind": "dynamic-import"
         },
         {
