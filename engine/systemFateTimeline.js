@@ -607,7 +607,9 @@ function buildLifecycleMarkers(stageSequence, summary, currentAgeGyr) {
       id: `stage-${id}`,
       kind:
         id === "supernova_transition" ? "supernova-transition" : isEndpoint ? "remnant" : "stage",
-      label: segment.label || titleCase(id),
+      label: isEndpoint
+        ? summary?.remnant?.label || segment.label || titleCase(id)
+        : segment.label || titleCase(id),
       timeGyr: round(timeGyr, 5),
       state: stateForInterval(timeGyr, segment.endsAtGyr, currentAgeGyr),
       severity: id === "supernova_transition" ? "bad" : isEndpoint ? "caution" : "info",

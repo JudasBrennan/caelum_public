@@ -43,6 +43,7 @@ import { buildMoonOrientationContext } from "./contexts/moonOrientationContext.j
 import { buildTidalStressMorphologyContext } from "./contexts/secularStressContext.js";
 import { buildStellarHistoryDoseContext } from "./contexts/stellarHistoryDoseContext.js";
 import { calcPlanetExact } from "./planet.js";
+import { EARTH_GRAVITY_MS2 } from "./physics/constants.js";
 import { buildSolidBodyResponse } from "./physics/solidBodyResponse.js";
 import { solveSolidBodyStructure } from "./physics/solidBodyStructure.js";
 import { calcStar, massToLuminosity, massToRadius } from "./star.js";
@@ -1336,7 +1337,7 @@ export function calcMoonExact({
   });
   const initialSolidBodyResponse = buildSolidBodyResponse({
     densityKgM3: rhoMoonGcm3 * 1000,
-    gravityMs2: gMoonG * 9.81,
+    gravityMs2: gMoonG * EARTH_GRAVITY_MS2,
     radiusM: rMoonRM * 1737.4e3,
     composition: moonComposition,
     solidBodyStructure,
@@ -1670,7 +1671,7 @@ export function calcMoonExact({
   });
   const solidBodyResponse = buildSolidBodyResponse({
     densityKgM3: rhoMoonGcm3 * 1000,
-    gravityMs2: gMoonG * 9.81,
+    gravityMs2: gMoonG * EARTH_GRAVITY_MS2,
     radiusM: rMoonRM * 1737.4e3,
     composition: moonComposition,
     solidBodyStructure,
@@ -2009,7 +2010,7 @@ export function calcMoonExact({
     starMassMsol: mStarMsol,
     starAgeGyr: ageGyr,
     starLuminosityLsol: lStarLsol,
-    starEvolutionMode: starEvolutionMode || resolvedStar.evolutionMode || "zams",
+    starEvolutionMode: starEvolutionMode || resolvedStar.evolutionMode || "evolved",
     presentXuvEarthAtOrbit: environmentForcing.flux?.xuvEarthAtOrbit,
     windPressureEarthAtOrbit: environmentForcing.wind?.ramPressureEarthRatio,
     orbitAu: aPlanetAU,

@@ -94,12 +94,11 @@ function normalizeStarComponent(raw, index = 1, fallback = {}) {
     luminosityLsolOverride: toNullableFiniteNumber(raw?.luminosityLsolOverride, { min: 0 }),
     tempKOverride: toNullableFiniteNumber(raw?.tempKOverride, { min: 0 }),
     evolutionMode:
-      raw?.evolutionMode === "evolved" || fallback?.evolutionMode === "evolved"
-        ? raw?.evolutionMode === "evolved" ||
-          (!raw?.evolutionMode && fallback?.evolutionMode === "evolved")
-          ? "evolved"
-          : "zams"
-        : "zams",
+      raw?.evolutionMode === "zams" || raw?.evolutionMode === "staticMainSequence"
+        ? "zams"
+        : fallback?.evolutionMode === "zams" || fallback?.evolutionMode === "staticMainSequence"
+          ? "zams"
+          : "evolved",
     activityModelVersion:
       String(raw?.activityModelVersion || fallback?.activityModelVersion || "v2").toLowerCase() ===
       "v1"
@@ -463,7 +462,10 @@ export function projectPrimaryStarFromStellarSystem(stellarSystem, fallbackStar 
     advancedDerivationMode: ["rl", "rt", "lt"].includes(primary?.advancedDerivationMode)
       ? primary.advancedDerivationMode
       : "rl",
-    evolutionMode: primary?.evolutionMode === "evolved" ? "evolved" : "zams",
+    evolutionMode:
+      primary?.evolutionMode === "zams" || primary?.evolutionMode === "staticMainSequence"
+        ? "zams"
+        : "evolved",
     activityModelVersion: primary?.activityModelVersion === "v1" ? "v1" : "v2",
   };
 }

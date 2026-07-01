@@ -6,8 +6,8 @@ export const MAIN_SEQUENCE_SPECTRAL_BUCKETS = Object.freeze([
   Object.freeze({ family: "G", lo: 5200, hi: 6000, denom: 800 }),
   Object.freeze({ family: "F", lo: 6000, hi: 7500, denom: 1500 }),
   Object.freeze({ family: "A", lo: 7500, hi: 10000, denom: 2500 }),
-  Object.freeze({ family: "B", lo: 10000, hi: 33000, denom: 23000 }),
-  Object.freeze({ family: "O", lo: 33000, hi: 95000, denom: 62000 }),
+  Object.freeze({ family: "B", lo: 10000, hi: 30000, denom: 20000 }),
+  Object.freeze({ family: "O", lo: 30000, hi: 95000, denom: 65000 }),
 ]);
 
 export const BROWN_DWARF_SPECTRAL_FAMILY_BOUNDS = Object.freeze([
@@ -290,7 +290,7 @@ export function classifyMainSequenceSpectralClassFromTempK(tempK) {
   if (!bucket) return "NA";
 
   const rawSubtype = (1 - (t - bucket.lo) / bucket.denom) * 10;
-  const subtype = Math.floor(rawSubtype * 10) / 10;
+  const subtype = clamp(Math.floor(rawSubtype * 10) / 10, 0, 9.9);
   return `${bucket.family}${formatSubtype(subtype)}V`;
 }
 

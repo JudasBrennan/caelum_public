@@ -25,10 +25,10 @@ import {
   estimateSmallBodyTidalQ,
 } from "./smallBody.js";
 import { buildMoonSynchronousOrbitContext } from "./tidalEvolution.js";
+import { EARTH_GRAVITY_MS2, EARTH_RADIUS_KM, G_SI as G } from "../physics/constants.js";
 
 const PI = Math.PI;
-const G = 6.67e-11;
-const KM_PER_REARTH = 6371;
+const KM_PER_REARTH = EARTH_RADIUS_KM;
 const KM_PER_RMOON = 1737.4;
 const SEC_PER_DAY = 86400;
 const SECONDS_TO_GYR = 3.171e-17;
@@ -196,14 +196,14 @@ export function computeMoonTidalState({
   const moonMassKgForDivision = Math.max(moonMassKg, moonMassToKg(numericalFloorMassMoon));
   const moonRadiusM = moonRadiusMoon * KM_PER_RMOON * 1000;
   const moonDensityKgM3 = moonDensityGcm3 * 1000;
-  const moonGravityMs2 = moonGravityG * 9.81;
+  const moonGravityMs2 = moonGravityG * EARTH_GRAVITY_MS2;
   const moonRadiusKm = moonRadiusM / 1000;
   const moonDiameterKm = moonRadiusKm * 2;
 
   const planetMassKg = earthMassToKg(planetMassEarth);
   const planetRadiusM = planetRadiusEarth * KM_PER_REARTH * 1000;
   const planetDensityKgM3 = planetDensityGcm3 * 1000;
-  const planetGravityMs2 = (planetMassEarth / planetRadiusEarth ** 2) * 9.81;
+  const planetGravityMs2 = (planetMassEarth / planetRadiusEarth ** 2) * EARTH_GRAVITY_MS2;
   const starMassKg = solarMassToKg(starMassMsol);
   const isGasGiant = planetDensityGcm3 < 2;
   const qPlanetEff = estimateHostTidalQualityFactor({ isGasGiant, planetMassEarth });

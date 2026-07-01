@@ -501,6 +501,17 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "3.2.1",
+      "(from 3.2.0)",
+      [
+        "<b>Science Corrections</b> &mdash; Stellar, planetary, moon, orbital, and tectonic calculations have been tightened so generated worlds stay more internally consistent.",
+        "<b>Calibration Hardening</b> &mdash; Validation now separates strict point checks from calibrated and exploratory science areas, making uncertainty clearer without pretending every output is equally precise.",
+        "<b>Edge-Case Fixes</b> &mdash; Volatile escape, vapor behavior, moon tides, Roche limits, rocky-solver guards, seafloor cooling, and stellar boundary cases now avoid several misleading results.",
+        "<b>Release Confidence Checks</b> &mdash; Production-browser checks now exercise edge worlds across the main model routes and watch for visible invalid-number leaks before release.",
+      ],
+      { open: true },
+    ),
+    release(
       "3.2.0",
       "(from 3.1.0)",
       [
@@ -510,7 +521,7 @@ function changelogHTML() {
         "<b>Moon Origin And Solid-Body Depth</b> &mdash; Moons now include an Origin Pathway selector and deeper solid-body response context for tides, geology, oceans, atmospheres, magnetospheres, and habitability caveats.",
         "<b>Structured Help And Loading States</b> &mdash; High-value tooltips now explain what each item is, where it comes from, and what it feeds into, while skeleton loaders make route changes and heavier previews feel less blank.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "3.1.0",

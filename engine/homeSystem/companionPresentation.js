@@ -1,3 +1,5 @@
+import { SOLAR_RADIUS_KM } from "../physics/constants.js";
+
 function toPresentationStar(starContext, extras = {}) {
   if (!starContext) return null;
   const radiusRsol = Number(starContext.model?.radiusRsol || 0);
@@ -10,7 +12,7 @@ function toPresentationStar(starContext, extras = {}) {
     tempK: Number(starContext.model?.tempK || 0),
     luminosityLsol: Number(starContext.model?.luminosityLsol || 0),
     radiusRsol,
-    radiusKm: radiusRsol * 696340,
+    radiusKm: radiusRsol * SOLAR_RADIUS_KM,
     starColourHex: String(starContext.model?.starColourHex || "").trim() || "#fff0d0",
     ...extras,
   };

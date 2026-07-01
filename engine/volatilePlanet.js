@@ -10,6 +10,7 @@ import {
   orbitalDirectionFromInclination,
 } from "./physics/orbital.js";
 import { evaluateJeansEscapeSpecies, xuvFluxAtOrbitErgCm2S } from "./physics/escape.js";
+import { SOLAR_MASS_KG } from "./physics/constants.js";
 import { clamp, fmt, round, toFinite } from "./utils.js";
 import { buildEnvironmentForcing, formatEnvironmentForcingSummary } from "./environment/index.js";
 
@@ -225,6 +226,7 @@ export function calcVolatilePlanet({
   const massKg = earthMassToKg(resolvedMassEarth);
   const envelopeMassEarth = resolvedMassEarth * envelopeFraction;
   const envelopeMassKg = earthMassToKg(envelopeMassEarth);
+  const planetMassMsol = massKg / SOLAR_MASS_KG;
   const bulkDensityGcm3 = (resolvedMassEarth * EARTH_DENSITY_GCM3) / transitRadiusEarth ** 3;
   const solidDensityGcm3 = (solidMassEarth * EARTH_DENSITY_GCM3) / solid.radiusEarth ** 3;
   const gravityG = resolvedMassEarth / transitRadiusEarth ** 2;
@@ -234,10 +236,12 @@ export function calcVolatilePlanet({
   const orbitalPeriodYears = calcOrbitalPeriodYearsKepler({
     semiMajorAxisAu: orbitAu,
     centralMassMsol: Math.max(toFinite(starMassMsol, 1), 0.01),
+    secondaryMassMsol: planetMassMsol,
   });
   const orbitalPeriodDays = calcOrbitalPeriodDaysKepler({
     semiMajorAxisAu: orbitAu,
     centralMassMsol: Math.max(toFinite(starMassMsol, 1), 0.01),
+    secondaryMassMsol: planetMassMsol,
   });
   const xuvRatio = Math.max(toFinite(environmentForcing.flux?.xuvEarthAtOrbit, 0), 0);
   const xuvFluxErgCm2S =

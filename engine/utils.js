@@ -1,5 +1,7 @@
 // Utility helpers used across calculators.
 
+import { AMU_KG, BOLTZMANN_J_K } from "./physics/constants.js";
+
 export { eccentricityFactor, k2LoveNumber, spinOrbitResonance } from "./physics/rotation.js";
 
 export function clamp(n, min, max) {
@@ -121,9 +123,10 @@ export const MOON_VOLATILE_TABLE = [
     massAmu: 18,
     subK: 210,
     maxRho: 3.2,
-    pTp: 611,
+    pTp: 611.7,
     tTp: 273.16,
     dhSub: 51100,
+    dhVap: 40650,
   },
 ];
 
@@ -131,33 +134,36 @@ export const MOON_VOLATILE_TABLE = [
 // lambda > 6 -> retained; 3-6 -> marginal; < 3 -> escaping.
 export function jeansParameter(massAmu, escVelocityMs, tempK) {
   if (tempK <= 0 || escVelocityMs <= 0) return 0;
-  return (massAmu * 1.6605e-27 * escVelocityMs ** 2) / (2 * 1.3806e-23 * tempK);
+  return (massAmu * AMU_KG * escVelocityMs ** 2) / (2 * BOLTZMANN_J_K * tempK);
 }
 
 // Clausius-Clapeyron vapor pressure estimate.
 // P = P_tp * exp(-(dH/R)(1/T - 1/T_tp))
-// Returns pressure in Pa. Accurate to factor ~2-3 for T < T_tp.
+// Returns pressure in Pa. Below the triple point this uses sublimation
+// enthalpy; above it uses vaporisation enthalpy when available.
 export function vaporPressurePa(vol, tempK) {
-  if (tempK <= 0 || tempK >= vol.tTp) return vol.pTp;
+  if (tempK <= 0) return 0;
   const R = 8.314;
-  return vol.pTp * Math.exp(-(vol.dhSub / R) * (1 / tempK - 1 / vol.tTp));
+  const enthalpyJMol = tempK > vol.tTp && vol.dhVap ? vol.dhVap : vol.dhSub;
+  return vol.pTp * Math.exp(-(enthalpyJMol / R) * (1 / tempK - 1 / vol.tTp));
 }
 
 // Atmospheric escape timescale (seconds) for a species with Jeans parameter lambda.
 //
-// tau_esc ~= P / (g * sqrt(m / (2pi k_B T)) * (1 + lambda) * exp(-lambda))
+// tau_esc ~= 1 / (g * sqrt(m / (2pi k_B T)) * (1 + lambda) * exp(-lambda))
 //
-// where P is surface vapor pressure, g is surface gravity, m is molecular mass,
-// T is surface temperature, and lambda is the Jeans parameter. Returns Infinity
+// where g is surface gravity, m is molecular mass, T is surface temperature,
+// and lambda is the Jeans parameter. Returns Infinity when pressure is zero or
 // when tau exceeds Number.MAX_VALUE (effectively permanent retention).
 export function escapeTimescaleSeconds(pressurePa, gravityMs2, massAmu, tempK, lambda) {
   if (pressurePa <= 0 || gravityMs2 <= 0 || tempK <= 0) return Infinity;
-  const m = massAmu * 1.6605e-27;
-  const kB = 1.3806e-23;
+  const m = massAmu * AMU_KG;
+  const kB = BOLTZMANN_J_K;
   const thermalFactor = Math.sqrt(m / (2 * Math.PI * kB * tempK));
-  const exponent = (1 + lambda) * Math.exp(-lambda);
+  const lambdaValue = Math.max(0, toFinite(lambda, 0));
+  const exponent = (1 + lambdaValue) * Math.exp(-lambdaValue);
   if (exponent === 0) return Infinity;
   const lossRate = gravityMs2 * thermalFactor * exponent;
   if (lossRate === 0) return Infinity;
-  return pressurePa / lossRate;
+  return 1 / lossRate;
 }

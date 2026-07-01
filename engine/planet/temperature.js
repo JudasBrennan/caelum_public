@@ -3,9 +3,10 @@ import {
   calcEquilibriumTemperatureAtDistanceK,
 } from "../physics/radiative.js";
 import { auToMeters } from "../physics/orbital.js";
+import { SOLAR_LUMINOSITY_ERG_S } from "../physics/constants.js";
 
 const STEFAN_BOLTZ_ERG = 0.000056703; // erg*cm^-2*s^-1*K^-4
-const L_SOL_ERG_S = 3.846e33;
+const L_SOL_ERG_S = SOLAR_LUMINOSITY_ERG_S;
 const AU_CM = auToMeters(1) * 100;
 const GREENHOUSE_EQ_COEFF = 278;
 

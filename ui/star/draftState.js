@@ -145,7 +145,10 @@ export function createInitialStarDraftState({
     advancedDerivationMode: ["rl", "rt", "lt"].includes(primaryStar?.advancedDerivationMode)
       ? primaryStar.advancedDerivationMode
       : "rl",
-    evolutionMode: primaryStar?.evolutionMode === "evolved" ? "evolved" : "zams",
+    evolutionMode:
+      primaryStar?.evolutionMode === "zams" || primaryStar?.evolutionMode === "staticMainSequence"
+        ? "zams"
+        : "evolved",
     activityModelVersion: primaryStar?.activityModelVersion === "v1" ? "v1" : "v2",
     topologyKind: ["binary", "triple", "quad"].includes(stellarSystem?.topologyKind)
       ? stellarSystem.topologyKind
@@ -249,7 +252,10 @@ export function createStarDraftHelpers({ defaults = {}, getDraftState = () => ({
       tempKOverride: finitePositiveNumber(draftState?.[config.tempField]),
       ageGyr: finiteNumber(draftState?.ageGyr, finiteNumber(defaults.ageGyr, 0)),
       metallicityFeH: finiteNumber(draftState?.metallicityFeH, 0),
-      evolutionMode: draftState?.evolutionMode === "evolved" ? "evolved" : "zams",
+      evolutionMode:
+        draftState?.evolutionMode === "zams" || draftState?.evolutionMode === "staticMainSequence"
+          ? "zams"
+          : "evolved",
       activityModelVersion: draftState?.activityModelVersion === "v1" ? "v1" : "v2",
     };
   }

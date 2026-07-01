@@ -31,13 +31,19 @@ function compositionBiases(compositionOverride, densityGcm3) {
 function inferVolatilePresence({
   volatile,
   densityGcm3,
+  surfaceTempK,
   compositionOverride,
   waterMassFractionPct,
   ammoniaPct,
   mode,
 }) {
-  if (mode === "core") return densityGcm3 < volatile.maxRho;
   const speciesKey = normalizeSpeciesKey(volatile.species);
+  if (mode === "core") {
+    if (["n2", "co", "ch4"].includes(speciesKey)) {
+      return densityGcm3 < volatile.maxRho && (densityGcm3 <= 1.9 || surfaceTempK <= 100);
+    }
+    return densityGcm3 < volatile.maxRho;
+  }
   const explicitWaterFraction = Number.isFinite(Number(waterMassFractionPct))
     ? clamp(toFinite(waterMassFractionPct, 0) / 100, 0, 0.9)
     : null;
@@ -155,6 +161,7 @@ export function analyseMoonVolatiles(
           inferVolatilePresence({
             volatile,
             densityGcm3,
+            surfaceTempK,
             compositionOverride: options?.compositionOverride,
             waterMassFractionPct: options?.waterMassFractionPct,
             ammoniaPct: options?.ammoniaPct,

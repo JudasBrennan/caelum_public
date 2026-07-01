@@ -18,12 +18,13 @@
 import { clamp, toFinite } from "./utils.js";
 import { auToKilometers } from "./physics/orbital.js";
 import { calcInsolationEarthRatio } from "./physics/radiative.js";
+import { SOLAR_APPARENT_MAG_1AU } from "./physics/constants.js";
 import { calcStar } from "./star.js";
 
 const PI = Math.PI;
 const AU_IN_KM = auToKilometers(1);
 const ARCSEC_PER_RAD = 206264.806;
-const EARTH_SUN_APP_MAG = -26.762;
+const EARTH_SUN_APP_MAG = SOLAR_APPARENT_MAG_1AU;
 const FULL_MOON_APP_MAG = -12.74;
 const JUPITER_RADIUS_KM = 69911;
 const EARTH_RADIUS_KM = 6371;

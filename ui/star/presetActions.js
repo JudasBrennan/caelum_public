@@ -52,7 +52,10 @@ export function createStarPresetActions({
     });
     state.ageGyr = Number(nextInputs?.ageGyr ?? state.ageGyr);
     state.metallicityFeH = Number(nextInputs?.metallicityFeH ?? state.metallicityFeH) || 0;
-    state.evolutionMode = nextInputs?.evolutionMode === "evolved" ? "evolved" : "zams";
+    state.evolutionMode =
+      nextInputs?.evolutionMode === "zams" || nextInputs?.evolutionMode === "staticMainSequence"
+        ? "zams"
+        : "evolved";
     state.activityModelVersion = "v2";
     applyStarSystemInputs(systemInputs);
     syncFocusedStarEditorInputs();

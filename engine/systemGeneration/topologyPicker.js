@@ -136,7 +136,11 @@ function buildStarComponent(id, name, massMsol, primaryInputs) {
     radiusRsolOverride: null,
     luminosityLsolOverride: null,
     tempKOverride: null,
-    evolutionMode: primaryInputs?.evolutionMode === "evolved" ? "evolved" : "zams",
+    evolutionMode:
+      primaryInputs?.evolutionMode === "zams" ||
+      primaryInputs?.evolutionMode === "staticMainSequence"
+        ? "zams"
+        : "evolved",
     activityModelVersion: primaryInputs?.activityModelVersion === "v1" ? "v1" : "v2",
   };
 }

@@ -1,9 +1,7 @@
-const AU_M = 149597870000;
-const AU_KM = 149597870;
-const KG_PER_MSOL = 1.989e30;
-const KG_PER_MEARTH = 5.972e24;
+import { AU_KM, AU_M, EARTH_MASS_KG, G_SI, SOLAR_MASS_KG } from "./constants.js";
+
 const KG_PER_MMOON = 7.342e22;
-const G = 6.674e-11;
+const G = G_SI;
 
 export function auToMeters(distanceAu) {
   return distanceAu * AU_M;
@@ -14,37 +12,53 @@ export function auToKilometers(distanceAu) {
 }
 
 export function solarMassToKg(massSolar) {
-  return massSolar * KG_PER_MSOL;
+  return massSolar * SOLAR_MASS_KG;
 }
 
 export function earthMassToKg(massEarth) {
-  return massEarth * KG_PER_MEARTH;
+  return massEarth * EARTH_MASS_KG;
 }
 
 export function moonMassToKg(massMoon) {
   return massMoon * KG_PER_MMOON;
 }
 
-export function calcOrbitalPeriodYearsKepler({ semiMajorAxisAu, centralMassMsol }) {
-  return Math.sqrt(semiMajorAxisAu ** 3 / centralMassMsol);
+export function calcOrbitalPeriodYearsKepler({
+  semiMajorAxisAu,
+  centralMassMsol,
+  secondaryMassMsol = 0,
+}) {
+  const totalMassMsol = Number(centralMassMsol) + Math.max(Number(secondaryMassMsol) || 0, 0);
+  if (!(semiMajorAxisAu > 0) || !(totalMassMsol > 0)) return 0;
+  return Math.sqrt(semiMajorAxisAu ** 3 / totalMassMsol);
 }
 
-export function orbitalPeriodYearsKepler(semiMajorAxisAu, centralMassMsol) {
-  return calcOrbitalPeriodYearsKepler({ semiMajorAxisAu, centralMassMsol });
+export function orbitalPeriodYearsKepler(semiMajorAxisAu, centralMassMsol, secondaryMassMsol = 0) {
+  return calcOrbitalPeriodYearsKepler({ semiMajorAxisAu, centralMassMsol, secondaryMassMsol });
 }
 
 export function calcOrbitalPeriodDaysKepler({
   semiMajorAxisAu,
   centralMassMsol,
+  secondaryMassMsol = 0,
   daysPerYear = 365.25,
 }) {
-  return calcOrbitalPeriodYearsKepler({ semiMajorAxisAu, centralMassMsol }) * daysPerYear;
+  return (
+    calcOrbitalPeriodYearsKepler({ semiMajorAxisAu, centralMassMsol, secondaryMassMsol }) *
+    daysPerYear
+  );
 }
 
-export function orbitalPeriodDaysKepler(semiMajorAxisAu, centralMassMsol, daysPerYear = 365.25) {
+export function orbitalPeriodDaysKepler(
+  semiMajorAxisAu,
+  centralMassMsol,
+  daysPerYear = 365.25,
+  secondaryMassMsol = 0,
+) {
   return calcOrbitalPeriodDaysKepler({
     semiMajorAxisAu,
     centralMassMsol,
+    secondaryMassMsol,
     daysPerYear,
   });
 }
@@ -59,7 +73,7 @@ export function calcTwoBodyOrbitalPeriodSeconds({
   semiMajorAxisM,
   primaryMassKg,
   secondaryMassKg = 0,
-  gravitationalConstant = 6.67e-11,
+  gravitationalConstant = G_SI,
 }) {
   return (
     2 *
@@ -72,7 +86,7 @@ export function twoBodyOrbitalPeriodSeconds(
   semiMajorAxisM,
   primaryMassKg,
   secondaryMassKg = 0,
-  gravitationalConstant = 6.67e-11,
+  gravitationalConstant = G_SI,
 ) {
   return calcTwoBodyOrbitalPeriodSeconds({
     semiMajorAxisM,

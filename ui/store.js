@@ -334,7 +334,10 @@ export async function clearUnreadableSavedWorld() {
 
 /** Resolve effective R/L/T overrides and evolution mode from the star state. */
 export function getStarOverrides(star) {
-  const ev = star?.evolutionMode || "zams";
+  const ev =
+    star?.evolutionMode === "zams" || star?.evolutionMode === "staticMainSequence"
+      ? "zams"
+      : "evolved";
   if (star?.physicsMode === "advanced") {
     const mode = star.advancedDerivationMode;
     const radius = star.radiusRsolOverride;

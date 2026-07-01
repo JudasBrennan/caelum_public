@@ -15,6 +15,7 @@ const SOLAR_RADIUS_AU = 0.00465047;
 const MIN_TRACK_MASS_MSOL = 0.075;
 const MAX_TRACK_MASS_MSOL = 100;
 const MAX_SAMPLE_COUNT = 720;
+const FULLY_CONVECTIVE_RED_DWARF_MAX_MSOL = 0.35;
 const GIANT_STAGE_IDS = new Set([
   "red_giant",
   "core_helium_burning",
@@ -36,6 +37,12 @@ const STAGE_DEFINITIONS = Object.freeze({
     label: "Terminal main sequence",
     family: "hydrogen exhaustion",
     confidenceBase: "high",
+  },
+  blue_dwarf: {
+    id: "blue_dwarf",
+    label: "Blue dwarf phase",
+    family: "fully convective late hydrogen burning",
+    confidenceBase: "low",
   },
   subgiant: {
     id: "subgiant",
@@ -166,6 +173,22 @@ export function estimateStellarRemnant({ initialMassMsol = 1, metallicityFeH = 0
   const feH = clamp(toFinite(metallicityFeH, 0), -3, 0.5);
   const metallicityWindBoost = clamp(10 ** (0.25 * feH), 0.45, 1.35);
 
+  if (mass < FULLY_CONVECTIVE_RED_DWARF_MAX_MSOL) {
+    const remnantMass = clamp(0.96 * mass, MIN_TRACK_MASS_MSOL * 0.85, mass);
+    return {
+      type: "helium_white_dwarf",
+      stageId: "white_dwarf",
+      label: "Helium white dwarf",
+      massMsol: round(remnantMass, 4),
+      formationChannel: "fully convective blue-dwarf endpoint",
+      confidence: "low",
+      caveats: [
+        "Fully convective red-dwarf endpoints are theoretical far-future extrapolations.",
+        "The track avoids red-giant, core-helium-burning, and AGB stages below about 0.35 Msol.",
+      ],
+    };
+  }
+
   if (mass < 0.8) {
     const remnantMass = clamp(0.32 + 0.22 * mass, 0.34, 0.52);
     return {
@@ -181,8 +204,8 @@ export function estimateStellarRemnant({ initialMassMsol = 1, metallicityFeH = 0
     };
   }
 
-  if (mass < 7.8) {
-    const remnantMass = clamp(0.109 * mass + 0.394, 0.52, 1.08);
+  if (mass <= 8) {
+    const remnantMass = clamp(0.109 * mass + 0.394, 0.45, 1.38);
     return {
       type: "carbon_oxygen_white_dwarf",
       stageId: "white_dwarf",
@@ -195,7 +218,7 @@ export function estimateStellarRemnant({ initialMassMsol = 1, metallicityFeH = 0
   }
 
   if (mass < 10) {
-    const remnantMass = clamp(1.05 + 0.12 * (mass - 7.8), 1.05, 1.32);
+    const remnantMass = clamp(1.266 + 0.027 * (mass - 8), 1.05, 1.32);
     return {
       type: "oxygen_neon_white_dwarf",
       stageId: "white_dwarf",
@@ -207,7 +230,7 @@ export function estimateStellarRemnant({ initialMassMsol = 1, metallicityFeH = 0
     };
   }
 
-  if (mass < 25) {
+  if (mass <= 25) {
     const remnantMass = clamp(1.32 + 0.035 * (mass - 10), 1.32, 2.05);
     return {
       type: "neutron_star",
@@ -271,7 +294,11 @@ export function buildStellarLifecycleStageSequence({ massMsol = 1, metallicityFe
   ];
 
   let cursor = tMs;
-  if (mass >= 8) {
+  if (mass < FULLY_CONVECTIVE_RED_DWARF_MAX_MSOL) {
+    const blueDwarf = clamp(0.12 * tMs, 20, 250);
+    segments.push(makeSegment("blue_dwarf", cursor, cursor + blueDwarf));
+    cursor += blueDwarf;
+  } else if (mass >= 8) {
     const subgiant = clamp(0.08 * tMs, 0.0004, 0.08);
     const supergiant = clamp(0.12 * tMs, 0.0006, 0.16);
     const collapse = clamp(0.012 * tMs, 0.0001, 0.012);
@@ -431,6 +458,24 @@ function stageProperties({ stageId, progress, ageGyr, stageSequence }) {
     };
   }
 
+  if (stageId === "blue_dwarf") {
+    const x = smooth(progress);
+    const lowMassOffset = (FULLY_CONVECTIVE_RED_DWARF_MAX_MSOL - mass) / 0.275;
+    const luminosityBoost = clamp(2.8 + lowMassOffset * 2.2, 2.5, 5.5);
+    const radiusTarget = clamp(
+      tmsRadius * (0.82 + 0.1 * (mass / FULLY_CONVECTIVE_RED_DWARF_MAX_MSOL)),
+      tmsRadius * 0.75,
+      tmsRadius,
+    );
+    const luminosity = mix(tmsLuminosity, tmsLuminosity * luminosityBoost, x);
+    const radius = mix(tmsRadius, radiusTarget, x);
+    return {
+      luminosityLsol: luminosity,
+      radiusRsol: radius,
+      tempK: stellarTemperatureK(luminosity, radius),
+    };
+  }
+
   if (stageId === "subgiant") {
     const x = smooth(progress);
     const luminosity = mix(tmsLuminosity, tmsLuminosity * scale.subgiantL, x);
@@ -502,6 +547,7 @@ function massLossFractionByStage(stageId, progress, stageSequence) {
     if (stageId === "supergiant") return 0.07 + 0.18 * progress;
     if (stageId === "supernova_transition") return 0.25 + 0.1 * progress;
   } else {
+    if (stageId === "blue_dwarf") return 0.02 * progress;
     if (stageId === "subgiant") return 0.01 * progress;
     if (stageId === "red_giant") return 0.01 + 0.07 * progress;
     if (stageId === "core_helium_burning") return 0.08 + 0.12 * progress;
@@ -532,6 +578,7 @@ function massLossRateForSample(segment, stageId, progress, stageSequence) {
   let fractionSpan = 0;
   if (stageId === "terminal_main_sequence" && stageSequence.initialMassMsol >= 15)
     fractionSpan = 0.015;
+  if (stageId === "blue_dwarf") fractionSpan = 0.02;
   if (stageId === "red_giant") fractionSpan = 0.07;
   if (stageId === "core_helium_burning") fractionSpan = 0.12;
   if (stageId === "asymptotic_giant_branch") fractionSpan = 0.8;
@@ -551,6 +598,12 @@ function coreMassesForSample(stageId, progress, stageSequence) {
   if (stageId === "terminal_main_sequence") {
     return {
       heliumCoreMsol: round(clamp(0.08 * mass + 0.04 * mass * progress, 0, remnantMass), 4),
+      carbonOxygenCoreMsol: round(0, 4),
+    };
+  }
+  if (stageId === "blue_dwarf") {
+    return {
+      heliumCoreMsol: round(clamp(0.2 * mass + 0.8 * remnantMass * progress, 0, remnantMass), 4),
       carbonOxygenCoreMsol: round(0, 4),
     };
   }
@@ -580,6 +633,12 @@ function coreMassesForSample(stageId, progress, stageSequence) {
     return {
       heliumCoreMsol: round(clamp(remnantMass, 0, mass), 4),
       carbonOxygenCoreMsol: round(clamp(remnantMass * (0.72 + 0.28 * progress), 0, mass), 4),
+    };
+  }
+  if (stageId === "white_dwarf" && stageSequence.remnant?.type === "helium_white_dwarf") {
+    return {
+      heliumCoreMsol: round(remnantMass, 4),
+      carbonOxygenCoreMsol: round(0, 4),
     };
   }
   return {
@@ -613,11 +672,14 @@ function habitableZoneForProperties({ luminosityLsol, tempK, stageId }) {
     stageId === "red_giant" ||
     stageId === "core_helium_burning" ||
     stageId === "asymptotic_giant_branch" ||
-    stageId === "supergiant"
+    stageId === "supergiant" ||
+    stageId === "blue_dwarf"
   ) {
     confidence = lowerConfidence(confidence, "low");
     caveats.push(
-      "Post-main-sequence HZ distances move rapidly and are climate-history diagnostics only.",
+      stageId === "blue_dwarf"
+        ? "Blue-dwarf HZ distances are far-future theoretical diagnostics only."
+        : "Post-main-sequence HZ distances move rapidly and are climate-history diagnostics only.",
     );
   }
   return {
@@ -653,6 +715,14 @@ function caveatsForSample({ stageId, stageSequence, ageGyr, metallicityFeH, hz }
   if (mass < 0.8 && ageGyr >= stageSequence.mainSequenceLifetimeGyr) {
     caveats.push(
       "Very-low-mass post-main-sequence endpoints are extrapolated beyond present-universe calibration.",
+    );
+  }
+  if (
+    mass < FULLY_CONVECTIVE_RED_DWARF_MAX_MSOL &&
+    ageGyr >= stageSequence.mainSequenceLifetimeGyr
+  ) {
+    caveats.push(
+      "Fully convective red-dwarf evolution is represented as a blue-dwarf path to a helium white dwarf, with no red-giant or core-helium-burning branch.",
     );
   }
   if (mass >= 8) {
@@ -1234,6 +1304,11 @@ export function summarizeStellarLifecycleTrack({
   );
   const warnings = [];
   if (current?.caveats?.length) warnings.push(...current.caveats);
+  if (stageSequence?.initialMassMsol < FULLY_CONVECTIVE_RED_DWARF_MAX_MSOL) {
+    warnings.push(
+      "Fully convective red-dwarf track uses a theoretical blue-dwarf path to a helium white dwarf; red-giant and core-helium-burning branches are not included below about 0.35 Msol.",
+    );
+  }
   if (stageSequence?.initialMassMsol >= 8) {
     warnings.push("Massive-star endpoint is a remnant screen, not a supernova simulation.");
   }
@@ -1332,6 +1407,8 @@ function timelineStageDetail(stageId, stageSequence) {
       "Core hydrogen burning supplies the stable luminous phase that anchors current HZ, rotation, wind, and activity context.",
     terminal_main_sequence:
       "Hydrogen burning is approaching turnoff; luminosity and radius accelerate toward the post-main-sequence branch.",
+    blue_dwarf:
+      "Fully convective red dwarfs are expected to heat and brighten into a blue-dwarf phase rather than developing a red-giant envelope.",
     subgiant:
       "The envelope expands and the star brightens after core hydrogen exhaustion, pushing the HZ outward.",
     red_giant:
@@ -1361,6 +1438,8 @@ function timelineStageWarnings(stageId) {
       "Model limit: static analytic single-star track; does not solve radial stellar structure, nuclear reaction networks, convection, rotation, magnetic cycles, or detailed composition profiles.",
     terminal_main_sequence:
       "Model limit: static analytic single-star track; does not solve shell-by-shell core growth, overshoot, internal mixing, or metallicity-dependent turnoff morphology.",
+    blue_dwarf:
+      "Model limit: theoretical far-future fully convective red-dwarf branch; does not solve detailed mixing, composition evolution, opacity changes, or white-dwarf cooling.",
     subgiant:
       "Model limit: static analytic single-star track; does not solve detailed envelope readjustment, dredge-up, pulsation, or interior composition gradients.",
     red_giant:
@@ -1417,16 +1496,17 @@ function stageTimelineEras(track, currentAgeGyr) {
               ? "stellar"
               : "interior";
       const endGyr = Number.isFinite(segment.endsAtGyr) ? segment.endsAtGyr : null;
+      const label = remnantStage ? track?.summary?.remnant?.label || segment.label : segment.label;
       return timelineEra({
         id: timelineEraIdForStage(segment.id),
-        label: segment.label,
+        label,
         category,
         startGyr: segment.startsAtGyr,
         endGyr,
         currentAgeGyr,
         state: isCurrent ? "current" : null,
         confidence: stageDefinition(segment.id).confidenceBase || "medium",
-        headline: isCurrent ? `Current stage: ${segment.label}` : segment.label,
+        headline: isCurrent ? `Current stage: ${label}` : label,
         detail: timelineStageDetail(segment.id, track.stageSequence),
         warnings: timelineStageWarnings(segment.id),
         lifecycleRole: remnantStage

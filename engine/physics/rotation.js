@@ -1,4 +1,5 @@
-const G = 6.67e-11;
+import { G_SI as G } from "./constants.js";
+
 const SECONDS_TO_GYR = 3.171e-17;
 
 /**

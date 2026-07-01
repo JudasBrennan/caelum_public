@@ -56,7 +56,7 @@ function resolvedStarConfig({ starModel, starConfig, hostFrameContext }) {
       toFinite(config.luminosityLsol, toFinite(model.luminosityLsol, 1)),
     ),
     tempK: toFinite(config.tempKOverride, toFinite(config.tempK, toFinite(model.tempK, 5776))),
-    evolutionMode: config.evolutionMode || model.evolutionMode || "zams",
+    evolutionMode: config.evolutionMode || model.evolutionMode || "evolved",
   };
 }
 

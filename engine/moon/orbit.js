@@ -1,4 +1,5 @@
 import { clamp } from "../utils.js";
+import { scienceDiagnostic } from "../physics/constants.js";
 import {
   auToKilometers,
   calcOrbitalPeriodDaysKepler,
@@ -198,10 +199,26 @@ export function computeMoonOrbit({
     moonRadiusKm,
   });
   const moonEquivalentDiameterKm = resolvedMoonRadiusKm * 2;
-  const classicalRocheLimitKm =
-    RIGID_ROCHE_FACTOR * planetRadiusKm * (planetDensityGcm3 / moonDensityGcm3) ** (1 / 3);
   const collisionInnerLimitKm =
     (planetRadiusKm + Math.max(resolvedMoonRadiusKm, 0)) * COLLISION_CLEARANCE_FACTOR;
+  const rocheDensityValid =
+    Number.isFinite(planetDensityGcm3) &&
+    planetDensityGcm3 > 0 &&
+    Number.isFinite(moonDensityGcm3) &&
+    moonDensityGcm3 > 0;
+  const rocheDiagnostics = rocheDensityValid
+    ? []
+    : [
+        scienceDiagnostic(
+          "MOON_ROCHE_DENSITY_INVALID",
+          "warning",
+          "Roche limit requires positive finite planet and moon densities; collision clearance is used as the inner guard.",
+          { planetDensityGcm3, moonDensityGcm3 },
+        ),
+      ];
+  const classicalRocheLimitKm = rocheDensityValid
+    ? RIGID_ROCHE_FACTOR * planetRadiusKm * (planetDensityGcm3 / moonDensityGcm3) ** (1 / 3)
+    : collisionInnerLimitKm;
   const bypass = resolveSmallCohesiveRocheBypass({
     moonEquivalentDiameterKm,
     moonRigidityPa,
@@ -213,7 +230,7 @@ export function computeMoonOrbit({
     ? collisionInnerLimitKm
     : Math.max(classicalRocheLimitKm, collisionInnerLimitKm);
   const effectiveInnerLimitKind =
-    smallCohesiveRocheBypass || collisionInnerLimitKm > classicalRocheLimitKm
+    !rocheDensityValid || smallCohesiveRocheBypass || collisionInnerLimitKm > classicalRocheLimitKm
       ? "collision"
       : "roche";
   const stabilityLimits = computeMoonStabilityLimits({
@@ -306,7 +323,12 @@ export function computeMoonOrbit({
     smallCohesiveRocheBypass,
     smallCohesiveRocheBypassReason: bypass.reason,
     moonEquivalentDiameterKm,
-    rocheLimitModel: smallCohesiveRocheBypass ? "strength-bypassed-rigid-body" : "rigid-body",
+    rocheLimitModel: !rocheDensityValid
+      ? "invalid-density"
+      : smallCohesiveRocheBypass
+        ? "strength-bypassed-rigid-body"
+        : "rigid-body",
+    diagnostics: rocheDiagnostics,
     zoneOuterKm,
     hillRadiusKm,
     stableOuterLimitKm: stabilityLimits.stableOuterLimitKm,

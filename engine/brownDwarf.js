@@ -1,5 +1,6 @@
 import { classifyBrownDwarfSpectralFamily } from "./starClassification.js";
 import { clamp, fmt, toFinite } from "./utils.js";
+import { SOLAR_LUMINOSITY_W, SOLAR_RADIUS_KM } from "./physics/constants.js";
 import {
   BROWN_DWARF_MAX_MSOL,
   BROWN_DWARF_MIN_MSOL,
@@ -12,8 +13,6 @@ import {
 const HZ_SOLAR_TEFF_K = 5778;
 const HZ_MIN_FLUX = 1e-6;
 const SOLAR_TEMP_K = 5776;
-const SOLAR_RADIUS_KM = 696340;
-const SOLAR_LUMINOSITY_W = 3.828e26;
 const SOLAR_DENSITY_G_CM3 = 1.408;
 const JUPITER_RADIUS_RSOL = 69911 / SOLAR_RADIUS_KM;
 
@@ -22,7 +21,7 @@ function calcHabitableFluxLimitsFromTeffK(teffK) {
   const rawDT = (Number.isFinite(t) ? t : HZ_SOLAR_TEFF_K) - HZ_SOLAR_TEFF_K;
   const dT = clamp(rawDT, 2600 - HZ_SOLAR_TEFF_K, 7200 - HZ_SOLAR_TEFF_K);
   const sInRaw =
-    1.107 + 1.332e-4 * dT + 1.58e-8 * dT ** 2 - 8.308e-12 * dT ** 3 - 5.073e-15 * dT ** 4;
+    1.107 + 1.332e-4 * dT + 1.58e-8 * dT ** 2 - 8.308e-12 * dT ** 3 - 1.931e-15 * dT ** 4;
   const sOutRaw =
     0.356 + 6.171e-5 * dT + 1.698e-9 * dT ** 2 - 3.198e-12 * dT ** 3 - 5.575e-16 * dT ** 4;
   return {

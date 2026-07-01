@@ -30,12 +30,8 @@
 import { calcBrownDwarf } from "./brownDwarf.js";
 import { clamp, fmt } from "./utils.js";
 import { auToKilometers } from "./physics/orbital.js";
-import {
-  estimateHabitableTeffKFromMass,
-  calcHabitableZoneAu,
-  massToLuminosity,
-  massToRadius,
-} from "./star.js";
+import { SOLAR_RADIUS_KM } from "./physics/constants.js";
+import { calcHabitableZoneAu, massToLuminosity, massToRadius } from "./star.js";
 import {
   BROWN_DWARF_MIN_MSOL,
   classifyHostRegimeByMass,
@@ -139,8 +135,7 @@ export function calcSystem({
   const densityDsol = m / radiusRsol ** 3;
   const densityGcm3 = 1.408 * densityDsol;
 
-  const hzTeffK =
-    hostRegime === "brownDwarf" ? tempK : hasT ? tempK : estimateHabitableTeffKFromMass(m);
+  const hzTeffK = tempK;
   const hz =
     hostRegime === "brownDwarf"
       ? brownDwarfAuto.habitableZoneModel
@@ -152,9 +147,9 @@ export function calcSystem({
   const frostLineAu = 4.85 * Math.sqrt(luminosityLsol);
 
   // System inner limit (AU):
-  // =2.455*(Rsol*696340)*((Dsol*1408)/5400)^(1/3)/149600000
+  // =2.455*(Rsol*R_sun_km)*((Dsol*1408)/5400)^(1/3)/149600000
   const systemInnerLimitAu =
-    (2.455 * (radiusRsol * 696340) * ((densityDsol * 1408) / 5400) ** (1 / 3)) / AU_TO_KM;
+    (2.455 * (radiusRsol * SOLAR_RADIUS_KM) * ((densityDsol * 1408) / 5400) ** (1 / 3)) / AU_TO_KM;
 
   // Orbit slots:
   // Orbit2 = Orbit1 + spacingFactor * 2^0

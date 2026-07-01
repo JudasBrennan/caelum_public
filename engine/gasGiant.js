@@ -43,18 +43,21 @@ import {
   normalizeGiantCompanionClass,
 } from "./substellarRegime.js";
 import { buildEnvironmentForcing, formatEnvironmentForcingSummary } from "./environment/index.js";
+import {
+  EARTH_GRAVITY_MS2,
+  EARTH_RADIUS_KM,
+  G_SI as G,
+  JUPITER_MASS_EARTH as EARTH_MASS_PER_MJUP,
+  JUPITER_MASS_KG,
+  JUPITER_RADIUS_KM,
+  SIGMA_SB_W_M2_K4 as SIGMA_SB,
+  SOLAR_RADIUS_KM,
+} from "./physics/constants.js";
 
 export { estimateMetallicity, massToRadiusRj, radiusToMassMjup } from "./gasGiant/structure.js";
 
-const G = 6.674e-11;
-const JUPITER_MASS_KG = 1.8982e27;
-const JUPITER_RADIUS_KM = 69911;
-const EARTH_RADIUS_KM = 6371;
-const EARTH_MASS_PER_MJUP = 317.83;
 const MSOL_PER_MJUP = 1047.35;
-const EARTH_GRAVITY_MS2 = 9.80665;
 const ICE_GIANT_MASS_MJUP = 0.15;
-const SIGMA_SB = 5.670374419e-8;
 const BROWN_DWARF_DEFAULT_MASS_MJUP = 20;
 const BROWN_DWARF_RADIUS_MIN_RJ = 0.78;
 const BROWN_DWARF_RADIUS_MAX_RJ = 1.15;
@@ -327,7 +330,7 @@ function calcBrownDwarfCompanion({
   const radiusOverrideRsol = hasRadius
     ? (clamp(Number(rawRadius), BROWN_DWARF_RADIUS_MIN_RJ, BROWN_DWARF_RADIUS_MAX_RJ) *
         JUPITER_RADIUS_KM) /
-      696340
+      SOLAR_RADIUS_KM
     : null;
   const brownDwarf = calcBrownDwarf({
     massMsol: massMjupToMsol(massMjup),
@@ -407,7 +410,8 @@ function calcBrownDwarfCompanion({
     fluxVariabilityFraction: hostFrameFluxVariabilityFraction,
   });
 
-  const massRatio = massMjup / (sMass * MSOL_PER_MJUP);
+  const companionMassMsol = massMjup / MSOL_PER_MJUP;
+  const massRatio = companionMassMsol / sMass;
   const hillSphereAu = orbit * (massRatio / 3) ** (1 / 3);
   const hillSphereKm = auToKilometers(hillSphereAu);
   const rocheLimitIceKm = 2.44 * radiusKm * (densityGcm3 / 0.9) ** (1 / 3);
@@ -417,20 +421,22 @@ function calcBrownDwarfCompanion({
   const orbitalPeriodYears = calcOrbitalPeriodYearsKepler({
     semiMajorAxisAu: orbit,
     centralMassMsol: sMass,
+    secondaryMassMsol: companionMassMsol,
   });
   const orbitalPeriodDays = calcOrbitalPeriodDaysKepler({
     semiMajorAxisAu: orbit,
     centralMassMsol: sMass,
+    secondaryMassMsol: companionMassMsol,
     daysPerYear: 365.25,
   });
   const transitDepthFraction = calcTransitDepthFraction({
     bodyRadiusKm: radiusKm,
-    starRadiusKm: sRadius * 696340,
+    starRadiusKm: sRadius * SOLAR_RADIUS_KM,
   });
   const transitDepthPpm = transitDepthFraction * 1e6;
   const transitProbabilityFraction = calcTransitProbabilityFraction({
     bodyRadiusKm: radiusKm,
-    starRadiusKm: sRadius * 696340,
+    starRadiusKm: sRadius * SOLAR_RADIUS_KM,
     semiMajorAxisAu: orbit,
   });
   const rvSemiAmplitudeMs = calcRvSemiAmplitudeMs({
@@ -1065,7 +1071,8 @@ export function calcGasGiant({
   const insolationEarth = thermal.insolationEarth;
   const isIceGiant = massMjup < ICE_GIANT_MASS_MJUP;
 
-  const massRatio = massMjup / (sMass * MSOL_PER_MJUP);
+  const companionMassMsol = massMjup / MSOL_PER_MJUP;
+  const massRatio = companionMassMsol / sMass;
   const hillSphereAu = orbit * (massRatio / 3) ** (1 / 3);
   const hillSphereKm = auToKilometers(hillSphereAu);
   const rocheLimitIceKm = 2.44 * radiusKm * (densityGcm3 / 0.9) ** (1 / 3);
@@ -1075,20 +1082,22 @@ export function calcGasGiant({
   const orbitalPeriodYears = calcOrbitalPeriodYearsKepler({
     semiMajorAxisAu: orbit,
     centralMassMsol: sMass,
+    secondaryMassMsol: companionMassMsol,
   });
   const orbitalPeriodDays = calcOrbitalPeriodDaysKepler({
     semiMajorAxisAu: orbit,
     centralMassMsol: sMass,
+    secondaryMassMsol: companionMassMsol,
     daysPerYear: 365.25,
   });
   const transitDepthFraction = calcTransitDepthFraction({
     bodyRadiusKm: radiusKm,
-    starRadiusKm: starRadiusRsol * 696340,
+    starRadiusKm: starRadiusRsol * SOLAR_RADIUS_KM,
   });
   const transitDepthPpm = transitDepthFraction * 1e6;
   const transitProbabilityFraction = calcTransitProbabilityFraction({
     bodyRadiusKm: radiusKm,
-    starRadiusKm: starRadiusRsol * 696340,
+    starRadiusKm: starRadiusRsol * SOLAR_RADIUS_KM,
     semiMajorAxisAu: orbit,
   });
   const rvSemiAmplitudeMs = calcRvSemiAmplitudeMs({

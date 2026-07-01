@@ -65,6 +65,13 @@ import {
   calcTransitProbabilityFraction,
   orbitalDirectionFromInclination,
 } from "./physics/orbital.js";
+import {
+  EARTH_GRAVITY_MS2,
+  EARTH_RADIUS_KM as EARTH_RADIUS_KM_STANDARD,
+  SOLAR_MASS_KG,
+  SOLAR_RADIUS_KM,
+  scienceDiagnostic,
+} from "./physics/constants.js";
 import { magneticFieldModel } from "./planet/magnetism.js";
 import {
   applyAtmosphericEscape,
@@ -127,14 +134,15 @@ export { computeGreenhouseTau } from "./planet/atmosphere.js";
 const PI = Math.PI;
 
 // Constants used by the model (from the reference):
-const STAR_MASS_TO_KG = 1.989e30;
+const STAR_MASS_TO_KG = SOLAR_MASS_KG;
 
-const EARTH_RADIUS_KM = 6371;
+const EARTH_RADIUS_KM = EARTH_RADIUS_KM_STANDARD;
 const EARTH_DENSITY_GCM3 = 5.51; // Earth mean bulk density (g/cm³)
 const DAYS_PER_YEAR = 365.256; // Julian year (IAU)
+const ROCKY_SOLVER_MAX_MEARTH = 20;
 
 const VELOCITY_EARTH_KMS = 11.186;
-const GRAVITY_EARTH_MS2 = 9.81;
+const GRAVITY_EARTH_MS2 = EARTH_GRAVITY_MS2;
 
 // Earth's total internal heat output (~44 TW), used to normalise moon tidal
 // heating on the planet.  Scales linearly with mass for other bodies.
@@ -206,6 +214,10 @@ function buildPlanetSummaryResult({
   star,
   hostFrameId,
   massEarth,
+  requestedMassEarth = massEarth,
+  solverMassEarth = massEarth,
+  rockySolverMassClamped = false,
+  diagnostics = [],
   cmfPct,
   wmfPct,
   effectiveCoreMassFractionPct = cmfPct,
@@ -238,8 +250,11 @@ function buildPlanetSummaryResult({
   return {
     star,
     hostFrameId,
+    diagnostics,
     inputs: {
-      massEarth,
+      massEarth: requestedMassEarth,
+      solverMassEarth,
+      rockySolverMassClamped,
       cmfPct,
       wmfPct,
       rotationPeriodHours,
@@ -252,6 +267,10 @@ function buildPlanetSummaryResult({
       densityGcm3,
       radiusEarth,
       gravityG,
+      rockySolverValidMass: !rockySolverMassClamped,
+      requestedMassEarth,
+      solverMassEarth,
+      rockySolverMaxMassEarth: ROCKY_SOLVER_MAX_MEARTH,
       effectiveCoreMassFraction: effectiveCoreMassFractionPct / 100,
       effectiveCoreMassFractionPct,
       effectiveWaterMassFraction: effectiveWaterMassFractionPct / 100,
@@ -352,7 +371,23 @@ export function calcPlanetExact({
   const suggestedCmfPct = suggestedCmf * 100;
 
   // Inputs (clamped to sensible bounds)
-  const massEarth = clamp(planet.massEarth, 0.0001, 1000);
+  const requestedMassEarth = clamp(planet.massEarth, 0.0001, 1000);
+  const rockySolverMassClamped = requestedMassEarth > ROCKY_SOLVER_MAX_MEARTH;
+  const massEarth = rockySolverMassClamped ? ROCKY_SOLVER_MAX_MEARTH : requestedMassEarth;
+  const rockySolverDiagnostics = rockySolverMassClamped
+    ? [
+        scienceDiagnostic(
+          "ROCKY_SOLVER_MASS_OUT_OF_RANGE",
+          "warning",
+          "Rocky planet solver is not valid for giant-planet masses; calculations use the rocky validity cap.",
+          {
+            requestedMassEarth,
+            solverMassEarth: massEarth,
+            rockySolverMaxMassEarth: ROCKY_SOLVER_MAX_MEARTH,
+          },
+        ),
+      ]
+    : [];
   const cmfIsAuto = planet.cmfPct < 0 || planet.cmfPct == null;
   const cmfPct = cmfIsAuto ? suggestedCmfPct : clamp(planet.cmfPct, 0, 100); // percent
   const wmfPct = clamp(planet.wmfPct ?? 0, 0, 50); // water mass fraction %
@@ -1220,6 +1255,10 @@ export function calcPlanetExact({
       star,
       hostFrameId,
       massEarth,
+      requestedMassEarth,
+      solverMassEarth: massEarth,
+      rockySolverMassClamped,
+      diagnostics: rockySolverDiagnostics,
       cmfPct,
       wmfPct,
       effectiveCoreMassFractionPct: effectiveCmfPct,
@@ -1544,7 +1583,7 @@ export function calcPlanetExact({
     orbitalPeriodDays: orbitalPeriodEarthDays,
     atmosphereScaleHeightKm:
       atmWeightKgMol > 0 && gravityG > 0
-        ? (8.314 * effectiveSurfaceTempK) / (atmWeightKgMol * gravityG * 9.80665) / 1000
+        ? (8.314 * effectiveSurfaceTempK) / (atmWeightKgMol * gravityG * GRAVITY_EARTH_MS2) / 1000
         : null,
     baselineSurfaceTempK: tKel,
     effectiveSurfaceTempK,
@@ -1736,8 +1775,11 @@ export function calcPlanetExact({
           orbitFamilyKind: hostFrame.orbitFamilyKind,
         }
       : null,
+    diagnostics: rockySolverDiagnostics,
     inputs: {
-      massEarth,
+      massEarth: requestedMassEarth,
+      solverMassEarth: massEarth,
+      rockySolverMassClamped,
       cmfPct,
       wmfPct,
       axialTiltDeg,
@@ -1784,6 +1826,10 @@ export function calcPlanetExact({
     },
     derived: {
       starMassKg,
+      rockySolverValidMass: !rockySolverMassClamped,
+      requestedMassEarth,
+      solverMassEarth: massEarth,
+      rockySolverMaxMassEarth: ROCKY_SOLVER_MAX_MEARTH,
       starRadiusRsol: star.radiusRsol,
       starLuminosityLsol: star.luminosityLsol,
       hostFrameId,
@@ -2044,7 +2090,7 @@ export function calcPlanetExact({
     },
     display: {
       hz: `${fmt(hzInnerAu, 3)} – ${fmt(hzOuterAu, 3)} AU`,
-      starRadiusKm: fmt(star.radiusRsol * 696340, 0) + " km",
+      starRadiusKm: fmt(star.radiusRsol * SOLAR_RADIUS_KM, 0) + " km",
       starLuminosity: fmt(star.luminosityLsol, 6) + " L☉",
       density: fmt(densityGcm3, 3) + " g/cm³",
       radius: fmt(radiusEarth, 3) + " R⊕",

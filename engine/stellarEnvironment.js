@@ -1,13 +1,13 @@
 import { blackbodyBandFraction } from "./physics/radiative.js";
+import { SOLAR_CONSTANT_W_M2, SOLAR_RADIUS_KM } from "./physics/constants.js";
 import { clamp, toFinite } from "./utils.js";
 
 const SOLAR_TEFF_K = 5772;
 const SOLAR_UV_REFERENCE_TEFF_K = 5778;
-const SOLAR_CONSTANT_WM2 = 1361;
+const SOLAR_CONSTANT_WM2 = SOLAR_CONSTANT_W_M2;
 const W_M2_TO_ERG_CM2_S = 1000;
 const SOLAR_BV = 0.65;
 const SOLAR_ROTATION_DAYS = 25.38;
-const SOLAR_RADIUS_KM = 696340;
 export const SOLAR_WIND_MASS_LOSS_MSOL_PER_YR = 2e-14;
 export const SOLAR_WIND_SPEED_KMS = 400;
 export const SOLAR_WIND_RAM_PRESSURE_1AU_NPA = 2.0;

@@ -1,3 +1,5 @@
+import { EARTH_GRAVITY_MS2 } from "../physics/constants.js";
+
 const SKY_ANCHORS = [
   { key: "A0", t: 9500 },
   { key: "F0", t: 7300 },
@@ -76,7 +78,6 @@ const SKY_LUT = {
   },
 };
 
-const EARTH_GRAVITY_MS2 = 9.81;
 const EARTH_SURFACE_TEMP_K = 288;
 
 const VEG_LUT = {

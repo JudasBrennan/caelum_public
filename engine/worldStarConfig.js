@@ -46,7 +46,7 @@ export function resolveWorldStarConfig(world) {
     radiusRsolOverride,
     luminosityLsolOverride,
     tempKOverride,
-    evolutionMode: star.evolutionMode,
+    evolutionMode: star.evolutionMode || "evolved",
     physicsMode,
     advancedDerivationMode,
   };

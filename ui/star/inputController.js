@@ -174,7 +174,7 @@ export function createStarInputController({
       advancedDerivationMode: "rl",
     });
     if (result.regime === "star") {
-      state.evolutionMode = "zams";
+      state.evolutionMode = "evolved";
     }
 
     setDerivMode?.("rl");
@@ -338,7 +338,7 @@ export function createStarInputController({
       advancedDerivationMode: nextDerivationMode,
     });
     state.evolutionMode =
-      wrap.querySelector('input[name="evolutionMode"]:checked')?.value || "zams";
+      wrap.querySelector('input[name="evolutionMode"]:checked')?.value || "evolved";
     state.defaultHostFrameId = normalizeTopologyHostFrameId(
       state.defaultHostFrameId,
       state.topologyKind,
@@ -821,7 +821,7 @@ export function createStarInputController({
       });
       state.ageGyr = 4.6;
       state.metallicityFeH = 0.0;
-      state.evolutionMode = "zams";
+      state.evolutionMode = "evolved";
       syncFocusedStarEditorInputs();
       persistState();
       render();
@@ -842,7 +842,7 @@ export function createStarInputController({
       });
       state.ageGyr = defaults.ageGyr;
       state.metallicityFeH = 0.0;
-      state.evolutionMode = "zams";
+      state.evolutionMode = "evolved";
       syncFocusedStarEditorInputs();
       persistState();
       render();

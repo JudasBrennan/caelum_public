@@ -36,7 +36,7 @@ export function defaultStar() {
     metallicityFeH: 0.0,
     physicsMode: "simple",
     advancedDerivationMode: "rl",
-    evolutionMode: "zams",
+    evolutionMode: "evolved",
     activityModelVersion: "v2",
   };
 }

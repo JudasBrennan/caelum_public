@@ -4,8 +4,7 @@
 // Mass-radius: Schweitzer (2019) linear for M ≤ 0.5 Msol, blended to
 // Eker (2018) quadratic over 0.5–0.7, Eker quadratic for 0.7–1.5 Msol,
 // Eker MTR + Stefan-Boltzmann derivation for M > 1.5 Msol.
-// Habitable Zone uses temperature-dependent Seff polynomials from
-// Chromant's Desmos Star System Visualizer (Kopparapu-style correction).
+// Habitable Zone uses Kopparapu temperature-dependent Seff polynomials.
 // Inputs:
 //  - massMsol: Mass in solar masses (M☉)
 //  - ageGyr: Current age in Gyr
@@ -19,13 +18,18 @@ import { classifyMainSequenceSpectralClassFromTempK } from "./starClassification
 import { computeStellarEnvironmentModel } from "./stellarEnvironment.js";
 import { buildStellarEraTimeline, computeStellarLifecycleTrack } from "./stellarLifecycle.js";
 import { clamp, fmt, toFinite } from "./utils.js";
+import {
+  AU_M,
+  SOLAR_LUMINOSITY_W,
+  SOLAR_MASS_KG,
+  SOLAR_RADIUS_KM,
+  scienceDiagnostic,
+} from "./physics/constants.js";
 import { BROWN_DWARF_MIN_MSOL, classifyHostRegimeByMass } from "./substellarRegime.js";
 
 const HZ_SOLAR_TEFF_K = 5778;
 const HZ_MIN_FLUX = 1e-6;
 const DEFAULT_SOLAR_AGE_GYR = 4.6;
-const SOLAR_LUMINOSITY_W = 3.828e26;
-const AU_M = 1.495978707e11;
 const EARTH_REFERENCE_XUV_FLUX_ERG_CM2_S = 4.64;
 const XUV_UNSATURATED_AGE_EXPONENT = -1.5;
 const XUV_MIN_AGE_GYR = 0.01;
@@ -54,22 +58,53 @@ const XUV_SATURATION_ANCHORS = Object.freeze([
 // Mass-Luminosity Relation: Eker et al. (2018, MNRAS 479, 5491)
 // ---------------------------------------------------------------------------
 // Six-piece empirical relation calibrated from 509 detached eclipsing binary
-// components.  Form: L = c × M^α  (L in Lsol, M in Msol).
-// Exponents (α) are from Eker Table 4.  Coefficients (c) are adjusted from
-// the published values to enforce continuity at each mass boundary and to
-// anchor L = 1.0 Lsol at M = 1.0 Msol (solar normalisation).  All
-// adjustments fall within Eker's quoted ±0.026–0.176 uncertainties on the
-// log-space intercept b.
-// Below 0.179 Msol (Eker calibration floor) the lowest segment is
-// extrapolated; above 31 Msol the highest segment is extrapolated.
-const MLR = [
-  { maxM: 0.45, alpha: 2.028, c: 0.0892 }, // fully convective M dwarfs
-  { maxM: 0.72, alpha: 4.572, c: 0.68 }, // late-K / early-M transition
-  { maxM: 1.05, alpha: 5.743, c: 1.0 }, // solar-type (G/K boundary)
-  { maxM: 2.4, alpha: 4.329, c: 1.072 }, // F/A stars
-  { maxM: 7.0, alpha: 3.967, c: 1.471 }, // B stars
-  { maxM: Infinity, alpha: 2.865, c: 12.55 }, // O / early-B stars
-];
+// components. Published Table 4 form:
+// log10(L/Lsol) = alpha * log10(M/Msol) + intercept.
+// Below 0.179 Msol and above 31 Msol the edge segment is extrapolated.
+// Exact Eker Table 4 coefficients in log-space.
+const EKER_MLR_MIN_MSOL = 0.179;
+const EKER_MLR_MAX_MSOL = 31;
+const MLR = Object.freeze([
+  Object.freeze({ minM: 0.179, maxM: 0.45, alpha: 2.028, intercept: -0.976 }),
+  Object.freeze({ minM: 0.45, maxM: 0.72, alpha: 4.572, intercept: -0.102 }),
+  Object.freeze({ minM: 0.72, maxM: 1.05, alpha: 5.743, intercept: -0.007 }),
+  Object.freeze({ minM: 1.05, maxM: 2.4, alpha: 4.329, intercept: 0.01 }),
+  Object.freeze({ minM: 2.4, maxM: 7.0, alpha: 3.967, intercept: 0.093 }),
+  Object.freeze({ minM: 7.0, maxM: 31.0, alpha: 2.865, intercept: 1.105 }),
+]);
+
+function ekerMlrSegmentForMass(massMsol) {
+  if (massMsol <= MLR[0].maxM) return MLR[0];
+  for (const segment of MLR) {
+    if (massMsol <= segment.maxM) return segment;
+  }
+  return MLR[MLR.length - 1];
+}
+
+export function massLuminosityModelDiagnostics(massMsol) {
+  const m = Number(massMsol);
+  if (!Number.isFinite(m) || m <= 0) {
+    return [
+      scienceDiagnostic(
+        "MLR_MASS_INVALID",
+        "warning",
+        "Mass-luminosity relation received a nonpositive or nonfinite mass.",
+        { massMsol },
+      ),
+    ];
+  }
+  if (m < EKER_MLR_MIN_MSOL || m > EKER_MLR_MAX_MSOL) {
+    return [
+      scienceDiagnostic(
+        "MLR_EXTRAPOLATED",
+        "warning",
+        "Eker 2018 mass-luminosity relation is being extrapolated outside 0.179-31 Msol.",
+        { massMsol: m, calibratedMinMsol: EKER_MLR_MIN_MSOL, calibratedMaxMsol: EKER_MLR_MAX_MSOL },
+      ),
+    ];
+  }
+  return [];
+}
 
 /**
  * Converts stellar mass to luminosity using the Eker et al. (2018, MNRAS 479,
@@ -83,11 +118,8 @@ const MLR = [
  */
 export function massToLuminosity(massMsol) {
   const m = clamp(massMsol, 0.075, 100);
-  for (const seg of MLR) {
-    if (m < seg.maxM) return seg.c * m ** seg.alpha;
-  }
-  const last = MLR[MLR.length - 1];
-  return last.c * m ** last.alpha;
+  const seg = ekerMlrSegmentForMass(m);
+  return 10 ** (seg.alpha * Math.log10(m) + seg.intercept);
 }
 
 // ---------------------------------------------------------------------------
@@ -221,8 +253,8 @@ export function starColourHexFromTempK(tempK) {
 }
 
 /**
- * Estimates the effective temperature proxy used by the habitable-zone Seff
- * polynomials. Applies the Chromant Desmos correction: Teff = 5778 * M^0.55.
+ * Estimates a mass-only effective-temperature proxy for callers that only know
+ * mass. Prefer resolved stellar Teff whenever radius/luminosity are available.
  * Mass is clamped to 0.075--100 Msol before evaluation.
  *
  * @param {number} massMsol - Stellar mass in solar masses (Msol)
@@ -230,14 +262,57 @@ export function starColourHexFromTempK(tempK) {
  */
 export function estimateHabitableTeffKFromMass(massMsol) {
   const m = clamp(massMsol, 0.075, 100);
-  // Updated habitable-zone model (Chromant Desmos correction):
-  // Teff proxy used for Seff polynomials.
+  // Mass-only Teff proxy used by system-level callers without a star model.
   return HZ_SOLAR_TEFF_K * m ** 0.55;
+}
+
+const KOPPARAPU_HZ_MIN_TEFF_K = 2600;
+const KOPPARAPU_HZ_MAX_TEFF_K = 7200;
+export const KOPPARAPU_HZ_COEFFICIENTS = Object.freeze({
+  recentVenus: Object.freeze({
+    seffSun: 1.776,
+    a: 2.136e-4,
+    b: 2.533e-8,
+    c: -1.332e-11,
+    d: -3.097e-15,
+  }),
+  runawayGreenhouse: Object.freeze({
+    seffSun: 1.107,
+    a: 1.332e-4,
+    b: 1.58e-8,
+    c: -8.308e-12,
+    d: -1.931e-15,
+  }),
+  maximumGreenhouse: Object.freeze({
+    seffSun: 0.356,
+    a: 6.171e-5,
+    b: 1.698e-9,
+    c: -3.198e-12,
+    d: -5.575e-16,
+  }),
+  earlyMars: Object.freeze({
+    seffSun: 0.32,
+    a: 5.547e-5,
+    b: 1.526e-9,
+    c: -2.874e-12,
+    d: -5.011e-16,
+  }),
+});
+
+function evaluateKopparapuFlux(coefficients, dT) {
+  return Math.max(
+    HZ_MIN_FLUX,
+    coefficients.seffSun +
+      coefficients.a * dT +
+      coefficients.b * dT ** 2 +
+      coefficients.c * dT ** 3 +
+      coefficients.d * dT ** 4,
+  );
 }
 
 /**
  * Computes inner and outer habitable-zone flux limits (Seff) from effective
- * temperature using Chromant's corrected Kopparapu-style polynomials. The
+ * temperature using Kopparapu temperature-dependent polynomials. The
  * polynomials express Seff as a 4th-order function of dT = Teff - 5778 K.
  * Flux values are floored at 1e-6 to avoid division-by-zero downstream.
  *
@@ -251,27 +326,50 @@ export function habitableFluxLimitsFromTeffK(teffK) {
   // Kopparapu polynomials are calibrated for ~2600–7200 K; clamp dT to
   // that range so the 4th-order terms don't blow up for extreme masses.
   const rawDT = (Number.isFinite(t) ? t : HZ_SOLAR_TEFF_K) - HZ_SOLAR_TEFF_K;
-  const dT = clamp(rawDT, 2600 - HZ_SOLAR_TEFF_K, 7200 - HZ_SOLAR_TEFF_K);
+  const dT = clamp(
+    rawDT,
+    KOPPARAPU_HZ_MIN_TEFF_K - HZ_SOLAR_TEFF_K,
+    KOPPARAPU_HZ_MAX_TEFF_K - HZ_SOLAR_TEFF_K,
+  );
+  const extrapolated = rawDT !== dT;
+  const recentVenus = evaluateKopparapuFlux(KOPPARAPU_HZ_COEFFICIENTS.recentVenus, dT);
+  const runawayGreenhouse = evaluateKopparapuFlux(KOPPARAPU_HZ_COEFFICIENTS.runawayGreenhouse, dT);
+  const maximumGreenhouse = evaluateKopparapuFlux(KOPPARAPU_HZ_COEFFICIENTS.maximumGreenhouse, dT);
+  const earlyMars = evaluateKopparapuFlux(KOPPARAPU_HZ_COEFFICIENTS.earlyMars, dT);
 
-  // Chromant's corrected HZ flux polynomials (based on Kopparapu-style Seff fits):
-  // S_in (inner edge) and S_out (outer edge) as functions of dT.
-  const sInRaw =
-    1.107 + 1.332e-4 * dT + 1.58e-8 * dT ** 2 - 8.308e-12 * dT ** 3 - 5.073e-15 * dT ** 4;
-
-  const sOutRaw =
-    0.356 + 6.171e-5 * dT + 1.698e-9 * dT ** 2 - 3.198e-12 * dT ** 3 - 5.575e-16 * dT ** 4;
-
+  // Backward-compatible sIn/sOut fields represent runaway and maximum greenhouse.
   return {
-    sIn: Math.max(HZ_MIN_FLUX, sInRaw),
-    sOut: Math.max(HZ_MIN_FLUX, sOutRaw),
+    sIn: runawayGreenhouse,
+    sOut: maximumGreenhouse,
+    recentVenus,
+    runawayGreenhouse,
+    maximumGreenhouse,
+    earlyMars,
     dT,
+    rawDT,
+    extrapolated,
+    diagnostics: extrapolated
+      ? [
+          scienceDiagnostic(
+            "HZ_TEFF_EXTRAPOLATED",
+            "warning",
+            "Kopparapu habitable-zone coefficients are calibrated for 2600-7200 K.",
+            {
+              teffK: Number.isFinite(t) ? t : null,
+              evaluatedTeffK: HZ_SOLAR_TEFF_K + dT,
+              calibratedMinK: KOPPARAPU_HZ_MIN_TEFF_K,
+              calibratedMaxK: KOPPARAPU_HZ_MAX_TEFF_K,
+            },
+          ),
+        ]
+      : [],
   };
 }
 
 /**
  * Calculates the inner and outer edges of the habitable zone in AU from
  * stellar luminosity and effective temperature. Uses temperature-dependent
- * Seff polynomials (Chromant Desmos correction) to derive flux limits, then
+ * Kopparapu Seff polynomials to derive flux limits, then
  * converts to orbital distance via d = sqrt(L / Seff).
  *
  * @param {object} params
@@ -288,12 +386,25 @@ export function calcHabitableZoneAu({ luminosityLsol, teffK }) {
   const flux = habitableFluxLimitsFromTeffK(teffK);
   const innerAu = L > 0 ? Math.sqrt(L / flux.sIn) : 0;
   const outerAu = L > 0 ? Math.sqrt(L / flux.sOut) : 0;
+  const optimisticInnerAu = L > 0 ? Math.sqrt(L / flux.recentVenus) : 0;
+  const optimisticOuterAu = L > 0 ? Math.sqrt(L / flux.earlyMars) : 0;
   return {
     innerAu,
     outerAu,
+    conservative: { innerAu, outerAu },
+    optimistic: { innerAu: optimisticInnerAu, outerAu: optimisticOuterAu },
     sIn: flux.sIn,
     sOut: flux.sOut,
+    fluxes: {
+      recentVenus: flux.recentVenus,
+      runawayGreenhouse: flux.runawayGreenhouse,
+      maximumGreenhouse: flux.maximumGreenhouse,
+      earlyMars: flux.earlyMars,
+    },
     dT: flux.dT,
+    rawDT: flux.rawDT,
+    extrapolated: flux.extrapolated,
+    diagnostics: flux.diagnostics,
   };
 }
 
@@ -305,7 +416,7 @@ export function calcHabitableZoneAu({ luminosityLsol, teffK }) {
 // broadly accepted).  Baseline refined to ~7% at solar mass and metallicity
 // from Kepler-era surveys (Petigura et al. 2018; Zink et al. 2023).
 // Stellar mass dependence: f(M) ≈ M (Johnson et al. 2010, PASP 122, 905).
-// Optional massMsol defaults to 1.0 for backwards compatibility.
+// Optional massMsol defaults to 1.0 for callers that omit stellar mass.
 export function giantPlanetProbability(metallicityFeH, massMsol) {
   const feH = clamp(toFinite(metallicityFeH, 0), -3, 1);
   const mass = clamp(toFinite(massMsol, 1), 0.075, 10);
@@ -397,9 +508,9 @@ export function computeStarXuvFluxRatioEarth({ massMsol, ageGyr, luminosityLsol,
 // ===========================================================================
 // Main-Sequence Evolution (Hurley, Pols & Tout 2000; Tout et al. 1996)
 // ===========================================================================
-// Adds age- and metallicity-dependent stellar properties.  When evolutionMode
-// is "evolved", luminosity and radius evolve from ZAMS values to terminal-MS
-// values over the main-sequence lifetime.  Coefficients are polynomials in
+// Adds age- and metallicity-dependent stellar properties by default.  When
+// evolutionMode is "zams" or "staticMainSequence", luminosity and radius use
+// static mass scaling instead. Coefficients are polynomials in
 // ζ = log10(Z/0.02), where Z is the metal mass fraction (Z_☉ = 0.02 in the
 // Hurley convention).
 
@@ -651,8 +762,9 @@ export function evolvedRadius(massMsol, Z, ageGyr) {
  *   override (Lsol)
  * @param {number} [params.tempKOverride] - Optional temperature override (K)
  * @param {number} [params.metallicityFeH] - Metallicity [Fe/H] (default 0)
- * @param {string} [params.evolutionMode="zams"] - "zams" for static scaling
- *   laws, "evolved" for age-dependent Hurley (2000) evolution
+ * @param {string} [params.evolutionMode="evolved"] - age-dependent Hurley
+ *   (2000) evolution by default; "zams" or "staticMainSequence" for static
+ *   mass scaling laws
  * @returns {object} Full star model containing inputs, derived physical
  *   properties (radiusRsol, luminosityLsol, tempK, densityDsol, densityGcm3,
  *   maxAgeGyr, spectralClass), habitable-zone boundaries (AU and million km),
@@ -686,7 +798,8 @@ export function calcStar({
   // Match sheet validation note: 0.075 <= mass <= 100
   const m = clamp(resolvedMassMsol, 0.075, 100);
   const age = clamp(ageGyr, 0, 20); // sanity clamp; sheet doesn't hard-limit
-  const evolved = evolutionMode === "evolved";
+  const staticEvolutionMode = evolutionMode === "zams" || evolutionMode === "staticMainSequence";
+  const evolved = !staticEvolutionMode;
   // The Hurley/Tout ZAMS radius polynomials become non-physical above about
   // +0.5 dex for some ~solar-mass stars. Clamp only the evolution-track
   // metallicity input; user-facing metallicity remains unchanged for labels,
@@ -781,9 +894,8 @@ export function calcStar({
   // C12 temperature (K): ((L / R^2)^0.25) * 5776
   const tempK = (luminosityLsol / radiusRsol ** 2) ** 0.25 * 5776;
 
-  // Habitable zone (AU), updated from spreadsheet constants:
-  // Use temperature-dependent Seff polynomials (Chromant Desmos correction).
-  const hzTeffK = estimateHabitableTeffKFromMass(m);
+  // Habitable zone (AU): use resolved Teff with Kopparapu Seff polynomials.
+  const hzTeffK = tempK;
   const hz = calcHabitableZoneAu({ luminosityLsol, teffK: hzTeffK });
   const hzInnerAu = hz.innerAu;
   const hzOuterAu = hz.outerAu;
@@ -801,9 +913,9 @@ export function calcStar({
   const spectralClass = classifyMainSequenceSpectralClassFromTempK(tempK);
 
   // Extra physical values also shown in STAR sheet (right-side metric conversions)
-  const massKg = 1.989e30 * m;
-  const radiusKm = 696340 * radiusRsol;
-  const luminosityW = 3.828e26 * luminosityLsol;
+  const massKg = SOLAR_MASS_KG * m;
+  const radiusKm = SOLAR_RADIUS_KM * radiusRsol;
+  const luminosityW = SOLAR_LUMINOSITY_W * luminosityLsol;
   const xuvModel = computeStarXuvModel({
     massMsol: m,
     ageGyr: age,
@@ -820,7 +932,7 @@ export function calcStar({
     radiusRsol,
     luminosityLsol,
     tempK,
-    evolutionMode: evolved ? "evolved" : "mainSequence",
+    evolutionMode: lifecyclePostMainSequence ? "evolved" : "mainSequence",
     hostRegime: "star",
   });
   const rotation = stellarEnvironment.rotation;
@@ -836,6 +948,10 @@ export function calcStar({
     : evolved
       ? "hurley-main-sequence"
       : "zams-static";
+  const diagnostics = [
+    ...(!evolved ? massLuminosityModelDiagnostics(m) : []),
+    ...(hz.diagnostics || []),
+  ];
   const stellarLifecycleOutput = {
     ...stellarLifecycle,
     eraTimeline: stellarEraTimeline,
@@ -877,8 +993,14 @@ export function calcStar({
       teffK: hzTeffK,
       sIn: hz.sIn,
       sOut: hz.sOut,
+      fluxes: hz.fluxes,
+      conservative: hz.conservative,
+      optimistic: hz.optimistic,
       dT: hz.dT,
-      source: "Temperature-dependent HZ Seff polynomial (Chromant Desmos correction)",
+      rawDT: hz.rawDT,
+      extrapolated: hz.extrapolated,
+      source: "Kopparapu 2013/2014 temperature-dependent HZ Seff polynomial",
+      diagnostics: hz.diagnostics || [],
     },
 
     earthLikeLifePossible,
@@ -895,6 +1017,7 @@ export function calcStar({
     xuvModel,
     stellarEnvironment,
     stellarLifecycle: stellarLifecycleOutput,
+    diagnostics,
     evolutionDiagnostics: {
       mode: evolved ? "evolved" : "zams",
       physicalStateSource: currentPhysicalStateSource,

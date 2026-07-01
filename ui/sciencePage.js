@@ -564,12 +564,13 @@ function buildStellarEvolution() {
 
     formula(
       "Analytic Stellar Lifecycle Track",
-      `<div class="sci-formula__eq">${eq("S(t) = \\{\\text{MS},\\,\\text{TMS},\\,\\text{subgiant},\\,\\text{giant},\\,\\text{He burning},\\,\\text{AGB/supergiant},\\,\\text{remnant}\\}")}</div>
+      `<div class="sci-formula__eq">${eq("S(t) = \\{\\text{MS},\\,\\text{TMS},\\,\\text{subgiant/blue dwarf},\\,\\text{giant},\\,\\text{He burning},\\,\\text{AGB/supergiant},\\,\\text{remnant}\\}")}</div>
       <div class="sci-formula__eq">${eq("t_i = t_{\\text{MS}} + f_i(M)\\,t_{\\text{MS}}")}</div>
-      <div class="sci-formula__eq">${eq("M_{\\text{rem}} \\approx \\begin{cases}0.109M+0.394 & M < 7.8 \\\\ 1.3\\text{--}2.1 & 10 \\le M < 25 \\\\ \\text{fallback/direct-collapse BH screen} & M \\ge 25\\end{cases}")}</div>
+      <div class="sci-formula__eq">${eq("M_{\\text{rem}} \\approx \\begin{cases}0.96M & M < 0.35 \\\\ 0.109M+0.394 & 0.35 \\le M \\le 8 \\\\ 1.3\\text{--}2.1 & 10 \\le M \\le 25 \\\\ \\text{fallback/direct-collapse BH screen} & M > 25\\end{cases}")}</div>
       <div class="sci-formula__eq">${eq("I_{\\text{HZ}}(a) = \\bigcup\\,[t_a,t_b]\\;\\text{where}\\; d_{\\text{in}}(t) \\le a \\le d_{\\text{out}}(t)")}</div>
       <div class="sci-formula__eq">${eq("t_{\\text{HZ}} = \\sum |I_i|,\\quad t_{\\text{longest}} = \\max |I_i|,\\quad a \\le 0.00465047\\,R_\\star(t) \\Rightarrow \\text{engulfment flag}")}</div>
       <p>The lifecycle provider turns the existing Hurley/Tout main-sequence lifetime into a compact, static timeline. It samples stage windows, current mass loss, core-mass proxies, remnant endpoint class, and the moving habitable zone without loading tabulated MESA/MIST grids. The Star page renders those samples as an Era Timeline so current phase, high-energy youth, HZ migration, and remnant endpoint are visible outside Derived Details.</p>
+      <p><b>Low-mass branch:</b> fully convective red dwarfs below about ${iq("0.35\\,M_\\odot")} are handled as a far-future theoretical path: main sequence, terminal main sequence, blue-dwarf phase, then helium white dwarf. Caelum does not insert red-giant, core-helium-burning, or AGB stages for that branch.</p>
       <p>When a saved planet or giant has an orbit, Caelum can also summarize lifecycle exposure for that orbit: current conservative/optimistic HZ status, total and longest continuous HZ duration, first entry and last exit ages, temporary late-habitability flags, red-giant irradiation, stellar-envelope engulfment, and compact-remnant caveats.</p>
       ${vars([
         ["S(t)", "Current lifecycle stage at age t"],

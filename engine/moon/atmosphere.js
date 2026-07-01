@@ -30,15 +30,15 @@ const SPECIES_PROFILES = {
 };
 
 const ATMOSPHERIC_AVAILABILITY = {
-  n2: 1,
-  co: 0.05,
-  ch4: 0.15,
-  co2: 0.02,
-  nh3: 0.05,
-  so2: 1,
-  h2o: 1,
-  o2: 1,
-  ar: 1,
+  n2: { fraction: 1, capPa: 160000 },
+  co: { fraction: 0.05, capPa: 5000 },
+  ch4: { fraction: 0.15, capPa: 10000 },
+  co2: { fraction: 0.02, capPa: 1500 },
+  nh3: { fraction: 0.05, capPa: 1000 },
+  so2: { fraction: 1, capPa: Infinity },
+  h2o: { fraction: 1, capPa: 3000 },
+  o2: { fraction: 1, capPa: 100000 },
+  ar: { fraction: 1, capPa: 100000 },
 };
 
 function emptyComposition() {
@@ -101,8 +101,9 @@ function deriveSourceClass({
 
 function scaledAtmospherePressurePa(entry) {
   const species = normalizeHabitabilitySpecies(entry?.species);
-  const availability = ATMOSPHERIC_AVAILABILITY[species] ?? 1;
-  return Math.max(toFinite(entry?.pressurePa, 0), 0) * availability;
+  const availability = ATMOSPHERIC_AVAILABILITY[species] ?? { fraction: 1, capPa: Infinity };
+  const rawPressurePa = Math.max(toFinite(entry?.pressurePa, 0), 0) * availability.fraction;
+  return Math.min(rawPressurePa, availability.capPa);
 }
 
 function computeComposition(retainedSpecies, totalPressurePa) {

@@ -8,6 +8,10 @@ function positiveNumberOrNull(value) {
   return Number.isFinite(num) && num > 0 ? num : null;
 }
 
+function normalizeEvolutionMode(value) {
+  return value === "zams" || value === "staticMainSequence" ? "zams" : "evolved";
+}
+
 function buildStarConfigFromComponent(component, shared) {
   const physicsMode = component?.physicsMode === "advanced" ? "advanced" : "simple";
   const advancedDerivationMode = ["rl", "rt", "lt"].includes(component?.advancedDerivationMode)
@@ -42,7 +46,7 @@ function buildStarConfigFromComponent(component, shared) {
     radiusRsolOverride,
     luminosityLsolOverride,
     tempKOverride,
-    evolutionMode: component?.evolutionMode === "evolved" ? "evolved" : "zams",
+    evolutionMode: normalizeEvolutionMode(component?.evolutionMode),
     physicsMode,
     advancedDerivationMode,
   };
@@ -157,7 +161,7 @@ function buildPairContexts(stellarSystem, topology, starsById) {
         Number(
           dominantStarContext?.config?.metallicityFeH ?? stellarSystem.shared?.metallicityFeH ?? 0,
         ) || 0,
-      evolutionMode: dominantStarContext?.config?.evolutionMode === "evolved" ? "evolved" : "zams",
+      evolutionMode: normalizeEvolutionMode(dominantStarContext?.config?.evolutionMode),
       activityModelVersion:
         dominantStarContext?.component?.activityModelVersion === "v1" ? "v1" : "v2",
       activitySeed:
@@ -346,7 +350,7 @@ export function resolveHostFrameContext(homeSystemContext, hostFrameId) {
       radiusRsolOverride: null,
       luminosityLsolOverride: Number(pairContext.combinedLuminosityLsol || 1),
       tempKOverride: Number(pairContext.representativeTempK || 5776),
-      evolutionMode: pairContext.evolutionMode === "evolved" ? "evolved" : "zams",
+      evolutionMode: normalizeEvolutionMode(pairContext.evolutionMode),
     };
     starModel = calcStar(starConfig);
     starContext = {

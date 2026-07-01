@@ -212,10 +212,11 @@ const TIP_LABEL = {
   "Ridge Height":
     "Elevation of newly-formed crust at the mid-ocean ridge above " +
     "the abyssal plain (m). Starting point for the ocean depth curve.",
-  "Max Ocean Depth":
-    "Maximum ocean floor depth reached by old oceanic crust (m). " +
-    "Determined by the plate-cooling model: crust subsides as it " +
-    "ages and cools, flattening at ~80\u2013100 Myr.",
+  "Mean Ocean Depth":
+    "Mean liquid water-column depth inherited from the Planet hydrosphere solver.",
+  "Mature Seafloor Depth":
+    "Asymptotic ocean-floor depth reached by old oceanic crust in the plate-cooling " +
+    "curve (m). This is bathymetry, not the planet's maximum water-column depth.",
   "Inferred Ocean Coverage":
     "Liquid-ocean surface fraction inherited from the Planet solver. It is inferred from water inventory, gravity-scaled relief, basin capacity, and climate state; tectonics uses this science context separately from authored visual/population overrides.",
   "Authored Ocean Override":
@@ -453,10 +454,24 @@ Object.assign(TIP_LABEL, {
     caveat: "Hotspots, transform offsets, and local bathymetry are not represented.",
     references: "See Science & Maths: oceanic plate cooling.",
   }),
-  "Max Ocean Depth": structuredTip({
-    overview: "Maximum depth reached by old oceanic crust in the plate-cooling model.",
+  "Mean Ocean Depth": structuredTip({
+    overview: "Estimated average liquid surface-ocean depth.",
+    drawnFrom:
+      "The selected planet's water inventory, inferred ocean coverage, climate state, and hydrosphere pressure context.",
+    feedsInto:
+      "Ocean chemistry, high-pressure ice risk, surface habitability, and downstream water-world interpretation.",
+    interpretAs:
+      "This is a global mean water-column depth over liquid ocean area, not a map of local trenches or basins.",
+    caveat: "The current hydrosphere model does not solve true maximum local ocean depth.",
+    references: "See Science & Maths: surface ocean coverage.",
+  }),
+  "Mature Seafloor Depth": structuredTip({
+    overview: "Old-oceanic-crust depth limit in the plate-cooling model.",
     drawnFrom: "Oceanic crust age-depth curve and mature-plate flattening limit.",
-    caveat: "Trenches and sediment-loaded basins are not modelled as local features.",
+    interpretAs:
+      "This describes where mature seafloor sits relative to sea level in the tectonics curve; it is separate from the planet's mean ocean depth.",
+    caveat:
+      "Trenches, sediment-loaded basins, sea-level changes, and true maximum water-column depth are not modelled as local features.",
     references: "Parsons & Sclater 1977; see Science & Maths: oceanic plate cooling.",
   }),
   "Inferred Ocean Coverage": structuredTip({
@@ -553,6 +568,8 @@ export function getPlanetTectonicContext(world) {
     tidalHeatingWm2: 0,
     radioisotopeAbundance: 1,
     inferredOceanCoverageDisplay: "70.0%",
+    meanOceanDepthDisplay: "n/a",
+    meanOceanDepthMeta: "Planet hydrosphere unavailable",
     exposedLandDisplay: "30.0%",
     coverageConfidenceDisplay: "Fallback confidence",
     surfaceOceanCoverageReason: "fallback",
@@ -595,6 +612,8 @@ export function getPlanetTectonicContext(world) {
     radioisotopeAbundance: model.derived.radioisotopeAbundance ?? 1,
     geodynamicsContext: model.derived.geodynamicsContext || null,
     inferredOceanCoverageDisplay: model.display?.inferredOceanCoverage || "n/a",
+    meanOceanDepthDisplay: model.display?.meanOceanDepth || "n/a",
+    meanOceanDepthMeta: model.display?.waterRegime || model.derived.waterRegime || "",
     exposedLandDisplay: model.display?.exposedLand || "n/a",
     coverageConfidenceDisplay:
       model.display?.surfaceOceanCoverageConfidence || "Unknown confidence",
@@ -630,12 +649,16 @@ function surfaceOceanCoverageReadoutHTML(ctx) {
   const overrideText = ctx.authoredOceanOverrideActive
     ? `Authored Ocean Override: ${ctx.authoredOceanOverrideDisplay} (manual land/ocean authoring; inferred science coverage remains separate)`
     : "Authored Ocean Override: Auto (uses inferred coverage)";
+  const meanDepth =
+    ctx.meanOceanDepthDisplay && ctx.meanOceanDepthDisplay !== "n/a"
+      ? `; mean ocean depth ${escapeHtml(ctx.meanOceanDepthDisplay)}`
+      : "";
   const reason = ctx.surfaceOceanCoverageReason
     ? `; class ${escapeHtml(ctx.surfaceOceanCoverageReason)}`
     : "";
   return `<div class="derived-readout">Surface ocean coverage: inferred ${escapeHtml(
     ctx.inferredOceanCoverageDisplay || "n/a",
-  )}; exposed land ${escapeHtml(ctx.exposedLandDisplay || "n/a")}; ${escapeHtml(
+  )}${meanDepth}; exposed land ${escapeHtml(ctx.exposedLandDisplay || "n/a")}; ${escapeHtml(
     ctx.coverageConfidenceDisplay || "Unknown confidence",
   )}${reason}. ${escapeHtml(overrideText)}</div>`;
 }
@@ -1482,8 +1505,9 @@ export function initTectonicsPage(containerEl) {
                     <div class="kpi__value">${model.display.maxPeakHeight}</div>
                   </div></div>
                   <div class="kpi-wrap"><div class="kpi">
-                    <div class="kpi__label">Max Ocean Depth ${tipIcon(TIP_LABEL["Max Ocean Depth"])}</div>
-                    <div class="kpi__value">${model.display.maxOceanDepth}</div>
+                    <div class="kpi__label">Mean Ocean Depth ${tipIcon(TIP_LABEL["Mean Ocean Depth"])}</div>
+                    <div class="kpi__value">${escapeHtml(pCtx?.meanOceanDepthDisplay || "n/a")}</div>
+                    <div class="kpi__meta">${escapeHtml(pCtx?.meanOceanDepthMeta || "")}</div>
                   </div></div>
                   <div class="kpi-wrap"><div class="kpi">
                     <div class="kpi__label">Inferred Ocean Coverage ${tipIcon(TIP_LABEL["Inferred Ocean Coverage"])}</div>
@@ -1643,8 +1667,8 @@ export function initTectonicsPage(containerEl) {
                     value: model.display.ridgeHeight,
                   },
                   {
-                    labelHtml: `Max Ocean Depth ${tipIcon(TIP_LABEL["Max Ocean Depth"])}`,
-                    value: model.display.maxOceanDepth,
+                    labelHtml: `Mature Seafloor Depth ${tipIcon(TIP_LABEL["Mature Seafloor Depth"])}`,
+                    value: model.display.matureSeafloorDepth || model.display.maxOceanDepth,
                   },
                   {
                     labelHtml: `Spreading Rate ${tipIcon(TIP_LABEL["Spreading Rate"])}`,

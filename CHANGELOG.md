@@ -2,7 +2,80 @@
 
 All notable changes to Caelum will be documented in this file.
 
-## Unreleased (post-3.2.0)
+## Unreleased (post-3.2.1)
+
+## 3.2.1 - 2026-07-01
+
+### Added
+
+**Tiered calibration release gate**
+(scripts/report-model-calibration.mjs,
+scripts/generate-science-verification-matrix.mjs,
+scripts/science-verification/verificationRows.mjs,
+scripts/science-verification/rowHelpers.mjs,
+tests/modelCalibrationReport.test.js, tests/scienceVerificationMatrix.test.js,
+tests/fixtures/nonSolarCalibrationReference.js, RELEASE_CHECKLIST.md)
+
+Calibration rows now carry an explicit `strict`, `calibrated`, or
+`exploratory` tier. Strict rows are treated as release-blocking point checks
+and must stay within 10% of their reference values; calibrated rows keep
+bounded numeric/range uncertainty, and exploratory rows preserve
+high-uncertainty science anchors without implying false precision.
+
+The Science Verification Matrix and legacy model-calibration artifacts now
+include tier counts, tier summaries, tier filters, and strict-failure headline
+counts. `npm run science:verify` continues to be the release-path gate, and now
+turns strict calibration drift into high-severity matrix failures. The release
+checklist documents how to respond: fix the model/data regression, or
+reclassify a row only with a documented scientific rationale.
+
+**Browser confidence pass**
+(tests/browser/confidence.spec.js, package.json, CAELUM_CONFIDENCE_PASS.md)
+
+Added a focused production-bundle confidence suite for post-science-change
+regression hunting. The suite boots the built app in Chromium, exercises
+data-sensitive runtime routes across edge worlds, traps browser `pageerror` and
+`console.error` events, scans rendered model routes for visible `NaN` and
+`Infinity` leaks, and covers an empty-world create/reload/export workflow.
+
+### Changed
+
+**Science calibration and verification artifacts**
+(scripts/report-model-calibration.mjs,
+scripts/generate-science-verification-matrix.mjs,
+tests/fixtures/nonSolarCalibrationReference.js,
+`test-results/science-verification-matrix.*`,
+`test-results/model-calibration-report.*`)
+
+The current calibration split is now reported as 147 strict rows, 100
+calibrated rows, and 30 exploratory rows, with zero strict rows over the 10%
+limit. Exoplanet RV semi-amplitude tolerance was tightened from 20% to 10% for
+the strict analytic benchmark rows. The downstream science verification and
+model-calibration artifacts were regenerated with the new tier metadata.
+
+### Fixed
+
+**Scientific bug-hunt closure pass**
+(engine/physics/constants.js, engine/star.js, engine/stellarLifecycle.js,
+engine/substellarRegime.js, engine/planet.js, engine/volatilePlanet.js,
+engine/moon/tides.js, engine/moon/orbit.js, engine/moon/retention.js,
+engine/physics/orbital.js, engine/physics/rotation.js, engine/tectonics.js,
+`tests/*`)
+
+Closed the scientific bug-hunt findings across stellar, orbital, planetary,
+moon, and tectonic models. The fixes include shared physical constants,
+exact-source Eker Table 4 mass-luminosity coefficients with extrapolation
+diagnostics, named Kopparapu habitable-zone boundary profiles, age-aware
+stellar evolution defaults, remnant and substellar boundary corrections,
+volatile escape decoupling from surface pressure, vapor-pressure behavior above
+the triple point, Parsons-Sclater seafloor cooling branch behavior, Earth
+Airy-root calibration, two-body Kepler periods, rocky-solver mass guards,
+Roche-density guards, and the spectral O/B boundary correction.
+
+Downstream expectations and golden baselines were refreshed after those science
+model changes, including fixture worlds, environment coupling snapshots,
+planetary-body phase snapshots, lifecycle references, calibration semantics,
+and end-to-end M-dwarf caveat expectations.
 
 ## 3.2.0 - 2026-06-30
 

@@ -7,8 +7,8 @@ import {
   orbitalDirectionFromInclination as sharedOrbitalDirectionFromInclination,
 } from "../physics/orbital.js";
 import { calcEccentricityFactor, calcTidalLockTimeGyr } from "../physics/rotation.js";
+import { G_SI as G } from "../physics/constants.js";
 
-const G = 6.67e-11;
 const C_ATM_TIDE = 12;
 
 function clampUnit(value, min = 0, max = 1) {

@@ -31,6 +31,7 @@
 // Outputs: { inputs, tectonics, display }
 
 import { clamp, toFinite, fmt } from "./utils.js";
+import { EARTH_GRAVITY_MS2 } from "./physics/constants.js";
 
 // ── Constants ────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ const DEFAULT_EROSION_RATE = 5;
 // Two-regime plate model:
 //   Young crust: depth = ridge + 350 × √age  (half-space cooling)
 //   Old crust:   depth = 6400 − 3073 × exp(−age / 62.8)  (plate model)
-// The actual depth = min(half-space, plate) at each age.
+// The two branches switch at 70 Myr; Parsons & Sclater note the discontinuity.
 const SUBSIDENCE_RATE_M = 350; // metres per sqrt(Myr)
 const MAX_OCEAN_DEPTH_M = 6400;
 const PLATE_FALLOFF_MYR = 62.8; // exponential decay timescale
@@ -53,7 +54,7 @@ const PLATE_INTERSECTION_M = 3073; // amplitude of exponential term
 const DEFAULT_RIDGE_HEIGHT_M = 2600;
 
 // ── Isostatic compensation (Turcotte & Schubert 2014) ────
-const CRUST_DENSITY = 2800; // kg/m³ (continental crust average)
+const CRUST_DENSITY = 2700; // kg/m³ (continental crust average)
 const MANTLE_DENSITY = 3300; // kg/m³ (upper mantle average)
 const DEFAULT_COMPENSATION_DEPTH_M = 100_000; // 100 km Pratt compensation depth
 
@@ -255,7 +256,7 @@ export function flexuralShieldLimit(teKm, gravityG, crustDensity = CRUST_DENSITY
   const te = Math.max(toFinite(teKm, 50), 1);
   const g = Math.max(toFinite(gravityG, 1), 0.01);
   const rho = toFinite(crustDensity, CRUST_DENSITY);
-  return (FLEXURAL_C * te) / (rho * g * 9.81);
+  return (FLEXURAL_C * te) / (rho * g * EARTH_GRAVITY_MS2);
 }
 
 /**
@@ -271,7 +272,7 @@ export function basalSpreadingLimit(gravityG, compositionClass = "Earth-like") {
   const g = Math.max(toFinite(gravityG, 1), 0.01);
   const yieldStress =
     compositionClass === "Ice world" ? ICE_YIELD_STRESS_PA : BASALT_YIELD_STRESS_PA;
-  return yieldStress / (CRUST_DENSITY * g * 9.81);
+  return yieldStress / (CRUST_DENSITY * g * EARTH_GRAVITY_MS2);
 }
 
 /**
@@ -479,7 +480,7 @@ export function oceanDepth(crustAgeMyr, ridgeHeightM = DEFAULT_RIDGE_HEIGHT_M) {
   const ridge = toFinite(ridgeHeightM, DEFAULT_RIDGE_HEIGHT_M);
   const halfSpace = ridge + SUBSIDENCE_RATE_M * Math.sqrt(age);
   const plate = MAX_OCEAN_DEPTH_M - PLATE_INTERSECTION_M * Math.exp(-age / PLATE_FALLOFF_MYR);
-  return Math.min(halfSpace, plate, MAX_OCEAN_DEPTH_M);
+  return age <= 70 ? halfSpace : Math.min(plate, MAX_OCEAN_DEPTH_M);
 }
 
 /**
@@ -961,6 +962,7 @@ export function calcTectonics({
       inactiveProfiles,
       ocean: {
         ridgeHeightM: ridge,
+        matureSeafloorDepthM: MAX_OCEAN_DEPTH_M,
         maxDepthM: MAX_OCEAN_DEPTH_M,
         subsidence,
         spreadingRate: spreading,
@@ -976,6 +978,7 @@ export function calcTectonics({
     display: {
       maxPeakHeight: fmt(maxPeak, 0) + " m",
       ridgeHeight: fmt(ridge, 0) + " m",
+      matureSeafloorDepth: fmt(MAX_OCEAN_DEPTH_M, 0) + " m",
       maxOceanDepth: fmt(MAX_OCEAN_DEPTH_M, 0) + " m",
       spreadingRate: fmt(spreading.rateMmYr, 0) + " mm/yr",
       maxShieldHeight: fmt(maxShield, 0) + " m",
