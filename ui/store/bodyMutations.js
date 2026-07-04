@@ -109,7 +109,10 @@ export function updatePlanetInWorld(world, planetId, patch) {
   const planet = planets.find((entry) => entry.id === planetId);
   if (!planet) return world;
 
-  if (patch.name != null) planet.name = patch.name;
+  if (patch.name != null) {
+    planet.name = patch.name;
+    planet.inputs = { ...(planet.inputs || {}), name: patch.name };
+  }
   if (patch.slotIndex !== undefined) planet.slotIndex = patch.slotIndex;
   if (patch.hostFrameId !== undefined) planet.hostFrameId = patch.hostFrameId || null;
   if (patch.inputs) {

@@ -3,6 +3,7 @@
  */
 
 import { calcLocalCluster } from "../engine/localCluster.js";
+import { buildStellarNeighbourhoodHazardModelForWorld } from "../engine/stellarNeighbourhoodHazards.js";
 import { normalizeClusterObjectKey } from "./clusterObjectVisuals.js";
 import {
   getClusterAdjustments,
@@ -16,7 +17,8 @@ import {
 export function buildClusterSnapshot() {
   const world = loadWorld();
   const primaryStar = getProjectedPrimaryStar(world);
-  const model = calcLocalCluster(getClusterInputs(world));
+  const clusterInputs = getClusterInputs(world);
+  const model = calcLocalCluster(clusterInputs);
   const adjustments = getClusterAdjustments(world);
   const baseSystems = applyClusterAdjustments(model.systems, adjustments);
   const customNames =
@@ -39,8 +41,14 @@ export function buildClusterSnapshot() {
     distanceLy: Number(system.distanceLy) || 0,
     objectClassKey: normalizeClusterObjectKey(system.objectClassKey, { isHome: system.isHome }),
   }));
+  const hazardModel = buildStellarNeighbourhoodHazardModelForWorld(world, {
+    clusterInputs,
+    localClusterModel: model,
+    systems,
+  });
   return {
     model,
+    hazardMap: hazardModel.hazardMap,
     systems,
     radiusLy: Math.max(1, Number(model.inputs.neighbourhoodRadiusLy) || 1),
     systemCount: systems.length,

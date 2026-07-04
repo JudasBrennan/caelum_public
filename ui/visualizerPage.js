@@ -11,7 +11,11 @@ import {
 import {
   clusterClassLabel,
   drawClusterCompanions,
+  drawClusterRangeBearingGrid,
   drawClusterStarfield,
+  drawHazardLensPanels,
+  drawHazardSystemHighlights,
+  drawProjectedHazardShells,
   drawStarDot,
 } from "./visualizer/clusterOverlay.js";
 import {
@@ -247,6 +251,11 @@ export function initVisualiserPage(root, options = {}) {
               <label class="viz-check"><input id="chk-cluster-axes" type="checkbox" checked /><span>Axes ${tipIcon(TIP_LABEL["Axes"] || "")}</span></label>
               <label class="viz-check"><input id="chk-cluster-grid" type="checkbox" checked /><span>Range/Bearing Grid ${tipIcon(TIP_LABEL["Range/Bearing Grid"] || "")}</span></label>
               <label class="viz-check"><input id="chk-cluster-stars" type="checkbox" checked /><span>Starfield ${tipIcon(TIP_LABEL["Starfield"] || "")}</span></label>
+              <label class="viz-check"><input id="chk-cluster-hazards" type="checkbox" /><span>Hazards ${tipIcon(TIP_LABEL["Hazard Lens"] || "")}</span></label>
+              <label class="viz-check"><input id="chk-cluster-hazard-shells" type="checkbox" checked /><span>Supernova Shells ${tipIcon(TIP_LABEL["Supernova Shells"] || "")}</span></label>
+              <label class="viz-check"><input id="chk-cluster-hazard-candidates" type="checkbox" checked /><span>Massive Candidates ${tipIcon(TIP_LABEL["Massive Candidates"] || "")}</span></label>
+              <label class="viz-check"><input id="chk-cluster-hazard-inset" type="checkbox" checked /><span>Flyby Inset ${tipIcon(TIP_LABEL["Flyby Inset"] || "")}</span></label>
+              <label class="viz-check"><input id="chk-cluster-hazard-legend" type="checkbox" checked /><span>Hazard Legend ${tipIcon(TIP_LABEL["Hazard Legend"] || "")}</span></label>
             </div>
 
             <div class="viz-controls-dropdown__row">
@@ -371,6 +380,11 @@ export function initVisualiserPage(root, options = {}) {
   const chkClusterAxes = root.querySelector("#chk-cluster-axes");
   const chkClusterGrid = root.querySelector("#chk-cluster-grid");
   const chkClusterStars = root.querySelector("#chk-cluster-stars");
+  const chkClusterHazards = root.querySelector("#chk-cluster-hazards");
+  const chkClusterHazardShells = root.querySelector("#chk-cluster-hazard-shells");
+  const chkClusterHazardCandidates = root.querySelector("#chk-cluster-hazard-candidates");
+  const chkClusterHazardInset = root.querySelector("#chk-cluster-hazard-inset");
+  const chkClusterHazardLegend = root.querySelector("#chk-cluster-hazard-legend");
   const clusterMilsEl = root.querySelector("#clusterVizMils");
   const btnClusterRefresh = root.querySelector("#btn-cluster-refresh");
   const btnClusterPlay = root.querySelector("#btn-cluster-play");
@@ -388,6 +402,9 @@ export function initVisualiserPage(root, options = {}) {
   const helpClusterSection = root.querySelector("#viz-help-cluster");
   const btnHelp = root.querySelector("#btn-help-overlay");
   const btnHelpClose = root.querySelector("#viz-help-close");
+  const clusterVizParams = new URLSearchParams(String(location.hash || "").split("?")[1] || "");
+  if (chkClusterHazards && clusterVizParams.get("hazards") === "1")
+    chkClusterHazards.checked = true;
   const bodyScaleRow = root.querySelector("#body-scale-row");
   const viewModeRow = root.querySelector("#view-mode-row");
   const vizViewLocal = root.querySelector("#vizViewLocal");
@@ -4426,6 +4443,10 @@ export function initVisualiserPage(root, options = {}) {
 
     /* Camera setup for projection math only */
     const snapshot = state.clusterSnapshot;
+    const hazardMap = snapshot?.hazardMap || null;
+    const hazardLensEnabled = !!chkClusterHazards?.checked && !!hazardMap;
+    const hazardPanelInset = chkClusterHazardInset?.checked,
+      hazardPanelLegend = chkClusterHazardLegend?.checked;
     const THREE = nativeThree.THREE;
     const radiusLy = Math.max(1, Number(snapshot?.radiusLy) || 1);
     const useMils = !!clusterMilsEl?.checked;
@@ -4451,6 +4472,8 @@ export function initVisualiserPage(root, options = {}) {
       };
     };
     const project3D = (x, y, z) => projectToScreen(new THREE.Vector3(x, y, z));
+    const projectHazardRingPoint = (ringLy, angle) =>
+      project3D(Math.sin(angle) * ringLy, 0, Math.cos(angle) * ringLy);
 
     /* Project all systems */
     const plotted = [];
@@ -4486,60 +4509,8 @@ export function initVisualiserPage(root, options = {}) {
       drawClusterStarfield(ctx, W, H);
     }
 
-    /* Range/bearing grid (2D projected from XZ plane) */
     if (chkClusterGrid?.checked) {
-      const ringCount = 4;
-      const RING_SEGS = 96;
-      for (let i = 1; i <= ringCount; i++) {
-        const ringLy = radiusLy * (i / ringCount);
-        const alpha = i === ringCount ? 0.2 : 0.12;
-        ctx.strokeStyle = `rgba(196,216,255,${alpha})`;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (let s = 0; s <= RING_SEGS; s++) {
-          const angle = (s / RING_SEGS) * Math.PI * 2;
-          const sp = project3D(Math.sin(angle) * ringLy, 0, Math.cos(angle) * ringLy);
-          if (s === 0) ctx.moveTo(sp.x, sp.y);
-          else ctx.lineTo(sp.x, sp.y);
-        }
-        ctx.closePath();
-        ctx.stroke();
-      }
-      /* Range labels */
-      ctx.font = "10px system-ui, sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      for (let i = 1; i <= ringCount; i++) {
-        const ring = radiusLy * (i / ringCount);
-        const sp = project3D(ring, 0, 0);
-        ctx.fillStyle = "rgba(186,208,248,0.82)";
-        const lyStr =
-          ring >= 100 ? ring.toFixed(0) : ring >= 10 ? ring.toFixed(1) : ring.toFixed(2);
-        ctx.fillText(`${lyStr} ly`, sp.x + 8, sp.y);
-      }
-      /* Bearing tick marks + labels */
-      const degreeMarks = [0, 45, 90, 135, 180, 225, 270, 315];
-      for (const deg of degreeMarks) {
-        const angle = (deg * Math.PI) / 180;
-        const sin = Math.sin(angle);
-        const cos = Math.cos(angle);
-        const innerSp = project3D(sin * radiusLy * 0.985, 0, cos * radiusLy * 0.985);
-        const outerSp = project3D(sin * radiusLy * 1.03, 0, cos * radiusLy * 1.03);
-        ctx.strokeStyle = "rgba(210,226,255,0.4)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(innerSp.x, innerSp.y);
-        ctx.lineTo(outerSp.x, outerSp.y);
-        ctx.stroke();
-        const labelSp = project3D(sin * radiusLy * 1.09, 0, cos * radiusLy * 1.09);
-        ctx.fillStyle = "rgba(205,220,248,0.8)";
-        ctx.font = "10px system-ui, sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        const bearingLabel = useMils ? `${Math.round((deg / 360) * 6400)} mil` : `${deg}\u00b0`;
-        ctx.fillText(bearingLabel, labelSp.x, labelSp.y);
-      }
-      ctx.textAlign = "left";
+      drawClusterRangeBearingGrid(ctx, { radiusLy, project3D, useMils });
     }
 
     /* Axes (2D lines) */
@@ -4595,6 +4566,13 @@ export function initVisualiserPage(root, options = {}) {
     ctx.arc(cxB, cyB, maxBoundaryR, 0, Math.PI * 2);
     ctx.stroke();
 
+    if (hazardLensEnabled && chkClusterHazardShells?.checked) {
+      drawProjectedHazardShells(ctx, hazardMap.shells, {
+        projectRingPoint: projectHazardRingPoint,
+        clusterRadiusLy: radiusLy,
+      });
+    }
+
     /* Vertical links (2D) */
     if (chkClusterLinks?.checked) {
       for (const item of plotted) {
@@ -4641,6 +4619,10 @@ export function initVisualiserPage(root, options = {}) {
           drawClusterCompanions(ctx, sx, sy, radius, sys.components, item.perspective);
         }
       }
+    }
+
+    if (hazardLensEnabled && chkClusterHazardCandidates?.checked) {
+      drawHazardSystemHighlights(ctx, plotted, hazardMap, { labels: chkClusterLabels?.checked });
     }
 
     /* System name labels */
@@ -4708,6 +4690,10 @@ export function initVisualiserPage(root, options = {}) {
 
     /* Hover label */
     let hoverEntry = null;
+    const hazardHighlights =
+      hazardLensEnabled && Array.isArray(hazardMap.highlightedSystems)
+        ? new Map(hazardMap.highlightedSystems.map((item) => [item.id, item]))
+        : null;
     if (state.clusterMouseX != null && state.clusterMouseY != null) {
       let closestDist = Infinity;
       for (const item of plotted) {
@@ -4748,10 +4734,19 @@ export function initVisualiserPage(root, options = {}) {
         ctx.fillStyle = sys.isHome ? "rgba(255,240,185,0.98)" : "rgba(205,225,255,0.98)";
         ctx.font = "10px system-ui, sans-serif";
         ctx.fillText(hLine2, hLabelX, screen.y + 3);
+        const highlight = hazardHighlights?.get(sys.id);
+        if (highlight) {
+          ctx.fillStyle = "rgba(255,213,122,0.98)";
+          ctx.font = "10px system-ui, sans-serif";
+          ctx.fillText(highlight.reason || "Hazard Lens candidate", hLabelX, screen.y + 16);
+        }
       }
     }
 
     canvas.style.cursor = state.dragging ? "grabbing" : hoverEntry ? "pointer" : "grab";
+
+    if (hazardLensEnabled)
+      drawHazardLensPanels(ctx, hazardMap, W, H, hazardPanelInset, hazardPanelLegend);
 
     const viewChanged =
       Math.abs(state.zoom - CLUSTER_DEFAULT_ZOOM) > 0.01 ||
@@ -5319,6 +5314,11 @@ export function initVisualiserPage(root, options = {}) {
       chkClusterAxes,
       chkClusterGrid,
       chkClusterStars,
+      chkClusterHazards,
+      chkClusterHazardShells,
+      chkClusterHazardCandidates,
+      chkClusterHazardInset,
+      chkClusterHazardLegend,
       btnClusterRefresh,
       btnClusterPlay,
       rngClusterSpeed,

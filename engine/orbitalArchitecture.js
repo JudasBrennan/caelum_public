@@ -132,6 +132,8 @@ function buildPair(inner, outer, hostMassMsol) {
     outerId: outer.id,
     innerName: inner.name,
     outerName: outer.name,
+    innerKind: inner.kind,
+    outerKind: outer.kind,
     deltaAu,
     mutualHillAu: Number.isFinite(mutualHillAu) ? mutualHillAu : null,
     separationMutualHill: Number.isFinite(separationMutualHill) ? separationMutualHill : null,

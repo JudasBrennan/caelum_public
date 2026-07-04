@@ -3,12 +3,14 @@ import {
   LOCAL_CLUSTER_DEFAULTS,
   normalizeLocalClusterInputs,
 } from "../engine/localCluster.js";
+import { buildStellarNeighbourhoodHazardModelForWorld } from "../engine/stellarNeighbourhoodHazards.js";
 import { clamp, fmt } from "../engine/utils.js";
 import { bindNumberAndSlider } from "./bind.js";
 import { normalizeClusterObjectKey } from "./clusterObjectVisuals.js";
 import { confirmDestructiveAction } from "./destructiveActionDialog.js";
 import {
   renderClusterContextMenuItems,
+  renderClusterHazardSignals,
   renderClusterKpis,
   renderClusterObjectsBody,
   renderClusterSystemsBody,
@@ -344,6 +346,13 @@ const TUTORIAL_STEPS = [
       "and stellar density vary with galactic radius.",
   },
   {
+    title: "Hazard Signals",
+    body:
+      "The compact Hazard Signals strip previews external deep-time risks " +
+      "from the current neighbourhood. Open the hazard model when you want " +
+      "the supernova, flyby, comet-shower, and reservoir consequences.",
+  },
+  {
     title: "Stellar Census",
     body:
       "The output panel breaks down the neighbourhood by spectral class, " +
@@ -375,6 +384,7 @@ export function initLocalClusterPage(mountEl) {
           </div>
           <a class="cluster-visualizer-callout__action" href="#/cluster-viz">Open 3D Visualiser</a>
         </div>
+        <div id="clusterHazardSignals" class="cluster-hazard-signals" role="note" aria-label="Local cluster hazard signals"></div>
       </div>
     </div>
 
@@ -538,6 +548,7 @@ export function initLocalClusterPage(mountEl) {
   const densitySlider = wrap.querySelector("#clusterDensitySlider");
 
   const kpisEl = wrap.querySelector("#clusterKpis");
+  const hazardSignalsEl = wrap.querySelector("#clusterHazardSignals");
   const objectsBodyEl = wrap.querySelector("#clusterObjectsBody");
   const systemsBodyEl = wrap.querySelector("#clusterSystemsBody");
 
@@ -697,6 +708,12 @@ export function initLocalClusterPage(mountEl) {
     ];
 
     renderClusterKpis(kpisEl, kpis);
+    const hazardModel = buildStellarNeighbourhoodHazardModelForWorld(worldNow, {
+      clusterInputs: state,
+      localClusterModel: model,
+      systems: finalSystems,
+    });
+    renderClusterHazardSignals(hazardSignalsEl, hazardModel.hazardSignals);
     renderClusterObjectsBody(objectsBodyEl, model.stellarRows, countDeltas);
     renderClusterSystemsBody(systemsBodyEl, finalSystems, {
       homeDefaultName,

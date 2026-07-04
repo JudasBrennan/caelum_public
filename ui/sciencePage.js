@@ -3700,6 +3700,40 @@ function buildSystemArchitecture() {
       )}
       ${cite("Caelum system-fate aggregation model; Hurley, Pols &amp; Tout (2000); Kopparapu et al. (2013/2014)")}`,
     ),
+
+    formula(
+      "Stellar Neighbourhood Hazard Model",
+      `<div class="sci-formula__eq">${eq("R_\\mathrm{SN}(<d) \\approx \\rho_\\star\\,\\Gamma_\\mathrm{SN}\\,{4\\pi d^3 \\over 3}")}</div>
+      <div class="sci-formula__eq">${eq("R_\\mathrm{flyby} \\approx \\rho_\\star\\,v_\\mathrm{enc}\\,\\pi b^2")}</div>
+      <p>The Stellar Neighbourhood Hazards page is the external deep-time companion to System Fate. Local Cluster still owns nearby-star authoring and visual context; the hazard page interprets that neighbourhood as broad nearby-supernova exposure, stellar-flyby exposure, comet-shower/Oort disturbance potential, dense-cluster stress, affected-world groupings, assumptions, and copy-ready report text.</p>
+      <p><b>Important limit:</b> expected intervals are rate screens, not scheduled events. The model does not integrate exact flyby histories, individual supernova light curves, blast transport, N-body encounters, impactor size-frequency populations, climate response, or biology.</p>
+      ${dataTable(
+        ["Hazard source", "How it is interpreted"],
+        [
+          [
+            "Nearby supernovae",
+            "Uses local stellar density, GHZ context, generated massive-star signals, and 3 pc / 10 pc distance proxies for atmosphere stripping and mass-extinction-style exposure.",
+          ],
+          [
+            "Stellar flybys",
+            "Uses analytic encounter cross sections for very-close architecture stress and wider Oort-stirring encounters.",
+          ],
+          [
+            "Comet showers",
+            "Combines flyby exposure with Oort-cloud mass/injection and small-body reservoir context to flag background injection or shower-prone reservoirs.",
+          ],
+          [
+            "Dense-cluster stress",
+            "Classifies crowded stellar fields where external perturbation and reservoir stripping become part of the system identity.",
+          ],
+          [
+            "Affected worlds",
+            "Groups saved bodies by consequence: atmospheres/surfaces, impacts, outer reservoirs, or mostly indirect effects. It does not claim equal risk for every body.",
+          ],
+        ],
+      )}
+      ${cite("Caelum stellar-neighbourhood hazard model; Lineweaver et al. (2004); Gehrels et al. (2003); NASA Oort Cloud and comet references; Oort-cloud literature such as Dones et al. (2004) and Kaib &amp; Quinn (2009)")}`,
+    ),
   ].join("");
 }
 

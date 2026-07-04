@@ -64,6 +64,11 @@ export function bindVisualizerInputBindings({
     chkClusterAxes,
     chkClusterGrid,
     chkClusterStars,
+    chkClusterHazards,
+    chkClusterHazardShells,
+    chkClusterHazardCandidates,
+    chkClusterHazardInset,
+    chkClusterHazardLegend,
     btnClusterRefresh,
     btnClusterPlay,
     rngClusterSpeed,
@@ -776,7 +781,18 @@ export function bindVisualizerInputBindings({
     updateClusterSpeedUI();
   });
 
-  [chkClusterLabels, chkClusterLinks, chkClusterAxes, chkClusterGrid, chkClusterStars]
+  [
+    chkClusterLabels,
+    chkClusterLinks,
+    chkClusterAxes,
+    chkClusterGrid,
+    chkClusterStars,
+    chkClusterHazards,
+    chkClusterHazardShells,
+    chkClusterHazardCandidates,
+    chkClusterHazardInset,
+    chkClusterHazardLegend,
+  ]
     .filter(Boolean)
     .forEach((element) => addDisposableListener(element, "change", draw));
 

@@ -1,8 +1,8 @@
 # Caelum Science Verification Matrix
 
-Generated: 2026-07-01T20:11:29.081Z
+Generated: 2026-07-04T04:51:23.651Z
 
-App version: 3.2.1
+App version: 3.3.0
 
 Science verification matrix covering benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, units, independent formula oracles, sensitivity, population sanity, browser coverage, and release gates.
 
@@ -12,9 +12,9 @@ Anchor benchmarks are only one family. Physics invariants, metamorphic trends, b
 
 Metric | Value
 --- | ---
-Model areas | 30
-Verification rows | 359
-Passed rows | 350
+Model areas | 31
+Verification rows | 360
+Passed rows | 351
 Warnings | 0
 Failures | 0
 Modeling gaps | 0
@@ -42,6 +42,7 @@ Habitability, Productivity, And Biosignatures | strong | productivity, nitrogenC
 Observability And User-Facing Science | strong | observability, observerFrame, eclipseTiming | anchor, population, browser, source-coverage, release-gate
 Surface ocean coverage and hypsometry context | strong | surfaceOceanCoverage | source-coverage
 System fate aggregate timeline | strong | systemFate | source-coverage
+Stellar neighbourhood hazard model | strong | stellarNeighbourhoodHazards | source-coverage
 Moon solid-body structure and response context | strong | moonSolidBodyStructure | source-coverage
 Icy moon sputtered oxygen exosphere | strong | icyMoonExosphere | source-coverage
 Radius-valley boundary context | strong | radiusValleyBoundary | source-coverage
@@ -366,6 +367,7 @@ habitability-biosignatures | source-coverage | n/a | Habitability, Productivity,
 observability-user-facing | source-coverage | n/a | Observability And User-Facing Science | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-surfaceoceancoverage | source-coverage | n/a | Surface ocean coverage and hypsometry context | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-systemfate | source-coverage | n/a | System fate aggregate timeline | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
+context-stellarneighbourhoodhazards | source-coverage | n/a | Stellar neighbourhood hazard model | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-moonsolidbodystructure | source-coverage | n/a | Moon solid-body structure and response context | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-icymoonexosphere | source-coverage | n/a | Icy moon sputtered oxygen exosphere | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
 context-radiusvalleyboundary | source-coverage | n/a | Radius-valley boundary context | Registry source and limitation coverage | PASS | low | Registry metadata present | Source summary, assumptions, valid range, and limitations | Keep source registry entries current as science changes.
@@ -430,7 +432,7 @@ observability-user-facing | population | n/a | Science calibration fixture set |
 habitability-biosignatures | population | n/a | Hostile calibration fixtures | Hostile worlds do not bypass habitability guardrails | PASS | low | Guardrails hold | No obvious hostile world with high habitability index | Review habitability penalties if this fails.
 moons | population | n/a | Moon calibration fixture availability | Europa-like and Titan-like worlds exist for downstream suites | PASS | low | Europa-like calibration; Titan-like calibration | Moon fixture worlds present | Keep moon fixtures updated when moon schema changes.
 observability-user-facing | browser | n/a | Validation page | Browser regression suite coverage | INFO | info | Covered by npm run test:browser during release verification | Validation page loads matrix artifact and filters rows | Run browser tests before release; investigate any Validation page failure.
-observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-07-01T20:11:29.081Z | PASS before release | No action required.
+observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-07-04T04:51:23.651Z | PASS before release | No action required.
 observability-user-facing | release-gate | n/a | check | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | build | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | bundle | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.

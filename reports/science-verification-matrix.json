@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-01T20:11:29.081Z",
+  "generatedAt": "2026-07-04T04:51:23.651Z",
   "generatedBy": "node scripts/generate-science-verification-matrix.mjs",
-  "appVersion": "3.2.1",
+  "appVersion": "3.3.0",
   "git": {
     "commit": "66a765b",
     "branch": "main",
-    "dirty": false
+    "dirty": true
   },
   "scope": "Science verification matrix covering benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, units, independent formula oracles, sensitivity, population sanity, browser coverage, and release gates.",
   "interpretation": "Anchor benchmarks are only one family. Physics invariants, metamorphic trends, boundary behavior, coupling checks, and user-visible release gates are shown separately so users can see how each science area is bounded.",
   "headlineCounts": {
-    "modelAreas": 30,
-    "verificationRows": 359,
-    "passedRows": 350,
+    "modelAreas": 31,
+    "verificationRows": 360,
+    "passedRows": 351,
     "warningRows": 0,
     "failedRows": 0,
     "gapRows": 0,
@@ -45,6 +45,7 @@
       "context-parent-radiationcontext",
       "context-parent-ringcontext",
       "context-radiusvalleyboundary",
+      "context-stellarneighbourhoodhazards",
       "context-surfaceoceancoverage",
       "context-systemfate",
       "context-timeline-dynamicalevents",
@@ -73,6 +74,7 @@
       "observability-user-facing": "Observability And User-Facing Science",
       "context-surfaceoceancoverage": "Surface ocean coverage and hypsometry context",
       "context-systemfate": "System fate aggregate timeline",
+      "context-stellarneighbourhoodhazards": "Stellar neighbourhood hazard model",
       "context-moonsolidbodystructure": "Moon solid-body structure and response context",
       "context-icymoonexosphere": "Icy moon sputtered oxygen exosphere",
       "context-radiusvalleyboundary": "Radius-valley boundary context",
@@ -796,6 +798,45 @@
       "sourceUrls": [
         "https://doi.org/10.1046/j.1365-8711.2000.03426.x",
         "https://doi.org/10.1088/0004-637X/765/2/131"
+      ],
+      "coverageSummary": {
+        "anchor": false,
+        "invariant": false,
+        "metamorphic": false,
+        "boundary": false,
+        "cross-system": false,
+        "unit": false,
+        "oracle": false,
+        "sensitivity": false,
+        "population": false,
+        "browser": false,
+        "source-coverage": true,
+        "release-gate": false
+      },
+      "trustLevel": "strong"
+    },
+    {
+      "id": "context-stellarneighbourhoodhazards",
+      "label": "Stellar neighbourhood hazard model",
+      "registryKeys": [
+        "stellarNeighbourhoodHazards"
+      ],
+      "engineFiles": [],
+      "uiFiles": [],
+      "scientificScope": "The Stellar Neighbourhood Hazards page combines Local Cluster density/context, broad nearby-supernova rate screens, analytic stellar-flyby cross sections, Oort-cloud and small-body reservoir context, and saved body grouping into a whole-system external-risk dashboard.",
+      "outputKind": "qualitative",
+      "assumptions": [
+        "Supernova and flyby outputs are broad rate screens. Comet-shower potential is inferred from flyby exposure plus Oort/small-body context, and affected-world rows are consequence groupings rather than equal-risk claims."
+      ],
+      "knownLimitations": [
+        "No stochastic flyby chronology, no individual catalogue lookup, no N-body encounter integration, no supernova blast transport or light curves, no impactor size-frequency distribution, no climate response, and no biological outcome model."
+      ],
+      "sourceUrls": [
+        "https://doi.org/10.1086/320131",
+        "https://doi.org/10.1086/508800",
+        "https://doi.org/10.1126/science.1092322",
+        "https://science.nasa.gov/solar-system/comets/",
+        "https://science.nasa.gov/solar-system/oort-cloud/facts/"
       ],
       "coverageSummary": {
         "anchor": false,
@@ -9653,6 +9694,39 @@
       "userVisible": true
     },
     {
+      "id": "context-stellarneighbourhoodhazards-source-coverage-stellar-neighbourhood-hazard-model-registry-source-and-limitation-coverage",
+      "modelAreaId": "context-stellarneighbourhoodhazards",
+      "family": "source-coverage",
+      "subject": "Stellar neighbourhood hazard model",
+      "metric": "Registry source and limitation coverage",
+      "inputSummary": "1 registry entries",
+      "output": "Registry metadata present",
+      "expected": "Source summary, assumptions, valid range, and limitations",
+      "tolerance": "Required for each model area",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "",
+      "comparisonSemantics": "metadata-coverage",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1086/320131",
+        "https://doi.org/10.1086/508800",
+        "https://doi.org/10.1126/science.1092322",
+        "https://science.nasa.gov/solar-system/comets/",
+        "https://science.nasa.gov/solar-system/oort-cloud/facts/"
+      ],
+      "assumptions": [
+        "Supernova and flyby outputs are broad rate screens. Comet-shower potential is inferred from flyby exposure plus Oort/small-body context, and affected-world rows are consequence groupings rather than equal-risk claims."
+      ],
+      "limitations": [
+        "No stochastic flyby chronology, no individual catalogue lookup, no N-body encounter integration, no supernova blast transport or light curves, no impactor size-frequency distribution, no climate response, and no biological outcome model."
+      ],
+      "downstreamConsumers": [],
+      "action": "Keep source registry entries current as science changes.",
+      "userVisible": true
+    },
+    {
       "id": "context-moonsolidbodystructure-source-coverage-moon-solid-body-structure-and-response-context-registry-source-and-limitation-coverage",
       "modelAreaId": "context-moonsolidbodystructure",
       "family": "source-coverage",
@@ -11234,7 +11308,7 @@
       "subject": "science:verify",
       "metric": "Release verification command",
       "inputSummary": "node scripts/generate-science-verification-matrix.mjs",
-      "output": "Recorded at 2026-07-01T20:11:29.081Z",
+      "output": "Recorded at 2026-07-04T04:51:23.651Z",
       "expected": "PASS before release",
       "tolerance": "required release gate",
       "status": "PASS",
@@ -19607,6 +19681,39 @@
       "userVisible": true
     },
     {
+      "id": "context-stellarneighbourhoodhazards-source-coverage-stellar-neighbourhood-hazard-model-registry-source-and-limitation-coverage",
+      "modelAreaId": "context-stellarneighbourhoodhazards",
+      "family": "source-coverage",
+      "subject": "Stellar neighbourhood hazard model",
+      "metric": "Registry source and limitation coverage",
+      "inputSummary": "1 registry entries",
+      "output": "Registry metadata present",
+      "expected": "Source summary, assumptions, valid range, and limitations",
+      "tolerance": "Required for each model area",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "",
+      "comparisonSemantics": "metadata-coverage",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1086/320131",
+        "https://doi.org/10.1086/508800",
+        "https://doi.org/10.1126/science.1092322",
+        "https://science.nasa.gov/solar-system/comets/",
+        "https://science.nasa.gov/solar-system/oort-cloud/facts/"
+      ],
+      "assumptions": [
+        "Supernova and flyby outputs are broad rate screens. Comet-shower potential is inferred from flyby exposure plus Oort/small-body context, and affected-world rows are consequence groupings rather than equal-risk claims."
+      ],
+      "limitations": [
+        "No stochastic flyby chronology, no individual catalogue lookup, no N-body encounter integration, no supernova blast transport or light curves, no impactor size-frequency distribution, no climate response, and no biological outcome model."
+      ],
+      "downstreamConsumers": [],
+      "action": "Keep source registry entries current as science changes.",
+      "userVisible": true
+    },
+    {
       "id": "context-moonsolidbodystructure-source-coverage-moon-solid-body-structure-and-response-context-registry-source-and-limitation-coverage",
       "modelAreaId": "context-moonsolidbodystructure",
       "family": "source-coverage",
@@ -21188,7 +21295,7 @@
       "subject": "science:verify",
       "metric": "Release verification command",
       "inputSummary": "node scripts/generate-science-verification-matrix.mjs",
-      "output": "Recorded at 2026-07-01T20:11:29.081Z",
+      "output": "Recorded at 2026-07-04T04:51:23.651Z",
       "expected": "PASS before release",
       "tolerance": "required release gate",
       "status": "PASS",
@@ -21305,7 +21412,7 @@
       "subject": "science:verify",
       "metric": "Release verification command",
       "inputSummary": "node scripts/generate-science-verification-matrix.mjs",
-      "output": "Recorded at 2026-07-01T20:11:29.081Z",
+      "output": "Recorded at 2026-07-04T04:51:23.651Z",
       "expected": "PASS before release",
       "tolerance": "required release gate",
       "status": "PASS",
@@ -21922,6 +22029,39 @@
       "userVisible": true
     },
     {
+      "id": "context-stellarneighbourhoodhazards-source-coverage-stellar-neighbourhood-hazard-model-registry-source-and-limitation-coverage",
+      "modelAreaId": "context-stellarneighbourhoodhazards",
+      "family": "source-coverage",
+      "subject": "Stellar neighbourhood hazard model",
+      "metric": "Registry source and limitation coverage",
+      "inputSummary": "1 registry entries",
+      "output": "Registry metadata present",
+      "expected": "Source summary, assumptions, valid range, and limitations",
+      "tolerance": "Required for each model area",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "",
+      "comparisonSemantics": "metadata-coverage",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1086/320131",
+        "https://doi.org/10.1086/508800",
+        "https://doi.org/10.1126/science.1092322",
+        "https://science.nasa.gov/solar-system/comets/",
+        "https://science.nasa.gov/solar-system/oort-cloud/facts/"
+      ],
+      "assumptions": [
+        "Supernova and flyby outputs are broad rate screens. Comet-shower potential is inferred from flyby exposure plus Oort/small-body context, and affected-world rows are consequence groupings rather than equal-risk claims."
+      ],
+      "limitations": [
+        "No stochastic flyby chronology, no individual catalogue lookup, no N-body encounter integration, no supernova blast transport or light curves, no impactor size-frequency distribution, no climate response, and no biological outcome model."
+      ],
+      "downstreamConsumers": [],
+      "action": "Keep source registry entries current as science changes.",
+      "userVisible": true
+    },
+    {
       "id": "context-moonsolidbodystructure-source-coverage-moon-solid-body-structure-and-response-context-registry-source-and-limitation-coverage",
       "modelAreaId": "context-moonsolidbodystructure",
       "family": "source-coverage",
@@ -22498,8 +22638,8 @@
     },
     {
       "value": "source-coverage",
-      "rows": 30,
-      "pass": 30,
+      "rows": 31,
+      "pass": 31,
       "warn": 0,
       "fail": 0,
       "gap": 0,
@@ -22731,6 +22871,16 @@
       "info": 0
     },
     {
+      "value": "context-stellarneighbourhoodhazards",
+      "rows": 1,
+      "pass": 1,
+      "warn": 0,
+      "fail": 0,
+      "gap": 0,
+      "blocked": 0,
+      "info": 0
+    },
+    {
       "value": "context-surfaceoceancoverage",
       "rows": 1,
       "pass": 1,
@@ -22874,8 +23024,8 @@
     },
     {
       "value": "PASS",
-      "rows": 350,
-      "pass": 350,
+      "rows": 351,
+      "pass": 351,
       "warn": 0,
       "fail": 0,
       "gap": 0,

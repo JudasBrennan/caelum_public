@@ -2,7 +2,53 @@
 
 All notable changes to Caelum will be documented in this file.
 
-## Unreleased (post-3.2.1)
+## Unreleased (post-3.3.0)
+
+## 3.3.0 - 2026-07-04
+
+### Added
+
+**Stellar Neighbourhood Hazards**
+(engine/stellarNeighbourhoodHazards.js, ui/neighbourhoodHazardsPage.js,
+ui/neighbourhoodHazardsPanel.js, ui/localClusterPage.js,
+ui/localCluster/domRender.js, engine/contexts/scienceRegistry.js,
+ui/sciencePage.js, styles.css, tests/stellarNeighbourhoodHazards.test.js,
+tests/neighbourhoodHazardsPage.ui.test.js, tests/localClusterActions.ui.test.js,
+tests/localClusterDomRender.test.js)
+
+Added a dedicated Stellar Neighbourhood Hazards workspace that interprets Local
+Cluster, Oort-cloud, small-body reservoir, and saved-body context as external
+deep-time risk. The page summarizes nearby-supernova exposure, stellar-flyby
+exposure, comet-shower/Oort disturbance potential, dense-cluster stress,
+long-term survival pressure, affected worlds/reservoirs, assumptions, and
+copy-ready reports.
+
+Local Cluster now shows a compact Hazard Signals preview with neighbourhood,
+massive-star, flyby, and Oort-sensitivity reads plus a direct link to the full
+hazard model. Science & Maths now documents the hazard model's rate-screen
+assumptions and limits.
+
+The Local Cluster Visualiser now includes an optional Hazard Lens that overlays
+model-derived supernova proxy shells, generated massive-star candidates, a
+flyby/Oort inset, and a compact hazard legend. The Hazards page adds a Spatial
+Read tab with the same key facts and an `Open Hazard Lens` link into
+`#/cluster-viz?hazards=1`.
+
+### Changed
+
+**System Fate readability pass**
+(ui/systemFateTimelinePanel.js, styles.css, tests/systemFatePage.ui.test.js)
+
+System Fate now opens on a focused first-scan overview instead of rendering the
+timeline, age preview, rankings, and full body drilldown all at once. The
+overview highlights current promise, future windows, major risks, endpoint
+context, and a compact selected-body preview.
+
+The At Age slider now lives with the At Age output it controls, selected-body
+drilldowns are grouped into Now, Exposure, Risks, and Evidence sections, ranking
+groups show compact counts, and a Definitions popover explains key fate terms
+such as Promising World, HZ Exposure, Endpoint, Remnant Caveat, Engulfment, and
+Confidence.
 
 ## 3.2.1 - 2026-07-01
 

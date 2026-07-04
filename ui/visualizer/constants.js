@@ -263,6 +263,31 @@ Object.assign(VISUALIZER_TIP_LABEL, {
     changes: "Affects scene backdrop only.",
     caveat: "Background stars are visual ambience, not catalogue objects.",
   }),
+  "Hazard Lens": structuredTip({
+    overview: "Show the Local Cluster Hazard Lens.",
+    drawnFrom: "Stellar Neighbourhood Hazards model outputs for the current saved system.",
+    interpretAs:
+      "Use this to separate visible generated neighbours from statistical hazard screens.",
+    caveat: "Hazard shells are proxies and rate screens, not predicted event dates.",
+  }),
+  "Supernova Shells": structuredTip({
+    overview: "Show 9.8 ly and 32.6 ly supernova proxy shells.",
+    interpretAs:
+      "The shells show distance screens used by the hazard model. They do not mean every star inside is dangerous.",
+    caveat: "The 32.6 ly shell may extend beyond the rendered Local Cluster.",
+  }),
+  "Massive Candidates": structuredTip({
+    overview: "Highlight generated O/B systems that drive visible massive-star signals.",
+    caveat:
+      "If the model only has statistical massive-star evidence, the legend notes that instead of inventing a visible star.",
+  }),
+  "Flyby Inset": structuredTip({
+    overview: "Show a compact home-system inset for flyby and Oort encounter screens.",
+    caveat: "The 1,000 AU and 10,000 AU screens are too small to read on the full cluster map.",
+  }),
+  "Hazard Legend": structuredTip({
+    overview: "Show dominant hazard, confidence, and extrapolation notes for the Hazard Lens.",
+  }),
   "Cluster Speed": structuredTip({
     overview: "Auto-spin speed for the local-cluster view.",
     changes: "Controls camera rotation playback, not system positions.",

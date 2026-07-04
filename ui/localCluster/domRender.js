@@ -30,6 +30,48 @@ export function renderClusterKpis(container, kpis = []) {
   );
 }
 
+function createHazardSignalCard(item = {}) {
+  const tone = String(item.tone || "neutral").replace(/[^a-z0-9_-]/gi, "") || "neutral";
+  return createElement(
+    "div",
+    { className: `cluster-hazard-signal cluster-hazard-signal--${tone}` },
+    [
+      createElement("div", { className: "cluster-hazard-signal__label", text: item.label || "" }),
+      createElement("div", { className: "cluster-hazard-signal__value", text: item.value || "" }),
+      item.meta
+        ? createElement("div", { className: "cluster-hazard-signal__meta", text: item.meta })
+        : null,
+    ],
+  );
+}
+
+export function renderClusterHazardSignals(container, signals = []) {
+  return replaceChildren(container, [
+    createElement("div", { className: "cluster-hazard-signals__header" }, [
+      createElement("div", {}, [
+        createElement("div", {
+          className: "cluster-hazard-signals__title",
+          text: "Hazard Signals",
+        }),
+        createElement("div", {
+          className: "cluster-hazard-signals__body",
+          text: "A quick external-risk preview from this Local Cluster. Open the hazard model for the full read.",
+        }),
+      ]),
+      createElement("a", {
+        className: "cluster-hazard-signals__action",
+        attrs: { href: "#/neighbourhood-hazards" },
+        text: "Open Hazard Model",
+      }),
+    ]),
+    createElement(
+      "div",
+      { className: "cluster-hazard-signals__grid" },
+      (Array.isArray(signals) ? signals : []).map((item) => createHazardSignalCard(item)),
+    ),
+  ]);
+}
+
 export function renderClusterObjectsBody(container, stellarRows = [], countDeltas = {}) {
   return replaceChildren(
     container,

@@ -462,6 +462,14 @@ const RELEASE_SCIENTISTS = {
     summary:
       "Led one of the teams that used distant supernovae to discover the accelerating expansion of the universe, turning stellar endpoints into evidence about cosmic fate.",
   },
+  "3.3.0": {
+    name: "Adam Riess",
+    born: 1969,
+    died: null,
+    country: "United States",
+    summary:
+      "Co-discovered the accelerating expansion of the universe using Type Ia supernovae, turning distant stellar explosions into a precise cosmic yardstick.",
+  },
 };
 function scientistCard(version) {
   const s = RELEASE_SCIENTISTS[version];
@@ -501,6 +509,18 @@ function release(
 function changelogHTML() {
   return [
     release(
+      "3.3.0",
+      "(from 3.2.1)",
+      [
+        "<b>Stellar Neighbourhood Hazards</b> &mdash; A new workspace interprets Local Cluster, Oort-cloud, small-body, and saved-world context as external deep-time risk from nearby supernovae, stellar flybys, comet showers, dense-cluster stress, and long-term survival pressure.",
+        "<b>Local Cluster Hazard Lens</b> &mdash; The cluster visualiser can now overlay model-derived supernova proxy shells, generated massive-star candidates, a flyby/Oort inset, and a compact hazard legend.",
+        "<b>Spatial Hazard Read</b> &mdash; The Hazards page includes a compact Spatial Read tab with key map facts and an Open Hazard Lens link into the cluster visualiser.",
+        "<b>System Fate Readability</b> &mdash; System Fate now opens on a focused first-scan overview, with current promise, future windows, major risks, endpoint context, and selected-body previews before the deeper timelines and rankings.",
+        "<b>Clearer Dense Reports</b> &mdash; Hazard and fate outputs now use more compact grouping, definitions, and copy-ready summaries so long-term model results are easier to scan and share.",
+      ],
+      { open: true },
+    ),
+    release(
       "3.2.1",
       "(from 3.2.0)",
       [
@@ -509,7 +529,7 @@ function changelogHTML() {
         "<b>Edge-Case Fixes</b> &mdash; Volatile escape, vapor behavior, moon tides, Roche limits, rocky-solver guards, seafloor cooling, and stellar boundary cases now avoid several misleading results.",
         "<b>Release Confidence Checks</b> &mdash; Production-browser checks now exercise edge worlds across the main model routes and watch for visible invalid-number leaks before release.",
       ],
-      { open: true },
+      { open: false },
     ),
     release(
       "3.2.0",

@@ -198,6 +198,22 @@ function displayLabel(value) {
   return String(value || "unknown").replace(/[-_]/g, " ");
 }
 
+function bodyNameForEntry(entry) {
+  const fallbackKind =
+    entry?.kind === "moon" ? "Moon" : entry?.kind === "gasGiant" ? "Gas giant" : "Planet";
+  const candidates = [
+    entry?.source?.inputs?.name,
+    entry?.model?.inputs?.name,
+    entry?.source?.name,
+    entry?.name,
+  ];
+  for (const candidate of candidates) {
+    const text = String(candidate ?? "").trim();
+    if (text && text !== String(entry?.id || "").trim()) return text;
+  }
+  return fallbackKind;
+}
+
 function buildBodyLongTermContext({ entry, hostFrame, snapshot, architecture, migrationContext }) {
   const hostFrameId = normalizeHostFrameId(entry?.hostFrameId, snapshot?.meta?.defaultHostFrameId);
   const hostMassMsol = hostMassMsolForFrame(hostFrame, snapshot);
@@ -270,14 +286,17 @@ function buildBodyLongTermContext({ entry, hostFrame, snapshot, architecture, mi
     moonOrientationContext?.outputs?.nodalPrecessionClass ||
     "unknown";
   const bodyRef = bodyRefFor(entry);
+  const bodyName = bodyNameForEntry(entry);
   const eccentricity = bodyEccentricity(entry);
   const dynamicalVariabilityContext = buildDynamicalVariabilityContext({
     bodyId: entry?.id || "",
+    bodyName,
     bodyRef,
     bodyKind: entry?.kind || "unknown",
     longTermDynamicsContext: {
       bodyRef,
       bodyId: entry?.id || "",
+      bodyName,
       bodyKind: entry?.kind || "unknown",
       secularContext,
       precessionContext,
@@ -307,6 +326,7 @@ function buildBodyLongTermContext({ entry, hostFrame, snapshot, architecture, mi
   return {
     bodyRef,
     bodyId: entry?.id || "",
+    bodyName,
     bodyKind: entry?.kind || "unknown",
     hostFrameId,
     secularContext,

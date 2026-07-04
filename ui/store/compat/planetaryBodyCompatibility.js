@@ -381,7 +381,7 @@ export function planetFromRockyEntry(planet, idx = 1, options = {}) {
   const raw = planet && typeof planet === "object" ? planet : {};
   const inputs = raw.inputs && typeof raw.inputs === "object" ? raw.inputs : {};
   const id = normalizeId(raw.id, `p${idx}`);
-  const name = String(raw.name || inputs.name || id);
+  const name = String(inputs.name || raw.name || id);
   const massEarth = finiteOrDefault(inputs.massEarth, 1);
   const authoringIntent = normalizeAuthoringIntent(
     raw.authoringIntent || inputs.authoringIntent,
@@ -768,7 +768,7 @@ export function rockyEntryFromPlanetaryBody(body, idx = 1) {
 
   const entry = {
     id: normalized.legacyId || normalized.id || `p${idx}`,
-    name: normalized.name || inputs.name || `Planet ${idx}`,
+    name: inputs.name || normalized.name || `Planet ${idx}`,
     hostFrameId: normalizeHostFrameId(normalized.hostFrameId),
     slotIndex: normalizeSlotIndex(normalized.slotIndex),
     inputs,

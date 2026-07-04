@@ -1,5 +1,5 @@
 export const APP_NAME = "Caelum";
-export const APP_VERSION = "3.2.1";
+export const APP_VERSION = "3.3.0";
 export const APP_SLOGAN = "Ex Nihilo, Astra";
 export const APP_SLOGAN_TRANSLATION = "From nothing, the stars";
 export const APP_NAME_MEANING = "sky";

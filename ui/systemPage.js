@@ -387,6 +387,57 @@ function titleCase(value) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+function activateSystemOutputTab(root, tabName = "data") {
+  const tabButtons = Array.from(root?.querySelectorAll("[data-system-output-tab]") || []);
+  const panels = Array.from(root?.querySelectorAll("[data-system-output-panel]") || []);
+  if (!tabButtons.length || !panels.length) return;
+
+  const validTabs = new Set(panels.map((panel) => panel.dataset.systemOutputPanel));
+  const activeTab = validTabs.has(tabName) ? tabName : "data";
+  for (const button of tabButtons) {
+    const selected = button.dataset.systemOutputTab === activeTab;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-selected", selected ? "true" : "false");
+    button.setAttribute("tabindex", selected ? "0" : "-1");
+  }
+  for (const panel of panels) {
+    const active = panel.dataset.systemOutputPanel === activeTab;
+    panel.hidden = !active;
+    panel.setAttribute("aria-hidden", active ? "false" : "true");
+  }
+}
+
+function bindSystemOutputTabs(root) {
+  const tablist = root?.querySelector("[data-system-output-tabs]");
+  if (!tablist || tablist.dataset.bound === "1") return;
+  tablist.dataset.bound = "1";
+
+  tablist.addEventListener("click", (event) => {
+    const tab = event.target.closest?.("[data-system-output-tab]");
+    if (!tab || !tablist.contains(tab)) return;
+    activateSystemOutputTab(root, tab.dataset.systemOutputTab);
+  });
+
+  tablist.addEventListener("keydown", (event) => {
+    const tab = event.target.closest?.("[data-system-output-tab]");
+    if (!tab || !tablist.contains(tab)) return;
+    const tabs = Array.from(tablist.querySelectorAll("[data-system-output-tab]"));
+    const currentIndex = tabs.indexOf(tab);
+    if (currentIndex < 0) return;
+
+    let nextIndex = currentIndex;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabs.length;
+    else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = tabs.length - 1;
+    else return;
+
+    event.preventDefault();
+    tabs[nextIndex].focus();
+    activateSystemOutputTab(root, tabs[nextIndex].dataset.systemOutputTab);
+  });
+}
+
 function formatHabitableZoneRange(habitableZoneAu) {
   const inner = Number(habitableZoneAu?.inner);
   const outer = Number(habitableZoneAu?.outer);
@@ -660,48 +711,57 @@ export function initSystemPage(mountEl) {
       <div class="panel">
         <div class="panel__header"><h2>Outputs</h2></div>
         <div class="panel__body">
-          <div class="kpi-grid" id="kpis"></div>
-          <div id="orbitalArchitectureDiagnostics" style="margin-top:12px"></div>
-          <div id="longTermDynamicsDiagnostics" style="margin-top:12px"></div>
-
-          <div style="margin-top:14px">
-            <div id="guidedOutputs">
-              <div class="label">Planets in system ${tipIcon(TIP_LABEL["Planets in system"] || "")}</div>
-              <div class="hint">Drag planets into orbit slots. One planet per slot.</div>
-              <div class="dropzone" id="unassignedZone">
-                <div class="dropzone-title">Unassigned planets</div>
-                <div id="unassignedPlanets"></div>
-              </div>
-
-              <div style="height:10px"></div>
-              <div class="dropzone" id="unassignedMoonsZone">
-                <div class="dropzone-title">Unassigned moons</div>
-                <div id="unassignedMoons"></div>
-              </div>
-
-              <div style="height:14px"></div>
-              <div class="label">Orbit slots ${tipIcon(TIP_LABEL["Orbit slots"] || "")}</div>
-              <div class="hint">One planet per slot. Manage planets on the Planets tab.</div>
-              <div id="slotsUi" style="margin-top:10px"></div>
-
-              <div style="height:10px"></div>
-              <div class="label">Derived orbit slots (AU) ${tipIcon(TIP_LABEL["Orbit Slots (AU)"] || "")}</div>
-              <div class="hint">Generated orbit positions (1-20).</div>
-              <div class="derived-readout" id="orbits"></div>
+          <div class="system-output-tabs" id="systemOutputTabs">
+            <div class="output-section-tabs" role="tablist" aria-label="System output sections" data-system-output-tabs>
+              <button class="output-section-tabs__button is-active" id="systemOutputDataTab" type="button" role="tab" aria-selected="true" aria-controls="systemOutputDataPanel" data-system-output-tab="data">Data</button>
+              <button class="output-section-tabs__button" id="systemOutputSpacingTab" type="button" role="tab" aria-selected="false" aria-controls="systemOutputSpacingPanel" tabindex="-1" data-system-output-tab="spacing">Planetary spacing</button>
             </div>
 
-            <div id="manualOutputs" style="display:none">
-              <div class="label">Bodies by orbit</div>
-              <div class="hint" id="manualBodyHint">Sorted by semi-major axis in the selected host frame. Edit orbits on the Planets tab.</div>
-              <div id="manualBodyList" style="margin-top:10px"></div>
+            <div class="system-output-tabs__panel output-section-tabs__panel" id="systemOutputDataPanel" role="tabpanel" aria-labelledby="systemOutputDataTab" data-system-output-panel="data">
+              <div class="kpi-grid" id="kpis"></div>
+              <div id="orbitalArchitectureDiagnostics" style="margin-top:12px"></div>
+              <div id="longTermDynamicsDiagnostics" style="margin-top:12px"></div>
             </div>
 
-            <div id="otherHostBodiesWrap" style="display:none; margin-top:14px">
-              <div class="label">Other host-frame bodies</div>
-              <div class="hint" id="otherHostBodiesHint">
-                Bodies assigned to other stars or pairs stay listed here. Switch Host Frame to edit them in the main ladder.
+            <div class="system-output-tabs__panel output-section-tabs__panel" id="systemOutputSpacingPanel" role="tabpanel" aria-labelledby="systemOutputSpacingTab" data-system-output-panel="spacing" aria-hidden="true" hidden>
+              <div id="guidedOutputs">
+                <div class="label">Planets in system ${tipIcon(TIP_LABEL["Planets in system"] || "")}</div>
+                <div class="hint">Drag planets into orbit slots. One planet per slot.</div>
+                <div class="dropzone" id="unassignedZone">
+                  <div class="dropzone-title">Unassigned planets</div>
+                  <div id="unassignedPlanets"></div>
+                </div>
+
+                <div style="height:10px"></div>
+                <div class="dropzone" id="unassignedMoonsZone">
+                  <div class="dropzone-title">Unassigned moons</div>
+                  <div id="unassignedMoons"></div>
+                </div>
+
+                <div style="height:14px"></div>
+                <div class="label">Orbit slots ${tipIcon(TIP_LABEL["Orbit slots"] || "")}</div>
+                <div class="hint">One planet per slot. Manage planets on the Planets tab.</div>
+                <div id="slotsUi" style="margin-top:10px"></div>
+
+                <div style="height:10px"></div>
+                <div class="label">Derived orbit slots (AU) ${tipIcon(TIP_LABEL["Orbit Slots (AU)"] || "")}</div>
+                <div class="hint">Generated orbit positions (1-20).</div>
+                <div class="derived-readout" id="orbits"></div>
               </div>
-              <div id="otherHostBodies" style="margin-top:10px"></div>
+
+              <div id="manualOutputs" style="display:none">
+                <div class="label">Bodies by orbit</div>
+                <div class="hint" id="manualBodyHint">Sorted by semi-major axis in the selected host frame. Edit orbits on the Planets tab.</div>
+                <div id="manualBodyList" style="margin-top:10px"></div>
+              </div>
+
+              <div id="otherHostBodiesWrap" style="display:none; margin-top:14px">
+                <div class="label">Other host-frame bodies</div>
+                <div class="hint" id="otherHostBodiesHint">
+                  Bodies assigned to other stars or pairs stay listed here. Switch Host Frame to edit them in the main ladder.
+                </div>
+                <div id="otherHostBodies" style="margin-top:10px"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -749,6 +809,9 @@ export function initSystemPage(mountEl) {
   let disposed = false;
   let noticeTimer = null;
   const cleanupFns = [];
+
+  bindSystemOutputTabs(wrap);
+  activateSystemOutputTab(wrap, "data");
 
   function disposePage() {
     if (disposed) return;

@@ -20,6 +20,7 @@ export const ROUTE_SKELETON_KIND_BY_ROUTE = Object.freeze({
   outer: "system",
   calendar: "system",
   fate: "system",
+  "neighbourhood-hazards": "system",
   io: "system",
   viz: "visual",
   cluster: "visual",

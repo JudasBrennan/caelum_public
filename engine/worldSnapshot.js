@@ -200,7 +200,7 @@ function toRockyUnifiedBody(raw, idx = 1) {
   const massEarth = finiteOrNull(inputs.massEarth) ?? 1;
   return {
     id: String(raw?.id || `p${idx}`),
-    name: String(raw?.name || inputs.name || raw?.id || `Planet ${idx}`),
+    name: String(inputs.name || raw?.name || raw?.id || `Planet ${idx}`),
     role: "planetaryBody",
     bodyType: "planetaryBody",
     legacyKind: "rocky",
@@ -381,7 +381,7 @@ function toPlanetEntry(raw, model, moonIds, mode, hostFrameId) {
   const base = {
     id: raw.id,
     kind: "planet",
-    name: raw.name || raw.inputs?.name || raw.id,
+    name: raw.inputs?.name || raw.name || raw.id,
     orbitAu: model.inputs.semiMajorAxisAu,
     moonIds,
     hostFrameId,
@@ -442,7 +442,7 @@ function toMoonEntry(raw, model, parentKind, mode, hostFrameId) {
     kind: "moon",
     parentId: raw.planetId,
     parentKind,
-    name: raw.name || raw.inputs?.name || raw.id,
+    name: raw.inputs?.name || raw.name || raw.id,
     orbitKm: model.inputs.semiMajorAxisKm,
     hostFrameId,
   };

@@ -144,6 +144,57 @@ const RANKING_LABELS = Object.freeze({
   notEvaluated: "Not Evaluated",
 });
 
+const SYSTEM_FATE_DEFINITIONS = Object.freeze([
+  {
+    term: "Promising World",
+    definition:
+      "A model-prioritized body worth inspecting for current or future habitability signals; not a confirmed habitable or inhabited world.",
+  },
+  {
+    term: "Conservative HZ",
+    definition:
+      "The narrower habitable-zone band where liquid surface water is more plausible under standard assumptions.",
+  },
+  {
+    term: "Optimistic HZ",
+    definition:
+      "A wider diagnostic zone where habitability is less certain and depends on stronger assumptions.",
+  },
+  {
+    term: "HZ Exposure",
+    definition:
+      "How long the body's orbit overlaps the sampled habitable-zone band during the host lifecycle.",
+  },
+  {
+    term: "Future Window",
+    definition:
+      "A later interval where a currently cold or marginal body may receive more favorable irradiation.",
+  },
+  {
+    term: "Endpoint",
+    definition:
+      "The broad final lifecycle outcome used by the model, such as remnant-era survivor, engulfment, or unresolved endpoint.",
+  },
+  {
+    term: "Remnant Caveat",
+    definition:
+      "A warning that post-main-sequence or remnant-era habitability is not a resolved climate state.",
+  },
+  {
+    term: "Engulfment",
+    definition: "A risk marker where the orbit intersects the sampled stellar envelope.",
+  },
+  {
+    term: "Envelope Drag",
+    definition: "A risk marker where the orbit enters the broad giant-envelope drag guardrail.",
+  },
+  {
+    term: "Confidence",
+    definition:
+      "A model-readiness label based on available lifecycle, orbit, and body data; not a probability of life.",
+  },
+]);
+
 function safeText(value, fallback = "") {
   if (value == null) return fallback;
   const text = String(value).trim();
@@ -163,6 +214,24 @@ function pct(value, max) {
 
 function laneById(timeline) {
   return new Map((timeline?.lanes || []).map((lane) => [lane.id, lane]));
+}
+
+function selectedLane(timeline, selectedLaneId) {
+  const byId = laneById(timeline);
+  return (
+    byId.get(selectedLaneId) ||
+    byId.get(timeline?.spotlight?.bestCurrentCandidateLaneId) ||
+    timeline?.lanes?.[0] ||
+    null
+  );
+}
+
+function detailsByLabel(lane) {
+  return new Map((lane?.details || []).map((detail) => [safeText(detail.label), detail]));
+}
+
+function detailValue(details, label, fallback = "") {
+  return details.get(label)?.value || fallback;
 }
 
 function makeChip(label, tone = "neutral", tip = "") {
@@ -185,6 +254,58 @@ function makeMetric(label, value, tone = "neutral") {
     createElement("div", { className: "system-fate-metric__value", text: value }),
     createElement("div", { className: "system-fate-metric__label", text: label }),
   ]);
+}
+
+function makeFact(label, value) {
+  return createElement("div", { className: "system-fate-drilldown__fact" }, [
+    createElement("div", { className: "system-fate-drilldown__fact-label", text: label }),
+    createElement("div", {
+      className: "system-fate-drilldown__fact-value",
+      text: safeText(value, "n/a"),
+    }),
+  ]);
+}
+
+function createSystemFateDefinitionsControl() {
+  const toast = createElement(
+    "div",
+    {
+      className: "system-fate-definitions__toast",
+      attrs: {
+        hidden: "",
+        role: "status",
+      },
+    },
+    [
+      createElement("div", {
+        className: "system-fate-definitions__title",
+        text: "Definitions",
+      }),
+      createElement(
+        "dl",
+        { className: "system-fate-definitions__list" },
+        SYSTEM_FATE_DEFINITIONS.flatMap((entry) => [
+          createElement("dt", { text: entry.term }),
+          createElement("dd", { text: entry.definition }),
+        ]),
+      ),
+      createElement("div", {
+        className: "system-fate-definitions__note",
+        text: "System Fate is an analytic exposure summary. It does not integrate future climates, atmospheres, oceans, orbital dynamics, or biology.",
+      }),
+    ],
+  );
+  const button = createElement("button", {
+    className: "small system-fate-definitions__button",
+    attrs: { type: "button", "aria-expanded": "false" },
+    text: "Definitions",
+  });
+  button.addEventListener("click", () => {
+    const shouldShow = toast.hidden;
+    toast.hidden = !shouldShow;
+    button.setAttribute("aria-expanded", shouldShow ? "true" : "false");
+  });
+  return createElement("div", { className: "system-fate-definitions" }, [button, toast]);
 }
 
 function selectedValue(value, fallback) {
@@ -217,7 +338,7 @@ function createViewTabs(activeView) {
   const tabTips = {
     overview: structuredTip({
       overview:
-        "Combines the main System Fate summary, timeline, rankings, and selected body drilldown.",
+        "Shows the first-scan System Fate summary, spotlight bodies, key readings, and selected-body preview.",
       drawnFrom: "The selected host-frame timeline model.",
       interpretAs: "Start here for a whole-system read before filtering into specific views.",
       references: "See Science & Maths: System Fate scoring.",
@@ -448,7 +569,109 @@ function createLane(lane, timeline, selectedLaneId) {
   );
 }
 
-function createOverview(timeline) {
+function firstLaneForRanking(timeline, key) {
+  const byId = laneById(timeline);
+  const id = timeline?.rankings?.[key]?.[0];
+  return id ? byId.get(id) || null : null;
+}
+
+function firstMarkerSummary(lane, fallback = "No major marker") {
+  const marker = lane?.markers?.[0];
+  if (!marker) return fallback;
+  return `${marker.label} near ${formatSystemFateTiming(marker.timeGyr)}`;
+}
+
+function createKeyReading(label, value, tone = "neutral") {
+  return createElement(
+    "div",
+    { className: `system-fate-key-reading system-fate-key-reading--${tone}` },
+    [
+      createElement("div", { className: "system-fate-key-reading__label", text: label }),
+      createElement("div", { className: "system-fate-key-reading__value", text: value }),
+    ],
+  );
+}
+
+function createOverviewKeyReadings(timeline) {
+  const current = firstLaneForRanking(timeline, "currentCandidates");
+  const future = firstLaneForRanking(timeline, "futureCandidates");
+  const risk = firstLaneForRanking(timeline, "highRisks");
+  return createElement("div", { className: "system-fate-overview__key-readings" }, [
+    createKeyReading(
+      "Now",
+      current
+        ? `${current.label} leads the current Promising World shortlist.`
+        : "No current temperate Promising World is identified in this host frame.",
+      current ? "good" : "neutral",
+    ),
+    createKeyReading(
+      "Later",
+      future
+        ? `${future.label} has the strongest future exposure window.`
+        : "No separate future window stands out in this host frame.",
+      future ? "info" : "neutral",
+    ),
+    createKeyReading(
+      "Watch",
+      risk
+        ? `${risk.label}: ${firstMarkerSummary(risk, "long-term risk marker")}.`
+        : "No major risk lane is ranked for this host frame.",
+      risk ? "warn" : "neutral",
+    ),
+  ]);
+}
+
+function createSelectedBodyPreview(timeline, selectedLaneId) {
+  const lane = selectedLane(timeline, selectedLaneId);
+  if (!lane) {
+    return createElement(
+      "section",
+      { className: "system-fate-selected-preview system-fate-empty" },
+      [
+        createElement("h3", { text: "Selected Body" }),
+        createElement("p", { text: "No body lane is available for this host frame." }),
+      ],
+    );
+  }
+  const details = detailsByLabel(lane);
+  return createElement("section", { className: "system-fate-selected-preview" }, [
+    createElement("div", { className: "system-fate-selected-preview__header" }, [
+      createElement("div", {}, [
+        createElement("h3", { text: lane.label }),
+        createElement("p", {
+          text: [
+            lane.family,
+            lane.parentLabel ? `parent: ${lane.parentLabel}` : formatSystemFateAu(lane.orbitAu),
+          ]
+            .filter(Boolean)
+            .join(" | "),
+        }),
+      ]),
+      createElement("div", { className: "system-fate-drilldown__chips" }, [
+        makeChip(lane.currentStatusLabel, lane.currentStatus),
+        makeChip(`${lane.confidence} confidence`, lane.confidence),
+      ]),
+    ]),
+    createElement("div", { className: "system-fate-selected-preview__metrics" }, [
+      makeMetric("Current", lane.currentLifecycleLabel || lane.currentStatusLabel, "neutral"),
+      makeMetric(
+        "HZ status",
+        detailValue(details, "Current HZ status", "n/a"),
+        lane.currentStatus === "current-candidate" ? "good" : "neutral",
+      ),
+      makeMetric("Endpoint", lane.endpointLabel || "Endpoint unresolved", "caution"),
+      makeMetric("Risk", firstMarkerSummary(lane), lane.markers?.length ? "warn" : "neutral"),
+    ]),
+    createElement("button", {
+      className: "small system-fate-selected-preview__action",
+      attrs: { type: "button" },
+      dataset: { fateLane: lane.id },
+      text: "Inspect body",
+    }),
+  ]);
+}
+
+function createOverview(timeline, state = {}) {
   return createElement("section", { className: "system-fate-overview" }, [
     createElement("div", { className: "system-fate-overview__copy" }, [
       createElement("h2", { text: timeline.headline || "System fate" }),
@@ -461,41 +684,35 @@ function createOverview(timeline) {
       makeMetric("Largest risk", timeline.spotlight?.largestRiskLabel || "None", "warn"),
       makeMetric("Endpoint", timeline.spotlight?.remnantSummary || "Unknown", "caution"),
     ]),
+    createOverviewKeyReadings(timeline),
+    createSelectedBodyPreview(timeline, state.selectedLaneId),
   ]);
 }
 
-function createControls({ pageModel, state, timeline }) {
+function createControls({ pageModel, state }) {
   const hostOptions = (pageModel?.hostFrameOptions || []).map((option) => ({
     id: option.id,
     label: option.label,
   }));
   const filterOptions = Object.entries(FILTER_LABELS).map(([id, label]) => ({ id, label }));
   const sortOptions = Object.entries(SORT_LABELS).map(([id, label]) => ({ id, label }));
+  const usesLaneControls = state.view === "timeline" || state.view === "lifecycle";
+  const rowChildren = [
+    hostOptions.length > 1
+      ? createSelect("Host frame", "hostFrame", hostOptions, pageModel.selectedHostFrameId)
+      : null,
+    usesLaneControls
+      ? createSelect("Filter", "filter", filterOptions, selectedValue(state.filter, "all"))
+      : null,
+    usesLaneControls
+      ? createSelect("Sort", "sort", sortOptions, selectedValue(state.sort, "orbit"))
+      : null,
+  ].filter(Boolean);
   return createElement("div", { className: "system-fate-controls" }, [
     createViewTabs(state.view),
-    createElement("div", { className: "system-fate-controls__row" }, [
-      hostOptions.length > 1
-        ? createSelect("Host frame", "hostFrame", hostOptions, pageModel.selectedHostFrameId)
-        : null,
-      createSelect("Filter", "filter", filterOptions, selectedValue(state.filter, "all")),
-      createSelect("Sort", "sort", sortOptions, selectedValue(state.sort, "orbit")),
-      createElement("label", { className: "system-fate-control system-fate-control--age" }, [
-        createElement("span", {}, [
-          createElement("span", { text: "Age preview" }),
-          tipIconNode(SYSTEM_FATE_TIPS.agePreview),
-        ]),
-        createElement("input", {
-          attrs: {
-            type: "range",
-            min: "0",
-            max: String(Math.max(0.1, Number(timeline.maxAgeGyr) || 1)),
-            step: "0.01",
-            value: String(timeline.selectedAge?.ageGyr ?? timeline.currentAgeGyr ?? 0),
-          },
-          dataset: { fateControl: "selectedAge" },
-        }),
-      ]),
-    ]),
+    rowChildren.length
+      ? createElement("div", { className: "system-fate-controls__row" }, rowChildren)
+      : null,
   ]);
 }
 
@@ -530,6 +747,29 @@ function laneNames(timeline, ids) {
     .join(", ");
 }
 
+function createAgeControl(timeline) {
+  return createElement(
+    "label",
+    { className: "system-fate-control system-fate-control--age system-fate-age-control" },
+    [
+      createElement("span", {}, [
+        createElement("span", { text: "Age preview" }),
+        tipIconNode(SYSTEM_FATE_TIPS.agePreview),
+      ]),
+      createElement("input", {
+        attrs: {
+          type: "range",
+          min: "0",
+          max: String(Math.max(0.1, Number(timeline.maxAgeGyr) || 1)),
+          step: "0.01",
+          value: String(timeline.selectedAge?.ageGyr ?? timeline.currentAgeGyr ?? 0),
+        },
+        dataset: { fateControl: "selectedAge" },
+      }),
+    ],
+  );
+}
+
 function createSelectedAge(timeline) {
   const selected = timeline.selectedAge || {};
   return createElement("section", { className: "system-fate-selected-age" }, [
@@ -539,6 +779,7 @@ function createSelectedAge(timeline) {
         text: selected.hostStage?.label || "Lifecycle stage unavailable",
       }),
     ]),
+    createAgeControl(timeline),
     createElement("div", { className: "system-fate-selected-age__grid" }, [
       makeMetric("Luminosity", formatNumberWithUnit(selected.luminosityLsol, " Lsol"), "neutral"),
       makeMetric("Radius", formatNumberWithUnit(selected.radiusRsol, " Rsol"), "neutral"),
@@ -606,25 +847,40 @@ function createRankingGroup(timeline, groupKey) {
   const label = RANKING_LABELS[groupKey] || groupKey;
   const tip =
     groupKey === "currentCandidates" || groupKey === "moonCandidates" ? PROMISING_WORLDS_TIP : "";
+  const visibleIds = ids.slice(0, 8);
+  const hiddenCount = Math.max(0, ids.length - visibleIds.length);
   return createElement("section", { className: "system-fate-ranking" }, [
-    headingWithTip("h3", label, tip),
+    createElement("div", { className: "system-fate-ranking__header" }, [
+      headingWithTip("h3", label, tip),
+      createElement("span", {
+        className: "system-fate-ranking__count",
+        text: String(ids.length),
+      }),
+    ]),
     ids.length
-      ? createElement(
-          "ol",
-          {},
-          ids.slice(0, 8).map((id) => {
+      ? createElement("ol", { className: "system-fate-ranking__list" }, [
+          ...visibleIds.map((id) => {
             const lane = byId.get(id);
-            return createElement("li", {}, [
+            return createElement("li", { className: "system-fate-ranking__row" }, [
               createElement("button", {
                 attrs: { type: "button" },
                 dataset: { fateLane: id },
                 text: lane?.label || id,
               }),
-              createElement("span", { text: rankingReason(lane, groupKey) }),
+              createElement("span", {
+                className: "system-fate-ranking__reason",
+                text: rankingReason(lane, groupKey),
+              }),
               lane ? makeChip(lane.confidence, lane.confidence) : null,
             ]);
           }),
-        )
+          hiddenCount
+            ? createElement("li", {
+                className: "system-fate-ranking__more",
+                text: `+${hiddenCount} more`,
+              })
+            : null,
+        ])
       : createElement("p", { className: "hint", text: "None in this host frame." }),
   ]);
 }
@@ -712,35 +968,89 @@ function createLifecycleCell(label, value, meta = "") {
   ]);
 }
 
+function createDrilldownSummary(lane, details) {
+  return createElement("div", { className: "system-fate-drilldown__summary" }, [
+    makeMetric("Current", lane.currentLifecycleLabel || lane.currentStatusLabel, "neutral"),
+    makeMetric(
+      "HZ status",
+      detailValue(details, "Current HZ status", "n/a"),
+      lane.currentStatus === "current-candidate" ? "good" : "neutral",
+    ),
+    makeMetric("Endpoint", lane.endpointLabel || "Endpoint unresolved", "caution"),
+    makeMetric("Risk", firstMarkerSummary(lane), lane.markers?.length ? "warn" : "neutral"),
+  ]);
+}
+
+function createMarkerChip(marker) {
+  return createElement("span", {
+    className: `system-fate-marker-chip system-fate-marker-chip--${markerTone(marker)}`,
+    text: `${marker.label} near ${formatSystemFateTiming(marker.timeGyr)}`,
+  });
+}
+
+function createMarkerList(markers = []) {
+  if (!markers.length) {
+    return createElement("div", {
+      className: "system-fate-marker-list system-fate-marker-list--empty",
+      text: "No major marker.",
+    });
+  }
+  return createElement(
+    "div",
+    { className: "system-fate-marker-list" },
+    markers.map((marker) => createMarkerChip(marker)),
+  );
+}
+
+function createDrilldownFactRows(rows) {
+  const visibleRows = rows.filter((row) => safeText(row.value));
+  if (!visibleRows.length) return null;
+  return createElement(
+    "div",
+    { className: "system-fate-drilldown__facts" },
+    visibleRows.map((row) => makeFact(row.label, row.value)),
+  );
+}
+
+function createDrilldownSection(title, rows = [], children = []) {
+  const factRows = createDrilldownFactRows(rows);
+  const visibleChildren = [factRows, ...children].filter(Boolean);
+  if (!visibleChildren.length) return null;
+  return createElement("section", { className: "system-fate-drilldown__section" }, [
+    createElement("div", { className: "system-fate-drilldown__section-title", text: title }),
+    ...visibleChildren,
+  ]);
+}
+
 function createDrilldown(timeline, selectedLaneId) {
-  const byId = laneById(timeline);
-  const lane =
-    byId.get(selectedLaneId) ||
-    byId.get(timeline.spotlight?.bestCurrentCandidateLaneId) ||
-    timeline.lanes?.[0] ||
-    null;
+  const lane = selectedLane(timeline, selectedLaneId);
   if (!lane) {
     return createElement("section", { className: "system-fate-drilldown system-fate-empty" }, [
       createElement("h2", { text: "Body Drilldown" }),
       createElement("p", { text: "No body lane is available for this host frame." }),
     ]);
   }
+  const details = detailsByLabel(lane);
+  const bodyMeta = [
+    lane.family,
+    lane.parentLabel ? `parent: ${lane.parentLabel}` : formatSystemFateAu(lane.orbitAu),
+  ]
+    .filter(Boolean)
+    .join(" | ");
   return createElement("section", { className: "system-fate-drilldown" }, [
     createElement("div", { className: "system-fate-drilldown__header" }, [
-      createElement("h2", { text: lane.label }),
+      createElement("div", {}, [
+        createElement("h2", { text: lane.label }),
+        bodyMeta
+          ? createElement("div", { className: "system-fate-drilldown__meta", text: bodyMeta })
+          : null,
+      ]),
       createElement("div", { className: "system-fate-drilldown__chips" }, [
         makeChip(lane.currentStatusLabel, lane.currentStatus),
         makeChip(`${lane.confidence} confidence`, lane.confidence),
       ]),
     ]),
-    createElement(
-      "dl",
-      { className: "system-fate-detail-list" },
-      (lane.details || []).flatMap((detail) => [
-        createElement("dt", { text: detail.label }),
-        createElement("dd", { text: detail.value }),
-      ]),
-    ),
+    createDrilldownSummary(lane, details),
     lane.warnings?.length
       ? createElement(
           "ul",
@@ -748,6 +1058,66 @@ function createDrilldown(timeline, selectedLaneId) {
           lane.warnings.map((warning) => createElement("li", { text: warning })),
         )
       : null,
+    createDrilldownSection("Now", [
+      {
+        label: "Lifecycle",
+        value: detailValue(details, "Current lifecycle", lane.currentLifecycleLabel),
+      },
+      {
+        label: "HZ status",
+        value: detailValue(details, "Current HZ status"),
+      },
+      {
+        label: "Current model",
+        value: detailValue(details, "Current model"),
+      },
+    ]),
+    createDrilldownSection("Exposure", [
+      {
+        label: "HZ exposure",
+        value: detailValue(details, "HZ exposure"),
+      },
+      {
+        label: "Interpretation",
+        value: detailValue(details, "Lifecycle interpretation"),
+      },
+      {
+        label: "Inherited orbit",
+        value: detailValue(details, "Inherited orbit"),
+      },
+    ]),
+    createDrilldownSection(
+      "Risks",
+      [
+        {
+          label: "Risk detail",
+          value: detailValue(details, "Future/risk markers"),
+        },
+      ],
+      [createMarkerList(lane.markers || [])],
+    ),
+    createDrilldownSection("Evidence", [
+      {
+        label: "Origin",
+        value: detailValue(details, "Lifecycle origin", lane.originLabel),
+      },
+      {
+        label: "Next transition",
+        value: detailValue(details, "Next lifecycle transition", lane.nextTransitionLabel),
+      },
+      {
+        label: "Endpoint",
+        value: detailValue(
+          details,
+          "Lifecycle endpoint",
+          lane.endpointLabel || "Endpoint unresolved",
+        ),
+      },
+      {
+        label: "Era evidence",
+        value: detailValue(details, "Era evidence"),
+      },
+    ]),
     createElement("div", { className: "system-fate-drilldown__actions" }, [
       createElement("a", {
         className: "small",
@@ -813,17 +1183,7 @@ function createActiveView(timeline, state) {
       createDrilldown(timeline, state.selectedLaneId),
     ]);
   }
-  return createElement("div", { className: "system-fate-main-grid" }, [
-    createElement("div", { className: "system-fate-main-grid__primary" }, [
-      createOverview(timeline),
-      createTimelineView(timeline, state),
-    ]),
-    createElement("div", { className: "system-fate-main-grid__side" }, [
-      createSelectedAge(timeline),
-      createRankings(timeline),
-      createDrilldown(timeline, state.selectedLaneId),
-    ]),
-  ]);
+  return createOverview(timeline, state);
 }
 
 export function createSystemFateTimelineSummary(timeline) {
@@ -870,9 +1230,10 @@ export function createSystemFateTimelinePanel(timeline, options = {}) {
           timeline?.confidence || "neutral",
           SYSTEM_FATE_TIPS.confidence,
         ),
+        createSystemFateDefinitionsControl(),
       ]),
     ]),
-    createControls({ pageModel, state, timeline: timeline || {} }),
+    createControls({ pageModel, state }),
     createActiveView(timeline || {}, state),
     createWarnings(timeline || {}),
   ]);

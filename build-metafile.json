@@ -1838,7 +1838,7 @@
       "format": "esm"
     },
     "ui/store/bodyMutations.js": {
-      "bytes": 13766,
+      "bytes": 13844,
       "imports": [
         {
           "path": "engine/moon/config.js",
@@ -2307,7 +2307,7 @@
       "format": "esm"
     },
     "ui/workflow/skeletonTemplates.js": {
-      "bytes": 8157,
+      "bytes": 8194,
       "imports": [
         {
           "path": "ui/domHelpers.js",
@@ -4614,7 +4614,7 @@
       "format": "esm"
     },
     "engine/orbitalArchitecture.js": {
-      "bytes": 8510,
+      "bytes": 8564,
       "imports": [
         {
           "path": "engine/utils.js",
@@ -5377,7 +5377,7 @@
       "format": "esm"
     },
     "engine/contexts/longTermDynamicsContext.js": {
-      "bytes": 18520,
+      "bytes": 19081,
       "imports": [
         {
           "path": "engine/contexts/cassiniStateContext.js",
@@ -5698,7 +5698,7 @@
       "format": "esm"
     },
     "ui/system/domRender.js": {
-      "bytes": 16524,
+      "bytes": 32978,
       "imports": [
         {
           "path": "engine/utils.js",
@@ -6249,7 +6249,7 @@
       "format": "esm"
     },
     "ui/systemPage.js": {
-      "bytes": 68877,
+      "bytes": 72298,
       "imports": [
         {
           "path": "engine/utils.js",
@@ -7617,18 +7617,54 @@
       ],
       "format": "esm"
     },
+    "engine/stellarNeighbourhoodHazards.js": {
+      "bytes": 43649,
+      "imports": [
+        {
+          "path": "engine/localCluster.js",
+          "kind": "import-statement",
+          "original": "./localCluster.js"
+        },
+        {
+          "path": "engine/oortCloud.js",
+          "kind": "import-statement",
+          "original": "./oortCloud.js"
+        },
+        {
+          "path": "engine/smallBodyReservoirRouting.js",
+          "kind": "import-statement",
+          "original": "./smallBodyReservoirRouting.js"
+        },
+        {
+          "path": "engine/utils.js",
+          "kind": "import-statement",
+          "original": "./utils.js"
+        },
+        {
+          "path": "engine/worldStarConfig.js",
+          "kind": "import-statement",
+          "original": "./worldStarConfig.js"
+        }
+      ],
+      "format": "esm"
+    },
     "ui/clusterObjectVisuals.js": {
       "bytes": 2313,
       "imports": [],
       "format": "esm"
     },
     "ui/vizClusterRenderer.js": {
-      "bytes": 2336,
+      "bytes": 2662,
       "imports": [
         {
           "path": "engine/localCluster.js",
           "kind": "import-statement",
           "original": "../engine/localCluster.js"
+        },
+        {
+          "path": "engine/stellarNeighbourhoodHazards.js",
+          "kind": "import-statement",
+          "original": "../engine/stellarNeighbourhoodHazards.js"
         },
         {
           "path": "ui/clusterObjectVisuals.js",
@@ -7644,7 +7680,7 @@
       "format": "esm"
     },
     "ui/visualizer/constants.js": {
-      "bytes": 15428,
+      "bytes": 16763,
       "imports": [
         {
           "path": "ui/tooltipCopy.js",
@@ -7655,7 +7691,7 @@
       "format": "esm"
     },
     "ui/visualizer/clusterOverlay.js": {
-      "bytes": 3154,
+      "bytes": 11598,
       "imports": [
         {
           "path": "engine/utils.js",
@@ -8013,7 +8049,7 @@
       "format": "esm"
     },
     "ui/visualizer/inputBindings.js": {
-      "bytes": 24834,
+      "bytes": 25135,
       "imports": [
         {
           "path": "ui/canvasExport.js",
@@ -8077,7 +8113,7 @@
       "format": "esm"
     },
     "ui/visualizerPage.js": {
-      "bytes": 206831,
+      "bytes": 207762,
       "imports": [
         {
           "path": "ui/store.js",
@@ -8258,7 +8294,7 @@
       "format": "esm"
     },
     "ui/localCluster/domRender.js": {
-      "bytes": 6960,
+      "bytes": 8495,
       "imports": [
         {
           "path": "engine/star.js",
@@ -8284,12 +8320,17 @@
       "format": "esm"
     },
     "ui/localClusterPage.js": {
-      "bytes": 45576,
+      "bytes": 46445,
       "imports": [
         {
           "path": "engine/localCluster.js",
           "kind": "import-statement",
           "original": "../engine/localCluster.js"
+        },
+        {
+          "path": "engine/stellarNeighbourhoodHazards.js",
+          "kind": "import-statement",
+          "original": "../engine/stellarNeighbourhoodHazards.js"
         },
         {
           "path": "engine/utils.js",
@@ -9098,7 +9139,7 @@
       "format": "esm"
     },
     "ui/systemFateTimelinePanel.js": {
-      "bytes": 34814,
+      "bytes": 46641,
       "imports": [
         {
           "path": "engine/systemFateTimeline.js",
@@ -9169,8 +9210,70 @@
       ],
       "format": "esm"
     },
+    "ui/neighbourhoodHazardsPanel.js": {
+      "bytes": 19781,
+      "imports": [
+        {
+          "path": "ui/domHelpers.js",
+          "kind": "import-statement",
+          "original": "./domHelpers.js"
+        },
+        {
+          "path": "ui/tooltip.js",
+          "kind": "import-statement",
+          "original": "./tooltip.js"
+        },
+        {
+          "path": "ui/tooltipCopy.js",
+          "kind": "import-statement",
+          "original": "./tooltipCopy.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/neighbourhoodHazardsPage.js": {
+      "bytes": 5275,
+      "imports": [
+        {
+          "path": "engine/stellarNeighbourhoodHazards.js",
+          "kind": "import-statement",
+          "original": "../engine/stellarNeighbourhoodHazards.js"
+        },
+        {
+          "path": "ui/workflow/pageShell.js",
+          "kind": "import-statement",
+          "original": "./workflow/pageShell.js"
+        },
+        {
+          "path": "ui/store.js",
+          "kind": "import-statement",
+          "original": "./store.js"
+        },
+        {
+          "path": "ui/tooltip.js",
+          "kind": "import-statement",
+          "original": "./tooltip.js"
+        },
+        {
+          "path": "ui/tooltipCopy.js",
+          "kind": "import-statement",
+          "original": "./tooltipCopy.js"
+        },
+        {
+          "path": "ui/tutorial.js",
+          "kind": "import-statement",
+          "original": "./tutorial.js"
+        },
+        {
+          "path": "ui/neighbourhoodHazardsPanel.js",
+          "kind": "import-statement",
+          "original": "./neighbourhoodHazardsPanel.js"
+        }
+      ],
+      "format": "esm"
+    },
     "ui/aboutPage.js": {
-      "bytes": 80995,
+      "bytes": 82483,
       "imports": [
         {
           "path": "ui/appIdentity.js",
@@ -9224,7 +9327,7 @@
       "format": "esm"
     },
     "ui/sciencePage.js": {
-      "bytes": 262442,
+      "bytes": 264847,
       "imports": [
         {
           "path": "engine/utils.js",
@@ -9957,7 +10060,7 @@
       "format": "esm"
     },
     "app.js": {
-      "bytes": 32392,
+      "bytes": 32563,
       "imports": [
         {
           "path": "ui/guidedCreation/routeState.js",
@@ -10070,6 +10173,11 @@
           "original": "./ui/fatePage.js"
         },
         {
+          "path": "ui/neighbourhoodHazardsPage.js",
+          "kind": "dynamic-import",
+          "original": "./ui/neighbourhoodHazardsPage.js"
+        },
+        {
           "path": "ui/aboutPage.js",
           "kind": "dynamic-import",
           "original": "./ui/aboutPage.js"
@@ -10109,6 +10217,28 @@
     }
   },
   "outputs": {
+    "dist/chunks/L14_climateZones-X4I2LXGO.js": {
+      "imports": [
+        {
+          "path": "dist/chunks/chunk-L3XYPVN7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-VC46IEJQ.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "buildLesson14"
+      ],
+      "entryPoint": "ui/lessons/L14_climateZones.js",
+      "inputs": {
+        "ui/lessons/L14_climateZones.js": {
+          "bytesInOutput": 13968
+        }
+      },
+      "bytes": 14113
+    },
     "dist/chunks/L15_stellarActivity-C4MOAJE2.js": {
       "imports": [
         {
@@ -10256,7 +10386,7 @@
       },
       "bytes": 12613
     },
-    "dist/chunks/lessonsPage-CXCE7AHH.js": {
+    "dist/chunks/lessonsPage-UTYCZFXV.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-RQD3Y6ZB.js",
@@ -10372,6 +10502,28 @@
         }
       },
       "bytes": 7752
+    },
+    "dist/chunks/L06_orbitalMechanics-NN65LRXD.js": {
+      "imports": [
+        {
+          "path": "dist/chunks/chunk-L3XYPVN7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-VC46IEJQ.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "buildLesson06"
+      ],
+      "entryPoint": "ui/lessons/L06_orbitalMechanics.js",
+      "inputs": {
+        "ui/lessons/L06_orbitalMechanics.js": {
+          "bytesInOutput": 8473
+        }
+      },
+      "bytes": 8613
     },
     "dist/chunks/L07_planetarySystems-B3K355OV.js": {
       "imports": [
@@ -10547,40 +10699,18 @@
       },
       "bytes": 15545
     },
-    "dist/chunks/L14_climateZones-X4I2LXGO.js": {
-      "imports": [
-        {
-          "path": "dist/chunks/chunk-L3XYPVN7.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-VC46IEJQ.js",
-          "kind": "import-statement"
-        }
-      ],
-      "exports": [
-        "buildLesson14"
-      ],
-      "entryPoint": "ui/lessons/L14_climateZones.js",
-      "inputs": {
-        "ui/lessons/L14_climateZones.js": {
-          "bytesInOutput": 13968
-        }
-      },
-      "bytes": 14113
-    },
-    "dist/chunks/climatePage-EFLR5JJB.js": {
+    "dist/chunks/tectonicsPage-YZ4JEYUF.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-YAWL2UWM.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-VWW4YL5T.js",
+          "path": "dist/chunks/chunk-YONCUTS6.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-A52RWXNM.js",
+          "path": "dist/chunks/chunk-RQTCOANH.js",
           "kind": "import-statement"
         },
         {
@@ -10600,7 +10730,130 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-NBH5C6W4.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-WGUMHBZW.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-PSJ7PKPQ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-UN6CKA7Q.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-DFN46JRM.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-LWUHUUMM.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-7PVDVLB6.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-IF7XM465.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-XMLMEZIZ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-RCWZHCEB.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-5OYYM5KR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-N3VKQ2UZ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-HBCEOSK7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-JZUBHQ27.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-WBFRNUBJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-SIKCLQ4X.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-I7AFU66Y.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-6APDEY5P.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-JOWNJXZP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-VC46IEJQ.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "getPlanetTectonicContext",
+        "initTectonicsPage"
+      ],
+      "entryPoint": "ui/tectonicsPage.js",
+      "inputs": {
+        "ui/tectonicsPage.js": {
+          "bytesInOutput": 76426
+        }
+      },
+      "bytes": 77510
+    },
+    "dist/chunks/climatePage-EFSFUADE.js": {
+      "imports": [
+        {
+          "path": "dist/chunks/chunk-YAWL2UWM.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-YONCUTS6.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-2Q3JSVJV.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-FDMNZDWJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-5YVVLRFP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-MXEPBJGN.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-HLZ2ABGO.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-DS5WB3FW.js",
           "kind": "import-statement"
         },
         {
@@ -10608,7 +10861,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
           "kind": "import-statement"
         },
         {
@@ -10628,7 +10881,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -10691,14 +10944,14 @@
       },
       "bytes": 21180
     },
-    "dist/chunks/populationPage-YDGLZJ2Q.js": {
+    "dist/chunks/populationPage-DI77WXNI.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-YAWL2UWM.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-VWW4YL5T.js",
+          "path": "dist/chunks/chunk-YONCUTS6.js",
           "kind": "import-statement"
         },
         {
@@ -10718,7 +10971,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
           "kind": "import-statement"
         },
         {
@@ -10746,7 +10999,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -10949,28 +11202,6 @@
       },
       "bytes": 11497
     },
-    "dist/chunks/L06_orbitalMechanics-NN65LRXD.js": {
-      "imports": [
-        {
-          "path": "dist/chunks/chunk-L3XYPVN7.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-VC46IEJQ.js",
-          "kind": "import-statement"
-        }
-      ],
-      "exports": [
-        "buildLesson06"
-      ],
-      "entryPoint": "ui/lessons/L06_orbitalMechanics.js",
-      "inputs": {
-        "ui/lessons/L06_orbitalMechanics.js": {
-          "bytesInOutput": 8473
-        }
-      },
-      "bytes": 8613
-    },
     "dist/chunks/chunk-L3XYPVN7.js": {
       "imports": [],
       "exports": [
@@ -10993,7 +11224,7 @@
       },
       "bytes": 1246
     },
-    "dist/chunks/apparentPage-QEIZNH5Y.js": {
+    "dist/chunks/apparentPage-ASUCOYWS.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-YAWL2UWM.js",
@@ -11012,7 +11243,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-IU5V75WR.js",
+          "path": "dist/chunks/chunk-VJ6TX7HE.js",
           "kind": "import-statement"
         },
         {
@@ -11024,7 +11255,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-NBH5C6W4.js",
+          "path": "dist/chunks/chunk-DS5WB3FW.js",
           "kind": "import-statement"
         },
         {
@@ -11036,11 +11267,11 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-4SJHHLQ4.js",
+          "path": "dist/chunks/chunk-C7L6OQCC.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
           "kind": "import-statement"
         },
         {
@@ -11076,7 +11307,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -11149,18 +11380,51 @@
       },
       "bytes": 28976
     },
-    "dist/chunks/transferFlows-XYMPIZEX.js": {
+    "dist/chunks/chunk-YAWL2UWM.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-ZL4HR3O3.js",
+          "path": "dist/chunks/chunk-5YVVLRFP.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-VWW4YL5T.js",
+          "path": "dist/chunks/chunk-MXEPBJGN.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
+          "path": "dist/chunks/chunk-HLZ2ABGO.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-UN6CKA7Q.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e"
+      ],
+      "inputs": {
+        "ui/workflow/diagnosticOrientation.js": {
+          "bytesInOutput": 1076
+        }
+      },
+      "bytes": 1287
+    },
+    "dist/chunks/transferFlows-5OIMKIQJ.js": {
+      "imports": [
+        {
+          "path": "dist/chunks/chunk-VFQFRBUH.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-YONCUTS6.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-K3G42TUD.js",
           "kind": "import-statement"
         },
         {
@@ -11168,7 +11432,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -11227,18 +11491,18 @@
       },
       "bytes": 18642
     },
-    "dist/chunks/calendarPage-JC7TG7FJ.js": {
+    "dist/chunks/calendarPage-4EJVMMAT.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-ZL4HR3O3.js",
+          "path": "dist/chunks/chunk-VFQFRBUH.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-YONCUTS6.js",
           "kind": "import-statement"
         },
         {
           "path": "dist/chunks/chunk-BRHMJNX4.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-VWW4YL5T.js",
           "kind": "import-statement"
         },
         {
@@ -11250,7 +11514,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-NBH5C6W4.js",
+          "path": "dist/chunks/chunk-DS5WB3FW.js",
           "kind": "import-statement"
         },
         {
@@ -11258,7 +11522,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
           "kind": "import-statement"
         },
         {
@@ -11298,7 +11562,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -11350,7 +11614,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/transferFlows-XYMPIZEX.js",
+          "path": "dist/chunks/transferFlows-5OIMKIQJ.js",
           "kind": "dynamic-import"
         }
       ],
@@ -11401,10 +11665,10 @@
       },
       "bytes": 221192
     },
-    "dist/chunks/chunk-ZL4HR3O3.js": {
+    "dist/chunks/chunk-VFQFRBUH.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-VWW4YL5T.js",
+          "path": "dist/chunks/chunk-YONCUTS6.js",
           "kind": "import-statement"
         },
         {
@@ -11521,10 +11785,49 @@
       },
       "bytes": 61054
     },
-    "dist/chunks/fatePage-EYFLHWAY.js": {
+    "dist/chunks/chunk-YONCUTS6.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-NBH5C6W4.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-IF7XM465.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-5OYYM5KR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-N3VKQ2UZ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-WBFRNUBJ.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a",
+        "b",
+        "c"
+      ],
+      "inputs": {
+        "ui/bodySolveHelpers.js": {
+          "bytesInOutput": 4365
+        }
+      },
+      "bytes": 4644
+    },
+    "dist/chunks/fatePage-IHFGKE6H.js": {
+      "imports": [
+        {
+          "path": "dist/chunks/chunk-UMVM2RBZ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-DS5WB3FW.js",
           "kind": "import-statement"
         },
         {
@@ -11532,7 +11835,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
           "kind": "import-statement"
         },
         {
@@ -11544,7 +11847,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -11603,28 +11906,120 @@
       ],
       "entryPoint": "ui/fatePage.js",
       "inputs": {
-        "ui/workflow/pageShell.js": {
-          "bytesInOutput": 1481
-        },
         "engine/systemFateTimeline.js": {
-          "bytesInOutput": 20734
+          "bytesInOutput": 20746
         },
         "ui/systemFate/systemFateTimelineModel.js": {
-          "bytesInOutput": 6281
+          "bytesInOutput": 6283
         },
         "ui/systemFateTimelinePanel.js": {
-          "bytesInOutput": 20894
+          "bytesInOutput": 27793
         },
         "ui/fatePage.js": {
           "bytesInOutput": 5785
         }
       },
-      "bytes": 55852
+      "bytes": 61318
     },
-    "dist/chunks/aboutPage-2AZZMMGM.js": {
+    "dist/chunks/neighbourhoodHazardsPage-FU2TJWMD.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-GSSWX7DT.js",
+          "path": "dist/chunks/chunk-UMVM2RBZ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-M4AYWIHL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-K3G42TUD.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-WGUMHBZW.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-LWUHUUMM.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-IF7XM465.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-XMLMEZIZ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-RCWZHCEB.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-JZUBHQ27.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-WBFRNUBJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-SIKCLQ4X.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-I7AFU66Y.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-6APDEY5P.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-JOWNJXZP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-VC46IEJQ.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "NEIGHBOURHOOD_HAZARDS_TUTORIAL_STEPS",
+        "initNeighbourhoodHazardsPage"
+      ],
+      "entryPoint": "ui/neighbourhoodHazardsPage.js",
+      "inputs": {
+        "ui/neighbourhoodHazardsPanel.js": {
+          "bytesInOutput": 12292
+        },
+        "ui/neighbourhoodHazardsPage.js": {
+          "bytesInOutput": 3223
+        }
+      },
+      "bytes": 16103
+    },
+    "dist/chunks/chunk-UMVM2RBZ.js": {
+      "imports": [
+        {
+          "path": "dist/chunks/chunk-XMLMEZIZ.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a"
+      ],
+      "inputs": {
+        "ui/workflow/pageShell.js": {
+          "bytesInOutput": 1471
+        }
+      },
+      "bytes": 1534
+    },
+    "dist/chunks/aboutPage-HAD7HMEZ.js": {
+      "imports": [
+        {
+          "path": "dist/chunks/chunk-UEI44MFK.js",
           "kind": "import-statement"
         },
         {
@@ -11638,23 +12033,23 @@
       "entryPoint": "ui/aboutPage.js",
       "inputs": {
         "ui/aboutPage.js": {
-          "bytesInOutput": 73487
+          "bytesInOutput": 74827
         }
       },
-      "bytes": 73599
+      "bytes": 74939
     },
-    "dist/chunks/sciencePage-PDSD7FMB.js": {
+    "dist/chunks/sciencePage-5KF6XJLG.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-RQD3Y6ZB.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-BRHMJNX4.js",
+          "path": "dist/chunks/chunk-RQTCOANH.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-RQTCOANH.js",
+          "path": "dist/chunks/chunk-BRHMJNX4.js",
           "kind": "import-statement"
         },
         {
@@ -11703,10 +12098,10 @@
           "bytesInOutput": 476
         },
         "ui/sciencePage.js": {
-          "bytesInOutput": 227108
+          "bytesInOutput": 229186
         }
       },
-      "bytes": 228138
+      "bytes": 230216
     },
     "dist/chunks/chunk-RQD3Y6ZB.js": {
       "imports": [
@@ -11729,6 +12124,28 @@
         }
       },
       "bytes": 922
+    },
+    "dist/chunks/chunk-RQTCOANH.js": {
+      "imports": [
+        {
+          "path": "dist/chunks/chunk-JOWNJXZP.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f"
+      ],
+      "inputs": {
+        "engine/tectonics.js": {
+          "bytesInOutput": 8044
+        }
+      },
+      "bytes": 8161
     },
     "dist/chunks/chunk-BRHMJNX4.js": {
       "imports": [
@@ -11778,227 +12195,14 @@
       },
       "bytes": 22899
     },
-    "dist/chunks/tectonicsPage-EI4G3GPI.js": {
+    "dist/chunks/systemPage-BQDPAXMB.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-YAWL2UWM.js",
+          "path": "dist/chunks/chunk-XPTYOZKH.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-VWW4YL5T.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-RQTCOANH.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-FDMNZDWJ.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-5YVVLRFP.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-MXEPBJGN.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-HLZ2ABGO.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-WGUMHBZW.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-PSJ7PKPQ.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-UN6CKA7Q.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-DFN46JRM.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-LWUHUUMM.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-7PVDVLB6.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-XMLMEZIZ.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-RCWZHCEB.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-5OYYM5KR.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-N3VKQ2UZ.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-HBCEOSK7.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-JZUBHQ27.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-WBFRNUBJ.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-SIKCLQ4X.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-I7AFU66Y.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-6APDEY5P.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-JOWNJXZP.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-VC46IEJQ.js",
-          "kind": "import-statement"
-        }
-      ],
-      "exports": [
-        "getPlanetTectonicContext",
-        "initTectonicsPage"
-      ],
-      "entryPoint": "ui/tectonicsPage.js",
-      "inputs": {
-        "ui/tectonicsPage.js": {
-          "bytesInOutput": 76426
-        }
-      },
-      "bytes": 77510
-    },
-    "dist/chunks/chunk-YAWL2UWM.js": {
-      "imports": [
-        {
-          "path": "dist/chunks/chunk-5YVVLRFP.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-MXEPBJGN.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-HLZ2ABGO.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-UN6CKA7Q.js",
-          "kind": "import-statement"
-        }
-      ],
-      "exports": [
-        "a",
-        "b",
-        "c",
-        "d",
-        "e"
-      ],
-      "inputs": {
-        "ui/workflow/diagnosticOrientation.js": {
-          "bytesInOutput": 1076
-        }
-      },
-      "bytes": 1287
-    },
-    "dist/chunks/chunk-VWW4YL5T.js": {
-      "imports": [
-        {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-5OYYM5KR.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-N3VKQ2UZ.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-WBFRNUBJ.js",
-          "kind": "import-statement"
-        }
-      ],
-      "exports": [
-        "a",
-        "b",
-        "c"
-      ],
-      "inputs": {
-        "ui/bodySolveHelpers.js": {
-          "bytesInOutput": 4365
-        }
-      },
-      "bytes": 4644
-    },
-    "dist/chunks/chunk-RQTCOANH.js": {
-      "imports": [
-        {
-          "path": "dist/chunks/chunk-JOWNJXZP.js",
-          "kind": "import-statement"
-        }
-      ],
-      "exports": [
-        "a",
-        "b",
-        "c",
-        "d",
-        "e",
-        "f"
-      ],
-      "inputs": {
-        "engine/tectonics.js": {
-          "bytesInOutput": 8044
-        }
-      },
-      "bytes": 8161
-    },
-    "dist/chunks/systemPage-4ZTR462J.js": {
-      "imports": [
-        {
-          "path": "dist/chunks/chunk-AOODRPSX.js",
-          "kind": "import-statement"
-        },
-        {
-          "path": "dist/chunks/chunk-A52RWXNM.js",
+          "path": "dist/chunks/chunk-2Q3JSVJV.js",
           "kind": "import-statement"
         },
         {
@@ -12018,7 +12222,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-IU5V75WR.js",
+          "path": "dist/chunks/chunk-VJ6TX7HE.js",
           "kind": "import-statement"
         },
         {
@@ -12030,7 +12234,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-NBH5C6W4.js",
+          "path": "dist/chunks/chunk-DS5WB3FW.js",
           "kind": "import-statement"
         },
         {
@@ -12042,11 +12246,11 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-4SJHHLQ4.js",
+          "path": "dist/chunks/chunk-C7L6OQCC.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
           "kind": "import-statement"
         },
         {
@@ -12054,7 +12258,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KGUNUOUM.js",
+          "path": "dist/chunks/chunk-4AW6XPVY.js",
           "kind": "import-statement"
         },
         {
@@ -12094,7 +12298,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -12156,7 +12360,7 @@
       "entryPoint": "ui/systemPage.js",
       "inputs": {
         "ui/system/domRender.js": {
-          "bytesInOutput": 8306
+          "bytesInOutput": 16720
         },
         "ui/lazySystemPosterNative.js": {
           "bytesInOutput": 804
@@ -12213,12 +12417,12 @@
           "bytesInOutput": 6055
         },
         "ui/systemPage.js": {
-          "bytesInOutput": 43893
+          "bytesInOutput": 46340
         }
       },
-      "bytes": 125019
+      "bytes": 135880
     },
-    "dist/chunks/outerObjectsPage-TGFMEILP.js": {
+    "dist/chunks/outerObjectsPage-7ZJOA6MP.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-IQWEZFN7.js",
@@ -12269,7 +12473,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -12320,14 +12524,14 @@
       },
       "bytes": 64319
     },
-    "dist/chunks/planetPage-76JGUKBS.js": {
+    "dist/chunks/planetPage-UPG64F62.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-AOODRPSX.js",
+          "path": "dist/chunks/chunk-XPTYOZKH.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-A52RWXNM.js",
+          "path": "dist/chunks/chunk-2Q3JSVJV.js",
           "kind": "import-statement"
         },
         {
@@ -12351,7 +12555,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-CF4J5GSA.js",
+          "path": "dist/chunks/chunk-GRNUNY6X.js",
           "kind": "import-statement"
         },
         {
@@ -12359,7 +12563,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-NBH5C6W4.js",
+          "path": "dist/chunks/chunk-DS5WB3FW.js",
           "kind": "import-statement"
         },
         {
@@ -12367,11 +12571,11 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-4SJHHLQ4.js",
+          "path": "dist/chunks/chunk-C7L6OQCC.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
           "kind": "import-statement"
         },
         {
@@ -12451,7 +12655,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -12571,7 +12775,7 @@
       },
       "bytes": 261935
     },
-    "dist/chunks/chunk-AOODRPSX.js": {
+    "dist/chunks/chunk-XPTYOZKH.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-SIP25B6Y.js",
@@ -12586,7 +12790,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -12630,10 +12834,10 @@
       },
       "bytes": 67038
     },
-    "dist/chunks/chunk-A52RWXNM.js": {
+    "dist/chunks/chunk-2Q3JSVJV.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-NBH5C6W4.js",
+          "path": "dist/chunks/chunk-DS5WB3FW.js",
           "kind": "import-statement"
         },
         {
@@ -12658,7 +12862,7 @@
       ],
       "inputs": {
         "engine/orbitalArchitecture.js": {
-          "bytesInOutput": 4898
+          "bytesInOutput": 4932
         },
         "engine/dynamics/generationGuidance.js": {
           "bytesInOutput": 5473
@@ -12685,13 +12889,13 @@
           "bytesInOutput": 2986
         },
         "engine/contexts/longTermDynamicsContext.js": {
-          "bytesInOutput": 9350
+          "bytesInOutput": 9649
         },
         "engine/dynamics/context.js": {
           "bytesInOutput": 16879
         }
       },
-      "bytes": 69663
+      "bytes": 69991
     },
     "dist/chunks/chunk-FDMNZDWJ.js": {
       "imports": [
@@ -12737,7 +12941,7 @@
       },
       "bytes": 3830
     },
-    "dist/chunks/moonPage-P5OE75KF.js": {
+    "dist/chunks/moonPage-NKUR2ZXM.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-5YVVLRFP.js",
@@ -12828,7 +13032,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -13017,7 +13221,7 @@
       },
       "bytes": 664
     },
-    "dist/chunks/visualizerPage-4ZJS4PW2.js": {
+    "dist/chunks/visualizerPage-2NQMH5C5.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-4VUJ5FTU.js",
@@ -13028,7 +13232,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-CF4J5GSA.js",
+          "path": "dist/chunks/chunk-GRNUNY6X.js",
           "kind": "import-statement"
         },
         {
@@ -13040,15 +13244,19 @@
           "kind": "import-statement"
         },
         {
+          "path": "dist/chunks/chunk-M4AYWIHL.js",
+          "kind": "import-statement"
+        },
+        {
           "path": "dist/chunks/chunk-PS64NE7C.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-4SJHHLQ4.js",
+          "path": "dist/chunks/chunk-C7L6OQCC.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
           "kind": "import-statement"
         },
         {
@@ -13120,7 +13328,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -13181,13 +13389,13 @@
           "bytesInOutput": 946
         },
         "ui/vizClusterRenderer.js": {
-          "bytesInOutput": 857
+          "bytesInOutput": 939
         },
         "ui/visualizer/constants.js": {
-          "bytesInOutput": 13191
+          "bytesInOutput": 14341
         },
         "ui/visualizer/clusterOverlay.js": {
-          "bytesInOutput": 1529
+          "bytesInOutput": 6309
         },
         "ui/visualizer/cometOrbitPath.js": {
           "bytesInOutput": 2687
@@ -13235,7 +13443,7 @@
           "bytesInOutput": 1112
         },
         "ui/visualizer/inputBindings.js": {
-          "bytesInOutput": 11412
+          "bytesInOutput": 11659
         },
         "ui/visualizer/visualEditorEntry.js": {
           "bytesInOutput": 5753
@@ -13247,10 +13455,10 @@
           "bytesInOutput": 368
         },
         "ui/visualizerPage.js": {
-          "bytesInOutput": 96927
+          "bytesInOutput": 97617
         }
       },
-      "bytes": 235141
+      "bytes": 242125
     },
     "dist/chunks/chunk-4VUJ5FTU.js": {
       "imports": [],
@@ -13293,10 +13501,10 @@
       },
       "bytes": 8530
     },
-    "dist/chunks/chunk-CF4J5GSA.js": {
+    "dist/chunks/chunk-GRNUNY6X.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-4SJHHLQ4.js",
+          "path": "dist/chunks/chunk-C7L6OQCC.js",
           "kind": "import-statement"
         },
         {
@@ -13308,7 +13516,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -13364,10 +13572,22 @@
       },
       "bytes": 1028
     },
-    "dist/chunks/localClusterPage-VMTUHUKG.js": {
+    "dist/chunks/localClusterPage-Y7BPTGI6.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-LVJGDVKF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-M4AYWIHL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-K3G42TUD.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-WGUMHBZW.js",
           "kind": "import-statement"
         },
         {
@@ -13391,7 +13611,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -13437,13 +13657,13 @@
       "entryPoint": "ui/localClusterPage.js",
       "inputs": {
         "ui/localCluster/domRender.js": {
-          "bytesInOutput": 3202
+          "bytesInOutput": 4126
         },
         "ui/localClusterPage.js": {
-          "bytesInOutput": 30582
+          "bytesInOutput": 31073
         }
       },
-      "bytes": 34526
+      "bytes": 36038
     },
     "dist/chunks/chunk-LVJGDVKF.js": {
       "imports": [],
@@ -13458,10 +13678,39 @@
       },
       "bytes": 1331
     },
-    "dist/chunks/importExportPage-RUGL4RQL.js": {
+    "dist/chunks/chunk-M4AYWIHL.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-IU5V75WR.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-WGUMHBZW.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-IF7XM465.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "dist/chunks/chunk-JOWNJXZP.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a"
+      ],
+      "inputs": {
+        "engine/stellarNeighbourhoodHazards.js": {
+          "bytesInOutput": 23989
+        }
+      },
+      "bytes": 24204
+    },
+    "dist/chunks/importExportPage-VY3MGEGF.js": {
+      "imports": [
+        {
+          "path": "dist/chunks/chunk-VJ6TX7HE.js",
           "kind": "import-statement"
         },
         {
@@ -13473,7 +13722,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-NBH5C6W4.js",
+          "path": "dist/chunks/chunk-DS5WB3FW.js",
           "kind": "import-statement"
         },
         {
@@ -13485,11 +13734,11 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-4SJHHLQ4.js",
+          "path": "dist/chunks/chunk-C7L6OQCC.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
           "kind": "import-statement"
         },
         {
@@ -13529,7 +13778,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-NWYUFDZZ.js",
+          "path": "dist/chunks/chunk-FAVJPDXP.js",
           "kind": "import-statement"
         },
         {
@@ -13545,7 +13794,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -13621,7 +13870,7 @@
       },
       "bytes": 55716
     },
-    "dist/chunks/chunk-IU5V75WR.js": {
+    "dist/chunks/chunk-VJ6TX7HE.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-IOP3ZCQF.js",
@@ -13632,7 +13881,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-NBH5C6W4.js",
+          "path": "dist/chunks/chunk-DS5WB3FW.js",
           "kind": "import-statement"
         },
         {
@@ -13640,7 +13889,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-4SJHHLQ4.js",
+          "path": "dist/chunks/chunk-C7L6OQCC.js",
           "kind": "import-statement"
         },
         {
@@ -13652,7 +13901,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -13739,18 +13988,18 @@
       },
       "bytes": 7668
     },
-    "dist/chunks/chunk-NBH5C6W4.js": {
+    "dist/chunks/chunk-DS5WB3FW.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-KL3MGWOE.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-HAHRHHUJ.js",
+          "path": "dist/chunks/chunk-K3G42TUD.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -13825,10 +14074,10 @@
       },
       "bytes": 1919
     },
-    "dist/chunks/chunk-4SJHHLQ4.js": {
+    "dist/chunks/chunk-C7L6OQCC.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -13864,14 +14113,14 @@
       },
       "bytes": 24608
     },
-    "dist/chunks/chunk-HAHRHHUJ.js": {
+    "dist/chunks/chunk-K3G42TUD.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-WGUMHBZW.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -14289,10 +14538,10 @@
       "inputs": {},
       "bytes": 1339
     },
-    "dist/chunks/starPage-MMVNCH7J.js": {
+    "dist/chunks/starPage-JZIB4DC6.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-KGUNUOUM.js",
+          "path": "dist/chunks/chunk-4AW6XPVY.js",
           "kind": "import-statement"
         },
         {
@@ -14356,7 +14605,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -14452,14 +14701,14 @@
       },
       "bytes": 191815
     },
-    "dist/chunks/chunk-KGUNUOUM.js": {
+    "dist/chunks/chunk-4AW6XPVY.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-D57ZVI5L.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -15254,11 +15503,11 @@
     "dist/app.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-GSSWX7DT.js",
+          "path": "dist/chunks/chunk-UEI44MFK.js",
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-NWYUFDZZ.js",
+          "path": "dist/chunks/chunk-FAVJPDXP.js",
           "kind": "import-statement"
         },
         {
@@ -15274,7 +15523,7 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         },
         {
@@ -15314,63 +15563,67 @@
           "kind": "import-statement"
         },
         {
-          "path": "dist/chunks/starPage-MMVNCH7J.js",
+          "path": "dist/chunks/starPage-JZIB4DC6.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/systemPage-4ZTR462J.js",
+          "path": "dist/chunks/systemPage-BQDPAXMB.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/outerObjectsPage-TGFMEILP.js",
+          "path": "dist/chunks/outerObjectsPage-7ZJOA6MP.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/planetPage-76JGUKBS.js",
+          "path": "dist/chunks/planetPage-UPG64F62.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/moonPage-P5OE75KF.js",
+          "path": "dist/chunks/moonPage-NKUR2ZXM.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/visualizerPage-4ZJS4PW2.js",
+          "path": "dist/chunks/visualizerPage-2NQMH5C5.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/localClusterPage-VMTUHUKG.js",
+          "path": "dist/chunks/localClusterPage-Y7BPTGI6.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/localClusterPage-VMTUHUKG.js",
+          "path": "dist/chunks/localClusterPage-Y7BPTGI6.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/visualizerPage-4ZJS4PW2.js",
+          "path": "dist/chunks/visualizerPage-2NQMH5C5.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/importExportPage-RUGL4RQL.js",
+          "path": "dist/chunks/importExportPage-VY3MGEGF.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/apparentPage-QEIZNH5Y.js",
+          "path": "dist/chunks/apparentPage-ASUCOYWS.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/calendarPage-JC7TG7FJ.js",
+          "path": "dist/chunks/calendarPage-4EJVMMAT.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/fatePage-EYFLHWAY.js",
+          "path": "dist/chunks/fatePage-IHFGKE6H.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/aboutPage-2AZZMMGM.js",
+          "path": "dist/chunks/neighbourhoodHazardsPage-FU2TJWMD.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/sciencePage-PDSD7FMB.js",
+          "path": "dist/chunks/aboutPage-HAD7HMEZ.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "dist/chunks/sciencePage-5KF6XJLG.js",
           "kind": "dynamic-import"
         },
         {
@@ -15378,19 +15631,19 @@
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/tectonicsPage-EI4G3GPI.js",
+          "path": "dist/chunks/tectonicsPage-YZ4JEYUF.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/climatePage-EFLR5JJB.js",
+          "path": "dist/chunks/climatePage-EFSFUADE.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/populationPage-YDGLZJ2Q.js",
+          "path": "dist/chunks/populationPage-DI77WXNI.js",
           "kind": "dynamic-import"
         },
         {
-          "path": "dist/chunks/lessonsPage-CXCE7AHH.js",
+          "path": "dist/chunks/lessonsPage-UTYCZFXV.js",
           "kind": "dynamic-import"
         }
       ],
@@ -15404,15 +15657,15 @@
           "bytesInOutput": 7436
         },
         "ui/workflow/skeletonTemplates.js": {
-          "bytesInOutput": 3992
+          "bytesInOutput": 4025
         },
         "app.js": {
-          "bytesInOutput": 18052
+          "bytesInOutput": 18202
         }
       },
-      "bytes": 31141
+      "bytes": 31324
     },
-    "dist/chunks/chunk-GSSWX7DT.js": {
+    "dist/chunks/chunk-UEI44MFK.js": {
       "imports": [],
       "exports": [
         "a",
@@ -15427,10 +15680,10 @@
       },
       "bytes": 252
     },
-    "dist/chunks/chunk-NWYUFDZZ.js": {
+    "dist/chunks/chunk-FAVJPDXP.js": {
       "imports": [
         {
-          "path": "dist/chunks/chunk-KLYSX53K.js",
+          "path": "dist/chunks/chunk-IF7XM465.js",
           "kind": "import-statement"
         }
       ],
@@ -15499,7 +15752,7 @@
       },
       "bytes": 3480
     },
-    "dist/chunks/chunk-KLYSX53K.js": {
+    "dist/chunks/chunk-IF7XM465.js": {
       "imports": [
         {
           "path": "dist/chunks/chunk-RCWZHCEB.js",
@@ -15753,7 +16006,7 @@
           "bytesInOutput": 305
         },
         "ui/store/bodyMutations.js": {
-          "bytesInOutput": 5876
+          "bytesInOutput": 5915
         },
         "ui/store/worldSnapshotCache.js": {
           "bytesInOutput": 1010
@@ -15768,7 +16021,7 @@
           "bytesInOutput": 2917
         }
       },
-      "bytes": 172407
+      "bytes": 172446
     },
     "dist/chunks/chunk-XMLMEZIZ.js": {
       "imports": [],

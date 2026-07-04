@@ -141,6 +141,28 @@ export const CONTEXT_SCIENCE_REGISTRY = Object.freeze({
     knownLimitations:
       "No future climate simulation, no ocean-loss reservoir integration, no N-body orbital evolution, no biological prediction, and no supernova energetics, nucleosynthesis, fallback, or light curves.",
   },
+  stellarNeighbourhoodHazards: {
+    key: "stellarNeighbourhoodHazards",
+    label: "Stellar neighbourhood hazard model",
+    formulaName: "External supernova, flyby, comet-shower, and dense-cluster hazard screen",
+    sourceSummary:
+      "The Stellar Neighbourhood Hazards page combines Local Cluster density/context, broad nearby-supernova rate screens, analytic stellar-flyby cross sections, Oort-cloud and small-body reservoir context, and saved body grouping into a whole-system external-risk dashboard.",
+    sourceUrls: [
+      "https://doi.org/10.1126/science.1092322",
+      "https://doi.org/10.1086/320131",
+      "https://science.nasa.gov/solar-system/oort-cloud/facts/",
+      "https://science.nasa.gov/solar-system/comets/",
+      "https://doi.org/10.1086/508800",
+    ],
+    assumptions:
+      "Supernova and flyby outputs are broad rate screens. Comet-shower potential is inferred from flyby exposure plus Oort/small-body context, and affected-world rows are consequence groupings rather than equal-risk claims.",
+    validInputRange:
+      "Saved systems with Local Cluster density/position context, optional generated neighbour systems, optional Oort/debris/comet reservoirs, and saved planets, gas giants, or moons.",
+    outputKind: "qualitative",
+    calibrationRequired: true,
+    knownLimitations:
+      "No stochastic flyby chronology, no individual catalogue lookup, no N-body encounter integration, no supernova blast transport or light curves, no impactor size-frequency distribution, no climate response, and no biological outcome model.",
+  },
   planetRadiationEnvironment: {
     key: "planetRadiationEnvironment",
     label: "Rocky planet radiation environment context",
