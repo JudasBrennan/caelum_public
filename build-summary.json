@@ -1,23 +1,32 @@
 {
   "mode": "production",
-  "releaseVersion": "3.3.0",
+  "releaseVersion": "3.4.0",
   "distDir": "dist",
-  "generatedAt": "2026-07-04T04:51:27.298Z",
+  "generatedAt": "2026-07-06T20:00:47.355Z",
   "entry": {
     "file": "app.js",
-    "bytes": 31324
+    "bytes": 31499
   },
-  "lazyChunkCount": 123,
+  "lazyChunkCount": 128,
   "largestLazyChunk": {
+    "file": "chunks/chunk-56JJ2DZ6.js",
+    "bytes": 2599619
+  },
+  "largestNonModelDataLazyChunk": {
     "file": "chunks/chunk-K6EXVWDB.js",
     "bytes": 715105
   },
   "largestAppLazyChunk": {
-    "file": "chunks/chunk-WBFRNUBJ.js",
+    "file": "chunks/chunk-BTRHGQ75.js",
     "bytes": 341372
   },
   "largestVendorLazyChunk": {
     "file": "chunks/chunk-K6EXVWDB.js",
     "bytes": 715105
-  }
+  },
+  "largestModelDataLazyChunk": {
+    "file": "chunks/chunk-56JJ2DZ6.js",
+    "bytes": 2599619
+  },
+  "modelDataLazyChunkBytes": 5133169
 }

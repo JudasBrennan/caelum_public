@@ -1,8 +1,8 @@
 # Caelum Science Verification Matrix
 
-Generated: 2026-07-04T04:51:23.651Z
+Generated: 2026-07-06T20:00:44.482Z
 
-App version: 3.3.0
+App version: 3.4.0
 
 Science verification matrix covering benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, units, independent formula oracles, sensitivity, population sanity, browser coverage, and release gates.
 
@@ -13,8 +13,8 @@ Anchor benchmarks are only one family. Physics invariants, metamorphic trends, b
 Metric | Value
 --- | ---
 Model areas | 31
-Verification rows | 360
-Passed rows | 351
+Verification rows | 362
+Passed rows | 353
 Warnings | 0
 Failures | 0
 Modeling gaps | 0
@@ -22,14 +22,14 @@ Blocked rows | 0
 Release gates passed | 1
 Strict calibration rows | 147
 Strict calibration failures | 0
-Calibrated rows | 100
+Calibrated rows | 102
 Exploratory rows | 30
 
 ## Model Area Coverage
 
 Model area | Trust | Registry keys | Coverage
 --- | --- | --- | ---
-Stellar Environment | strong | stellarHistoryDose | anchor, metamorphic, unit, source-coverage
+Stellar Environment | strong | stellarHistoryDose | anchor, metamorphic, unit, empirical-validation, source-coverage
 Stellar Lifecycle | strong | stellarLifecycle | source-coverage
 Rocky Planets | strong | planetRadiationEnvironment, surfaceClimate, geodynamics, interiorEvolution | anchor, invariant, metamorphic, unit, sensitivity, source-coverage
 Hydrosphere And Ocean Chemistry | strong | co2ClimateTendency, productivity, nitrogenCycle | invariant, metamorphic, boundary, cross-system, source-coverage
@@ -65,7 +65,7 @@ Dynamical timeline events | strong | timeline.dynamicalEvents | source-coverage
 
 Tier | Rows | Pass | Warn | Fail | Gap | Blocked
 --- | --- | --- | --- | --- | --- | ---
-calibrated | 100 | 100 | 0 | 0 | 0 | 0
+calibrated | 102 | 102 | 0 | 0 | 0 | 0
 exploratory | 30 | 26 | 0 | 0 | 0 | 0
 strict | 147 | 147 | 0 | 0 | 0 | 0
 
@@ -88,16 +88,16 @@ stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen B | Ra
 stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen B | Effective temperature | PASS | info | 5238 K | 5260 K | No action
 stellar-environment | anchor | calibrated | Stellar evolution / Tau Ceti | Luminosity | PASS | info | 0.4356 Lsol | 0.4880 Lsol | No action
 stellar-environment | anchor | calibrated | Stellar evolution / Tau Ceti | Radius | PASS | info | 0.7952 Rsol | 0.7930 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Tau Ceti | Effective temperature | PASS | info | 5262 K | 5344 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Tau Ceti | Effective temperature | PASS | info | 5184 K | 5344 K | No action
 stellar-environment | anchor | calibrated | Stellar evolution / 70 Oph A | Luminosity | PASS | info | 0.5019 Lsol | 0.4570 Lsol | No action
 stellar-environment | anchor | calibrated | Stellar evolution / 70 Oph A | Radius | PASS | info | 0.8609 Rsol | 0.8620 Rsol | No action
 stellar-environment | anchor | calibrated | Stellar evolution / 70 Oph A | Effective temperature | PASS | info | 5240 K | 5314 K | No action
 stellar-environment | anchor | calibrated | Stellar evolution / Eps Eridani | Luminosity | PASS | info | 0.2989 Lsol | 0.3400 Lsol | No action
 stellar-environment | anchor | calibrated | Stellar evolution / Eps Eridani | Radius | PASS | info | 0.7474 Rsol | 0.7350 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Eps Eridani | Effective temperature | PASS | info | 4940 K | 5084 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Eps Eridani | Effective temperature | PASS | info | 4918 K | 5084 K | No action
 stellar-environment | anchor | calibrated | Stellar evolution / 61 Cyg A | Luminosity | PASS | info | 0.1742 Lsol | 0.1530 Lsol | No action
 stellar-environment | anchor | calibrated | Stellar evolution / 61 Cyg A | Radius | PASS | info | 0.6741 Rsol | 0.6650 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / 61 Cyg A | Effective temperature | PASS | info | 4545 K | 4526 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / 61 Cyg A | Effective temperature | PASS | info | 4401 K | 4526 K | No action
 stellar-environment | anchor | calibrated | Stellar evolution / Sirius A | Luminosity | PASS | info | 23.80 Lsol | 25.40 Lsol | No action
 stellar-environment | anchor | calibrated | Stellar evolution / Sirius A | Radius | PASS | info | 1.717 Rsol | 1.711 Rsol | No action
 stellar-environment | anchor | calibrated | Stellar evolution / Sirius A | Effective temperature | PASS | info | 9737 K | 9940 K | No action
@@ -408,6 +408,8 @@ stellar-lifecycle | stellar-lifecycle | n/a | Planet HZ interval | Earth-like or
 stellar-lifecycle | stellar-lifecycle | n/a | Planet HZ hazard | Close solar orbit is flagged for engulfment | PASS | low | engulfed=true; age=12.355 Gyr; late=true | engulfment and late-habitability caveats | Review lifecycle stage windows, remnant screens, and HZ sampling if this fails.
 stellar-lifecycle | stellar-lifecycle | n/a | Fixture benchmark matrix | Representative masses and metallicities stay in broad ranges | PASS | low | 9 masses x 3 metallicities | stage order, lifetime, and remnant ranges all pass | Review lifecycle stage windows, remnant screens, and HZ sampling if this fails.
 stellar-lifecycle | stellar-lifecycle | n/a | Massive-star endpoint | Core-collapse endpoint is compact remnant | PASS | low | Neutron star remnant; Neutron star | neutron star or black hole endpoint | Review lifecycle stage windows, remnant screens, and HZ sampling if this fails.
+stellar-environment | empirical-validation | calibrated | Spectral Morphology | Pickles template validation rows within one subtype | PASS | low | exact=35/39; within1=39/39; unsupported=0 | All supported validation rows within one subtype; no unsupported ordinary dwarfs | Review morphology provider, grid coverage, and coefficient audit if this gate regresses.
+stellar-environment | empirical-validation | calibrated | Spectral Morphology | Validation provider and confidence coverage | PASS | low | providers: bosz2024-reduced-line-index-grid-v1=25, line-index-approx-v1=14; confidence: high=26, medium=13 | Provider and confidence distribution recorded for release review | Review provider/fallback shifts when spectral grid or coefficient versions change.
 atmosphere-climate | metamorphic | n/a | Orbit distance | Moving outward lowers absorbed flux | PASS | low | 236.13 -> 163.98 W/m2 | decrease | Investigate sign, unit, or coupling regression if this trend fails.
 stellar-environment | metamorphic | n/a | Stellar luminosity | Increasing luminosity raises surface temperature | PASS | low | 282 -> 296 K | increase | Investigate sign, unit, or coupling regression if this trend fails.
 atmosphere-climate | metamorphic | n/a | Albedo | Increasing albedo lowers absorbed flux | PASS | low | 236.13 -> 170.13 W/m2 | decrease | Investigate sign, unit, or coupling regression if this trend fails.
@@ -432,7 +434,7 @@ observability-user-facing | population | n/a | Science calibration fixture set |
 habitability-biosignatures | population | n/a | Hostile calibration fixtures | Hostile worlds do not bypass habitability guardrails | PASS | low | Guardrails hold | No obvious hostile world with high habitability index | Review habitability penalties if this fails.
 moons | population | n/a | Moon calibration fixture availability | Europa-like and Titan-like worlds exist for downstream suites | PASS | low | Europa-like calibration; Titan-like calibration | Moon fixture worlds present | Keep moon fixtures updated when moon schema changes.
 observability-user-facing | browser | n/a | Validation page | Browser regression suite coverage | INFO | info | Covered by npm run test:browser during release verification | Validation page loads matrix artifact and filters rows | Run browser tests before release; investigate any Validation page failure.
-observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-07-04T04:51:23.651Z | PASS before release | No action required.
+observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-07-06T20:00:44.482Z | PASS before release | No action required.
 observability-user-facing | release-gate | n/a | check | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | build | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | bundle | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.

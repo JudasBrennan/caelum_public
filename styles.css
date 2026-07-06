@@ -4205,12 +4205,6 @@ button.primary:hover {
   text-align: left;
 }
 
-.system-fate-lifecycle-row:hover,
-.system-fate-lifecycle-row:focus-visible {
-  border-color: rgba(var(--accent-rgb), 0.45);
-  background: rgba(var(--accent-rgb), 0.08);
-}
-
 .system-fate-lifecycle-row__name,
 .system-fate-lifecycle-cell {
   display: grid;

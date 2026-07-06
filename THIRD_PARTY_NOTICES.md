@@ -4,6 +4,36 @@ Unless otherwise noted, first-party files in this repository are offered
 under the Mozilla Public License 2.0. The vendored components below are
 not relicensed under MPL-2.0 and remain under their original licenses.
 
+## BOSZ 2024 synthetic stellar spectral library
+
+- Upstream project: <https://archive.stsci.edu/hlsp/bosz>
+- Applies to:
+  - `engine/stellarSpectra/data/bosz2024ReducedLineIndexGrid.v1.js`
+- License: CC BY 4.0
+- DOI: `10.17909/T95G68`
+- Attribution:
+  - Meszaros et al. 2024, The updated BOSZ synthetic stellar spectral library
+  - Bohlin et al. 2017, A New Stellar Atmosphere Grid and Comparisons with
+    HST/STIS CALSPEC Flux Distributions
+
+The bundled file is a reduced line-index grid generated from selected BOSZ 2024
+R=500 spectra. It does not include the full upstream spectra.
+
+## Pickles 1998 stellar spectral flux library
+
+- Upstream reference page: <https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/pickles-atlas>
+- ESO mirror used by the fixture builder:
+  <https://www.eso.org/sci/facilities/paranal/decommissioned/isaac/tools/lib.html>
+- Applies to:
+  - `tests/fixtures/stellarSpectra/validationSet.v1.json`
+- Citation:
+  - Pickles, A. J. 1998, PASP, 110, 863
+
+The committed fixture is a validation-only reduced row set built from composite
+spectral-type templates. It stores compact metadata and measured line-index
+proxies for release checks; it is not imported by engine runtime and is not a
+known-star lookup table.
+
 ## three.js and three.js example modules
 
 - Upstream package: `three` 0.183.1

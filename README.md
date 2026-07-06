@@ -1,4 +1,4 @@
-# Caelum 3.3.0
+# Caelum 3.4.0
 
 Caelum is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -13,6 +13,21 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Stars now expose track provenance, raw and photosphere-corrected effective
+  temperatures, metallicity/alpha/rotation context, and MIST-backed
+  main-sequence grid coverage with analytic fallback.
+- Stellar outputs now separate physical track classification from the displayed
+  observational MK estimate, including log g, luminosity class, bolometric
+  magnitude, confidence, caveats, and subtype morphology offsets.
+- The observational MK layer can use a bundled compact BOSZ reduced line-index
+  grid for Balmer, Ca K, Mg 4481, metal-blanketing, molecular, helium, and
+  rotation-broadening diagnostics without known-star runtime lookups.
+- Spectral morphology calibration now has validation-only empirical fixtures,
+  release gates, and calibration reports so runtime physics can be checked
+  against templates without importing catalogue answers.
+- The Sol preset Local Cluster now opens on an authored 25 light-year
+  nearby-star catalogue while preserving normal cluster editing and visualiser
+  behaviour.
 - Stellar Neighbourhood Hazards is now a main-nav workspace for reading the
   saved system's external deep-time risk from nearby supernovae, stellar
   flybys, comet showers, dense-cluster stress, affected worlds, assumptions,

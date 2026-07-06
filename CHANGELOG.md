@@ -2,7 +2,114 @@
 
 All notable changes to Caelum will be documented in this file.
 
-## Unreleased (post-3.3.0)
+## Unreleased
+
+## 3.4.0 - 2026-07-06
+
+### Changed
+
+**Stellar track provenance and MIST calibration**
+(engine/stellarTracks/\*, engine/stellarPhotosphere.js, engine/star.js,
+ui/star/outputModel.js, ui/sciencePage.js, tests/stellarTracks.test.js,
+tests/stellarMetallicity.test.js, tests/star-evolution-nasa-validation.test.js,
+scripts/build-stellar-track-grid.mjs, scripts/fetch-mist-eep-archives.mjs)
+
+Automatic stellar luminosity, radius, and effective temperature now flow through
+a provider layer that exposes track source, confidence, caveats, data version,
+and metallicity convention. The default remains the deterministic analytic
+SSE/Hurley-Tout path. Explicit grid/auto modes now prefer bundled MIST v2.5 EEP
+main-sequence grids when mass, fractional main-sequence age, composition, and
+requested rotation are in coverage, then use the compact generic main-sequence
+grid, with analytic fallback and no named-star runtime lookups.
+
+The bundled MIST coverage now includes the broad alpha-solar metallicity grid,
+a low-mass extension, an alpha-enhanced metal-poor grid, and an optional
+solar-metallicity rotation slice. Grid interpolation uses log-mass bracketing,
+monotone cubic age interpolation, and multilinear composition interpolation.
+Old metal-poor grid-mode stars can infer a generic Galactic alpha enhancement
+instead of pretending `[alpha/Fe] = 0`. MIST grid interpolation also now treats
+the user-facing `[Fe/H]` as photospheric abundance and, for mature FGK dwarfs,
+infers a small generic initial-metallicity offset for the model-grid axis. The
+applied initial `[Fe/H]` and offset are exposed in Star outputs.
+
+Stars now expose both the raw track temperature and a generic photosphere
+temperature correction for cool dwarfs. The correction is driven by mass,
+metallicity, fractional main-sequence age, and rotation/activity context, not by
+known-star overrides. The stellar benchmark report now includes
+Stefan-Boltzmann luminosity self-consistency flags, a consistency-aware
+luminosity score, raw/corrected temperature columns, and an input-uncertainty
+envelope.
+
+The displayed stellar class now separates the direct physical track class from
+a narrow generic observational MK estimate. The physical class remains available
+as `physicalSpectralClass`; the displayed `spectralClass` can apply supported
+metallicity-sensitive dwarf morphology offsets, with the applied subtype offset
+and caveats exposed in the Star output. This improves benchmark calibration
+without adding named-star catalog anchors.
+
+The physical MK classification layer now exposes the scalar diagnostics behind
+the direct track class: temperature class, surface-gravity-derived luminosity
+class, `log g`, stellar surface gravity in SI and solar-relative units,
+bolometric magnitude, classification confidence, and caveats for evolved states,
+manual physical overrides, metallicity, rotation, and unsupported regimes. The
+Star page surfaces these as compact identity/physical-state rows with tooltips,
+while keeping known stars as validation fixtures rather than runtime anchors.
+
+The observational MK layer now has a generic line-index morphology provider.
+It prefers a bundled compact BOSZ 2024 reduced line-index grid generated from
+MAST synthetic spectra, then falls back to the analytic line-index approximation
+outside compact-grid coverage. The grid stores Balmer, Ca K, Mg 4481,
+metal-blanketing, molecular-band, helium-line, and rotation-broadening indices
+instead of full spectra, and preserves BOSZ source, DOI, citation, and CC BY
+4.0 attribution metadata. The runtime still uses no known-star catalog lookups
+or star-specific overrides.
+
+Spectral morphology validation now has a validation-only Pickles 1998 empirical
+template fixture across O-M classes, evolved templates, and metallicity cases.
+The calibration report includes fixture family summaries, provider/confidence
+coverage, and release gates; the Science Verification Matrix includes spectral
+morphology empirical-validation rows; and the coefficient audit script compares
+generic candidate policies with train/validation splits and anti-overfit guards
+without importing empirical rows into runtime.
+
+**Sol local cluster catalogue**
+(ui/solLocalClusterData.js, ui/solPreset.js,
+tests/solPresetConsistency.test.js)
+
+The Sol preset Local Cluster now opens on an authored 25 light-year nearby-star
+catalogue instead of a generated placeholder neighbourhood. The catalogue uses
+real nearby system names, broad object classes, and J2000-derived XYZ positions
+for stars, white dwarfs, and brown/sub-brown dwarfs while preserving normal
+Local Cluster editing, tabular readouts, and visualiser behaviour.
+
+### Fixed
+
+**System Fate lifecycle drilldown**
+(ui/systemFateTimelinePanel.js, styles.css, tests/systemFatePage.ui.test.js)
+
+Switching from Timeline to Lifecycle now hides the selected-body drilldown
+instead of carrying the timeline detail card into the lifecycle readout.
+Lifecycle rows are presented as compact read-only rows so the page no longer
+offers a silent row-click interaction in that view.
+
+**Visualizer appearance editor target selection**
+(ui/visualizer/visualEditorEntry.js, tests/visualizerVisualEditorEntry.test.js)
+
+Visualizer appearance edits now save and reset through typed planetary-body
+selectors, so focused gas giants are patched as gas giants even when a migrated
+or imported world also has a rocky body with the same legacy id. This also keeps
+rocky-world appearance edits from being affected by same-id gas giant entries.
+
+**Gas giant visual presets**
+(ui/celestialComposer.js, tests/celestialComposer.test.js,
+tests/planetaryVisualEditorControls.ui.test.js)
+
+Gas giant presets selected in the visual editor now reach the actual compositor
+instead of being dropped during gas-model normalisation. Preset palette, band,
+storm, atmosphere, Great Spot, and zero-storm overrides now win over style art
+defaults in both the editor preview and visualizer render path. Gas giant haze
+now renders as a softer limb glow instead of a large hard-edged atmosphere
+bubble.
 
 ## 3.3.0 - 2026-07-04
 
