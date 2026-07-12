@@ -1,0 +1,1 @@
+var o="auto",_="saturnian-bright",n="icy-banded",e="dusty-veil",R="narrow-dark",S="arc-dusty",s="rocky-debris",I=new Set([o,_,n,e,R,S,s]);function c(r){let t=String(r||"").trim().toLowerCase();return I.has(t)?t:o}export{o as a,_ as b,n as c,e as d,R as e,S as f,s as g,c as h};

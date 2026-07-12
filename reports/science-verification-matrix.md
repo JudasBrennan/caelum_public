@@ -1,8 +1,8 @@
 # Caelum Science Verification Matrix
 
-Generated: 2026-07-06T20:00:44.482Z
+Generated: 2026-07-12T20:36:42.894Z
 
-App version: 3.4.0
+App version: 3.5.0
 
 Science verification matrix covering benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, units, independent formula oracles, sensitivity, population sanity, browser coverage, and release gates.
 
@@ -77,33 +77,33 @@ No gaps, warnings, blocked rows, or failures.
 
 Model area | Family | Tier | Subject | Metric | Status | Severity | Output | Expected | Action
 --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
-stellar-environment | anchor | calibrated | Stellar evolution / Sun | Luminosity | PASS | info | 0.9641 Lsol | 1.000 Lsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Sun | Radius | PASS | info | 0.9914 Rsol | 1.000 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Sun | Effective temperature | PASS | info | 5748 K | 5772 K | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen A | Luminosity | PASS | info | 1.751 Lsol | 1.519 Lsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen A | Radius | PASS | info | 1.223 Rsol | 1.223 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen A | Effective temperature | PASS | info | 6010 K | 5790 K | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen B | Luminosity | PASS | info | 0.4969 Lsol | 0.5030 Lsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen B | Radius | PASS | info | 0.8570 Rsol | 0.8630 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen B | Effective temperature | PASS | info | 5238 K | 5260 K | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Tau Ceti | Luminosity | PASS | info | 0.4356 Lsol | 0.4880 Lsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Tau Ceti | Radius | PASS | info | 0.7952 Rsol | 0.7930 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Tau Ceti | Effective temperature | PASS | info | 5184 K | 5344 K | No action
-stellar-environment | anchor | calibrated | Stellar evolution / 70 Oph A | Luminosity | PASS | info | 0.5019 Lsol | 0.4570 Lsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / 70 Oph A | Radius | PASS | info | 0.8609 Rsol | 0.8620 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / 70 Oph A | Effective temperature | PASS | info | 5240 K | 5314 K | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Eps Eridani | Luminosity | PASS | info | 0.2989 Lsol | 0.3400 Lsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Eps Eridani | Radius | PASS | info | 0.7474 Rsol | 0.7350 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Eps Eridani | Effective temperature | PASS | info | 4918 K | 5084 K | No action
-stellar-environment | anchor | calibrated | Stellar evolution / 61 Cyg A | Luminosity | PASS | info | 0.1742 Lsol | 0.1530 Lsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / 61 Cyg A | Radius | PASS | info | 0.6741 Rsol | 0.6650 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / 61 Cyg A | Effective temperature | PASS | info | 4401 K | 4526 K | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Sirius A | Luminosity | PASS | info | 23.80 Lsol | 25.40 Lsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Sirius A | Radius | PASS | info | 1.717 Rsol | 1.711 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Sirius A | Effective temperature | PASS | info | 9737 K | 9940 K | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Pi3 Orionis | Luminosity | PASS | info | 2.383 Lsol | 2.820 Lsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Pi3 Orionis | Radius | PASS | info | 1.265 Rsol | 1.323 Rsol | No action
-stellar-environment | anchor | calibrated | Stellar evolution / Pi3 Orionis | Effective temperature | PASS | info | 6380 K | 6516 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Sun | Luminosity | PASS | info | 0.9767 Lsol | 1.000 Lsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Sun | Radius | PASS | info | 0.9967 Rsol | 1.000 Rsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Sun | Effective temperature | PASS | info | 5751 K | 5772 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen A | Luminosity | PASS | info | 1.496 Lsol | 1.519 Lsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen A | Radius | PASS | info | 1.203 Rsol | 1.223 Rsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen A | Effective temperature | PASS | info | 5825 K | 5790 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen B | Luminosity | PASS | info | 0.4693 Lsol | 0.5030 Lsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen B | Radius | PASS | info | 0.8489 Rsol | 0.8630 Rsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Alpha Cen B | Effective temperature | PASS | info | 5189 K | 5260 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Tau Ceti | Luminosity | PASS | info | 0.4309 Lsol | 0.4880 Lsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Tau Ceti | Radius | PASS | info | 0.7622 Rsol | 0.7930 Rsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Tau Ceti | Effective temperature | PASS | info | 5360 K | 5344 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / 70 Oph A | Luminosity | PASS | info | 0.5247 Lsol | 0.4570 Lsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / 70 Oph A | Radius | PASS | info | 0.8549 Rsol | 0.8620 Rsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / 70 Oph A | Effective temperature | PASS | info | 5317 K | 5314 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Eps Eridani | Luminosity | PASS | info | 0.3246 Lsol | 0.3400 Lsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Eps Eridani | Radius | PASS | info | 0.7333 Rsol | 0.7350 Rsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Eps Eridani | Effective temperature | PASS | info | 5091 K | 5084 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / 61 Cyg A | Luminosity | PASS | info | 0.1665 Lsol | 0.1530 Lsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / 61 Cyg A | Radius | PASS | info | 0.6664 Rsol | 0.6650 Rsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / 61 Cyg A | Effective temperature | PASS | info | 4520 K | 4526 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Sirius A | Luminosity | PASS | info | 24.56 Lsol | 25.40 Lsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Sirius A | Radius | PASS | info | 1.673 Rsol | 1.711 Rsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Sirius A | Effective temperature | PASS | info | 9940 K | 9940 K | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Pi3 Orionis | Luminosity | PASS | info | 2.519 Lsol | 2.820 Lsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Pi3 Orionis | Radius | PASS | info | 1.275 Rsol | 1.323 Rsol | No action
+stellar-environment | anchor | calibrated | Stellar evolution / Pi3 Orionis | Effective temperature | PASS | info | 6444 K | 6516 K | No action
 rocky-planets | anchor | strict | Rocky planets / Mercury | Density | PASS | info | 5.413 g/cm3 | 5.429 g/cm3 | No action
 rocky-planets | anchor | strict | Rocky planets / Mercury | Radius | PASS | info | 0.3832 Rearth | 0.3830 Rearth | No action
 rocky-planets | anchor | strict | Rocky planets / Mercury | Surface gravity | PASS | info | 0.3765 g | 0.3770 g | No action
@@ -237,7 +237,7 @@ moons | anchor | strict | Moons / Luna | Radius | PASS | info | 1737 km | 1737 k
 moons | anchor | strict | Moons / Luna | Surface gravity | PASS | info | 1.623 m/s2 | 1.624 m/s2 | No action
 moons | anchor | strict | Moons / Luna | Escape velocity | PASS | info | 2.380 km/s | 2.380 km/s | No action
 moons | anchor | strict | Moons / Luna | Sidereal period | PASS | info | 27.29 days | 27.32 days | No action
-moons | anchor | calibrated | Moons / Luna | Surface temperature | PASS | info | 268.0 K | 270.0 K | No action: revisit after Phase 1 thermal-envelope implementation
+moons | anchor | calibrated | Moons / Luna | Surface temperature | PASS | info | 269.0 K | 270.0 K | No action: revisit after Phase 1 thermal-envelope implementation
 moons | anchor | exploratory | Moons / Luna | Tidally locked | PASS | info | Yes | Yes | No action
 moons | anchor | strict | Moons / Io | Radius | PASS | info | 1821 km | 1822 km | No action
 moons | anchor | strict | Moons / Io | Surface gravity | PASS | info | 1.796 m/s2 | 1.796 m/s2 | No action
@@ -261,20 +261,20 @@ moons | anchor | strict | Moons / Callisto | Radius | PASS | info | 2410 km | 24
 moons | anchor | strict | Moons / Callisto | Surface gravity | PASS | info | 1.236 m/s2 | 1.235 m/s2 | No action
 moons | anchor | strict | Moons / Callisto | Escape velocity | PASS | info | 2.447 km/s | 2.440 km/s | No action
 moons | anchor | strict | Moons / Callisto | Sidereal period | PASS | info | 16.69 days | 16.69 days | No action
-moons | anchor | calibrated | Moons / Callisto | Surface temperature | PASS | info | 140.4 K | 134.0 K | No action: revisit after Phase 1 thermal-envelope implementation
+moons | anchor | calibrated | Moons / Callisto | Surface temperature | PASS | info | 141.4 K | 134.0 K | No action: revisit after Phase 1 thermal-envelope implementation
 moons | anchor | exploratory | Moons / Callisto | Tidally locked | PASS | info | Yes | Yes | No action
 moons | anchor | strict | Moons / Titan | Radius | PASS | info | 2575 km | 2575 km | No action
 moons | anchor | strict | Moons / Titan | Surface gravity | PASS | info | 1.354 m/s2 | 1.352 m/s2 | No action
 moons | anchor | strict | Moons / Titan | Escape velocity | PASS | info | 2.647 km/s | 2.639 km/s | No action
 moons | anchor | strict | Moons / Titan | Sidereal period | PASS | info | 15.95 days | 15.95 days | No action
-moons | anchor | calibrated | Moons / Titan | Surface temperature | PASS | info | 120.8 K | 94.00 K | Keep Titan thick-atmosphere temperature as a broad validation anchor
+moons | anchor | calibrated | Moons / Titan | Surface temperature | PASS | info | 121.8 K | 94.00 K | Keep Titan thick-atmosphere temperature as a broad validation anchor
 moons | anchor | exploratory | Moons / Titan | Tidally locked | PASS | info | Yes | Yes | No action
 moons | anchor | strict | Moons / Enceladus | Radius | PASS | info | 251.9 km | 252.1 km | No action
 moons | anchor | strict | Moons / Enceladus | Surface gravity | PASS | info | 0.1134 m/s2 | 0.1130 m/s2 | No action
 moons | anchor | strict | Moons / Enceladus | Escape velocity | PASS | info | 0.2396 km/s | 0.2390 km/s | No action
 moons | anchor | strict | Moons / Enceladus | Sidereal period | PASS | info | 1.375 days | 1.370 days | No action
-moons | anchor | calibrated | Moons / Enceladus | Observable surface temperature range | PASS | info | 14.80 K to 87.50 K | 75.00 K | Phase 1 implemented: keep envelope comparison as calibration anchor
-moons | anchor | exploratory | Moons / Enceladus | Global-equilibrium temperature | INFO | info | 59.00 K | 75.00 K | No tuning action: use observable envelope row for Phase 1 calibration
+moons | anchor | calibrated | Moons / Enceladus | Observable surface temperature range | PASS | info | 14.80 K to 87.80 K | 75.00 K | Phase 1 implemented: keep envelope comparison as calibration anchor
+moons | anchor | exploratory | Moons / Enceladus | Global-equilibrium temperature | INFO | info | 59.20 K | 75.00 K | No tuning action: use observable envelope row for Phase 1 calibration
 moons | anchor | exploratory | Moons / Enceladus | Tidally locked | PASS | info | Yes | Yes | No action
 moons | anchor | strict | Moons / Triton | Radius | PASS | info | 1353 km | 1353 km | No action
 moons | anchor | strict | Moons / Triton | Surface gravity | PASS | info | 0.7810 m/s2 | 0.7790 m/s2 | No action
@@ -286,22 +286,22 @@ moons | anchor | strict | Moons / Miranda | Radius | PASS | info | 235.4 km | 23
 moons | anchor | strict | Moons / Miranda | Surface gravity | PASS | info | 0.0775 m/s2 | 0.0790 m/s2 | No action
 moons | anchor | strict | Moons / Miranda | Escape velocity | PASS | info | 0.1915 km/s | 0.1930 km/s | No action
 moons | anchor | strict | Moons / Miranda | Sidereal period | PASS | info | 1.414 days | 1.413 days | No action
-moons | anchor | calibrated | Moons / Miranda | Observable surface temperature range | PASS | info | 14.60 K to 87.00 K | 86.00 K | Phase 1 implemented: keep envelope comparison as calibration anchor
-moons | anchor | exploratory | Moons / Miranda | Global-equilibrium temperature | INFO | info | 58.30 K | 86.00 K | No tuning action: use observable envelope row for Phase 1 calibration
+moons | anchor | calibrated | Moons / Miranda | Observable surface temperature range | PASS | info | 14.60 K to 87.30 K | 86.00 K | Phase 1 implemented: keep envelope comparison as calibration anchor
+moons | anchor | exploratory | Moons / Miranda | Global-equilibrium temperature | INFO | info | 58.50 K | 86.00 K | No tuning action: use observable envelope row for Phase 1 calibration
 moons | anchor | exploratory | Moons / Miranda | Tidally locked | PASS | info | Yes | Yes | No action
 moons | anchor | strict | Moons / Titania | Radius | PASS | info | 788.6 km | 788.4 km | No action
 moons | anchor | strict | Moons / Titania | Surface gravity | PASS | info | 0.3771 m/s2 | 0.3780 m/s2 | No action
 moons | anchor | strict | Moons / Titania | Escape velocity | PASS | info | 0.7732 km/s | 0.7700 km/s | No action
 moons | anchor | strict | Moons / Titania | Sidereal period | PASS | info | 8.694 days | 8.706 days | No action
-moons | anchor | calibrated | Moons / Titania | Observable surface temperature range | PASS | info | 15.80 K to 87.80 K | 70.00 K | Phase 1 implemented: keep envelope comparison as calibration anchor
-moons | anchor | exploratory | Moons / Titania | Global-equilibrium temperature | INFO | info | 58.70 K | 70.00 K | No tuning action: use observable envelope row for Phase 1 calibration
+moons | anchor | calibrated | Moons / Titania | Observable surface temperature range | PASS | info | 15.80 K to 88.00 K | 70.00 K | Phase 1 implemented: keep envelope comparison as calibration anchor
+moons | anchor | exploratory | Moons / Titania | Global-equilibrium temperature | INFO | info | 58.90 K | 70.00 K | No tuning action: use observable envelope row for Phase 1 calibration
 moons | anchor | exploratory | Moons / Titania | Tidally locked | PASS | info | Yes | Yes | No action
 moons | anchor | strict | Moons / Charon | Radius | PASS | info | 605.8 km | 606.0 km | No action
 moons | anchor | strict | Moons / Charon | Surface gravity | PASS | info | 0.2882 m/s2 | 0.2880 m/s2 | No action
 moons | anchor | strict | Moons / Charon | Escape velocity | PASS | info | 0.5924 km/s | 0.5900 km/s | No action
 moons | anchor | strict | Moons / Charon | Sidereal period | PASS | info | 6.390 days | 6.387 days | No action
-moons | anchor | calibrated | Moons / Charon | Observable surface temperature range | PASS | info | 14.70 K to 61.60 K | 53.00 K | Phase 1 implemented: keep envelope comparison as calibration anchor
-moons | anchor | exploratory | Moons / Charon | Global-equilibrium temperature | INFO | info | 41.20 K | 53.00 K | No tuning action: use observable envelope row for Phase 1 calibration
+moons | anchor | calibrated | Moons / Charon | Observable surface temperature range | PASS | info | 14.70 K to 61.80 K | 53.00 K | Phase 1 implemented: keep envelope comparison as calibration anchor
+moons | anchor | exploratory | Moons / Charon | Global-equilibrium temperature | INFO | info | 41.40 K | 53.00 K | No tuning action: use observable envelope row for Phase 1 calibration
 moons | anchor | exploratory | Moons / Charon | Tidally locked | PASS | info | Yes | Yes | No action
 moons | anchor | exploratory | Moons / Io | Tidal heat | PASS | info | 9.577e+13 W | 1.000e+14 W | No action
 moons | anchor | exploratory | Moons / Enceladus | Tidal heat | PASS | info | 5.123e+8 W | 5.000e+9 W | No action
@@ -434,7 +434,7 @@ observability-user-facing | population | n/a | Science calibration fixture set |
 habitability-biosignatures | population | n/a | Hostile calibration fixtures | Hostile worlds do not bypass habitability guardrails | PASS | low | Guardrails hold | No obvious hostile world with high habitability index | Review habitability penalties if this fails.
 moons | population | n/a | Moon calibration fixture availability | Europa-like and Titan-like worlds exist for downstream suites | PASS | low | Europa-like calibration; Titan-like calibration | Moon fixture worlds present | Keep moon fixtures updated when moon schema changes.
 observability-user-facing | browser | n/a | Validation page | Browser regression suite coverage | INFO | info | Covered by npm run test:browser during release verification | Validation page loads matrix artifact and filters rows | Run browser tests before release; investigate any Validation page failure.
-observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-07-06T20:00:44.482Z | PASS before release | No action required.
+observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-07-12T20:36:42.894Z | PASS before release | No action required.
 observability-user-facing | release-gate | n/a | check | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | build | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | bundle | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.

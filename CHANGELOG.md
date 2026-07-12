@@ -4,6 +4,188 @@ All notable changes to Caelum will be documented in this file.
 
 ## Unreleased
 
+## 3.5.0 — 2026-07-12
+
+### Fixed
+
+**Security and release integrity**
+(package.json, package-lock.json, vendor/xlsx-0.20.3.tgz,
+scripts/check-runtime-deps.mjs, scripts/check-dependency-security.mjs,
+scripts/deploy-dist-ftp.mjs, scripts/deploy-dist-ftps-core.mjs,
+scripts/deploy-dist-ftps.py, security/dependency-security-policy.json,
+.github/workflows/ci.yml, ui/runtimeDeps.js, tests/dependencySecurity.test.js,
+tests/deployDistFtps.test.js, tests/legacyXlsxImport.test.js)
+
+Legacy workbook import now uses the fixed SheetJS CE 0.20.3 release from a
+checked-in, SHA-256/SRI-verified tarball instead of the vulnerable npm-registry
+0.18.5 package. Runtime dependency checks pin the package source, installed and
+locked versions, license, lock integrity, and vendored artifact hash. Valid
+WorldSmith 8.x workbooks retain browser and direct regression coverage, while
+malformed, truncated, and oversized workbooks fail without changing saved data.
+
+Production deployment is now explicit FTPS only: certificate and hostname
+verification, TLS 1.2 or newer, and private data channels are mandatory before
+credentials or files are sent. Releases are published to a deterministic,
+content-addressed, write-once namespace and hash-verified with a completion
+manifest before a single root `index.html` pointer is replaced. The deployer
+probes for atomic same-directory replacement support and blocks when the host
+cannot provide it, so an interrupted cutover leaves either the complete old or
+complete new release reachable. Dry runs report full SHA-256 status without
+printing credentials, and prior release namespaces are retained for recovery.
+
+CI and the release gate now audit production dependencies and retain
+machine-readable audit and lockfile-derived inventory evidence. The checked-in
+waiver policy fails on unwaived High/Critical findings, malformed or unknown
+policy data, and every expired waiver; waivers require an exact advisory/path,
+compensating controls, owner, and expiry. The release owner confirmed deployment
+verification and credential rotation, and accepted the current host's residual
+manual-upload cutover limitation.
+
+**Safe creation defaults and solver boundaries**
+(ui/store/rockyPlanetStarter.js, engine/planet.js,
+engine/planet/atmosphere.js, engine/contexts/smallBodyReservoirContext.js,
+ui/planetPage.js, ui/sciencePage.js)
+
+Fresh worlds and the delete-last-planet flow now create one complete,
+host-relative temperate rocky starter instead of relying on unrelated engine
+clamps or stale snapshots. Planet calculations consistently consume the
+resolved host, overfull authored atmospheres are normalized into an explicit
+effective composition while preserving their inputs, tidal-lock sentinels are
+JSON-safe and carry status/reason metadata, and small-body context validation
+rejects invalid inputs. Greenhouse guidance now matches the calibrated Earth
+fixture.
+
+**Stellar-track guardrails and ultracool calibration**
+(engine/stellarTracks/, engine/star.js, engine/stellarLifecycle.js,
+engine/habitableZone.js)
+
+The default stellar-track mode is now `auto`: calibrated data backends are
+selected when available and analytic evolution remains an explicit,
+provenance-labelled fallback. Analytic metallicity is guarded to its supported
+range and follows the calibrated metal-rich direction, the duplicated legacy
+Hurley block was removed, and a checked-in BHAC15 ultracool interpolation
+backend covers the 0.07-0.10 solar-mass boundary. Cool-star corrections now
+preserve Stefan-Boltzmann consistency and expose confidence, source, clamp, and
+fallback metadata.
+
+**Gas-giant radius and seasonal climate contracts**
+(engine/gasGiant/structure.js, engine/habitability/seasonalExposure.js,
+engine/environment/forcing.js, engine/planet.js,
+docs/science/orbital-seasonal-exposure-contract.md)
+
+Automatic giant-planet radii now use a documented 4.5-Gyr reference,
+composition and irradiation regimes, young-planet contraction behavior, and
+reported uncertainty intervals. A shared orbital/seasonal exposure model now
+feeds climate bands, surface-regime scoring, and UI explanations from
+orbit-mean/periapsis/apoapsis forcing, thermal buffering, moisture, and
+uncertainty instead of applying raw eccentricity or obliquity penalties. The
+host-forcing path also no longer coerces absent luminosity overrides to zero.
+
+**Verification, browser, and performance trust**
+(scripts/quality-gate-manifest.mjs, scripts/run-quality-gates.mjs,
+scripts/check-bundle-budget.mjs, scripts/profile-workers.mjs,
+tests/browser/uiReview.spec.js, tests/visualSnapshotPolicy.test.js)
+
+Moon placement uses a named deterministic policy with unit-aware guidance and
+boundary regressions. Visual baselines now fail closed, have one-to-one
+manifest ownership, and cover rings, sub-Neptunes, brown dwarfs, stars, and
+overrides. Direct page initialization, input-derived KPI, destructive-action,
+visual-compositor, persistence, and every-route desktop/mobile browser tests
+close the former high-value gaps. CI and release verification consume one
+ordered quality-gate manifest, while both production workers have emitted
+metafiles, compressed-size ratchets, lazy-load checks, and checked-in latency
+profiles. Mobile debris-zone suggestions now stack their range and resonance
+details so platform font differences cannot force horizontal panel overflow.
+Playwright artifacts are isolated from retained dependency and science evidence.
+
+The closing release profile passes 3,178 unit/jsdom tests, a 362-row science
+matrix with no warning/gap/failure rows, exact production bundle and worker
+budgets, and all 51 deterministic Playwright tests, including the 20-route
+desktop/mobile UI review.
+
+**Architecture boundaries and compatibility debt controls**
+(scripts/check-import-direction.mjs, scripts/import-layer-policy.mjs,
+engine/hostFrameIdentity.js, engine/planetaryFamilyGroups.js,
+ui/worldAdapters.js, ui/store/worldStorage/)
+
+UI-facing adapters and system-generation orchestration now live in the UI
+layer, neutral host-frame and planetary-family identities are engine-owned,
+and browser storage and visual persistence contracts are store-owned. The
+shared import-direction gate rejects reverse edges and unresolved imports and
+ratchets strongly connected components; the star/lifecycle and
+planet/timeline/moon cycles are closed. The one retained store compatibility
+cycle has an owner, impact statement, exact ratchet, and schema-change
+extraction trigger.
+
+**Accessibility, onboarding, and maintained documentation**
+(ui/accessibilityNames.js, ui/splashOverlay.js, app.js, ui/routeRegistry.js,
+CLAUDE.md, AUDIT_2026-07.md)
+
+All supported routes and revealed page states now require accessible names for
+enabled controls. Blocking overlays share focus trapping and restoration, and
+first-run startup is a single non-dismissible choice between Sol, a blank
+world, and import; the choice is persisted so returning users are not gated
+again. Planet subtype labels are normalized, zoom guidance is shown only when
+useful, dry-world solvent-zero behavior is explained, and contributor docs now
+describe the current esbuild, IndexedDB-first, and boundary-check workflows.
+
+**Rocky planet visual editor overrides**
+(ui/celestialComposer.js, ui/celestialVisualPreview.js,
+ui/planetaryVisual/overrides.js, ui/planetaryVisual/controlManifest.js,
+tests/planetaryVisualOverrideRendering.test.js)
+
+Rocky-world visual overrides no longer lose to hardcoded art-profile styling.
+The compositor now re-applies user-overridden values after the art profile,
+mirroring the gas-giant override pass from 3.4.0, so terrain roughness and
+contrast, ocean/ice/crater coverage, atmosphere thickness, haze, and limb glow,
+and cloud coverage, opacity, and colour all change the rendered planet. Cloud
+and atmosphere overrides also win over art profiles that force those layers
+off (for example heavily cratered worlds).
+
+Vegetation coverage now paints a vegetation layer even when the auto profile
+has no vegetation colour, using a default green, and clearing it removes
+art-profile vegetation. Previously dead controls are now wired: land coverage
+drives the continent land fraction, desert coverage adds dune streaks on
+desert worlds, cloud softness drives cloud edge softness, gas-giant polar tint
+reaches the polar-haze layer, and material roughness, metalness, and emissive
+strength flow through a new `surfaceMaterial` descriptor into the preview
+mesh material. Cloud softness is no longer offered for gas-rendered bodies,
+which have no consumer for it. Auto (non-overridden) appearances are
+unchanged.
+
+**Visual editor category for reclassified planetary bodies**
+(ui/planet/visualEditorContext.js, ui/planetPage.js,
+ui/visualizer/snapshotModel.js, ui/visualizer/visualEditorEntry.js,
+ui/visualizer/bodyMeshService.js, ui/visualizer/focusSummary.js,
+tests/planetVisualEditorContext.test.js, tests/visualizerSnapshotModel.test.js,
+tests/visualizerVisualEditorEntry.test.js)
+
+Bodies created on the Planet page whose composition now classifies them as gas
+giants, ice giants, or brown dwarfs previously opened the visual editor for
+their creation category: a rocky preview with mismatched gas controls whose
+band and storm sliders did nothing. The Planet page and Visualizer editor
+contexts now follow the current classification, rendering these bodies with
+the gas pipeline, an appropriate style, and matching controls. The editor
+context also classifies bodies on read when the stored model carries no
+classification, so category routing no longer silently falls back to the
+rocky editor. The Visualizer draws and summarizes reclassified bodies as gas
+bodies, and its volatile check now includes envelope-classified ice giants,
+matching the Planet page.
+
+The Planet page visual-editor context builder moved into
+`ui/planet/visualEditorContext.js`, making the category routing directly
+testable.
+
+**Tests**
+
+- New `tests/planetaryVisualOverrideRendering.test.js` pipeline regressions:
+  overrides survive art profiles, vegetation paints without an auto colour,
+  atmosphere overrides re-enable cratered-husk atmospheres, and land coverage,
+  desert coverage, cloud softness, polar tint, and material controls reach the
+  composed descriptor
+- Visualizer snapshot and editor-entry regressions for gas-classified
+  planet-bucket bodies
+
 ## 3.4.0 - 2026-07-06
 
 ### Changed

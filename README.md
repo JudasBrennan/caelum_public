@@ -1,4 +1,4 @@
-# Caelum 3.4.0
+# Caelum 3.5.0
 
 Caelum is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -238,6 +238,7 @@ npm install
 - `npm run check:syntax` - Validate JavaScript syntax across the project.
 - `npm run check:repo-integrity` - Verify required repo files are tracked and that `scripts/` and `tests/` do not hide untracked source files.
 - `npm run check:runtime-deps` - Validate bundled runtime dependency configuration.
+- `npm run check:dependency-security` - Audit production dependencies, reject unwaived High/Critical findings or expired waivers, and write audit/inventory release evidence under `test-results/`.
 - `npm run check:mojibake` - Detect UTF-8 mojibake and replacement-character corruption in text files.
 - `npm run check:maintainability` - Verify the largest route shells stay under line-count budgets and that the extracted Phase 3 seam modules still exist.
 - `npm run check:compat-boundaries` - Verify legacy compatibility handling stays inside documented storage, import, migration, store, and engine adapter boundaries.
@@ -250,8 +251,9 @@ npm install
 - `npm run format` - Apply Prettier formatting.
 - `npm run serve` - Serve the built `dist/` folder locally.
 - `npm run serve:dist` - Serve the built `dist/` folder locally for smoke testing.
-- `npm run deploy:ftp:dry-run` - Connect to the configured FTP webroot, compare remote file sizes, and report the `dist/` upload set without changing remote files.
-- `npm run deploy:ftp` - Upload changed files from the built `dist/` folder to the configured FTP webroot. Requires `WORLDSMITH_FTP_HOST`, `WORLDSMITH_FTP_USER`, and `WORLDSMITH_FTP_PASSWORD`.
+- `npm run deploy:ftps:dry-run` - Connect using certificate-verified explicit FTPS, compare SHA-256 hashes, and report the `dist/` transaction without changing remote files.
+- `npm run deploy:ftps` - Stage, hash-verify, cut over, and post-verify the built `dist/` folder using encrypted FTPS control and data channels.
+- `npm run deploy:ftp` / `npm run deploy:ftp:dry-run` - Compatibility aliases for the same FTPS-only implementation; they do not enable plaintext FTP.
 - `npm run dev` - Build, serve, and rebuild `dist/` automatically for local development.
 - `npm run test:engine` - Run engine-focused tests.
 - `npm run test:ui` - Run UI-focused tests.
@@ -269,7 +271,7 @@ npm install
 - `npm run backup:live` - Create a zip backup of live deploy files in `Backup/`.
 - `npm run profile:engine` - Run the engine profiling harness and compare against the checked-in baseline.
 - `npm run verify:science` - Run checks, regenerate the matrix, build, and verify bundle budgets.
-- `npm run verify:release` - Run checks, regenerate the matrix, build, verify bundle budgets, install Chromium if needed, and run browser smoke tests.
+- `npm run verify:release` - Run the production dependency-security gate, checks, matrix generation, build and bundle verification, and browser smoke tests.
 - `npm run release:verify` - Compatibility alias for `npm run verify:release`.
 
 ## Build Output
@@ -284,25 +286,40 @@ npm install
 - `reports/science-verification-matrix.json`, `.md`, and `.html` for the bundled Validation page
 - transitional `reports/model-calibration-report.json`, `.md`, and `.html` compatibility artifacts
 
-## FTP Deployment
+## FTPS Deployment
 
-`npm run deploy:ftp` uploads the current `dist/` folder to the live static webroot. The script never stores credentials in the repo; set them in the release shell:
+`npm run deploy:ftps` uploads the current `dist/` folder using explicit FTPS. TLS is established and the server certificate/hostname are validated before credentials are sent; `PROT P` encrypts uploads, downloads, and directory listings. There is no plaintext or certificate-bypass fallback. Credentials are never stored in the repo or printed by dry-run output; set them only in the release shell:
 
 ```powershell
-$env:WORLDSMITH_FTP_HOST = "145.223.89.28"
+$env:WORLDSMITH_FTP_HOST = "<certificate-matching-ftps-hostname>"
 $env:WORLDSMITH_FTP_USER = "<ftp-user>"
 $env:WORLDSMITH_FTP_PASSWORD = "<ftp-password>"
 $env:WORLDSMITH_FTP_PORT = "21"
 $env:WORLDSMITH_FTP_REMOTE_DIR = "/domains/thebrokenwheel.co.uk/public_html/caelum"
+$env:WORLDSMITH_FTPS_TIMEOUT = "30"
+# Optional only for a provider/private CA that is not in the system trust store:
+$env:WORLDSMITH_FTPS_CA_FILE = "C:\path\to\provider-ca.pem"
 ```
 
-Run `npm run deploy:ftp:dry-run` before every upload. The normal deploy compares remote file sizes and uploads only files that are missing or changed, while leaving stale remote files in place. Use `npm run deploy:ftp -- --force` only when deliberately overwriting every `dist/` file, and use `npm run deploy:ftp -- --delete` only when pruning stale files after the release backup and dry-run have been checked.
+Use the provider hostname present in the server certificate. Do not substitute a raw IP address unless that IP is explicitly covered by the certificate SAN.
+
+Run `npm run deploy:ftps:dry-run` before every upload. The dry run inventories the remote tree and downloads expected files over the encrypted data channel to compare full SHA-256 hashes, so it can take longer than a size-only check. It also refuses to continue when a prior `.worldsmith-deploy-*` lock or transaction artifact needs manual recovery.
+
+A real deployment derives a deterministic ID from the complete build manifest and publishes the full tree under `_worldsmith/releases/<manifest-sha256>/`. Namespace files are write-once: matching files are reused, an interrupted incomplete namespace can be resumed after its transaction artifacts are reviewed, and any existing hash mismatch blocks instead of being overwritten. A deterministic completion manifest is uploaded last and the entire namespace is hash-verified before cutover. The generated root `index.html` points every runtime resource at that immutable namespace; it is the only live runtime file replaced. Before cutover, the deployer uses harmless probe files to require same-directory `RNFR`/`RNTO` replacement-over-existing support. Therefore a lost process or response leaves the root pointer on either the complete old release or the complete new release, never a mixture of top-level runtime files.
+
+The stable root site shell (`.htaccess`, `robots.txt`, `sitemap.xml`, and the Open Graph/Twitter image) is installed only when absent and otherwise hash-verified. A mismatch blocks normal deployment and must be handled as a separate, explicitly authorized provider-side site-shell update. Prior immutable namespaces and legacy root assets are retained for old tabs and recovery. `--force` only re-verifies write-once content, while the compatibility `--delete` option deliberately prunes nothing; release pruning requires a separate retention design.
+
+The hosting account must support certificate-valid explicit FTPS, private data channels, `RETR`/`STOR`, `MLSD`, exclusive `MKD`, `RMD`/`DELE`, and same-filesystem `RNFR`/`RNTO` replacement of an existing file. If those capabilities are unavailable, deployment is blocked. After the first release-owner-approved encrypted test deployment succeeds, rotate the deployment credentials and record that external action in the release record.
+
+## Dependency Security Policy
+
+`security/dependency-security-policy.json` is the only production advisory waiver list. A waiver must identify the exact advisory and installed `node_modules/` path, compensating controls, owner, and expiry date. Unknown fields, malformed paths, expired waivers, and unwaived High/Critical production findings fail closed. CI and `npm run verify:release` run the gate and retain `npm-audit-production.json` plus a deterministic lockfile-derived production dependency inventory as release evidence.
 
 ## Data Storage and Safety
 
 - World data is stored in browser storage, primarily IndexedDB with `localStorage` reserved for lightweight settings and migration markers.
 - Fresh saves and exports store planet-class bodies in the canonical `world.planetaryBodies` collection. Legacy rocky/gas-giant split collections are still read during migration, then restored as runtime compatibility projections where older modules need them.
-- Old saves are normalized at storage, import, and migration boundaries before feature code consumes them. Add new legacy storage-key handling under `ui/worldStorage/`, legacy workbook parsing in `ui/legacyXlsxImport.js`, persisted shape migration in `ui/store/worldMigration.js`, and domain bridge code under `ui/store/compat/` or a narrow engine adapter.
+- Old saves are normalized at storage, import, and migration boundaries before feature code consumes them. Add new legacy storage-key handling under `ui/store/worldStorage/`, legacy workbook parsing in `ui/legacyXlsxImport.js`, persisted shape migration in `ui/store/worldMigration.js`, and domain bridge code under `ui/store/compat/` or a narrow engine adapter.
 - Compatibility projections exist only for older modules and transitional adapters. New route shells and feature modules should consume canonical store APIs instead of reading historical fields such as singleton `world.planet`/`world.moon` data directly.
 - Do not remove an old data path as cleanup. Compatibility decommissioning requires a specific product decision, a changelog entry naming the removed path, current-world round-trip coverage, and a migration or backup story for users who may still have old saves.
 - Canonical planet-class bodies may include optional subtype evidence fields when the authoring UI or import data provides them: `composition.carbonRichness`, `composition.bulkDensityGcm3`, `thermal.internalHeatFluxWm2`, `thermal.tidalHeatFluxWm2`, `history.strippedEnvelopeCandidate`, `history.migratedCloseIn`, and `history.rogueCandidate`. These fields are additive evidence for classification and visualization; old worlds that omit them still load unchanged.
@@ -322,6 +339,7 @@ Run `npm run deploy:ftp:dry-run` before every upload. The normal deploy compares
 - `npm run release:verify` now includes the compatibility-boundary guardrail through `npm run check`, so new legacy handling fails unless it lands in an approved boundary or an intentional transition budget.
 - `npm run release:verify` now includes the compatibility-decommissioning guardrail through `npm run check`, so old-save paths cannot disappear without an intentional support decision and updated tests.
 - `npm run release:verify` now includes the UX guardrail check, so live-region misuse, unlabeled shell controls, and overlay/help contract drift fail before release.
+- `npm run release:verify` now fails on unwaived High/Critical production dependency findings or any expired dependency waiver and emits machine-readable audit/inventory evidence.
 - The release checklist runs `npm run science:verify` early, immediately after version metadata is updated, so the Science Verification Matrix is reviewed before the deeper release gate begins.
 - `npm run release:verify` regenerates the Science Verification Matrix so every release has current benchmark, invariant, trend, boundary, coupling, unit, oracle, population, browser, and release-gate evidence.
 - `npm run release:verify` is intended to work from a clean clone on Windows, macOS, and Linux without relying on machine-specific Git line-ending settings.
@@ -351,15 +369,16 @@ Run `npm run deploy:ftp:dry-run` before every upload. The normal deploy compares
 - `ui/planetPage.js` is the route shell. Guided flows, preset actions, and render helpers live under `ui/planet/`.
 - `ui/calendarPage.js` is the route shell. Transfer/export flows, detail overlay logic, and rule-editor flows live under `ui/calendar/`.
 - `ui/visualizerPage.js` is the route shell. Route chrome, focus summary rendering, and lower-level rendering helpers live under `ui/visualizer/`.
-- `ui/worldStorage.js` remains the public persistence boundary. IndexedDB, legacy storage, and lifecycle flushing helpers live under `ui/worldStorage/`.
+- `ui/store/worldStorage.js` is the persistence boundary. IndexedDB, legacy storage, and lifecycle flushing helpers live under `ui/store/worldStorage/`.
 - `ui/store/compat/` owns old-to-current world-shape and planetary body bridges. Engine compatibility input normalization belongs in narrow adapters such as `engine/planetaryBodyAdapters.js`; small calculation-local fallbacks stay documented beside their calculator.
+- `scripts/import-layer-policy.mjs` defines the enforced dependency direction: engine is independent, store/compat may depend on engine, UI domain modules may depend on store/engine, and page shells sit above those layers. `npm run check:import-direction` prevents reverse edges.
 
 ## Runtime Dependencies
 
 Critical client-side libraries are now sourced from the local npm install in development and bundled into the production build:
 
 - Three.js for WebGL rendering and previews
-- XLSX for WorldSmith 8.x workbook import
+- SheetJS CE 0.20.3 for WorldSmith 8.x workbook import, vendored as an integrity-checked tarball under `vendor/`
 - KaTeX for formula rendering on the Science and Maths and Lessons pages
 
 Static runtime assets required by these libraries are synced into `assets/vendor/` during `npm install` and before `npm run build`.

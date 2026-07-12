@@ -137,8 +137,22 @@ THE SOFTWARE.
 
 ## SheetJS xlsx and Google Draco decoder assets
 
-- Upstream package: `xlsx` 0.18.5
-- Upstream project: <https://github.com/SheetJS/sheetjs>
+- Upstream package: `xlsx` 0.20.3
+- Authoritative package source:
+  <https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz>
+- Vendored package: `vendor/xlsx-0.20.3.tgz`
+- Installation/update guidance:
+  <https://docs.sheetjs.com/docs/getting-started/installation/nodejs/>
+- Vendored tarball SHA-256:
+  `8dc73fc3b00203e72d176e85b50938627c7b086e607c682e8d3c22c02bb99fe8`
+- Package-lock SHA-512 integrity:
+  `sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA==`
+- Update procedure: select an official SheetJS release, download its tarball
+  into `vendor/`, verify and record its SHA-256, update the exact local path and
+  installed version in `package.json` and `scripts/runtime-deps.config.mjs`, run
+  `npm install`, verify the lockfile integrity and installed package version,
+  then run the legacy XLSX import and release verification suites.
+- Upstream project: <https://git.sheetjs.com/sheetjs/sheetjs>
 - Applies to:
   - `ui/vendor/xlsx.module.js`
 - Upstream project: <https://github.com/google/draco>

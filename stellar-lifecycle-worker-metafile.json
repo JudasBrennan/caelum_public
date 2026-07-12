@@ -1,0 +1,349 @@
+{
+  "inputs": {
+    "engine/physics/constants.js": {
+      "bytes": 1143,
+      "imports": [],
+      "format": "esm"
+    },
+    "engine/physics/rotation.js": {
+      "bytes": 3445,
+      "imports": [
+        {
+          "path": "engine/physics/constants.js",
+          "kind": "import-statement",
+          "original": "./constants.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "engine/utils.js": {
+      "bytes": 5212,
+      "imports": [
+        {
+          "path": "engine/physics/constants.js",
+          "kind": "import-statement",
+          "original": "./physics/constants.js"
+        },
+        {
+          "path": "engine/physics/rotation.js",
+          "kind": "import-statement",
+          "original": "./physics/rotation.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "engine/habitableZone.js": {
+      "bytes": 3594,
+      "imports": [
+        {
+          "path": "engine/physics/constants.js",
+          "kind": "import-statement",
+          "original": "./physics/constants.js"
+        },
+        {
+          "path": "engine/utils.js",
+          "kind": "import-statement",
+          "original": "./utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "engine/stellarTracks/metallicity.js": {
+      "bytes": 4203,
+      "imports": [
+        {
+          "path": "engine/utils.js",
+          "kind": "import-statement",
+          "original": "../utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "engine/stellarTracks/provenance.js": {
+      "bytes": 961,
+      "imports": [],
+      "format": "esm"
+    },
+    "engine/stellarTracks/analyticSse.js": {
+      "bytes": 13087,
+      "imports": [
+        {
+          "path": "engine/utils.js",
+          "kind": "import-statement",
+          "original": "../utils.js"
+        },
+        {
+          "path": "engine/stellarTracks/metallicity.js",
+          "kind": "import-statement",
+          "original": "./metallicity.js"
+        },
+        {
+          "path": "engine/stellarTracks/provenance.js",
+          "kind": "import-statement",
+          "original": "./provenance.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "engine/stellarTracks/data/genericMainSequence.v1.js": {
+      "bytes": 6779,
+      "imports": [
+        {
+          "path": "engine/stellarTracks/analyticSse.js",
+          "kind": "import-statement",
+          "original": "../analyticSse.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "engine/stellarTracks/data/mistAlphaMainSequence.v1.js": {
+      "bytes": 2998890,
+      "imports": [],
+      "format": "esm"
+    },
+    "engine/stellarTracks/data/mistMainSequence.v1.js": {
+      "bytes": 1289489,
+      "imports": [],
+      "format": "esm"
+    },
+    "engine/stellarTracks/data/mistLowMassMainSequence.v1.js": {
+      "bytes": 1214847,
+      "imports": [],
+      "format": "esm"
+    },
+    "engine/stellarTracks/data/mistSolarRotationMainSequence.v1.js": {
+      "bytes": 406634,
+      "imports": [],
+      "format": "esm"
+    },
+    "engine/stellarTracks/gridDataManifest.js": {
+      "bytes": 864,
+      "imports": [
+        {
+          "path": "engine/stellarTracks/data/genericMainSequence.v1.js",
+          "kind": "import-statement",
+          "original": "./data/genericMainSequence.v1.js"
+        },
+        {
+          "path": "engine/stellarTracks/data/mistAlphaMainSequence.v1.js",
+          "kind": "import-statement",
+          "original": "./data/mistAlphaMainSequence.v1.js"
+        },
+        {
+          "path": "engine/stellarTracks/data/mistMainSequence.v1.js",
+          "kind": "import-statement",
+          "original": "./data/mistMainSequence.v1.js"
+        },
+        {
+          "path": "engine/stellarTracks/data/mistLowMassMainSequence.v1.js",
+          "kind": "import-statement",
+          "original": "./data/mistLowMassMainSequence.v1.js"
+        },
+        {
+          "path": "engine/stellarTracks/data/mistSolarRotationMainSequence.v1.js",
+          "kind": "import-statement",
+          "original": "./data/mistSolarRotationMainSequence.v1.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "engine/stellarTracks/gridSchema.js": {
+      "bytes": 3463,
+      "imports": [],
+      "format": "esm"
+    },
+    "engine/stellarTracks/gridInterpolator.js": {
+      "bytes": 18834,
+      "imports": [
+        {
+          "path": "engine/stellarTracks/gridSchema.js",
+          "kind": "import-statement",
+          "original": "./gridSchema.js"
+        },
+        {
+          "path": "engine/stellarTracks/metallicity.js",
+          "kind": "import-statement",
+          "original": "./metallicity.js"
+        },
+        {
+          "path": "engine/stellarTracks/provenance.js",
+          "kind": "import-statement",
+          "original": "./provenance.js"
+        },
+        {
+          "path": "engine/stellarTracks/analyticSse.js",
+          "kind": "import-statement",
+          "original": "./analyticSse.js"
+        },
+        {
+          "path": "engine/utils.js",
+          "kind": "import-statement",
+          "original": "../utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "engine/stellarTracks/data/bhac15Ultracool.v1.js": {
+      "bytes": 8443,
+      "imports": [],
+      "format": "esm"
+    },
+    "engine/stellarTracks/bhac15Ultracool.js": {
+      "bytes": 6515,
+      "imports": [
+        {
+          "path": "engine/utils.js",
+          "kind": "import-statement",
+          "original": "../utils.js"
+        },
+        {
+          "path": "engine/stellarTracks/data/bhac15Ultracool.v1.js",
+          "kind": "import-statement",
+          "original": "./data/bhac15Ultracool.v1.js"
+        },
+        {
+          "path": "engine/stellarTracks/provenance.js",
+          "kind": "import-statement",
+          "original": "./provenance.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "engine/stellarTracks/mode.js": {
+      "bytes": 370,
+      "imports": [],
+      "format": "esm"
+    },
+    "engine/stellarTracks/index.js": {
+      "bytes": 6824,
+      "imports": [
+        {
+          "path": "engine/stellarTracks/analyticSse.js",
+          "kind": "import-statement",
+          "original": "./analyticSse.js"
+        },
+        {
+          "path": "engine/stellarTracks/gridDataManifest.js",
+          "kind": "import-statement",
+          "original": "./gridDataManifest.js"
+        },
+        {
+          "path": "engine/stellarTracks/gridInterpolator.js",
+          "kind": "import-statement",
+          "original": "./gridInterpolator.js"
+        },
+        {
+          "path": "engine/stellarTracks/bhac15Ultracool.js",
+          "kind": "import-statement",
+          "original": "./bhac15Ultracool.js"
+        },
+        {
+          "path": "engine/stellarTracks/metallicity.js",
+          "kind": "import-statement",
+          "original": "./metallicity.js"
+        },
+        {
+          "path": "engine/stellarTracks/mode.js",
+          "kind": "import-statement",
+          "original": "./mode.js"
+        },
+        {
+          "path": "engine/stellarTracks/provenance.js",
+          "kind": "import-statement",
+          "original": "./provenance.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "engine/stellarLifecycle.js": {
+      "bytes": 64608,
+      "imports": [
+        {
+          "path": "engine/habitableZone.js",
+          "kind": "import-statement",
+          "original": "./habitableZone.js"
+        },
+        {
+          "path": "engine/stellarTracks/index.js",
+          "kind": "import-statement",
+          "original": "./stellarTracks/index.js"
+        },
+        {
+          "path": "engine/utils.js",
+          "kind": "import-statement",
+          "original": "./utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/stellarLifecycleWorker.js": {
+      "bytes": 647,
+      "imports": [
+        {
+          "path": "engine/stellarLifecycle.js",
+          "kind": "import-statement",
+          "original": "../engine/stellarLifecycle.js"
+        }
+      ],
+      "format": "esm"
+    }
+  },
+  "outputs": {
+    "dist/stellarLifecycleWorker.js": {
+      "imports": [],
+      "exports": [],
+      "entryPoint": "ui/stellarLifecycleWorker.js",
+      "inputs": {
+        "engine/physics/constants.js": {
+          "bytesInOutput": 70
+        },
+        "engine/utils.js": {
+          "bytesInOutput": 150
+        },
+        "engine/habitableZone.js": {
+          "bytesInOutput": 1531
+        },
+        "engine/stellarTracks/metallicity.js": {
+          "bytesInOutput": 1547
+        },
+        "engine/stellarTracks/analyticSse.js": {
+          "bytesInOutput": 5129
+        },
+        "engine/stellarTracks/data/genericMainSequence.v1.js": {
+          "bytesInOutput": 3074
+        },
+        "engine/stellarTracks/data/mistAlphaMainSequence.v1.js": {
+          "bytesInOutput": 2599604
+        },
+        "engine/stellarTracks/data/mistMainSequence.v1.js": {
+          "bytesInOutput": 1117724
+        },
+        "engine/stellarTracks/data/mistLowMassMainSequence.v1.js": {
+          "bytesInOutput": 1052899
+        },
+        "engine/stellarTracks/data/mistSolarRotationMainSequence.v1.js": {
+          "bytesInOutput": 352496
+        },
+        "engine/stellarTracks/gridDataManifest.js": {
+          "bytesInOutput": 39
+        },
+        "engine/stellarTracks/data/bhac15Ultracool.v1.js": {
+          "bytesInOutput": 5627
+        },
+        "engine/stellarTracks/bhac15Ultracool.js": {
+          "bytesInOutput": 67
+        },
+        "engine/stellarTracks/mode.js": {
+          "bytesInOutput": 49
+        },
+        "engine/stellarLifecycle.js": {
+          "bytesInOutput": 23169
+        },
+        "ui/stellarLifecycleWorker.js": {
+          "bytesInOutput": 345
+        }
+      },
+      "bytes": 5163521
+    }
+  }
+}

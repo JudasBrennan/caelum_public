@@ -6787,6 +6787,32 @@ button.danger:hover {
   height: 100%;
   pointer-events: none;
 }
+
+.lessons-page__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .lessons-page__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .lessons-page__actions {
+    width: 100%;
+    gap: 8px;
+  }
+  .lessons-page__actions .les-mode-toggle {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .lessons-page__actions .badge {
+    flex: 0 0 auto;
+  }
+}
+
 .viz-empty-state {
   position: absolute;
   left: 18px;
@@ -7852,6 +7878,23 @@ input.auto-value {
   line-height: 1.45;
   animation: splash-rise 0.9s ease-out 0.24s both;
 }
+.splash__first-run-copy {
+  max-width: 48ch;
+  margin: 8px 0 0;
+  color: rgba(220, 232, 251, 0.92);
+  line-height: 1.45;
+}
+.splash__first-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+  animation: splash-rise 0.9s ease-out 0.4s both;
+}
+.splash__choice {
+  min-width: 142px;
+}
 .splash__loading {
   min-height: 18px;
   margin-top: 8px;
@@ -7931,6 +7974,13 @@ input.auto-value {
   .splash__translation {
     font-size: 14px;
   }
+  .splash__first-run-actions {
+    width: min(100%, 320px);
+    flex-direction: column;
+  }
+  .splash__choice {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -7939,6 +7989,7 @@ input.auto-value {
   .splash__title,
   .splash__subtitle,
   .splash__translation,
+  .splash__first-run-actions,
   .splash__loading,
   .splash__enter {
     animation: none;
@@ -11413,6 +11464,40 @@ button.star-topology-node:focus-visible {
   font-size: 11px;
   color: var(--muted);
   white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .dd-suggest-item {
+    grid-template-columns: 20px 28px minmax(0, 1fr);
+    min-width: 0;
+  }
+  .dd-suggest-item input[type="checkbox"] {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: center;
+  }
+  .dd-suggest-priority {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+  }
+  .dd-suggest-label,
+  .dd-suggest-range,
+  .dd-suggest-res {
+    grid-column: 3;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .dd-suggest-label {
+    grid-row: 1;
+  }
+  .dd-suggest-range {
+    grid-row: 2;
+  }
+  .dd-suggest-res {
+    grid-row: 3;
+  }
 }
 
 /* Calendar page */

@@ -1,13 +1,13 @@
 {
   "mode": "production",
-  "releaseVersion": "3.4.0",
+  "releaseVersion": "3.5.0",
   "distDir": "dist",
-  "generatedAt": "2026-07-06T20:00:47.355Z",
+  "generatedAt": "2026-07-12T21:00:58.748Z",
   "entry": {
     "file": "app.js",
-    "bytes": 31499
+    "bytes": 34160
   },
-  "lazyChunkCount": 128,
+  "lazyChunkCount": 135,
   "largestLazyChunk": {
     "file": "chunks/chunk-56JJ2DZ6.js",
     "bytes": 2599619
@@ -17,8 +17,8 @@
     "bytes": 715105
   },
   "largestAppLazyChunk": {
-    "file": "chunks/chunk-BTRHGQ75.js",
-    "bytes": 341372
+    "file": "chunks/planetPage-PVCF3P7W.js",
+    "bytes": 266435
   },
   "largestVendorLazyChunk": {
     "file": "chunks/chunk-K6EXVWDB.js",
@@ -28,5 +28,105 @@
     "file": "chunks/chunk-56JJ2DZ6.js",
     "bytes": 2599619
   },
-  "modelDataLazyChunkBytes": 5133169
+  "modelDataLazyChunkBytes": 5138796,
+  "workers": [
+    {
+      "file": "celestialTextureWorker.js",
+      "source": "ui/celestialTextureWorker.js",
+      "bytes": 5943460,
+      "gzipBytes": 1871972,
+      "inputCount": 137,
+      "topContributors": [
+        {
+          "file": "engine/stellarTracks/data/mistAlphaMainSequence.v1.js",
+          "bytesInOutput": 2599604
+        },
+        {
+          "file": "engine/stellarTracks/data/mistMainSequence.v1.js",
+          "bytesInOutput": 1117724
+        },
+        {
+          "file": "engine/stellarTracks/data/mistLowMassMainSequence.v1.js",
+          "bytesInOutput": 1052899
+        },
+        {
+          "file": "engine/stellarTracks/data/mistSolarRotationMainSequence.v1.js",
+          "bytesInOutput": 352496
+        },
+        {
+          "file": "engine/moon.js",
+          "bytesInOutput": 74504
+        },
+        {
+          "file": "engine/planetaryEraTimeline.js",
+          "bytesInOutput": 71685
+        },
+        {
+          "file": "engine/planet.js",
+          "bytesInOutput": 43466
+        },
+        {
+          "file": "engine/stellarLifecycle.js",
+          "bytesInOutput": 35068
+        },
+        {
+          "file": "ui/celestialComposer.js",
+          "bytesInOutput": 25930
+        },
+        {
+          "file": "engine/rockyBodyComposition.js",
+          "bytesInOutput": 22643
+        }
+      ]
+    },
+    {
+      "file": "stellarLifecycleWorker.js",
+      "source": "ui/stellarLifecycleWorker.js",
+      "bytes": 5163521,
+      "gzipBytes": 1642711,
+      "inputCount": 16,
+      "topContributors": [
+        {
+          "file": "engine/stellarTracks/data/mistAlphaMainSequence.v1.js",
+          "bytesInOutput": 2599604
+        },
+        {
+          "file": "engine/stellarTracks/data/mistMainSequence.v1.js",
+          "bytesInOutput": 1117724
+        },
+        {
+          "file": "engine/stellarTracks/data/mistLowMassMainSequence.v1.js",
+          "bytesInOutput": 1052899
+        },
+        {
+          "file": "engine/stellarTracks/data/mistSolarRotationMainSequence.v1.js",
+          "bytesInOutput": 352496
+        },
+        {
+          "file": "engine/stellarLifecycle.js",
+          "bytesInOutput": 23169
+        },
+        {
+          "file": "engine/stellarTracks/data/bhac15Ultracool.v1.js",
+          "bytesInOutput": 5627
+        },
+        {
+          "file": "engine/stellarTracks/analyticSse.js",
+          "bytesInOutput": 5129
+        },
+        {
+          "file": "engine/stellarTracks/data/genericMainSequence.v1.js",
+          "bytesInOutput": 3074
+        },
+        {
+          "file": "engine/stellarTracks/metallicity.js",
+          "bytesInOutput": 1547
+        },
+        {
+          "file": "engine/habitableZone.js",
+          "bytesInOutput": 1531
+        }
+      ]
+    }
+  ]
 }
