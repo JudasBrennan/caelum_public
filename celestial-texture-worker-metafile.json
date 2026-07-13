@@ -3056,7 +3056,7 @@
       "format": "esm"
     },
     "ui/celestialComposer.js": {
-      "bytes": 110224,
+      "bytes": 114833,
       "imports": [
         {
           "path": "engine/stellarActivity.js",
@@ -3540,13 +3540,13 @@
           "bytesInOutput": 302
         },
         "ui/celestialComposer.js": {
-          "bytesInOutput": 25930
+          "bytesInOutput": 27579
         },
         "ui/celestialTextureWorker.js": {
           "bytesInOutput": 17886
         }
       },
-      "bytes": 5943460
+      "bytes": 5945109
     }
   }
 }

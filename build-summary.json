@@ -1,8 +1,8 @@
 {
   "mode": "production",
-  "releaseVersion": "3.5.0",
+  "releaseVersion": "3.5.1",
   "distDir": "dist",
-  "generatedAt": "2026-07-12T21:00:58.748Z",
+  "generatedAt": "2026-07-13T23:30:21.961Z",
   "entry": {
     "file": "app.js",
     "bytes": 34160
@@ -17,7 +17,7 @@
     "bytes": 715105
   },
   "largestAppLazyChunk": {
-    "file": "chunks/planetPage-PVCF3P7W.js",
+    "file": "chunks/planetPage-V5HXKZ7P.js",
     "bytes": 266435
   },
   "largestVendorLazyChunk": {
@@ -33,8 +33,8 @@
     {
       "file": "celestialTextureWorker.js",
       "source": "ui/celestialTextureWorker.js",
-      "bytes": 5943460,
-      "gzipBytes": 1871972,
+      "bytes": 5945109,
+      "gzipBytes": 1872483,
       "inputCount": 137,
       "topContributors": [
         {
@@ -71,7 +71,7 @@
         },
         {
           "file": "ui/celestialComposer.js",
-          "bytesInOutput": 25930
+          "bytesInOutput": 27579
         },
         {
           "file": "engine/rockyBodyComposition.js",

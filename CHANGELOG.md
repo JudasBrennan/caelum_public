@@ -4,6 +4,36 @@ All notable changes to Caelum will be documented in this file.
 
 ## Unreleased
 
+## 3.5.1 — 2026-07-14
+
+### Vegetation Coverage Rendering
+
+**Land-masked coverage and persistence**
+(ui/celestialComposer.js, ui/planetaryVisual/autoCoverageReadout.js,
+ui/planetaryVisual/controlManifest.js, ui/planetaryVisual/controlRenderers.js,
+ui/planetaryVisual/editorDom.js, ui/store/visualOverrides.js)
+
+Replaced the sporadic vegetation overlay with a deterministic suitability field
+derived from the same heightfield used for continents. Vegetation coverage now
+means the fraction of exposed land carrying vegetation, follows coastlines, and
+never paints across ocean pixels. A custom `100%` setting visibly covers the
+eligible land instead of merely increasing the opacity of scattered patches.
+
+The editor now distinguishes custom percentages from the automatic baseline and
+explains the land-relative meaning of the control. Exact `0%` and `100%`
+overrides survive IndexedDB save and reload cycles.
+
+**Tests** (tests/celestialVisual.test.js,
+tests/planetaryVisualEditorControls.ui.test.js,
+tests/planetaryVisualOverrideRendering.test.js, tests/worldStorage.test.js)
+
+- Added pixel-level coverage monotonicity and ocean-clipping regression tests.
+- Added editor-label, override-rendering, and IndexedDB round-trip coverage for
+  the `0%` and `100%` boundaries.
+- Re-profiled the celestial-texture worker and renewed its exact transfer
+  ratchets for the measured 1,649-byte raw and 511-byte gzip increase from the
+  land-masked renderer.
+
 ## 3.5.0 — 2026-07-12
 
 ### Fixed
@@ -119,7 +149,7 @@ extraction trigger.
 
 **Accessibility, onboarding, and maintained documentation**
 (ui/accessibilityNames.js, ui/splashOverlay.js, app.js, ui/routeRegistry.js,
-CLAUDE.md, AUDIT_2026-07.md)
+CLAUDE.md, docs/audits/AUDIT_2026-07.md)
 
 All supported routes and revealed page states now require accessible names for
 enabled controls. Blocking overlays share focus trapping and restoration, and

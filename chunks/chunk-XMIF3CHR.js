@@ -1,1 +1,0 @@
-var o="Caelum",t="3.5.0",e="Ex Nihilo, Astra",A="From nothing, the stars";var P="WorldSmith",n="caelum",r=Object.freeze({name:o,version:t,slogan:e,sloganTranslation:A,nameMeaning:"sky",previousName:P,exportSlug:n});export{o as a,t as b,e as c,A as d};
