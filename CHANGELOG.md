@@ -85,7 +85,7 @@ Added area-weighted coverage, aligned-map, main/worker byte parity,
 name-independence, moon persistence, cross-render cache, mobile inspection, and
 science-invariance coverage. A checked-in 20-run cold/warm benchmark now records
 64-384 px latency, payload size, worker size, field-cache reuse, and the plan's
-15% regression budget. The final gate passes 3,330 unit tests, 372 science
+15% regression budget. The final gate passes 3,331 unit tests, 372 science
 verification rows, 59 Playwright tests, worker/bundle budgets, cache soaks, and
 the release quality profile.
 
