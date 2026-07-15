@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-15T17:51:53.443Z",
+  "generatedAt": "2026-07-15T18:34:01.888Z",
   "generatedBy": "node scripts/report-model-calibration.mjs",
   "sourceRetrievalDates": {
     "nasaSolarSystem": "2026-07-14",

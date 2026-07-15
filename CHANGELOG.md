@@ -6,6 +6,8 @@ All notable changes to Caelum will be documented in this file.
 
 ## 3.6.0 Beta — 2026-07-15
 
+- Fixed help tooltips intercepting neighbouring editor controls at constrained viewport positions, and kept valid appearance saves available while a texture preview is still refreshing.
+
 ### Shared Planet and Moon Visual Editor
 
 **Coherent procedural surfaces and honest controls**

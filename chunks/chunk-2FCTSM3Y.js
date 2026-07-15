@@ -1,4 +1,4 @@
-import{a as N}from"./chunk-J2QGFXM6.js";import{a as C}from"./chunk-5SEMLOPL.js";import{b as e}from"./chunk-XMLMEZIZ.js";var o=null;function w({title:d="Confirm deletion",description:u="This action cannot be undone.",consequences:i=[],confirmLabel:A="Delete",cancelLabel:v="Cancel"}={}){if(typeof document>"u"||!document.body){if(typeof window?.confirm=="function"){let l=Array.isArray(i)&&i.length?`
+import{a as N}from"./chunk-UHQ6X4NG.js";import{a as C}from"./chunk-5SEMLOPL.js";import{b as e}from"./chunk-XMLMEZIZ.js";var o=null;function w({title:d="Confirm deletion",description:u="This action cannot be undone.",consequences:i=[],confirmLabel:A="Delete",cancelLabel:v="Cancel"}={}){if(typeof document>"u"||!document.body){if(typeof window?.confirm=="function"){let l=Array.isArray(i)&&i.length?`
 
 Consequences:
 - ${i.join(`

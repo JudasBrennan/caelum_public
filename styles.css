@@ -5554,6 +5554,7 @@ body > .app-main {
 .tooltip-bubble {
   position: fixed;
   z-index: 9999;
+  pointer-events: none;
   max-width: 360px;
   white-space: pre-wrap;
   padding: 10px 12px;
