@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-13T23:30:21.399Z",
+  "generatedAt": "2026-07-15T17:58:59.226Z",
   "lazyChunkCount": 135,
   "largestLazyChunk": {
     "file": "chunks/chunk-56JJ2DZ6.js",
@@ -10,8 +10,8 @@
     "bytes": 715105
   },
   "largestAppLazyChunk": {
-    "file": "chunks/planetPage-V5HXKZ7P.js",
-    "bytes": 266435
+    "file": "chunks/planetPage-X6JTFATV.js",
+    "bytes": 273588
   },
   "largestVendorLazyChunk": {
     "file": "chunks/chunk-K6EXVWDB.js",
@@ -150,11 +150,11 @@
       ]
     },
     {
-      "file": "chunks/planetPage-V5HXKZ7P.js",
-      "bytes": 266435,
+      "file": "chunks/planetPage-X6JTFATV.js",
+      "bytes": 273588,
       "kind": "chunk",
-      "appBytes": 263455,
-      "appCodeBytes": 263455,
+      "appBytes": 270608,
+      "appCodeBytes": 270608,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -162,13 +162,13 @@
       "topContributors": [
         {
           "file": "ui/planetPage.js",
-          "bytesInOutput": 96082,
+          "bytesInOutput": 96318,
           "vendor": false,
           "modelData": false
         },
         {
           "file": "ui/planet/tooltips.js",
-          "bytesInOutput": 63164,
+          "bytesInOutput": 66138,
           "vendor": false,
           "modelData": false
         },
@@ -180,7 +180,7 @@
         },
         {
           "file": "ui/planet/guidedFlows.js",
-          "bytesInOutput": 16992,
+          "bytesInOutput": 17015,
           "vendor": false,
           "modelData": false
         },
@@ -203,6 +203,12 @@
           "modelData": false
         },
         {
+          "file": "ui/planet/rockyOutputGroups.js",
+          "bytesInOutput": 6171,
+          "vendor": false,
+          "modelData": false
+        },
+        {
           "file": "ui/planet/hostFrame.js",
           "bytesInOutput": 5471,
           "vendor": false,
@@ -211,12 +217,6 @@
         {
           "file": "ui/planet/tutorials.js",
           "bytesInOutput": 4652,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planet/resultSummary.js",
-          "bytesInOutput": 4573,
           "vendor": false,
           "modelData": false
         }
@@ -248,11 +248,11 @@
       ]
     },
     {
-      "file": "chunks/visualizerPage-6DCSDKFH.js",
-      "bytes": 246555,
+      "file": "chunks/visualizerPage-ZC65PSAH.js",
+      "bytes": 251994,
       "kind": "chunk",
-      "appBytes": 243847,
-      "appCodeBytes": 243847,
+      "appBytes": 249239,
+      "appCodeBytes": 249239,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -260,13 +260,13 @@
       "topContributors": [
         {
           "file": "ui/visualizerPage.js",
-          "bytesInOutput": 75293,
+          "bytesInOutput": 75933,
           "vendor": false,
           "modelData": false
         },
         {
           "file": "ui/visualizer/snapshotModel.js",
-          "bytesInOutput": 29709,
+          "bytesInOutput": 30320,
           "vendor": false,
           "modelData": false
         },
@@ -278,7 +278,7 @@
         },
         {
           "file": "ui/visualizer/bodyMeshService.js",
-          "bytesInOutput": 16693,
+          "bytesInOutput": 19338,
           "vendor": false,
           "modelData": false
         },
@@ -290,67 +290,42 @@
         },
         {
           "file": "ui/visualizer/inputBindings.js",
-          "bytesInOutput": 11687,
+          "bytesInOutput": 11685,
           "vendor": false,
           "modelData": false
         },
         {
           "file": "ui/visualizer/starActivityRuntime.js",
-          "bytesInOutput": 11548,
+          "bytesInOutput": 11560,
           "vendor": false,
           "modelData": false
         },
         {
           "file": "ui/visualizer/focusSummary.js",
-          "bytesInOutput": 9968,
+          "bytesInOutput": 9981,
           "vendor": false,
           "modelData": false
         },
         {
           "file": "ui/visualizer/focusCamera.js",
-          "bytesInOutput": 7654,
+          "bytesInOutput": 7657,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/visualizer/clusterOverlay.js",
-          "bytesInOutput": 6309,
+          "file": "ui/visualizer/visualEditorEntry.js",
+          "bytesInOutput": 6770,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/sciencePage-X6R5HJ4Q.js",
-      "bytes": 238213,
+      "file": "chunks/chunk-YH6C3Z3W.js",
+      "bytes": 250080,
       "kind": "chunk",
-      "appBytes": 237478,
-      "appCodeBytes": 237478,
-      "modelDataBytes": 0,
-      "vendorBytes": 0,
-      "pureVendor": false,
-      "pureModelData": false,
-      "topContributors": [
-        {
-          "file": "ui/sciencePage.js",
-          "bytesInOutput": 237002,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/science/domRender.js",
-          "bytesInOutput": 476,
-          "vendor": false,
-          "modelData": false
-        }
-      ]
-    },
-    {
-      "file": "chunks/chunk-2FY44YGS.js",
-      "bytes": 234493,
-      "kind": "chunk",
-      "appBytes": 233299,
-      "appCodeBytes": 233299,
+      "appBytes": 248894,
+      "appCodeBytes": 248894,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -358,13 +333,13 @@
       "topContributors": [
         {
           "file": "engine/planet.js",
-          "bytesInOutput": 43371,
+          "bytesInOutput": 46450,
           "vendor": false,
           "modelData": false
         },
         {
           "file": "engine/climate.js",
-          "bytesInOutput": 16037,
+          "bytesInOutput": 16026,
           "vendor": false,
           "modelData": false
         },
@@ -381,8 +356,14 @@
           "modelData": false
         },
         {
+          "file": "engine/planet/coreEvolution.js",
+          "bytesInOutput": 10516,
+          "vendor": false,
+          "modelData": false
+        },
+        {
           "file": "engine/planet/appearance.js",
-          "bytesInOutput": 10071,
+          "bytesInOutput": 10101,
           "vendor": false,
           "modelData": false
         },
@@ -393,8 +374,14 @@
           "modelData": false
         },
         {
+          "file": "engine/contexts/interiorEvolutionContext.js",
+          "bytesInOutput": 7943,
+          "vendor": false,
+          "modelData": false
+        },
+        {
           "file": "engine/environment/forcing.js",
-          "bytesInOutput": 7130,
+          "bytesInOutput": 7128,
           "vendor": false,
           "modelData": false
         },
@@ -403,24 +390,37 @@
           "bytesInOutput": 7110,
           "vendor": false,
           "modelData": false
-        },
+        }
+      ]
+    },
+    {
+      "file": "chunks/sciencePage-WWPFVMM4.js",
+      "bytes": 242776,
+      "kind": "chunk",
+      "appBytes": 242041,
+      "appCodeBytes": 242041,
+      "modelDataBytes": 0,
+      "vendorBytes": 0,
+      "pureVendor": false,
+      "pureModelData": false,
+      "topContributors": [
         {
-          "file": "engine/environment/coupledClimatePass.js",
-          "bytesInOutput": 6785,
+          "file": "ui/sciencePage.js",
+          "bytesInOutput": 241565,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "engine/contexts/interiorEvolutionContext.js",
-          "bytesInOutput": 6168,
+          "file": "ui/science/domRender.js",
+          "bytesInOutput": 476,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/calendarPage-7B5RXJAJ.js",
-      "bytes": 221535,
+      "file": "chunks/calendarPage-6MBWICKX.js",
+      "bytes": 221563,
       "kind": "chunk",
       "appBytes": 219237,
       "appCodeBytes": 219237,
@@ -492,8 +492,8 @@
       ]
     },
     {
-      "file": "chunks/starPage-QKSL3D2I.js",
-      "bytes": 205296,
+      "file": "chunks/starPage-5NOJ5FZ6.js",
+      "bytes": 205352,
       "kind": "chunk",
       "appBytes": 203840,
       "appCodeBytes": 203840,
@@ -565,8 +565,81 @@
       ]
     },
     {
-      "file": "chunks/chunk-TVZCG4C7.js",
-      "bytes": 178850,
+      "file": "chunks/chunk-2JIBIIRO.js",
+      "bytes": 190476,
+      "kind": "chunk",
+      "appBytes": 188552,
+      "appCodeBytes": 188552,
+      "modelDataBytes": 0,
+      "vendorBytes": 0,
+      "pureVendor": false,
+      "pureModelData": false,
+      "topContributors": [
+        {
+          "file": "ui/store/compat/planetaryBodyCompatibility.js",
+          "bytesInOutput": 17731,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/store.js",
+          "bytesInOutput": 17709,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/store/destructiveActions.js",
+          "bytesInOutput": 14750,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/homeSystem/stellarSystemModel.js",
+          "bytesInOutput": 10642,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/store/visualOverrides.js",
+          "bytesInOutput": 10429,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/store/importValidation.js",
+          "bytesInOutput": 9427,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/homeSystem/stability.js",
+          "bytesInOutput": 8839,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/homeSystem/context.js",
+          "bytesInOutput": 7689,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/store/worldStorage.js",
+          "bytesInOutput": 7499,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/store/planetaryBodyModel.js",
+          "bytesInOutput": 6920,
+          "vendor": false,
+          "modelData": false
+        }
+      ]
+    },
+    {
+      "file": "chunks/chunk-HUJYRNV2.js",
+      "bytes": 178883,
       "kind": "chunk",
       "appBytes": 177838,
       "appCodeBytes": 177838,
@@ -638,84 +711,84 @@
       ]
     },
     {
-      "file": "chunks/chunk-NES6PSVY.js",
-      "bytes": 175495,
+      "file": "chunks/chunk-5NIV5JZH.js",
+      "bytes": 158041,
       "kind": "chunk",
-      "appBytes": 173678,
-      "appCodeBytes": 173678,
+      "appBytes": 157182,
+      "appCodeBytes": 157182,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
       "pureModelData": false,
       "topContributors": [
         {
-          "file": "ui/store/compat/planetaryBodyCompatibility.js",
-          "bytesInOutput": 17734,
+          "file": "ui/celestialVisualPreview.js",
+          "bytesInOutput": 58725,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/store.js",
-          "bytesInOutput": 17499,
+          "file": "ui/celestialTexturePipeline.js",
+          "bytesInOutput": 23618,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/store/destructiveActions.js",
-          "bytesInOutput": 14750,
+          "file": "ui/ringShadowBodyPatch.js",
+          "bytesInOutput": 8373,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "engine/homeSystem/stellarSystemModel.js",
-          "bytesInOutput": 10642,
+          "file": "ui/rendererTextureBundleCache.js",
+          "bytesInOutput": 7647,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "engine/homeSystem/stability.js",
-          "bytesInOutput": 8834,
+          "file": "ui/visualizer/starSurface.js",
+          "bytesInOutput": 5937,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/store/visualOverrides.js",
-          "bytesInOutput": 8500,
+          "file": "ui/celestialTexturePayloads.js",
+          "bytesInOutput": 5706,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "engine/homeSystem/context.js",
-          "bytesInOutput": 7689,
+          "file": "ui/celestialPerfDebug.js",
+          "bytesInOutput": 5634,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/store/worldStorage.js",
-          "bytesInOutput": 7499,
+          "file": "ui/ringTextureCache.js",
+          "bytesInOutput": 5071,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/store/planetaryBodyModel.js",
-          "bytesInOutput": 6846,
+          "file": "ui/celestialTextureJobQueue.js",
+          "bytesInOutput": 4553,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "engine/localCluster.js",
-          "bytesInOutput": 6796,
+          "file": "ui/celestialFields/materialMaps.js",
+          "bytesInOutput": 4491,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/moonPage-QMZF3B2K.js",
-      "bytes": 151291,
+      "file": "chunks/moonPage-EK5QLKNI.js",
+      "bytes": 152754,
       "kind": "chunk",
-      "appBytes": 149128,
-      "appCodeBytes": 149128,
+      "appBytes": 150416,
+      "appCodeBytes": 150416,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -723,7 +796,7 @@
       "topContributors": [
         {
           "file": "ui/moonPage.js",
-          "bytesInOutput": 145740,
+          "bytesInOutput": 147028,
           "vendor": false,
           "modelData": false
         },
@@ -736,8 +809,8 @@
       ]
     },
     {
-      "file": "chunks/systemPage-HSHBAHY3.js",
-      "bytes": 136104,
+      "file": "chunks/systemPage-XKNZFRKT.js",
+      "bytes": 136106,
       "kind": "chunk",
       "appBytes": 134067,
       "appCodeBytes": 134067,
@@ -809,8 +882,8 @@
       ]
     },
     {
-      "file": "chunks/chunk-J6AQBCDO.js",
-      "bytes": 127951,
+      "file": "chunks/chunk-MLUBV3I6.js",
+      "bytes": 127943,
       "kind": "chunk",
       "appBytes": 127073,
       "appCodeBytes": 114068,
@@ -882,84 +955,91 @@
       ]
     },
     {
-      "file": "chunks/chunk-EJ357GZO.js",
-      "bytes": 111381,
+      "file": "chunks/chunk-53QLIZQY.js",
+      "bytes": 104533,
       "kind": "chunk",
-      "appBytes": 110736,
-      "appCodeBytes": 110736,
+      "appBytes": 104106,
+      "appCodeBytes": 104106,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
       "pureModelData": false,
       "topContributors": [
         {
-          "file": "ui/celestialVisualPreview.js",
-          "bytesInOutput": 65308,
+          "file": "ui/celestialComposer.js",
+          "bytesInOutput": 39120,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/ringShadowBodyPatch.js",
-          "bytesInOutput": 8373,
+          "file": "ui/celestialLayerTexturePainter.js",
+          "bytesInOutput": 27168,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/visualizer/starSurface.js",
-          "bytesInOutput": 5901,
+          "file": "ui/celestialArtProfiles.js",
+          "bytesInOutput": 26162,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/celestialPerfDebug.js",
-          "bytesInOutput": 5609,
+          "file": "ui/ringLightingShader.js",
+          "bytesInOutput": 7285,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/rendererTextureBundleCache.js",
-          "bytesInOutput": 5011,
+          "file": "ui/celestialProceduralMath.js",
+          "bytesInOutput": 2347,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/ringTextureCache.js",
-          "bytesInOutput": 4891,
+          "file": "ui/celestialRenderSignatures.js",
+          "bytesInOutput": 1531,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/celestialTextureJobQueue.js",
-          "bytesInOutput": 4553,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/celestialTexturePayloads.js",
-          "bytesInOutput": 4153,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/ringTextureGenerator.js",
-          "bytesInOutput": 3733,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/textureCache.js",
-          "bytesInOutput": 1938,
+          "file": "ui/celestialFields/signatures.js",
+          "bytesInOutput": 493,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/chunk-JQILTR3D.js",
-      "bytes": 90761,
+      "file": "chunks/chunk-HEDIWBL2.js",
+      "bytes": 94290,
       "kind": "chunk",
-      "appBytes": 90298,
-      "appCodeBytes": 90298,
+      "appBytes": 94131,
+      "appCodeBytes": 94131,
+      "modelDataBytes": 0,
+      "vendorBytes": 0,
+      "pureVendor": false,
+      "pureModelData": false,
+      "topContributors": [
+        {
+          "file": "engine/planetaryEraTimeline.js",
+          "bytesInOutput": 92148,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/contexts/surfaceOceanCoverageAccessors.js",
+          "bytesInOutput": 1983,
+          "vendor": false,
+          "modelData": false
+        }
+      ]
+    },
+    {
+      "file": "chunks/chunk-63GWEYJK.js",
+      "bytes": 83654,
+      "kind": "chunk",
+      "appBytes": 83183,
+      "appCodeBytes": 83183,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -973,7 +1053,7 @@
         },
         {
           "file": "engine/moon/hydrosphere.js",
-          "bytesInOutput": 11377,
+          "bytesInOutput": 11353,
           "vendor": false,
           "modelData": false
         },
@@ -986,12 +1066,6 @@
         {
           "file": "engine/contexts/surfaceOceanCoverageContext.js",
           "bytesInOutput": 9186,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "engine/habitability/highPressureIce.js",
-          "bytesInOutput": 7091,
           "vendor": false,
           "modelData": false
         },
@@ -1024,71 +1098,21 @@
           "bytesInOutput": 3398,
           "vendor": false,
           "modelData": false
-        }
-      ]
-    },
-    {
-      "file": "chunks/chunk-4DXE65F2.js",
-      "bytes": 89864,
-      "kind": "chunk",
-      "appBytes": 89706,
-      "appCodeBytes": 89706,
-      "modelDataBytes": 0,
-      "vendorBytes": 0,
-      "pureVendor": false,
-      "pureModelData": false,
-      "topContributors": [
-        {
-          "file": "engine/planetaryEraTimeline.js",
-          "bytesInOutput": 87724,
-          "vendor": false,
-          "modelData": false
         },
         {
-          "file": "engine/contexts/surfaceOceanCoverageAccessors.js",
-          "bytesInOutput": 1982,
+          "file": "engine/habitability/stability.js",
+          "bytesInOutput": 2940,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/chunk-PARITLQC.js",
-      "bytes": 85688,
+      "file": "chunks/aboutPage-YVMR735E.js",
+      "bytes": 80617,
       "kind": "chunk",
-      "appBytes": 85395,
-      "appCodeBytes": 85395,
-      "modelDataBytes": 0,
-      "vendorBytes": 0,
-      "pureVendor": false,
-      "pureModelData": false,
-      "topContributors": [
-        {
-          "file": "ui/celestialComposer.js",
-          "bytesInOutput": 52734,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/celestialArtProfiles.js",
-          "bytesInOutput": 25424,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/ringLightingShader.js",
-          "bytesInOutput": 7237,
-          "vendor": false,
-          "modelData": false
-        }
-      ]
-    },
-    {
-      "file": "chunks/aboutPage-XHXHKWYE.js",
-      "bytes": 78519,
-      "kind": "chunk",
-      "appBytes": 78407,
-      "appCodeBytes": 78407,
+      "appBytes": 80505,
+      "appCodeBytes": 80505,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -1096,15 +1120,15 @@
       "topContributors": [
         {
           "file": "ui/aboutPage.js",
-          "bytesInOutput": 78407,
+          "bytesInOutput": 80505,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/tectonicsPage-KBQHAMS5.js",
-      "bytes": 77907,
+      "file": "chunks/tectonicsPage-NCOTYU4V.js",
+      "bytes": 77935,
       "kind": "chunk",
       "appBytes": 76515,
       "appCodeBytes": 76515,
@@ -1122,7 +1146,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-GH4DVZYB.js",
+      "file": "chunks/chunk-DWX624Y6.js",
       "bytes": 77509,
       "kind": "chunk",
       "appBytes": 77414,
@@ -1159,7 +1183,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-THGKBWYE.js",
+      "file": "chunks/chunk-O75ZP6IH.js",
       "bytes": 69853,
       "kind": "chunk",
       "appBytes": 69533,
@@ -1232,7 +1256,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-AEY4VWZP.js",
+      "file": "chunks/chunk-FGD4ZDWE.js",
       "bytes": 67038,
       "kind": "chunk",
       "appBytes": 66566,
@@ -1263,7 +1287,80 @@
       ]
     },
     {
-      "file": "chunks/chunk-4GZ2S6H5.js",
+      "file": "chunks/chunk-5IRBADI3.js",
+      "bytes": 66277,
+      "kind": "chunk",
+      "appBytes": 65815,
+      "appCodeBytes": 65815,
+      "modelDataBytes": 0,
+      "vendorBytes": 0,
+      "pureVendor": false,
+      "pureModelData": false,
+      "topContributors": [
+        {
+          "file": "ui/planetaryVisual/editorDom.js",
+          "bytesInOutput": 21720,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/presets.js",
+          "bytesInOutput": 12156,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/controlRenderers.js",
+          "bytesInOutput": 9203,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/editorState.js",
+          "bytesInOutput": 7568,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/autoCoverageReadout.js",
+          "bytesInOutput": 6542,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/editorPreview.js",
+          "bytesInOutput": 2603,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/randomize.js",
+          "bytesInOutput": 2487,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/coverageFeedback.js",
+          "bytesInOutput": 2171,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/editorControls.js",
+          "bytesInOutput": 1110,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/subtypeLabels.js",
+          "bytesInOutput": 255,
+          "vendor": false,
+          "modelData": false
+        }
+      ]
+    },
+    {
+      "file": "chunks/chunk-IJ62OJNE.js",
       "bytes": 65341,
       "kind": "chunk",
       "appBytes": 65106,
@@ -1282,8 +1379,8 @@
       ]
     },
     {
-      "file": "chunks/outerObjectsPage-PDBOSN67.js",
-      "bytes": 64440,
+      "file": "chunks/outerObjectsPage-W5EQN6XB.js",
+      "bytes": 64496,
       "kind": "chunk",
       "appBytes": 63181,
       "appCodeBytes": 63181,
@@ -1301,8 +1398,8 @@
       ]
     },
     {
-      "file": "chunks/fatePage-FXFWWXMG.js",
-      "bytes": 61472,
+      "file": "chunks/fatePage-V626P233.js",
+      "bytes": 61500,
       "kind": "chunk",
       "appBytes": 60445,
       "appCodeBytes": 60445,
@@ -1338,7 +1435,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-XYSII5MI.js",
+      "file": "chunks/chunk-DTBYRYLW.js",
       "bytes": 61054,
       "kind": "chunk",
       "appBytes": 60187,
@@ -1375,75 +1472,45 @@
       ]
     },
     {
-      "file": "chunks/chunk-ATBC7PIG.js",
-      "bytes": 59257,
+      "file": "chunks/chunk-JQF24KSB.js",
+      "bytes": 57679,
       "kind": "chunk",
-      "appBytes": 58637,
-      "appCodeBytes": 58637,
+      "appBytes": 57291,
+      "appCodeBytes": 57291,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
       "pureModelData": false,
       "topContributors": [
         {
-          "file": "engine/planetarySubtypes.js",
-          "bytesInOutput": 23136,
+          "file": "ui/gasGiantStyles.js",
+          "bytesInOutput": 20696,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "engine/planetaryBody.js",
-          "bytesInOutput": 12916,
+          "file": "ui/rockyPlanetStyles.js",
+          "bytesInOutput": 15652,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "engine/planetarySubtypes/oceanWorld.js",
-          "bytesInOutput": 9148,
+          "file": "ui/moonStyles.js",
+          "bytesInOutput": 15204,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "engine/volatilePlanet.js",
-          "bytesInOutput": 7172,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "engine/planetarySubtypes/lavaWorld.js",
-          "bytesInOutput": 1509,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "engine/planetarySubtypes/icyDwarf.js",
-          "bytesInOutput": 1492,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "engine/planetarySubtypes/roguePlanet.js",
-          "bytesInOutput": 1301,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "engine/planetarySubtypes/chthonian.js",
-          "bytesInOutput": 1248,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "engine/planetarySubtypes/common.js",
-          "bytesInOutput": 715,
+          "file": "ui/moon/displayModel.js",
+          "bytesInOutput": 5739,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/importExportPage-HYYF36TX.js",
-      "bytes": 56075,
+      "file": "chunks/importExportPage-ENGNX7XL.js",
+      "bytes": 56103,
       "kind": "chunk",
       "appBytes": 54402,
       "appCodeBytes": 54402,
@@ -1558,7 +1625,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-LTGO5OJA.js",
+      "file": "chunks/chunk-DH56NUIM.js",
       "bytes": 54917,
       "kind": "chunk",
       "appBytes": 54282,
@@ -1631,31 +1698,67 @@
       ]
     },
     {
-      "file": "chunks/chunk-4XS5EBWC.js",
-      "bytes": 44862,
+      "file": "chunks/chunk-DGEV3A6M.js",
+      "bytes": 46636,
       "kind": "chunk",
-      "appBytes": 44409,
-      "appCodeBytes": 44409,
+      "appBytes": 46385,
+      "appCodeBytes": 46385,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
       "pureModelData": false,
       "topContributors": [
         {
-          "file": "ui/gasGiantStyles.js",
-          "bytesInOutput": 20655,
+          "file": "engine/planetarySubtypes.js",
+          "bytesInOutput": 23109,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/rockyPlanetStyles.js",
-          "bytesInOutput": 15663,
+          "file": "engine/planetarySubtypes/oceanWorld.js",
+          "bytesInOutput": 9147,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/ringAppearanceProfiles.js",
-          "bytesInOutput": 8091,
+          "file": "engine/planetaryClassification.js",
+          "bytesInOutput": 7526,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/planetarySubtypes/lavaWorld.js",
+          "bytesInOutput": 1509,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/planetarySubtypes/icyDwarf.js",
+          "bytesInOutput": 1490,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/planetarySubtypes/roguePlanet.js",
+          "bytesInOutput": 1300,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/planetarySubtypes/chthonian.js",
+          "bytesInOutput": 1248,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/planetarySubtypes/common.js",
+          "bytesInOutput": 710,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/planetaryBodyAdapters.js",
+          "bytesInOutput": 346,
           "vendor": false,
           "modelData": false
         }
@@ -1699,7 +1802,80 @@
       ]
     },
     {
-      "file": "chunks/chunk-FDAAYFWG.js",
+      "file": "chunks/chunk-FPL3VLLI.js",
+      "bytes": 40666,
+      "kind": "chunk",
+      "appBytes": 40329,
+      "appCodeBytes": 40329,
+      "modelDataBytes": 0,
+      "vendorBytes": 0,
+      "pureVendor": false,
+      "pureModelData": false,
+      "topContributors": [
+        {
+          "file": "ui/planetaryVisual/controlManifest.js",
+          "bytesInOutput": 15584,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planet/subtypeVisualHints.js",
+          "bytesInOutput": 7765,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/moon/visualControlManifest.js",
+          "bytesInOutput": 5949,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/descriptor.js",
+          "bytesInOutput": 5208,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/moon/visualManifestContext.js",
+          "bytesInOutput": 3188,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/controlEffects.js",
+          "bytesInOutput": 1195,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/familyRouting.js",
+          "bytesInOutput": 796,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/planetaryFamilyGroups.js",
+          "bytesInOutput": 644,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/valueUtils.js",
+          "bytesInOutput": 0,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/planetaryVisual/overrides.js",
+          "bytesInOutput": 0,
+          "vendor": false,
+          "modelData": false
+        }
+      ]
+    },
+    {
+      "file": "chunks/chunk-3TPCZB23.js",
       "bytes": 40137,
       "kind": "chunk",
       "appBytes": 39691,
@@ -1772,74 +1948,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-HZEVV6EJ.js",
-      "bytes": 40036,
-      "kind": "chunk",
-      "appBytes": 39609,
-      "appCodeBytes": 39609,
-      "modelDataBytes": 0,
-      "vendorBytes": 0,
-      "pureVendor": false,
-      "pureModelData": false,
-      "topContributors": [
-        {
-          "file": "ui/planetaryVisual/presets.js",
-          "bytesInOutput": 8829,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/controlRenderers.js",
-          "bytesInOutput": 7907,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/editorDom.js",
-          "bytesInOutput": 7677,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/autoCoverageReadout.js",
-          "bytesInOutput": 5785,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/editorState.js",
-          "bytesInOutput": 4279,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/randomize.js",
-          "bytesInOutput": 2103,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/editorPreview.js",
-          "bytesInOutput": 1664,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/editorControls.js",
-          "bytesInOutput": 1110,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/subtypeLabels.js",
-          "bytesInOutput": 255,
-          "vendor": false,
-          "modelData": false
-        }
-      ]
-    },
-    {
-      "file": "chunks/chunk-EMW6ZAWU.js",
+      "file": "chunks/chunk-IKNSLG4F.js",
       "bytes": 39701,
       "kind": "chunk",
       "appBytes": 39467,
@@ -1858,33 +1967,8 @@
       ]
     },
     {
-      "file": "chunks/populationPage-FSOJYZ6G.js",
-      "bytes": 36335,
-      "kind": "chunk",
-      "appBytes": 35005,
-      "appCodeBytes": 35005,
-      "modelDataBytes": 0,
-      "vendorBytes": 0,
-      "pureVendor": false,
-      "pureModelData": false,
-      "topContributors": [
-        {
-          "file": "ui/populationPage.js",
-          "bytesInOutput": 30771,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "engine/population.js",
-          "bytesInOutput": 4234,
-          "vendor": false,
-          "modelData": false
-        }
-      ]
-    },
-    {
-      "file": "chunks/localClusterPage-T6YMRG6F.js",
-      "bytes": 36312,
+      "file": "chunks/localClusterPage-BODRLYDW.js",
+      "bytes": 36368,
       "kind": "chunk",
       "appBytes": 35205,
       "appCodeBytes": 35205,
@@ -1908,11 +1992,36 @@
       ]
     },
     {
+      "file": "chunks/populationPage-BG3QSK2E.js",
+      "bytes": 36363,
+      "kind": "chunk",
+      "appBytes": 35005,
+      "appCodeBytes": 35005,
+      "modelDataBytes": 0,
+      "vendorBytes": 0,
+      "pureVendor": false,
+      "pureModelData": false,
+      "topContributors": [
+        {
+          "file": "ui/populationPage.js",
+          "bytesInOutput": 30771,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/population.js",
+          "bytesInOutput": 4234,
+          "vendor": false,
+          "modelData": false
+        }
+      ]
+    },
+    {
       "file": "app.js",
-      "bytes": 34160,
+      "bytes": 34761,
       "kind": "entry",
-      "appBytes": 33171,
-      "appCodeBytes": 33171,
+      "appBytes": 33703,
+      "appCodeBytes": 33703,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -1920,7 +2029,7 @@
       "topContributors": [
         {
           "file": "app.js",
-          "bytesInOutput": 16730,
+          "bytesInOutput": 16735,
           "vendor": false,
           "modelData": false
         },
@@ -1932,7 +2041,7 @@
         },
         {
           "file": "ui/workflow/skeletonTemplates.js",
-          "bytesInOutput": 4025,
+          "bytesInOutput": 4552,
           "vendor": false,
           "modelData": false
         },
@@ -1951,11 +2060,11 @@
       ]
     },
     {
-      "file": "chunks/systemPosterNativeThree-7SX4N3BI.js",
-      "bytes": 29784,
+      "file": "chunks/systemPosterNativeThree-SG7PVMVL.js",
+      "bytes": 30359,
       "kind": "chunk",
-      "appBytes": 28875,
-      "appCodeBytes": 28875,
+      "appBytes": 29327,
+      "appCodeBytes": 29327,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -1963,7 +2072,7 @@
       "topContributors": [
         {
           "file": "ui/systemPosterNativeThree.js",
-          "bytesInOutput": 27222,
+          "bytesInOutput": 27674,
           "vendor": false,
           "modelData": false
         },
@@ -1976,11 +2085,11 @@
       ]
     },
     {
-      "file": "chunks/apparentPage-2KBYHYHJ.js",
-      "bytes": 29284,
+      "file": "chunks/apparentPage-7D3R3OTG.js",
+      "bytes": 29570,
       "kind": "chunk",
-      "appBytes": 27795,
-      "appCodeBytes": 27795,
+      "appBytes": 28053,
+      "appCodeBytes": 28053,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -1988,7 +2097,7 @@
       "topContributors": [
         {
           "file": "ui/apparentPage.js",
-          "bytesInOutput": 23662,
+          "bytesInOutput": 23920,
           "vendor": false,
           "modelData": false
         },
@@ -2007,11 +2116,11 @@
       ]
     },
     {
-      "file": "chunks/chunk-EYXZC43S.js",
-      "bytes": 26665,
+      "file": "chunks/chunk-N4S5YHH4.js",
+      "bytes": 26784,
       "kind": "chunk",
-      "appBytes": 26047,
-      "appCodeBytes": 26047,
+      "appBytes": 26135,
+      "appCodeBytes": 26135,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -2019,62 +2128,7 @@
       "topContributors": [
         {
           "file": "ui/worldAdapters.js",
-          "bytesInOutput": 26047,
-          "vendor": false,
-          "modelData": false
-        }
-      ]
-    },
-    {
-      "file": "chunks/chunk-TIB6BLCT.js",
-      "bytes": 24737,
-      "kind": "chunk",
-      "appBytes": 24418,
-      "appCodeBytes": 24418,
-      "modelDataBytes": 0,
-      "vendorBytes": 0,
-      "pureVendor": false,
-      "pureModelData": false,
-      "topContributors": [
-        {
-          "file": "ui/planetaryVisual/controlManifest.js",
-          "bytesInOutput": 12716,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planet/subtypeVisualHints.js",
-          "bytesInOutput": 7762,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/descriptor.js",
-          "bytesInOutput": 2524,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/familyRouting.js",
-          "bytesInOutput": 778,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "engine/planetaryFamilyGroups.js",
-          "bytesInOutput": 638,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/valueUtils.js",
-          "bytesInOutput": 0,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "ui/planetaryVisual/overrides.js",
-          "bytesInOutput": 0,
+          "bytesInOutput": 26135,
           "vendor": false,
           "modelData": false
         }
@@ -2137,7 +2191,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-IFPZP5OM.js",
+      "file": "chunks/chunk-BKKUUI5C.js",
       "bytes": 24204,
       "kind": "chunk",
       "appBytes": 23989,
@@ -2175,8 +2229,8 @@
       ]
     },
     {
-      "file": "chunks/climatePage-L2BM2INC.js",
-      "bytes": 21488,
+      "file": "chunks/climatePage-33EWE6C7.js",
+      "bytes": 21516,
       "kind": "chunk",
       "appBytes": 20155,
       "appCodeBytes": 20155,
@@ -2194,32 +2248,32 @@
       ]
     },
     {
-      "file": "chunks/chunk-2IH37EOA.js",
-      "bytes": 21094,
+      "file": "chunks/chunk-B745U7OS.js",
+      "bytes": 20564,
       "kind": "chunk",
-      "appBytes": 20909,
-      "appCodeBytes": 20909,
+      "appBytes": 19992,
+      "appCodeBytes": 19992,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
       "pureModelData": false,
       "topContributors": [
         {
-          "file": "ui/moonStyles.js",
-          "bytesInOutput": 15190,
+          "file": "engine/planetaryBody.js",
+          "bytesInOutput": 12916,
           "vendor": false,
           "modelData": false
         },
         {
-          "file": "ui/moon/displayModel.js",
-          "bytesInOutput": 5719,
+          "file": "engine/volatilePlanet.js",
+          "bytesInOutput": 7076,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/chunk-OM72SONK.js",
+      "file": "chunks/chunk-MATVPAO6.js",
       "bytes": 20144,
       "kind": "chunk",
       "appBytes": 19774,
@@ -2282,7 +2336,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-2UH3VG6A.js",
+      "file": "chunks/chunk-DBZUZLFK.js",
       "bytes": 19002,
       "kind": "chunk",
       "appBytes": 18758,
@@ -2301,8 +2355,8 @@
       ]
     },
     {
-      "file": "chunks/transferFlows-PSOM53DC.js",
-      "bytes": 18950,
+      "file": "chunks/transferFlows-FAAHAQ5F.js",
+      "bytes": 18978,
       "kind": "chunk",
       "appBytes": 18130,
       "appCodeBytes": 18130,
@@ -2320,11 +2374,11 @@
       ]
     },
     {
-      "file": "chunks/apparentSkyNativeThree-SOXYZ644.js",
-      "bytes": 16905,
+      "file": "chunks/apparentSkyNativeThree-3JFV5YWW.js",
+      "bytes": 17673,
       "kind": "chunk",
-      "appBytes": 15924,
-      "appCodeBytes": 15924,
+      "appBytes": 16615,
+      "appCodeBytes": 16615,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -2332,15 +2386,15 @@
       "topContributors": [
         {
           "file": "ui/apparentSkyNativeThree.js",
-          "bytesInOutput": 15924,
+          "bytesInOutput": 16615,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/neighbourhoodHazardsPage-OWAG4DVP.js",
-      "bytes": 16299,
+      "file": "chunks/neighbourhoodHazardsPage-TFDZD5YZ.js",
+      "bytes": 16355,
       "kind": "chunk",
       "appBytes": 15515,
       "appCodeBytes": 15515,
@@ -2534,7 +2588,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-YXCRKKBV.js",
+      "file": "chunks/chunk-4R2Z3L7X.js",
       "bytes": 12405,
       "kind": "chunk",
       "appBytes": 12169,
@@ -2597,7 +2651,7 @@
       ]
     },
     {
-      "file": "chunks/L05_habitableZone-NTYPNBS2.js",
+      "file": "chunks/L05_habitableZone-4CSSADI5.js",
       "bytes": 11637,
       "kind": "chunk",
       "appBytes": 11219,
@@ -2774,7 +2828,7 @@
       ]
     },
     {
-      "file": "chunks/L01_starBasics-Z26IPUJ4.js",
+      "file": "chunks/L01_starBasics-6D4VPQ3I.js",
       "bytes": 9343,
       "kind": "chunk",
       "appBytes": 8937,
@@ -2793,7 +2847,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-SBHZTEHK.js",
+      "file": "chunks/chunk-54NJNAYQ.js",
       "bytes": 9102,
       "kind": "chunk",
       "appBytes": 8951,
@@ -2850,6 +2904,56 @@
       ]
     },
     {
+      "file": "chunks/chunk-PEGGMJTM.js",
+      "bytes": 8500,
+      "kind": "chunk",
+      "appBytes": 8374,
+      "appCodeBytes": 8374,
+      "modelDataBytes": 0,
+      "vendorBytes": 0,
+      "pureVendor": false,
+      "pureModelData": false,
+      "topContributors": [
+        {
+          "file": "engine/planetaryRings.js",
+          "bytesInOutput": 4657,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "engine/habitability/oceanPhaseDisplay.js",
+          "bytesInOutput": 3717,
+          "vendor": false,
+          "modelData": false
+        }
+      ]
+    },
+    {
+      "file": "chunks/chunk-I5NSRPWR.js",
+      "bytes": 8464,
+      "kind": "chunk",
+      "appBytes": 8336,
+      "appCodeBytes": 8336,
+      "modelDataBytes": 0,
+      "vendorBytes": 0,
+      "pureVendor": false,
+      "pureModelData": false,
+      "topContributors": [
+        {
+          "file": "ui/ringAppearanceProfiles.js",
+          "bytesInOutput": 8123,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/store/ringStyleModel.js",
+          "bytesInOutput": 213,
+          "vendor": false,
+          "modelData": false
+        }
+      ]
+    },
+    {
       "file": "chunks/chunk-RQTCOANH.js",
       "bytes": 8161,
       "kind": "chunk",
@@ -2869,32 +2973,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-LIBMSQDN.js",
-      "bytes": 7917,
-      "kind": "chunk",
-      "appBytes": 7812,
-      "appCodeBytes": 7812,
-      "modelDataBytes": 0,
-      "vendorBytes": 0,
-      "pureVendor": false,
-      "pureModelData": false,
-      "topContributors": [
-        {
-          "file": "engine/planetaryClassification.js",
-          "bytesInOutput": 7481,
-          "vendor": false,
-          "modelData": false
-        },
-        {
-          "file": "engine/planetaryBodyAdapters.js",
-          "bytesInOutput": 331,
-          "vendor": false,
-          "modelData": false
-        }
-      ]
-    },
-    {
-      "file": "chunks/lessonsPage-EB2EWTRF.js",
+      "file": "chunks/lessonsPage-CXTGUEXY.js",
       "bytes": 7767,
       "kind": "chunk",
       "appBytes": 7552,
@@ -2919,7 +2998,7 @@
       ]
     },
     {
-      "file": "chunks/L03_luminosity-P2A6ZRF2.js",
+      "file": "chunks/L03_luminosity-AXPCKY4M.js",
       "bytes": 7677,
       "kind": "chunk",
       "appBytes": 7273,
@@ -2938,8 +3017,8 @@
       ]
     },
     {
-      "file": "chunks/chunk-3OLF4QN2.js",
-      "bytes": 7663,
+      "file": "chunks/chunk-MUWVJXVF.js",
+      "bytes": 7668,
       "kind": "chunk",
       "appBytes": 7496,
       "appCodeBytes": 7496,
@@ -2982,7 +3061,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-TR75AAWC.js",
+      "file": "chunks/chunk-OBBE35AJ.js",
       "bytes": 7289,
       "kind": "chunk",
       "appBytes": 6953,
@@ -3001,7 +3080,26 @@
       ]
     },
     {
-      "file": "chunks/chunk-4YGDAGRK.js",
+      "file": "chunks/chunk-4TNQN7I2.js",
+      "bytes": 7180,
+      "kind": "chunk",
+      "appBytes": 7046,
+      "appCodeBytes": 7046,
+      "modelDataBytes": 0,
+      "vendorBytes": 0,
+      "pureVendor": false,
+      "pureModelData": false,
+      "topContributors": [
+        {
+          "file": "engine/habitability/highPressureIce.js",
+          "bytesInOutput": 7046,
+          "vendor": false,
+          "modelData": false
+        }
+      ]
+    },
+    {
+      "file": "chunks/chunk-BDZ5CE5Z.js",
       "bytes": 6672,
       "kind": "chunk",
       "appBytes": 6574,
@@ -3164,11 +3262,11 @@
       ]
     },
     {
-      "file": "chunks/chunk-DFN46JRM.js",
-      "bytes": 5171,
+      "file": "chunks/chunk-2RPLHINH.js",
+      "bytes": 5208,
       "kind": "chunk",
-      "appBytes": 5087,
-      "appCodeBytes": 5087,
+      "appBytes": 5124,
+      "appCodeBytes": 5124,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -3176,26 +3274,7 @@
       "topContributors": [
         {
           "file": "ui/planet/outputRender.js",
-          "bytesInOutput": 5087,
-          "vendor": false,
-          "modelData": false
-        }
-      ]
-    },
-    {
-      "file": "chunks/chunk-5J4ONHP6.js",
-      "bytes": 4729,
-      "kind": "chunk",
-      "appBytes": 4657,
-      "appCodeBytes": 4657,
-      "modelDataBytes": 0,
-      "vendorBytes": 0,
-      "pureVendor": false,
-      "pureModelData": false,
-      "topContributors": [
-        {
-          "file": "engine/planetaryRings.js",
-          "bytesInOutput": 4657,
+          "bytesInOutput": 5124,
           "vendor": false,
           "modelData": false
         }
@@ -3416,7 +3495,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-EUIC5JBT.js",
+      "file": "chunks/chunk-EX3WGBQA.js",
       "bytes": 2353,
       "kind": "chunk",
       "appBytes": 2156,
@@ -3473,27 +3552,27 @@
       ]
     },
     {
-      "file": "chunks/chunk-H5MVDIXJ.js",
-      "bytes": 1924,
+      "file": "chunks/chunk-QYL7OEFN.js",
+      "bytes": 1978,
       "kind": "chunk",
-      "appBytes": 1854,
-      "appCodeBytes": 1854,
+      "appBytes": 1920,
+      "appCodeBytes": 1920,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
       "pureModelData": false,
       "topContributors": [
         {
-          "file": "engine/brownDwarfVisual.js",
-          "bytesInOutput": 1854,
+          "file": "ui/lazyCelestialVisualPreview.js",
+          "bytesInOutput": 1920,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/celestialVisualPreview-3EYFPFK2.js",
-      "bytes": 1695,
+      "file": "chunks/celestialVisualPreview-B4UYSNP6.js",
+      "bytes": 1871,
       "kind": "chunk",
       "appBytes": 0,
       "appCodeBytes": 0,
@@ -3504,26 +3583,32 @@
       "topContributors": []
     },
     {
-      "file": "chunks/chunk-PU7G66GA.js",
-      "bytes": 1577,
+      "file": "chunks/chunk-LAS6INWI.js",
+      "bytes": 1825,
       "kind": "chunk",
-      "appBytes": 1514,
-      "appCodeBytes": 1514,
+      "appBytes": 1722,
+      "appCodeBytes": 1722,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
       "pureModelData": false,
       "topContributors": [
         {
-          "file": "ui/lazyCelestialVisualPreview.js",
-          "bytesInOutput": 1514,
+          "file": "ui/moon/visualEditorContext.js",
+          "bytesInOutput": 887,
+          "vendor": false,
+          "modelData": false
+        },
+        {
+          "file": "ui/moon/visualFrame.js",
+          "bytesInOutput": 835,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/chunk-UMVM2RBZ.js",
+      "file": "chunks/chunk-STUVQMWN.js",
       "bytes": 1534,
       "kind": "chunk",
       "appBytes": 1471,
@@ -3694,7 +3779,19 @@
       ]
     },
     {
-      "file": "chunks/chunk-PSJ7PKPQ.js",
+      "file": "planetaryBody.js",
+      "bytes": 949,
+      "kind": "runtime",
+      "appBytes": 0,
+      "appCodeBytes": 0,
+      "modelDataBytes": 0,
+      "vendorBytes": 0,
+      "pureVendor": false,
+      "pureModelData": false,
+      "topContributors": []
+    },
+    {
+      "file": "chunks/chunk-ULJFFZ4N.js",
       "bytes": 941,
       "kind": "chunk",
       "appBytes": 798,
@@ -3711,18 +3808,6 @@
           "modelData": false
         }
       ]
-    },
-    {
-      "file": "planetaryBody.js",
-      "bytes": 939,
-      "kind": "runtime",
-      "appBytes": 0,
-      "appCodeBytes": 0,
-      "modelDataBytes": 0,
-      "vendorBytes": 0,
-      "pureVendor": false,
-      "pureModelData": false,
-      "topContributors": []
     },
     {
       "file": "chunks/chunk-UXG4THYF.js",
@@ -3751,7 +3836,7 @@
     },
     {
       "file": "planet.js",
-      "bytes": 744,
+      "bytes": 779,
       "kind": "runtime",
       "appBytes": 0,
       "appCodeBytes": 0,
@@ -3763,7 +3848,7 @@
     },
     {
       "file": "moon.js",
-      "bytes": 721,
+      "bytes": 756,
       "kind": "runtime",
       "appBytes": 0,
       "appCodeBytes": 0,
@@ -3851,7 +3936,7 @@
     },
     {
       "file": "context.js",
-      "bytes": 483,
+      "bytes": 518,
       "kind": "runtime",
       "appBytes": 0,
       "appCodeBytes": 0,
@@ -3874,30 +3959,11 @@
       "topContributors": []
     },
     {
-      "file": "chunks/chunk-NKAYTNSY.js",
-      "bytes": 278,
+      "file": "chunks/chunk-UVHXG3YC.js",
+      "bytes": 257,
       "kind": "chunk",
-      "appBytes": 213,
-      "appCodeBytes": 213,
-      "modelDataBytes": 0,
-      "vendorBytes": 0,
-      "pureVendor": false,
-      "pureModelData": false,
-      "topContributors": [
-        {
-          "file": "ui/store/ringStyleModel.js",
-          "bytesInOutput": 213,
-          "vendor": false,
-          "modelData": false
-        }
-      ]
-    },
-    {
-      "file": "chunks/chunk-PQD47SV5.js",
-      "bytes": 252,
-      "kind": "chunk",
-      "appBytes": 215,
-      "appCodeBytes": 215,
+      "appBytes": 220,
+      "appCodeBytes": 220,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -3905,7 +3971,7 @@
       "topContributors": [
         {
           "file": "ui/appIdentity.js",
-          "bytesInOutput": 215,
+          "bytesInOutput": 220,
           "vendor": false,
           "modelData": false
         }

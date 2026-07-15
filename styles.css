@@ -2932,6 +2932,7 @@ button.primary:hover {
 }
 .kpi__toggle {
   position: absolute;
+  z-index: 3;
   top: 8px;
   right: 8px;
   width: 18px;
@@ -8484,7 +8485,8 @@ input.auto-value {
   display: none;
 }
 .kpi-wrap:hover > .kpi.kpi--preview > .kpi__label button,
-.kpi-wrap:focus-within > .kpi.kpi--preview > .kpi__label button {
+.kpi-wrap:focus-within > .kpi.kpi--preview > .kpi__label button,
+.kpi-wrap.is-expanded > .kpi.kpi--preview > .kpi__label button {
   display: inline-block;
 }
 .gg-preview-canvas,
@@ -8501,7 +8503,8 @@ input.auto-value {
 }
 /* Hover: expand to show full canvas and meta */
 .kpi-wrap:hover > .kpi.kpi--preview,
-.kpi-wrap:focus-within > .kpi.kpi--preview {
+.kpi-wrap:focus-within > .kpi.kpi--preview,
+.kpi-wrap.is-expanded > .kpi.kpi--preview {
   height: auto;
   overflow: visible;
 }
@@ -8512,7 +8515,11 @@ input.auto-value {
 .kpi-wrap:hover > .kpi.kpi--preview .moon-preview-canvas,
 .kpi-wrap:focus-within > .kpi.kpi--preview .moon-preview-canvas,
 .kpi-wrap:hover > .kpi.kpi--preview .comet-preview-canvas,
-.kpi-wrap:focus-within > .kpi.kpi--preview .comet-preview-canvas {
+.kpi-wrap:focus-within > .kpi.kpi--preview .comet-preview-canvas,
+.kpi-wrap.is-expanded > .kpi.kpi--preview .gg-preview-canvas,
+.kpi-wrap.is-expanded > .kpi.kpi--preview .rocky-preview-canvas,
+.kpi-wrap.is-expanded > .kpi.kpi--preview .moon-preview-canvas,
+.kpi-wrap.is-expanded > .kpi.kpi--preview .comet-preview-canvas {
   margin-top: 4px;
   margin-bottom: 6px;
 }
@@ -9066,6 +9073,19 @@ button.star-output-strip__card[aria-pressed="true"] {
   font-size: 0.84rem;
 }
 
+.planetary-visual-editor__status[data-preview-state="updating"] {
+  color: var(--warn);
+}
+
+.planetary-visual-editor__status[data-preview-state="error"] {
+  color: var(--bad);
+}
+
+.planetary-visual-editor__preview-canvas[data-stale="true"] {
+  opacity: 0.72;
+  filter: saturate(0.6);
+}
+
 .planetary-visual-editor__title {
   margin: 2px 0;
   font-size: 1.18rem;
@@ -9101,11 +9121,95 @@ button.star-output-strip__card[aria-pressed="true"] {
   justify-items: center;
 }
 
-.planetary-visual-editor__preview-canvas {
+.planetary-visual-editor__preview-heading,
+.planetary-visual-editor__preview-toolbar {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+
+.planetary-visual-editor__orientation-controls {
+  display: inline-grid;
+  grid-template-columns: repeat(4, minmax(34px, auto));
+  gap: 4px;
+}
+
+.planetary-visual-editor__orientation-status {
+  width: 100%;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-align: center;
+}
+
+.planetary-visual-editor__preview-heading {
+  justify-content: flex-end;
+}
+
+.planetary-visual-editor__preview-content {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.planetary-visual-editor__preview[data-collapsed="true"] .planetary-visual-editor__preview-content {
+  display: none;
+}
+
+.planetary-visual-editor__preview-select {
+  width: min(150px, 100%);
+  min-height: 34px;
+}
+
+.planetary-visual-editor__preview-zoom {
+  width: min(150px, 100%);
+}
+
+.planetary-visual-editor__preview-frame {
+  position: relative;
   width: min(320px, 100%);
-  height: auto;
+  aspect-ratio: 1;
+}
+
+.planetary-visual-editor__preview-canvas {
+  width: 100%;
+  height: 100%;
   aspect-ratio: 1;
   display: block;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.planetary-visual-editor__preview-canvas:active {
+  cursor: grabbing;
+}
+
+.planetary-visual-editor__inspection-message {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 8px;
+  left: 8px;
+  transform: translateY(-50%);
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--muted) 60%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 4px 18px rgb(0 0 0 / 36%);
+}
+
+.planetary-visual-editor__inspection-message[data-inspection-state="unavailable"] {
+  border-color: color-mix(in srgb, var(--warn) 70%, transparent);
 }
 
 .planetary-visual-editor__panel {
@@ -9125,6 +9229,18 @@ button.star-output-strip__card[aria-pressed="true"] {
   font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
+}
+
+.planetary-visual-editor__derived-surface {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(var(--overlay-color), 0.05);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.planetary-visual-editor__derived-surface strong {
+  color: var(--text);
 }
 
 .planetary-visual-editor__mode-select {
@@ -9244,10 +9360,14 @@ button.planetary-visual-editor__compare-btn[aria-pressed="true"] {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   row-gap: 4px;
-  padding-block: 4px;
+  padding-block: 2px;
 }
 
 .planetary-visual-control--color .planetary-visual-control__source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   justify-self: end;
 }
 
@@ -9286,6 +9406,11 @@ button.planetary-visual-editor__compare-btn[aria-pressed="true"] {
   background: rgba(var(--accent-rgb), 0.12);
 }
 
+.planetary-visual-control__source-pill.is-preset {
+  color: var(--good);
+  background: rgba(var(--good-rgb), 0.12);
+}
+
 .planetary-visual-control__auto-readout {
   min-width: 0;
   display: grid;
@@ -9305,6 +9430,13 @@ button.planetary-visual-editor__compare-btn[aria-pressed="true"] {
   font-size: inherit;
   line-height: inherit;
   overflow-wrap: anywhere;
+}
+
+.planetary-visual-control__reset.small {
+  width: max-content;
+  min-height: 28px;
+  padding: 3px 7px;
+  font-size: 0.72rem;
 }
 
 .planetary-visual-control__input {
@@ -9331,21 +9463,29 @@ button.planetary-visual-editor__compare-btn[aria-pressed="true"] {
 
 .planetary-visual-control__swatches {
   display: grid;
-  grid-template-columns: repeat(7, 13px);
-  gap: 2px;
+  grid-template-columns: repeat(7, 24px);
+  gap: 4px;
   align-items: center;
   width: max-content;
   max-width: 100%;
 }
 
 button.planetary-visual-control__swatch {
-  width: 13px;
-  height: 13px;
-  min-height: 13px;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
   padding: 0;
   border-radius: 50%;
   border: 1px solid rgba(var(--overlay-color), 0.24);
   background: var(--swatch-color, var(--accent));
+}
+
+button.planetary-visual-control__swatch:focus-visible,
+.planetary-visual-control__input--color:focus-visible,
+.planetary-visual-control__apply:focus-visible,
+.planetary-visual-control__lock:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .planetary-visual-control__color-actions {
@@ -9445,8 +9585,18 @@ button.planetary-visual-control__swatch {
     position: static;
   }
 
+  .planetary-visual-editor__preview-heading {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
   .planetary-visual-editor__actions {
     flex-wrap: wrap;
+    position: sticky;
+    bottom: 0;
+    z-index: 4;
+    background: var(--panel);
   }
 
   .planetary-visual-controls__common,
@@ -9463,14 +9613,46 @@ button.planetary-visual-control__swatch {
   }
 
   .planetary-visual-control__swatches {
-    grid-template-columns: repeat(auto-fit, minmax(13px, 13px));
+    grid-template-columns: repeat(auto-fit, minmax(44px, 44px));
     width: 100%;
   }
 
+  button.planetary-visual-control__swatch {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
   .planetary-visual-control__color-actions {
-    grid-template-columns: 42px auto 24px;
+    grid-template-columns: 44px auto 44px;
     justify-self: stretch;
     width: max-content;
+  }
+
+  .planetary-visual-control__input--color,
+  .planetary-visual-control__apply.small,
+  .planetary-visual-control__lock--inline {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .planetary-visual-section__summary,
+  .planetary-visual-section__toolbar button,
+  .planetary-visual-editor__actions button,
+  .planetary-visual-control__reset.small,
+  .planetary-visual-editor__close,
+  .planetary-visual-editor__preview-heading button,
+  .planetary-visual-editor__preview-toolbar button,
+  .planetary-visual-editor__preview-toolbar select,
+  button.planetary-visual-editor__compare-btn,
+  .planetary-visual-control__toggle,
+  .planetary-visual-control__lock:not(.planetary-visual-control__lock--inline) {
+    min-height: 44px;
+  }
+
+  .planetary-visual-editor__orientation-controls {
+    grid-template-columns: repeat(4, minmax(44px, 1fr));
+    width: 100%;
   }
 
   .planetary-visual-control__input--text {

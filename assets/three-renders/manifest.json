@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "2026-02-28T19:43:10.976Z",
+  "generatedAtUtc": "2026-07-15T12:33:44.847Z",
   "stars": [
     {
       "id": "o",
@@ -102,6 +102,18 @@
     {
       "id": "helium",
       "file": "gas/helium.svg"
+    },
+    {
+      "id": "brown-dwarf-l",
+      "file": "gas/brown-dwarf-l.svg"
+    },
+    {
+      "id": "brown-dwarf-t",
+      "file": "gas/brown-dwarf-t.svg"
+    },
+    {
+      "id": "brown-dwarf-y",
+      "file": "gas/brown-dwarf-y.svg"
     }
   ],
   "rocky": [
@@ -218,6 +230,18 @@
     {
       "id": "molten-companion",
       "file": "moons/molten-companion.svg"
+    },
+    {
+      "id": "oceanic",
+      "file": "moons/oceanic.svg"
+    },
+    {
+      "id": "verdant",
+      "file": "moons/verdant.svg"
+    },
+    {
+      "id": "hazy-moon",
+      "file": "moons/hazy-moon.svg"
     },
     {
       "id": "phobos",

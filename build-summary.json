@@ -1,11 +1,11 @@
 {
   "mode": "production",
-  "releaseVersion": "3.5.1",
+  "releaseVersion": "3.6.0-beta.0",
   "distDir": "dist",
-  "generatedAt": "2026-07-13T23:30:21.961Z",
+  "generatedAt": "2026-07-15T17:58:59.519Z",
   "entry": {
     "file": "app.js",
-    "bytes": 34160
+    "bytes": 34761
   },
   "lazyChunkCount": 135,
   "largestLazyChunk": {
@@ -17,8 +17,8 @@
     "bytes": 715105
   },
   "largestAppLazyChunk": {
-    "file": "chunks/planetPage-V5HXKZ7P.js",
-    "bytes": 266435
+    "file": "chunks/planetPage-X6JTFATV.js",
+    "bytes": 273588
   },
   "largestVendorLazyChunk": {
     "file": "chunks/chunk-K6EXVWDB.js",
@@ -33,49 +33,49 @@
     {
       "file": "celestialTextureWorker.js",
       "source": "ui/celestialTextureWorker.js",
-      "bytes": 5945109,
-      "gzipBytes": 1872483,
-      "inputCount": 137,
+      "bytes": 75023,
+      "gzipBytes": 26088,
+      "inputCount": 14,
       "topContributors": [
         {
-          "file": "engine/stellarTracks/data/mistAlphaMainSequence.v1.js",
-          "bytesInOutput": 2599604
+          "file": "ui/celestialLayerTexturePainter.js",
+          "bytesInOutput": 27121
         },
         {
-          "file": "engine/stellarTracks/data/mistMainSequence.v1.js",
-          "bytesInOutput": 1117724
+          "file": "ui/celestialTexturePipeline.js",
+          "bytesInOutput": 23605
         },
         {
-          "file": "engine/stellarTracks/data/mistLowMassMainSequence.v1.js",
-          "bytesInOutput": 1052899
+          "file": "ui/celestialFields/materialMaps.js",
+          "bytesInOutput": 4491
         },
         {
-          "file": "engine/stellarTracks/data/mistSolarRotationMainSequence.v1.js",
-          "bytesInOutput": 352496
+          "file": "ui/celestialFields/surfaceMasks.js",
+          "bytesInOutput": 4259
         },
         {
-          "file": "engine/moon.js",
-          "bytesInOutput": 74504
+          "file": "ui/celestialFields/featureCatalogues.js",
+          "bytesInOutput": 3401
         },
         {
-          "file": "engine/planetaryEraTimeline.js",
-          "bytesInOutput": 71685
+          "file": "ui/celestialFields/coverageSelector.js",
+          "bytesInOutput": 3211
         },
         {
-          "file": "engine/planet.js",
-          "bytesInOutput": 43466
+          "file": "ui/celestialProceduralMath.js",
+          "bytesInOutput": 2344
         },
         {
-          "file": "engine/stellarLifecycle.js",
-          "bytesInOutput": 35068
+          "file": "ui/celestialFields/seededMorphology.js",
+          "bytesInOutput": 1516
         },
         {
-          "file": "ui/celestialComposer.js",
-          "bytesInOutput": 27579
+          "file": "ui/celestialFieldCache.js",
+          "bytesInOutput": 1059
         },
         {
-          "file": "engine/rockyBodyComposition.js",
-          "bytesInOutput": 22643
+          "file": "ui/celestialRenderSignatures.js",
+          "bytesInOutput": 1043
         }
       ]
     },

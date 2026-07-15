@@ -4,6 +4,156 @@ All notable changes to Caelum will be documented in this file.
 
 ## Unreleased
 
+## 3.6.0 Beta — 2026-07-15
+
+### Shared Planet and Moon Visual Editor
+
+**Coherent procedural surfaces and honest controls**
+(`ui/celestialFields/`, `ui/celestialTexturePipeline.js`,
+`ui/celestialMaterialPolicy.js`, `ui/planetaryVisual/`)
+
+Planet and moon surface colour, height, normals, roughness, emission, and
+eligibility now come from one deterministic spherical field pipeline shared by
+the main thread and texture worker. Ocean and visible ice form a disjoint final
+surface partition; vegetation, dry terrain, lava, clouds, craters, fractures,
+dunes, impact rays, and vents use explicit eligibility and measurable
+denominators. Exact zero removes a feature, cloud occupied area is independent
+from opacity, and terrain ruggedness is separate from material roughness.
+
+The editor displays coverage as 0-100%, reports automatic baselines, supports
+per-control reset, constrained presets/randomisation, drag, zoom, pause,
+lighting and diagnostic map views, and collapses its preview on narrow screens.
+Preview pose and inspection state remain temporary and never alter science.
+
+Sparse appearance edits now preserve dormant and unrelated settings across
+resets, presets, save/reload, import/export, and schema migration. Automatic
+readouts distinguish requested, resolved, and actually rendered coverage, and
+discard stale worker feedback. Every exposed control has a tested final render
+consumer; terrain palette stops, gaseous tints, shell glow, rings, roughness,
+emission, cloud opacity, and exact-zero endpoints now behave independently.
+Gas-giant and brown-dwarf palette edits now recolour the final cloud bands,
+spots, storms, shear fronts, and polar haze across every gaseous style instead
+of leaving preset colours composited over the selected editor palette.
+
+**Canonical moon appearance and geology**
+(`ui/moon/visualManifestContext.js`, `ui/moon/visualControlManifest.js`,
+`ui/moon/visualEditorContext.js`, `ui/store/moonAppearanceModel.js`)
+
+Moons now use the same sparse appearance format and editor as planets, with
+controls exposed from generic solved traits rather than named Solar-System
+branches. Applicable moons can show coherent ice-shell fractures,
+signature-bound vents and plumes, active volcanic or cryovolcanic terrain,
+organic dunes, impact rays, surface liquid, haze, vegetation, and bounded
+irregular shape. Synchronous moons also provide parent-facing, anti-parent,
+leading, and trailing preview views.
+
+Moon appearance saves on the canonical moon record, survives migration and
+import/export, and reaches the Moon page, Visualiser, Apparent Sky, system
+poster, prewarming, and renderer caches through shared descriptors and
+signatures. Appearance edits leave orbit, apparent magnitude, size,
+habitability, and all solved physical inputs unchanged.
+
+Moon surface features now share one body-fixed coordinate frame: synchronous
+orientation remains parent-facing, deformed shapes preserve volume, and
+fractures, vents, plume bases, passive deposits, craters, and relief stay
+aligned with their rendered masks. Volcanic and cryovolcanic capabilities are
+kept distinct, while irregular-body coverage clearly reports its spherical-area
+approximation.
+
+Diagnostic maps are generated and transferred only when requested. Natural and
+diagnostic texture caches now use separate byte-bounded LRU policies, downstream
+signatures invalidate on relevant science or appearance changes, and
+runtime-only inspection changes avoid unnecessary texture work. Empty masks now
+show an explicit 0% coverage message across the body preview, while missing mask
+data is labelled as unavailable instead of resembling an unmarked placeholder.
+Planet and moon cloud shells now preserve the same scientific occupancy while
+adding deterministic optical-depth variation, wispy feathering, bright cores,
+subtle self-shadowing, and a more realistic shell height. The shared editor
+modal also traps and restores focus, supports Escape, exposes clear
+updating/error states, and maintains 44 px controls without mobile overflow.
+
+**Verification and performance evidence**
+(`tests/celestialVisualCoverageContract.test.js`,
+`tests/celestialVisualRenderConsumers.test.js`,
+`tests/moonVisualOverrideRendering.test.js`,
+`tests/browser/moonVisualOverridePersistence.spec.js`,
+`scripts/benchmark-celestial-visuals.mjs`)
+
+Added area-weighted coverage, aligned-map, main/worker byte parity,
+name-independence, moon persistence, cross-render cache, mobile inspection, and
+science-invariance coverage. A checked-in 20-run cold/warm benchmark now records
+64-384 px latency, payload size, worker size, field-cache reuse, and the plan's
+15% regression budget. The final gate passes 3,330 unit tests, 372 science
+verification rows, 59 Playwright tests, worker/bundle budgets, cache soaks, and
+the release quality profile.
+
+### Core Crystallisation and Inner-Core Growth
+
+**Shared rocky-core evolution model**
+(`engine/planet/coreEvolution.js`, `engine/planet/magnetism.js`,
+`engine/contexts/interiorEvolutionContext.js`, `engine/planet.js`)
+
+Added one versioned owner for differentiated rocky-planet core evolution. The
+model estimates explicit inner-core nucleation, square-root radial growth,
+cubic solid volume, the remaining liquid outer-core shell, broad transition
+timing, and thermal/compositional dynamo-support context. Magnetism and interior
+evolution now consume the same result, while rotation, field morphology, and
+liquid-core state remain separate decisions. High tidal or radiogenic heat can
+widen uncertainty but no longer creates an infinite liquid-core lifetime.
+
+Earth remains a bounded calibration anchor rather than a named-body runtime
+override. Comparative Mars and Mercury results expose deliberately broad
+uncertainty; Mars can retain a liquid outer core without a present global
+dynamo, and Mercury can retain a weak field without being forced to a fully
+solid core. Moon and out-of-range results are explicitly limited instead of
+receiving terrestrial numeric geometry. Missing or blank numeric inputs also
+remain limited, exact phase boundaries are floating-point safe, and limited
+support diagnostics preserve `null` rather than leaking a false zero.
+
+**Planet outputs, lifecycle, and science evidence**
+(`ui/planetPage.js`, `ui/planet/rockyOutputGroups.js`,
+`ui/planet/tooltips.js`, `engine/planetaryEraTimeline.js`,
+`ui/sciencePage.js`, `engine/contexts/scienceRegistry.js`,
+`scripts/science-verification/verificationRows.mjs`, `RESEARCH.md`)
+
+The Planet page now shows Core State, Inner Core Radius, Liquid Outer Core,
+Dynamo Support, and broad transition timing with visible confidence and model
+limits. Era timelines reuse the shared result without duplicate or
+contradictory dynamo stories. Science & Maths and the generated verification
+matrix document the runtime constants, provenance, calibration tiers, PREM
+containment, Mars/Mercury comparisons, radius-volume invariant, and the rule
+that an absent dynamo does not imply a solid core.
+
+The celestial-texture worker legitimately reaches the shared Planet solver, so
+the new core owner adds 23,212 raw bytes and 6,702 gzip bytes to that standalone
+bundle. Its exact measured transfer ratchets and worker profile were renewed;
+the stellar-lifecycle worker and all other bundle budgets remain unchanged.
+
+**NASA calibration and downstream verification**
+(`tests/fixtures/nasaSolarSystemReference.js`,
+`tests/coreEvolutionNasaDownstream.test.js`,
+`scripts/science-verification/verificationRows.mjs`)
+
+Expanded the central NASA reference fixture with current Earth, Mercury, Venus,
+and Mars core, field, and magnetosphere anchors, then traced each solved result
+through flattened Planet outputs, magnetism, magnetosphere sizing, interior
+evolution, radiation context, lifecycle timelines, and unified-body adapters.
+Earth's directly constrained core geometry remains within tolerance; Mercury's
+and Mars's lower-confidence inner-core estimates remain broad range checks.
+
+Corrected the Mercury analogue from a rotation-only `multipolar` label to the
+predominantly dipolar, north-offset field observed by MESSENGER. Its weak field
+now produces a severely compressed but supported 1-2 Mercury-radius
+magnetosphere instead of an absent one. Comparative timelines and primary
+readouts now use broad ranges and uncertainty-first coexistence wording rather
+than leaking a precise central inner-core radius or an overconfident
+"mostly-solid" label.
+
+The corrected magnetic and timeline branches add 568 raw bytes and 213 gzip
+bytes to the celestial-texture worker through its existing Planet-solver graph.
+The worker was re-profiled and its exact transfer ratchets renewed to 5,968,889
+raw and 1,879,398 gzip bytes.
+
 ## 3.5.1 — 2026-07-14
 
 ### Vegetation Coverage Rendering

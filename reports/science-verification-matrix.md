@@ -1,8 +1,8 @@
 # Caelum Science Verification Matrix
 
-Generated: 2026-07-13T23:30:17.553Z
+Generated: 2026-07-15T17:51:52.347Z
 
-App version: 3.5.1
+App version: 3.6.0-beta.0
 
 Science verification matrix covering benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, units, independent formula oracles, sensitivity, population sanity, browser coverage, and release gates.
 
@@ -13,8 +13,8 @@ Anchor benchmarks are only one family. Physics invariants, metamorphic trends, b
 Metric | Value
 --- | ---
 Model areas | 31
-Verification rows | 362
-Passed rows | 353
+Verification rows | 372
+Passed rows | 363
 Warnings | 0
 Failures | 0
 Modeling gaps | 0
@@ -22,8 +22,8 @@ Blocked rows | 0
 Release gates passed | 1
 Strict calibration rows | 147
 Strict calibration failures | 0
-Calibrated rows | 102
-Exploratory rows | 30
+Calibrated rows | 106
+Exploratory rows | 33
 
 ## Model Area Coverage
 
@@ -31,7 +31,7 @@ Model area | Trust | Registry keys | Coverage
 --- | --- | --- | ---
 Stellar Environment | strong | stellarHistoryDose | anchor, metamorphic, unit, empirical-validation, source-coverage
 Stellar Lifecycle | strong | stellarLifecycle | source-coverage
-Rocky Planets | strong | planetRadiationEnvironment, surfaceClimate, geodynamics, interiorEvolution | anchor, invariant, metamorphic, unit, sensitivity, source-coverage
+Rocky Planets | strong | planetRadiationEnvironment, surfaceClimate, geodynamics, interiorEvolution | anchor, invariant, metamorphic, cross-system, unit, sensitivity, empirical-validation, source-coverage
 Hydrosphere And Ocean Chemistry | strong | co2ClimateTendency, productivity, nitrogenCycle | invariant, metamorphic, boundary, cross-system, source-coverage
 Atmosphere And Climate Coupling | strong | atmosphereEvolution, coupledClimatePass, co2ClimateTendency, surfaceClimate | invariant, metamorphic, boundary, cross-system, unit, oracle, sensitivity, source-coverage
 Moons And Tidal Worlds | strong | observerFrame, eclipseTiming, moonOrientation, secularStress, gasGiantMoonInfluenceSummary | anchor, invariant, metamorphic, boundary, cross-system, unit, oracle, population, source-coverage
@@ -65,8 +65,8 @@ Dynamical timeline events | strong | timeline.dynamicalEvents | source-coverage
 
 Tier | Rows | Pass | Warn | Fail | Gap | Blocked
 --- | --- | --- | --- | --- | --- | ---
-calibrated | 102 | 102 | 0 | 0 | 0 | 0
-exploratory | 30 | 26 | 0 | 0 | 0 | 0
+calibrated | 106 | 106 | 0 | 0 | 0 | 0
+exploratory | 33 | 29 | 0 | 0 | 0 | 0
 strict | 147 | 147 | 0 | 0 | 0 | 0
 
 ## Open Gaps And Watch Items
@@ -109,7 +109,7 @@ rocky-planets | anchor | strict | Rocky planets / Mercury | Radius | PASS | info
 rocky-planets | anchor | strict | Rocky planets / Mercury | Surface gravity | PASS | info | 0.3765 g | 0.3770 g | No action
 rocky-planets | anchor | calibrated | Rocky planets / Mercury | Surface temperature | PASS | info | 440.0 K | 440.0 K | No action
 rocky-planets | anchor | strict | Rocky planets / Mercury | Core radius fraction | PASS | info | 0.8367 | 0.8500 | No action
-rocky-planets | anchor | calibrated | Rocky planets / Mercury | Surface magnetic field | PASS | info | 0.0091 Earth | 0.0030 Earth to 0.0300 Earth | No action
+rocky-planets | anchor | calibrated | Rocky planets / Mercury | Surface magnetic field | PASS | info | 0.0092 Earth | 0.0030 Earth to 0.0300 Earth | No action
 rocky-planets | anchor | strict | Rocky planets / Mercury | Composition class | PASS | info | Iron world | Mercury-like or Iron world | No action
 observability-user-facing | anchor | strict | Climate state / Mercury | Absorbed stellar flux | PASS | info | 2117 W/m2 | 2117 W/m2 | No action
 observability-user-facing | anchor | strict | Climate state / Mercury | Observed dry-body state | PASS | info | Stable | Stable | No action
@@ -121,13 +121,13 @@ rocky-planets | anchor | calibrated | Rocky planets / Venus | Surface magnetic f
 rocky-planets | anchor | strict | Rocky planets / Venus | Composition class | PASS | info | Earth-like | Earth-like | No action
 observability-user-facing | anchor | strict | Climate state / Venus | Absorbed stellar flux | PASS | info | 156.2 W/m2 | 156.2 W/m2 | No action
 observability-user-facing | anchor | strict | Climate state / Venus | Observed dry-body state | PASS | info | Stable | Stable | No action
-rocky-planets | anchor | strict | Rocky planets / Earth | Density | PASS | info | 5.464 g/cm3 | 5.514 g/cm3 | No action
-rocky-planets | anchor | strict | Rocky planets / Earth | Radius | PASS | info | 1.003 Rearth | 1.000 Rearth | No action
-rocky-planets | anchor | strict | Rocky planets / Earth | Surface gravity | PASS | info | 0.9944 g | 1.000 g | No action
+rocky-planets | anchor | strict | Rocky planets / Earth | Density | PASS | info | 5.481 g/cm3 | 5.514 g/cm3 | No action
+rocky-planets | anchor | strict | Rocky planets / Earth | Radius | PASS | info | 1.002 Rearth | 1.000 Rearth | No action
+rocky-planets | anchor | strict | Rocky planets / Earth | Surface gravity | PASS | info | 0.9965 g | 1.000 g | No action
 rocky-planets | anchor | calibrated | Rocky planets / Earth | Surface temperature | PASS | info | 282.0 K | 288.0 K | No action
-rocky-planets | anchor | strict | Rocky planets / Earth | Core radius fraction | PASS | info | 0.5657 | 0.5470 | No action
-rocky-planets | anchor | strict | Rocky planets / Earth | Core radius | PASS | info | 3614 km | 3485 km | No action
-rocky-planets | anchor | calibrated | Rocky planets / Earth | Surface magnetic field | PASS | info | 0.9600 Earth | 1.000 Earth | No action
+rocky-planets | anchor | strict | Rocky planets / Earth | Core radius fraction | PASS | info | 0.5701 | 0.5470 | No action
+rocky-planets | anchor | strict | Rocky planets / Earth | Core radius | PASS | info | 3638 km | 3485 km | No action
+rocky-planets | anchor | calibrated | Rocky planets / Earth | Surface magnetic field | PASS | info | 0.9787 Earth | 1.000 Earth | No action
 rocky-planets | anchor | strict | Rocky planets / Earth | Composition class | PASS | info | Earth-like | Earth-like | No action
 observability-user-facing | anchor | strict | Climate state / Earth | Absorbed stellar flux | PASS | info | 236.1 W/m2 | 236.1 W/m2 | No action
 observability-user-facing | anchor | strict | Climate state / Earth | Observed dry-body state | PASS | info | Stable | Stable | No action
@@ -347,7 +347,7 @@ stellar-environment | anchor | strict | Stellar environment / Sol | Luminosity f
 stellar-environment | anchor | strict | Stellar environment / Sol | Equatorial rotation | PASS | info | 23.59 days | 22.00 days to 26.00 days | No action
 stellar-environment | anchor | strict | Stellar environment / Sol | Polar rotation | PASS | info | 33.03 days | 30.00 days to 37.00 days | No action
 stellar-environment | anchor | calibrated | Stellar environment / Sol | Wind pressure at 1 AU | PASS | info | 0.9989 Earth ratio | 1.000 Earth ratio | No action
-rocky-planets | anchor | calibrated | Environment coupling / Earth | Magnetopause | PASS | info | 9.940 Earth radii | 8.000 Earth radii to 12.00 Earth radii | No action
+rocky-planets | anchor | calibrated | Environment coupling / Earth | Magnetopause | PASS | info | 9.930 Earth radii | 6.000 Earth radii to 12.00 Earth radii | No action
 rocky-planets | anchor | calibrated | Environment coupling / Earth | Surface ocean coverage | PASS | info | 0.7060 fraction | 0.6800 fraction to 0.7400 fraction | Phase 5 implemented: keep Earth ocean coverage as active calibrated row
 rocky-planets | anchor | calibrated | Environment coupling / Mars | Ancient water timeline cue | PASS | info | true | true | No action
 rocky-planets | anchor | calibrated | Environment coupling / Jupiter | Variable magnetosphere range | PASS | info | 31.60 Jupiter radii | 20.00 Jupiter radii to 120.0 Jupiter radii | No action
@@ -392,6 +392,16 @@ hydrosphere-ocean | invariant | n/a | Mars thin atmosphere | Triple-point liquid
 moons | invariant | n/a | Europa orbit | Roche, collision, current orbit, and stable zone ordering | PASS | low | inner=74379 km; orbit=671100 km; outer=17382213 km | inner < orbit < outer | No action required.
 gas-giants | invariant | n/a | Jupiter fixture | Positive finite giant properties | PASS | low | density=1.3261 g/cm3; field=13.82 Earth | Finite positive density and magnetic context | No action required.
 habitability-biosignatures | invariant | n/a | Earth-like timeline | No life claim guard | PASS | low | No claim | No explicit life-exists claim | No action required.
+rocky-planets | empirical-validation | calibrated | Core evolution / Earth | Central inner-core radius fraction | PASS | low | 0.36 | 0.30-0.40 of total core radius | Review the Earth growth calibration before changing central core constants.
+rocky-planets | empirical-validation | calibrated | Core evolution / Earth | NASA inner-core radius and liquid-shell thickness | PASS | low | 1309 km inner; 2330 km liquid shell | 1,221 km inner radius; approximately 2,250 km liquid shell | Keep both Earth geometry projections inside their direct NASA tolerances.
+rocky-planets | empirical-validation | calibrated | Core evolution / Earth | PREM inner-core radius lies inside model range | PASS | low | 741-1778 km | 1221 km contained | Keep the PREM radius within the Earth-anchored uncertainty envelope.
+rocky-planets | empirical-validation | calibrated | Core evolution / Mars | Total metallic-core radius | PASS | low | 1653 km | 1500-2100 km | Keep the solved Mars total-core radius inside the NASA interval.
+rocky-planets | empirical-validation | exploratory | Core evolution / Mercury | Metallic-core radius and broad inner-core containment | PASS | low | 2043 km core; inner range 0-1827 km | 2,074 km core; approximately 1,000 km inner-core radius contained | Preserve Mercury's direct total-core scale without claiming a precise inner radius.
+rocky-planets | empirical-validation | exploratory | Core evolution / Mars | Liquid outer core and broad 600 km inner-core consistency | PASS | low | mostly-solid; liquid=true; range 204-1653 km | Liquid outer core; approximately 600 km contained by broad range | Do not equate Mars's absent global field with a fully frozen core.
+rocky-planets | empirical-validation | exploratory | Core evolution / Mercury | Liquid outer core remains compatible with weak global field | PASS | low | liquid=true; field=0.0092 Earth | Liquid outer core, weak active dipole (0.003-0.03 Earth), and compact 1-2 RM magnetopause | Preserve Mercury's liquid-core/weak-field separation and broad confidence.
+rocky-planets | cross-system | n/a | Core evolution downstream ownership | Core, magnetism, and interior projections remain identical | PASS | low | Four shared-context parity checks | One versioned core state and support result per solve | Prevent downstream consumers from re-solving or contradicting core evolution.
+rocky-planets | invariant | n/a | Core evolution geometry | Solid volume fraction is the cube of radius fraction | PASS | low | 0.046503 vs 0.046503 | V_ic/V_core = (r_ic/r_core)^3 | Fix radius/volume projection if the cubic identity drifts.
+rocky-planets | invariant | n/a | Core phase and magnetic activity | Absent dynamo does not imply a solid core | PASS | low | dynamo=false; liquid=true; state=mostly-solid | No dynamo while liquid outer core remains | Keep material state, convective support, rotation, and field activity separate.
 orbital-dynamics | unit | n/a | Astronomical unit | AU to kilometers | PASS | low | 149597870.7 | 149597870.7 | Fix unit constants or conversion helpers if this fails.
 rocky-planets | unit | n/a | Earth mass/radius | Earth mean density from constants | PASS | low | 5.5133 | 5.51 | Fix unit constants or conversion helpers if this fails.
 atmosphere-climate | unit | n/a | Atmospheric pressure | atm to Pa | PASS | low | 101325 | 101325 | Fix unit constants or conversion helpers if this fails.
@@ -434,7 +444,7 @@ observability-user-facing | population | n/a | Science calibration fixture set |
 habitability-biosignatures | population | n/a | Hostile calibration fixtures | Hostile worlds do not bypass habitability guardrails | PASS | low | Guardrails hold | No obvious hostile world with high habitability index | Review habitability penalties if this fails.
 moons | population | n/a | Moon calibration fixture availability | Europa-like and Titan-like worlds exist for downstream suites | PASS | low | Europa-like calibration; Titan-like calibration | Moon fixture worlds present | Keep moon fixtures updated when moon schema changes.
 observability-user-facing | browser | n/a | Validation page | Browser regression suite coverage | INFO | info | Covered by npm run test:browser during release verification | Validation page loads matrix artifact and filters rows | Run browser tests before release; investigate any Validation page failure.
-observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-07-13T23:30:17.553Z | PASS before release | No action required.
+observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-07-15T17:51:52.347Z | PASS before release | No action required.
 observability-user-facing | release-gate | n/a | check | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | build | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | bundle | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.

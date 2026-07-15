@@ -1,4 +1,4 @@
-# Caelum 3.5.1
+# Caelum 3.6.0 Beta
 
 Caelum is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -85,7 +85,7 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Era timelines, visual auto-coverage, world snapshots, and visualizer summaries now consume the shared coupled-environment contexts instead of rebuilding separate science summaries.
 - Planet and Moon outputs now include a top-level Era Timeline that presents past, current, and future physical-history entries with confidence and driver context.
 - Planet and Moon output panels now use shared tabs, matching section names, Result Summaries, and an All view for users who prefer the original long-column scan.
-- Planet visual editor coverage controls now show the current Auto percentages with short model reasons, and text/number inputs keep focus while editing.
+- Planet and moon visual editor coverage controls now distinguish requested, constrained, and rendered percentages with short model reasons; stale worker results are ignored and text/number inputs keep focus while editing.
 - Planet selectors now show authored host-star or host-pair names instead of raw IDs, while very small cohesive moons can survive Roche-only crossings when material strength dominates.
 - Celestial previews now rotate planets and moons around their tilted local axes, so axial tilt affects both pose and visible spin direction.
 - Import/export now separates current-world actions, backup management, import validation, starter worlds, and danger-zone resets, with clearer preview, restore, backup-only import, and destructive cleanup flows.
@@ -95,7 +95,8 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Rocky planets with substantial surface liquid now surface mean ocean depth and seafloor pressure context even when they are not exotic ocean worlds.
 - The Science and Maths page now includes a Caelum-tailored ocean-floor water phase guide with the implemented dense-ice boundary, example model points, and uncertainty notes.
 - Planet visuals can now be customized from the Planet page or Visualizer with draft-safe previews, presets, sparse overrides, seeded procedural variation, locks, and reset/randomize controls.
-- The visual editor keeps science-derived auto visuals as the default while letting custom appearances persist through save, import/export, snapshots, the Visualizer, Apparent Size, and system posters.
+- The shared visual editor keeps science-derived auto visuals as the default while sparse custom appearances—including dormant moon settings and exact-zero endpoints—persist through resets, presets, save/reload, import/export, snapshots, the Visualizer, Apparent Size, and system posters.
+- Planet and moon diagnostics are generated only when requested, use bounded caches, and share the renderer's final masks; the editor modal is keyboard-contained, restores focus, and reflows without horizontal overflow on mobile.
 - Visual editor color controls now stage native color-picker changes until Apply, keep compact swatches and hex fields aligned, and keep lock controls visible in dense rows.
 - Star, Moon, Planet, and Calendar authoring now use compact workflow summaries, clearer first-screen context, and progressively disclosed output sections so dense pages are easier to scan.
 - Star and Moon outputs now lead with plain-language Result Summaries before deeper KPI detail.
@@ -122,13 +123,13 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Planetary system generation with habitable zone, frost line, orbit-slot assignment, and system poster view.
 - Rocky planets with composition, atmosphere, magnetic field, tectonics, sky/vegetation colours, periapsis/apoapsis temperatures, volatile sublimation flags, and gas giant resonance.
 - Gas giants with eccentricity/inclination/tilt inputs, Christensen energy-flux dynamo, Chapman-Ferraro magnetopause with moon plasma inflation, per-species Jeans escape, and spin-orbit resonance.
-- Moons with atmospheres, hydrosphere states, climate, geology, biosphere outputs, moon-specific habitability, and model-driven visual recipes.
+- Moons with atmospheres, hydrosphere states, climate, geology, biosphere outputs, moon-specific habitability, and a trait-driven visual editor shared with planets.
 - Guided creation flows for moons, rocky worlds, gas giants, and stars with Quick archetypes, staged recommendations, Recipes handoff, and goal-seeking guided search.
 - Unified planet and moon habitability metrics with explicit surface-water, subsurface-water, chemistry, radiation, and persistence handling.
 - Moon habitability now distinguishes surface-ocean, radiation-limited, and subsurface-ocean outcomes with explicit shielding, stability, and cool-star surface calibration.
 - Star-owned XUV evolution now drives atmospheric escape, moon radiation, and star activity outputs more consistently.
 - Science-aligned ring overrides for gas giants and rocky worlds, plus deterministic ring families with banding, gaps, lighting, and soft ring shadows.
-- Unified body rendering pipeline across Planet, System Poster, Visualiser, and Apparent views.
+- Unified, worker-parity body rendering across Planet, Moon, System Poster, Visualiser, and Apparent views, with coherent surface/material maps, diagnostic inspection, and persistent sparse appearance overrides.
 - Resonance-driven debris disk suggestions and derived disk physics.
 - Tectonics with mountain ranges, shield volcanoes, rift valleys, and seafloor spreading outputs.
 - Climate zones with latitude-based Koppen classification, aridity profiles, and tidally-locked zone modelling.
