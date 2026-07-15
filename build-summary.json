@@ -2,7 +2,7 @@
   "mode": "production",
   "releaseVersion": "3.6.0-beta.0",
   "distDir": "dist",
-  "generatedAt": "2026-07-15T18:34:05.290Z",
+  "generatedAt": "2026-07-15T19:32:41.063Z",
   "entry": {
     "file": "app.js",
     "bytes": 34761
@@ -17,8 +17,8 @@
     "bytes": 715105
   },
   "largestAppLazyChunk": {
-    "file": "chunks/planetPage-SHXOKCJS.js",
-    "bytes": 273588
+    "file": "chunks/planetPage-BM6EFVOS.js",
+    "bytes": 273979
   },
   "largestVendorLazyChunk": {
     "file": "chunks/chunk-K6EXVWDB.js",
