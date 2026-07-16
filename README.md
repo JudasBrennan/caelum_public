@@ -1,4 +1,4 @@
-# Caelum 3.6.0 Beta
+# Caelum 3.6.1 Beta
 
 Caelum is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 

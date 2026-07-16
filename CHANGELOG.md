@@ -4,6 +4,23 @@ All notable changes to Caelum will be documented in this file.
 
 ## Unreleased
 
+## 3.6.1 Beta — 2026-07-16
+
+### Saved System Compatibility
+
+**Canonical planetary-body migration** (`ui/store/worldMigration.js`)
+
+Fixed existing planets and gas giants disappearing when a canonical-only 3.5.1
+save was opened by 3.6.0 and then saved. Schema upgrades now keep the canonical
+planetary-body collection authoritative, including through new-body creation
+and reload.
+
+**Tests** (`tests/worldMigration.test.js`, `tests/worldStorage.test.js`,
+`tests/browser/smoke.spec.js`)
+
+- Added an exact previous-release fixture and migration, IndexedDB persistence,
+  new-body creation, production-bundle, and reload regression coverage.
+
 ## 3.6.0 Beta — 2026-07-15
 
 - Fixed help tooltips intercepting neighbouring editor controls at constrained viewport positions, kept valid appearance saves available while a texture preview is still refreshing, and made Reset restore the pristine science-derived Auto appearance instead of reusing a saved custom profile.

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-15T19:32:40.831Z",
+  "generatedAt": "2026-07-15T23:50:18.416Z",
   "lazyChunkCount": 135,
   "largestLazyChunk": {
     "file": "chunks/chunk-56JJ2DZ6.js",
@@ -10,7 +10,7 @@
     "bytes": 715105
   },
   "largestAppLazyChunk": {
-    "file": "chunks/planetPage-BM6EFVOS.js",
+    "file": "chunks/planetPage-7IGBFYNV.js",
     "bytes": 273979
   },
   "largestVendorLazyChunk": {
@@ -150,7 +150,7 @@
       ]
     },
     {
-      "file": "chunks/planetPage-BM6EFVOS.js",
+      "file": "chunks/planetPage-7IGBFYNV.js",
       "bytes": 273979,
       "kind": "chunk",
       "appBytes": 270999,
@@ -248,7 +248,7 @@
       ]
     },
     {
-      "file": "chunks/visualizerPage-6G2EEPTA.js",
+      "file": "chunks/visualizerPage-I5UZF7YP.js",
       "bytes": 252439,
       "kind": "chunk",
       "appBytes": 249684,
@@ -419,7 +419,7 @@
       ]
     },
     {
-      "file": "chunks/calendarPage-CSSYYCLK.js",
+      "file": "chunks/calendarPage-M4HGQJ7D.js",
       "bytes": 221563,
       "kind": "chunk",
       "appBytes": 219237,
@@ -492,7 +492,7 @@
       ]
     },
     {
-      "file": "chunks/starPage-5Q6WGTR7.js",
+      "file": "chunks/starPage-ZT3WWCBO.js",
       "bytes": 205352,
       "kind": "chunk",
       "appBytes": 203840,
@@ -565,11 +565,11 @@
       ]
     },
     {
-      "file": "chunks/chunk-2JIBIIRO.js",
-      "bytes": 190476,
+      "file": "chunks/chunk-ILK563IS.js",
+      "bytes": 190439,
       "kind": "chunk",
-      "appBytes": 188552,
-      "appCodeBytes": 188552,
+      "appBytes": 188515,
+      "appCodeBytes": 188515,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -784,7 +784,7 @@
       ]
     },
     {
-      "file": "chunks/moonPage-BXQ5QFSX.js",
+      "file": "chunks/moonPage-3E3HFMFK.js",
       "bytes": 152754,
       "kind": "chunk",
       "appBytes": 150416,
@@ -809,7 +809,7 @@
       ]
     },
     {
-      "file": "chunks/systemPage-XLLMAX2O.js",
+      "file": "chunks/systemPage-OU4EYGXL.js",
       "bytes": 136106,
       "kind": "chunk",
       "appBytes": 134067,
@@ -1108,11 +1108,11 @@
       ]
     },
     {
-      "file": "chunks/aboutPage-YVMR735E.js",
-      "bytes": 80617,
+      "file": "chunks/aboutPage-JJDCGXQ6.js",
+      "bytes": 80863,
       "kind": "chunk",
-      "appBytes": 80505,
-      "appCodeBytes": 80505,
+      "appBytes": 80751,
+      "appCodeBytes": 80751,
       "modelDataBytes": 0,
       "vendorBytes": 0,
       "pureVendor": false,
@@ -1120,14 +1120,14 @@
       "topContributors": [
         {
           "file": "ui/aboutPage.js",
-          "bytesInOutput": 80505,
+          "bytesInOutput": 80751,
           "vendor": false,
           "modelData": false
         }
       ]
     },
     {
-      "file": "chunks/tectonicsPage-JIX6HNWW.js",
+      "file": "chunks/tectonicsPage-WH3WV3KB.js",
       "bytes": 77935,
       "kind": "chunk",
       "appBytes": 76515,
@@ -1146,7 +1146,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-DWX624Y6.js",
+      "file": "chunks/chunk-Z6CSGGCZ.js",
       "bytes": 77509,
       "kind": "chunk",
       "appBytes": 77414,
@@ -1183,7 +1183,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-O75ZP6IH.js",
+      "file": "chunks/chunk-OPF2PTDJ.js",
       "bytes": 69853,
       "kind": "chunk",
       "appBytes": 69533,
@@ -1256,7 +1256,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-T4DAZKJB.js",
+      "file": "chunks/chunk-52ZANZ7B.js",
       "bytes": 67136,
       "kind": "chunk",
       "appBytes": 66674,
@@ -1329,7 +1329,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-I6JD3ORN.js",
+      "file": "chunks/chunk-JQ7X5OHC.js",
       "bytes": 67038,
       "kind": "chunk",
       "appBytes": 66566,
@@ -1379,7 +1379,7 @@
       ]
     },
     {
-      "file": "chunks/outerObjectsPage-O6FW3KNK.js",
+      "file": "chunks/outerObjectsPage-XIOYQQBI.js",
       "bytes": 64496,
       "kind": "chunk",
       "appBytes": 63181,
@@ -1398,7 +1398,7 @@
       ]
     },
     {
-      "file": "chunks/fatePage-EITZSC6Q.js",
+      "file": "chunks/fatePage-T7USAX3C.js",
       "bytes": 61500,
       "kind": "chunk",
       "appBytes": 60445,
@@ -1435,7 +1435,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-DTBYRYLW.js",
+      "file": "chunks/chunk-TPEOTUKQ.js",
       "bytes": 61054,
       "kind": "chunk",
       "appBytes": 60187,
@@ -1509,7 +1509,7 @@
       ]
     },
     {
-      "file": "chunks/importExportPage-4AQ6RQQA.js",
+      "file": "chunks/importExportPage-TMOEBGZM.js",
       "bytes": 56103,
       "kind": "chunk",
       "appBytes": 54402,
@@ -1802,7 +1802,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-FPL3VLLI.js",
+      "file": "chunks/chunk-5CDXTALO.js",
       "bytes": 40666,
       "kind": "chunk",
       "appBytes": 40329,
@@ -1948,7 +1948,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-PSVA32VE.js",
+      "file": "chunks/chunk-HKKV5HXU.js",
       "bytes": 39701,
       "kind": "chunk",
       "appBytes": 39467,
@@ -1967,7 +1967,7 @@
       ]
     },
     {
-      "file": "chunks/localClusterPage-DEDDFETK.js",
+      "file": "chunks/localClusterPage-JESLOPGS.js",
       "bytes": 36368,
       "kind": "chunk",
       "appBytes": 35205,
@@ -1992,7 +1992,7 @@
       ]
     },
     {
-      "file": "chunks/populationPage-5TAJOSUQ.js",
+      "file": "chunks/populationPage-LY7NM2FD.js",
       "bytes": 36363,
       "kind": "chunk",
       "appBytes": 35005,
@@ -2085,7 +2085,7 @@
       ]
     },
     {
-      "file": "chunks/apparentPage-UZZSOQ23.js",
+      "file": "chunks/apparentPage-RPEFGR6S.js",
       "bytes": 29570,
       "kind": "chunk",
       "appBytes": 28053,
@@ -2116,7 +2116,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-WSMCLVDN.js",
+      "file": "chunks/chunk-MWJOYA3D.js",
       "bytes": 26784,
       "kind": "chunk",
       "appBytes": 26135,
@@ -2191,7 +2191,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-BKKUUI5C.js",
+      "file": "chunks/chunk-CZUECV56.js",
       "bytes": 24204,
       "kind": "chunk",
       "appBytes": 23989,
@@ -2229,7 +2229,7 @@
       ]
     },
     {
-      "file": "chunks/climatePage-WUWXEN63.js",
+      "file": "chunks/climatePage-KP4PJQJG.js",
       "bytes": 21516,
       "kind": "chunk",
       "appBytes": 20155,
@@ -2273,7 +2273,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-MATVPAO6.js",
+      "file": "chunks/chunk-RUMLNSM6.js",
       "bytes": 20144,
       "kind": "chunk",
       "appBytes": 19774,
@@ -2355,7 +2355,7 @@
       ]
     },
     {
-      "file": "chunks/transferFlows-FAAHAQ5F.js",
+      "file": "chunks/transferFlows-XFCUFNRL.js",
       "bytes": 18978,
       "kind": "chunk",
       "appBytes": 18130,
@@ -2393,7 +2393,7 @@
       ]
     },
     {
-      "file": "chunks/neighbourhoodHazardsPage-DTIQ3UGQ.js",
+      "file": "chunks/neighbourhoodHazardsPage-47PDUHJX.js",
       "bytes": 16355,
       "kind": "chunk",
       "appBytes": 15515,
@@ -2588,7 +2588,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-4R2Z3L7X.js",
+      "file": "chunks/chunk-HNNYTO4P.js",
       "bytes": 12405,
       "kind": "chunk",
       "appBytes": 12169,
@@ -3061,7 +3061,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-OBBE35AJ.js",
+      "file": "chunks/chunk-KSBF6VL6.js",
       "bytes": 7289,
       "kind": "chunk",
       "appBytes": 6953,
@@ -3495,7 +3495,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-EX3WGBQA.js",
+      "file": "chunks/chunk-R427SFRK.js",
       "bytes": 2353,
       "kind": "chunk",
       "appBytes": 2156,
@@ -3571,7 +3571,7 @@
       ]
     },
     {
-      "file": "chunks/chunk-IOXAABPM.js",
+      "file": "chunks/chunk-C74RLQ5U.js",
       "bytes": 1893,
       "kind": "chunk",
       "appBytes": 1790,
@@ -3959,7 +3959,7 @@
       "topContributors": []
     },
     {
-      "file": "chunks/chunk-UVHXG3YC.js",
+      "file": "chunks/chunk-UUDPRRLK.js",
       "bytes": 257,
       "kind": "chunk",
       "appBytes": 220,
