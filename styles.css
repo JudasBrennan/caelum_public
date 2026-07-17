@@ -9412,6 +9412,33 @@ button.planetary-visual-editor__compare-btn[aria-pressed="true"] {
   background: rgba(var(--good-rgb), 0.12);
 }
 
+.planetary-visual-control__source-pill.is-dormant {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.12);
+}
+
+.planetary-visual-control__error {
+  grid-column: 1 / -1;
+  color: var(--bad);
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.planetary-visual-control__availability {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.planetary-visual-control[data-available="false"] {
+  opacity: 0.78;
+}
+
+.planetary-visual-control:has([aria-invalid="true"]) {
+  outline: 1px solid rgba(var(--bad-rgb), 0.65);
+}
+
 .planetary-visual-control__auto-readout {
   min-width: 0;
   display: grid;
@@ -9639,6 +9666,7 @@ button.planetary-visual-control__swatch:focus-visible,
 
   .planetary-visual-section__summary,
   .planetary-visual-section__toolbar button,
+  .planetary-visual-editor__global-toolbar button,
   .planetary-visual-editor__actions button,
   .planetary-visual-control__reset.small,
   .planetary-visual-editor__close,
@@ -9658,6 +9686,16 @@ button.planetary-visual-control__swatch:focus-visible,
 
   .planetary-visual-control__input--text {
     grid-column: auto;
+  }
+
+  .planetary-visual-editor button,
+  .planetary-visual-editor select,
+  .planetary-visual-editor input:not([type="range"]):not([type="checkbox"]) {
+    min-height: 44px;
+  }
+
+  .planetary-visual-editor input[type="range"] {
+    min-height: 44px;
   }
 }
 .guided-entry-strip {

@@ -4,6 +4,64 @@ All notable changes to Caelum will be documented in this file.
 
 ## Unreleased
 
+## 3.7.0 — 2026-07-17
+
+### Planet Visual Editor
+
+- Added vegetation colour to rocky-planet appearance controls and synchronized
+  it in both directions with the Planet page's manual vegetation palette.
+- Resetting vegetation colour in either interface now clears the shared manual
+  override, including after save, reload, import, and export.
+
+### Moon and Gaseous Body Visual Fidelity
+
+- Rebuilt moon surfaces from canonical deterministic terrain, crater,
+  lineament, vent, deposit, flow, dune, liquid, haze, and plume contracts.
+  Fractures are now coherent angular-length networks, while active deposits and
+  flows remain connected to stable source features across quality tiers.
+- Replaced competing gaseous painters with one science-projected spherical
+  atmosphere field and stable storm catalogue. Gas/ice giants, irradiated
+  giants, sub-Neptunes, super-puffs, and L/T/Y brown dwarfs now share aligned
+  colour, height, normal, roughness, opacity, thermal, and honest diagnostic
+  maps while retaining distinct generic regimes and user palettes.
+- Added shared layered gas materials, bounded atmospheric attenuation, signed
+  pausable weather motion, source-driven moon plumes, and eligible auroral
+  ovals without per-frame texture regeneration or route-specific ownership.
+- Added projected-size quality intents, hysteresis, per-body job coalescing,
+  pinned final-quality exports, canonical generated moon/gas assets, and tested
+  immutable release-namespace transitions. Manual flat-folder deployment
+  overwrite remains unsupported.
+- Optimized complex-moon lineament rasterization through precomputed spherical
+  segment geometry, duplicate elimination, and bounded intermediate reuse. The
+  matching-machine 50-run gate now stays within the 15% median budget at every
+  fixture/tier, and warmed 512px browser captures add zero main-thread blocking
+  time.
+
+### Planet and Moon Visual Editor Corrective Remediation
+
+- Unified control ranges, options, aliases, editor constraints, save/store
+  validation, and strict import checks under one canonical schema. Invalid
+  visible values now remain in the focused field with an accessible error and
+  cannot mutate or save the draft.
+- Rebuilt automatic control projection from the effective final consumers,
+  including gas/brown-dwarf values and ring ownership. Locked Auto values now
+  persist with explicit provenance while dormant Custom intent remains stored
+  but is not counted or rendered as active.
+- Corrected generic moon capability routing for nitrogen species, canonical
+  surface temperature, volcanic presets, principal-axis geometry, and exposed
+  solid palette availability. Diagnostics are capability-driven, gaseous
+  sidecars are explicit, and missing channels show an error instead of the
+  natural surface.
+- Unified downstream render identity, final-texture export readiness, and the
+  visible PNG/GIF canvas stack. Async Apparent Sky/System Poster work is
+  cancellation-safe, owned texture caches are bounded, and page previews pause
+  while the modal owns the foreground WebGL renderer without forcing sibling
+  context loss.
+- Isolated section randomisation from the global morphology seed, expanded
+  mobile action targets, and added automatically discovered final-consumer,
+  mutation, persistence, migration, geometry, diagnostic, lifecycle, export,
+  science-invariance, and real-browser regression gates.
+
 ## 3.6.1 Beta — 2026-07-16
 
 ### Saved System Compatibility

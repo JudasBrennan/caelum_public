@@ -1,4 +1,4 @@
-# Caelum 3.6.1 Beta
+# Caelum 3.7.0
 
 Caelum is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -13,6 +13,15 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Moon surfaces now combine coherent terrain, craters, fractures, vents,
+  deposits, flows, dunes, liquids, haze, and plumes across previews, the
+  Visualiser, and exported images.
+- Gas giants, ice giants, sub-Neptunes, super-puffs, irradiated giants, and
+  brown dwarfs now use layered atmospheric fields, stable storms, subtle
+  weather motion, palette-aware bands, and softly fading limbs.
+- Planet and moon visual controls now share stricter validation, honest
+  diagnostics, effective Auto provenance, adaptive quality, and final-pixel
+  preview/export consistency.
 - Stars now expose track provenance, raw and photosphere-corrected effective
   temperatures, metallicity/alpha/rotation context, and MIST-backed
   main-sequence grid coverage with analytic fallback.

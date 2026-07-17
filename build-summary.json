@@ -1,13 +1,13 @@
 {
   "mode": "production",
-  "releaseVersion": "3.6.1-beta.0",
+  "releaseVersion": "3.7.0",
   "distDir": "dist",
-  "generatedAt": "2026-07-15T23:50:18.616Z",
+  "generatedAt": "2026-07-17T14:05:38.633Z",
   "entry": {
     "file": "app.js",
     "bytes": 34761
   },
-  "lazyChunkCount": 135,
+  "lazyChunkCount": 136,
   "largestLazyChunk": {
     "file": "chunks/chunk-56JJ2DZ6.js",
     "bytes": 2599619
@@ -17,8 +17,8 @@
     "bytes": 715105
   },
   "largestAppLazyChunk": {
-    "file": "chunks/planetPage-7IGBFYNV.js",
-    "bytes": 273979
+    "file": "chunks/planetPage-JOEHAAMS.js",
+    "bytes": 273917
   },
   "largestVendorLazyChunk": {
     "file": "chunks/chunk-K6EXVWDB.js",
@@ -33,49 +33,49 @@
     {
       "file": "celestialTextureWorker.js",
       "source": "ui/celestialTextureWorker.js",
-      "bytes": 75023,
-      "gzipBytes": 26088,
-      "inputCount": 14,
+      "bytes": 121069,
+      "gzipBytes": 41166,
+      "inputCount": 22,
       "topContributors": [
+        {
+          "file": "ui/celestialTexturePipeline.js",
+          "bytesInOutput": 29958
+        },
         {
           "file": "ui/celestialLayerTexturePainter.js",
           "bytesInOutput": 27121
         },
         {
-          "file": "ui/celestialTexturePipeline.js",
-          "bytesInOutput": 23605
-        },
-        {
-          "file": "ui/celestialFields/materialMaps.js",
-          "bytesInOutput": 4491
-        },
-        {
           "file": "ui/celestialFields/surfaceMasks.js",
-          "bytesInOutput": 4259
+          "bytesInOutput": 8430
+        },
+        {
+          "file": "ui/celestialFields/gaseousAtmosphereField.js",
+          "bytesInOutput": 7722
         },
         {
           "file": "ui/celestialFields/featureCatalogues.js",
-          "bytesInOutput": 3401
+          "bytesInOutput": 6312
+        },
+        {
+          "file": "ui/celestialFields/materialMaps.js",
+          "bytesInOutput": 5750
+        },
+        {
+          "file": "ui/celestialFields/lineamentCatalogue.js",
+          "bytesInOutput": 5588
+        },
+        {
+          "file": "ui/celestialFields/gaseousFeatureCatalogue.js",
+          "bytesInOutput": 5455
+        },
+        {
+          "file": "ui/celestialFields/gaseousTextureMaps.js",
+          "bytesInOutput": 5281
         },
         {
           "file": "ui/celestialFields/coverageSelector.js",
-          "bytesInOutput": 3211
-        },
-        {
-          "file": "ui/celestialProceduralMath.js",
-          "bytesInOutput": 2344
-        },
-        {
-          "file": "ui/celestialFields/seededMorphology.js",
-          "bytesInOutput": 1516
-        },
-        {
-          "file": "ui/celestialFieldCache.js",
-          "bytesInOutput": 1059
-        },
-        {
-          "file": "ui/celestialRenderSignatures.js",
-          "bytesInOutput": 1043
+          "bytesInOutput": 3190
         }
       ]
     },

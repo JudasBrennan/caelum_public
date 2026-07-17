@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "2026-07-15T12:33:44.847Z",
+  "generatedAtUtc": "2026-07-17T12:26:25.652Z",
   "stars": [
     {
       "id": "o",
@@ -37,83 +37,383 @@
   "gas": [
     {
       "id": "jupiter",
-      "file": "gas/jupiter.svg"
+      "file": "gas/jupiter.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:jupiter",
+      "seed": "three-render:gas:jupiter",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:3d22ae6d",
+      "palette": {
+        "primary": "#f8daaa",
+        "secondary": "#cd9458",
+        "accent": "#784426"
+      },
+      "outputHash": "9d14588c84af13b592b5be8e99e904a130769b37336ba427d22506d73edf8e81"
     },
     {
       "id": "saturn",
-      "file": "gas/saturn.svg"
+      "file": "gas/saturn.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:saturn",
+      "seed": "three-render:gas:saturn",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:92e026ff",
+      "palette": {
+        "primary": "#f5e19b",
+        "secondary": "#dab262",
+        "accent": "#946c34"
+      },
+      "outputHash": "90e6826703d39c875c57e847040ac1d23b95aadd05e4483a28d6c9e0d93acb9a"
     },
     {
       "id": "neptune",
-      "file": "gas/neptune.svg"
+      "file": "gas/neptune.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:neptune",
+      "seed": "three-render:gas:neptune",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:76b041e7",
+      "palette": {
+        "primary": "#afd2f0",
+        "secondary": "#6ea5da",
+        "accent": "#3764a0"
+      },
+      "outputHash": "162d1849e843c97aa088eeac7817f1fcd822ec8718d9f72cdad0e0d7c859a500"
     },
     {
       "id": "neptune-classic",
-      "file": "gas/neptune-classic.svg"
+      "file": "gas/neptune-classic.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:neptune-classic",
+      "seed": "three-render:gas:neptune-classic",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:b4f0b649",
+      "palette": {
+        "primary": "#5594ff",
+        "secondary": "#2652d2",
+        "accent": "#0c1c6c"
+      },
+      "outputHash": "6c1107b7213a79d33c5720a40b1aa997d7797b67fa48da2f34472ef7a72c6ae9"
     },
     {
       "id": "uranus",
-      "file": "gas/uranus.svg"
+      "file": "gas/uranus.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:uranus",
+      "seed": "three-render:gas:uranus",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:5c801179",
+      "palette": {
+        "primary": "#a5e4e1",
+        "secondary": "#64c3c6",
+        "accent": "#28737d"
+      },
+      "outputHash": "44611702d49fa49f09a2763132b6ce0ffa32351b6d7a61f45bba92bbf54f12b1"
     },
     {
       "id": "hot-jupiter",
-      "file": "gas/hot-jupiter.svg"
+      "file": "gas/hot-jupiter.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:hot-jupiter",
+      "seed": "three-render:gas:hot-jupiter",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:02946ff5",
+      "palette": {
+        "primary": "#ffcd78",
+        "secondary": "#f86c2a",
+        "accent": "#8c1c0c"
+      },
+      "outputHash": "9ec307544b9a13162a466bcafdee06ce325421fbf6e02c9010122970ac3c5b26"
     },
     {
       "id": "warm-giant",
-      "file": "gas/warm-giant.svg"
+      "file": "gas/warm-giant.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:warm-giant",
+      "seed": "three-render:gas:warm-giant",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:4bc36445",
+      "palette": {
+        "primary": "#ebc682",
+        "secondary": "#c6944e",
+        "accent": "#76481c"
+      },
+      "outputHash": "25e36ba8488d5e29cd422cebb37203e3db9c00cf5a01caab35f88ab150092887"
     },
     {
       "id": "cloudless",
-      "file": "gas/cloudless.svg"
+      "file": "gas/cloudless.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:cloudless",
+      "seed": "three-render:gas:cloudless",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:a2b28d36",
+      "palette": {
+        "primary": "#586294",
+        "secondary": "#30376c",
+        "accent": "#121434"
+      },
+      "outputHash": "9b1f8908ee89a77e209b4ebf697c0633c0d2d79567c8588e33a307708cf99163"
     },
     {
       "id": "alkali",
-      "file": "gas/alkali.svg"
+      "file": "gas/alkali.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:alkali",
+      "seed": "three-render:gas:alkali",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:d354b23a",
+      "palette": {
+        "primary": "#873e2a",
+        "secondary": "#582012",
+        "accent": "#260c06"
+      },
+      "outputHash": "4d94d42cd3bb28ec79d976b41c57e4fc624f8c60bbc98b9cc4312e1beeaa3ce1"
     },
     {
       "id": "silicate",
-      "file": "gas/silicate.svg"
+      "file": "gas/silicate.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:silicate",
+      "seed": "three-render:gas:silicate",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:4a638949",
+      "palette": {
+        "primary": "#ffa88a",
+        "secondary": "#d2583e",
+        "accent": "#822316"
+      },
+      "outputHash": "987859e00fe5028ffc7aa9651437f81c6b3dcc218a23fc1c9e10319fecc98f2e"
     },
     {
       "id": "super-jupiter",
-      "file": "gas/super-jupiter.svg"
+      "file": "gas/super-jupiter.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:super-jupiter",
+      "seed": "three-render:gas:super-jupiter",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:31ea1e1a",
+      "palette": {
+        "primary": "#b2764e",
+        "secondary": "#763a20",
+        "accent": "#301208"
+      },
+      "outputHash": "b71109d6905b05299cf733e5cd7ac5b96357060dc70b0c6e263f9ae7a6ff2178"
     },
     {
       "id": "sub-neptune",
-      "file": "gas/sub-neptune.svg"
+      "file": "gas/sub-neptune.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:sub-neptune",
+      "seed": "three-render:gas:sub-neptune",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:6fdc31d9",
+      "palette": {
+        "primary": "#8adac6",
+        "secondary": "#4ea8a2",
+        "accent": "#1c5258"
+      },
+      "outputHash": "61b65445a9af7c8d60d07e2a5e0bcf0f04eb91559ffc79dab1822e27f314c258"
     },
     {
       "id": "ringed-ice",
-      "file": "gas/ringed-ice.svg"
+      "file": "gas/ringed-ice.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:ringed-ice",
+      "seed": "three-render:gas:ringed-ice",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:c19a73c8",
+      "palette": {
+        "primary": "#80d4e4",
+        "secondary": "#3e9bb9",
+        "accent": "#123e58"
+      },
+      "outputHash": "236a8a56c5cce3112cfe7b06d61ad7d7c57f905e398f0bdd0668a289b0bd6e6a"
     },
     {
       "id": "puffy",
-      "file": "gas/puffy.svg"
+      "file": "gas/puffy.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:puffy",
+      "seed": "three-render:gas:puffy",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:958c3758",
+      "palette": {
+        "primary": "#e4c6f2",
+        "secondary": "#bc94da",
+        "accent": "#764e9e"
+      },
+      "outputHash": "53899fb3f38ae7171bd3910f53457ac81b2ec6781e31725d28d1a1f05bd1e151"
     },
     {
       "id": "hazy",
-      "file": "gas/hazy.svg"
+      "file": "gas/hazy.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:hazy",
+      "seed": "three-render:gas:hazy",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:3f2d5228",
+      "palette": {
+        "primary": "#d0c380",
+        "secondary": "#a59452",
+        "accent": "#5c4e26"
+      },
+      "outputHash": "430bfe22e745f502a5d2e475f5104269cdb404f4c72f813d89ce545c64dc0a15"
     },
     {
       "id": "water-cloud",
-      "file": "gas/water-cloud.svg"
+      "file": "gas/water-cloud.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:water-cloud",
+      "seed": "three-render:gas:water-cloud",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:d696e6ea",
+      "palette": {
+        "primary": "#f8f8ff",
+        "secondary": "#d7def2",
+        "accent": "#a2afd2"
+      },
+      "outputHash": "a61c232340285c61910515e57cec1c4114768683490abc1d5493ba9361af5a51"
     },
     {
       "id": "helium",
-      "file": "gas/helium.svg"
+      "file": "gas/helium.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:helium",
+      "seed": "three-render:gas:helium",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:881acd17",
+      "palette": {
+        "primary": "#c6c3bc",
+        "secondary": "#98948a",
+        "accent": "#58554e"
+      },
+      "outputHash": "36c8e48b7bb5b9542bc064b60b71360624aa38a510b1060308c0378e7169339c"
     },
     {
       "id": "brown-dwarf-l",
-      "file": "gas/brown-dwarf-l.svg"
+      "file": "gas/brown-dwarf-l.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:brown-dwarf-l",
+      "seed": "three-render:gas:brown-dwarf-l",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:a55c3962",
+      "palette": {
+        "primary": "#daa26c",
+        "secondary": "#965c30",
+        "accent": "#3e1a0c"
+      },
+      "outputHash": "c3e9c3314a14b85f8e9bbc9f4c8f23a16519c10bd91f1b2dc9a69bdd2c700950"
     },
     {
       "id": "brown-dwarf-t",
-      "file": "gas/brown-dwarf-t.svg"
+      "file": "gas/brown-dwarf-t.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:brown-dwarf-t",
+      "seed": "three-render:gas:brown-dwarf-t",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:6ec00100",
+      "palette": {
+        "primary": "#8ea4c6",
+        "secondary": "#4e628e",
+        "accent": "#18223e"
+      },
+      "outputHash": "13d052718afe1a39c4df9569c02df3b90d54142ad655c0a67638918b7e4368a2"
     },
     {
       "id": "brown-dwarf-y",
-      "file": "gas/brown-dwarf-y.svg"
+      "file": "gas/brown-dwarf-y.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "gas:brown-dwarf-y",
+      "seed": "three-render:gas:brown-dwarf-y",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 512,
+      "textureHeight": 256,
+      "semanticSignature": "gas-semantic:v1:136ffb8f",
+      "palette": {
+        "primary": "#a6b2bc",
+        "secondary": "#627080",
+        "accent": "#2a323c"
+      },
+      "outputHash": "bec3d981c318540da35051792f4e24e5b1c2033352dfadf99497bf84639507f9"
     }
   ],
   "rocky": [
@@ -197,83 +497,563 @@
   "moons": [
     {
       "id": "luna",
-      "file": "moons/luna.svg"
+      "file": "moons/luna.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:luna",
+      "seed": "three-render:moon:luna",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:fae9aaa6",
+      "palette": {
+        "substrateHigh": "#8d8781",
+        "substrateMid": "#68625c",
+        "substrateLow": "#393531",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "60775078cc9649ac073114148dd3b688ddbbdd700dc5e15f532f7d45f967bd6e"
     },
     {
       "id": "callisto",
-      "file": "moons/callisto.svg"
+      "file": "moons/callisto.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:callisto",
+      "seed": "three-render:moon:callisto",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:7ee29ad1",
+      "palette": {
+        "substrateHigh": "#6f737a",
+        "substrateMid": "#4d535a",
+        "substrateLow": "#2d323a",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "7f8147e6fe3fbdd5a0ae0b891812f1dc1f50fa698f1e3a0dd9e54fa5085f4da2"
     },
     {
       "id": "ganymede",
-      "file": "moons/ganymede.svg"
+      "file": "moons/ganymede.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:ganymede",
+      "seed": "three-render:moon:ganymede",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:e93b9b6b",
+      "palette": {
+        "substrateHigh": "#c0b8ac",
+        "substrateMid": "#928a82",
+        "substrateLow": "#56504d",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "21bdde88107ce02bf7d1bfac9248a91793c624ccffd3a74168e2c31e5a63c5fa"
     },
     {
       "id": "europa",
-      "file": "moons/europa.svg"
+      "file": "moons/europa.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:europa",
+      "seed": "three-render:moon:europa",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:a0a4da2e",
+      "palette": {
+        "substrateHigh": "#dceeff",
+        "substrateMid": "#9fc2dc",
+        "substrateLow": "#527b9f",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "8f38423e361a163ee1f3a4915dda4fac8116fde12af4aadf7c87f4cf8499b6f8"
     },
     {
       "id": "enceladus",
-      "file": "moons/enceladus.svg"
+      "file": "moons/enceladus.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:enceladus",
+      "seed": "three-render:moon:enceladus",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:23c64e60",
+      "palette": {
+        "substrateHigh": "#edffff",
+        "substrateMid": "#abd1ed",
+        "substrateLow": "#5885ab",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "d724f7cff85828493c140ba880a41e7c81598597ddd9797894befdcf6e7b8641"
     },
     {
       "id": "titan",
-      "file": "moons/titan.svg"
+      "file": "moons/titan.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:titan",
+      "seed": "three-render:moon:titan",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:7e28ea0e",
+      "palette": {
+        "substrateHigh": "#72777e",
+        "substrateMid": "#4f565d",
+        "substrateLow": "#2e333b",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "1ce3fdbea09064717d2c1fce8b49473e3bb827810bf42db0fb182fdf70c63588"
     },
     {
       "id": "triton",
-      "file": "moons/triton.svg"
+      "file": "moons/triton.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:triton",
+      "seed": "three-render:moon:triton",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:412d51e5",
+      "palette": {
+        "substrateHigh": "#e9f6ff",
+        "substrateMid": "#b3cee4",
+        "substrateLow": "#6589a1",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "079da53d8dbfb4eccd1243fda8b5dcc0e5ba8e973725a653f0f158864633b302"
     },
     {
       "id": "io",
-      "file": "moons/io.svg"
+      "file": "moons/io.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:io",
+      "seed": "three-render:moon:io",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:fe1ec245",
+      "palette": {
+        "substrateHigh": "#beb5a4",
+        "substrateMid": "#8a7967",
+        "substrateLow": "#564534",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "a4bf9f04eb659499d2515291f5b9d2dab8da2a3b10e8837aa0886712ee95a05b"
     },
     {
       "id": "molten-companion",
-      "file": "moons/molten-companion.svg"
+      "file": "moons/molten-companion.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:molten-companion",
+      "seed": "three-render:moon:molten-companion",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:57bcb3a3",
+      "palette": {
+        "substrateHigh": "#8b8578",
+        "substrateMid": "#65584c",
+        "substrateLow": "#3f3326",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "f2111c3d4b0bf71b60be07eab5b4a721a60ce6d95a7c4732b64044e4f28f1a0e"
     },
     {
       "id": "oceanic",
-      "file": "moons/oceanic.svg"
+      "file": "moons/oceanic.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:oceanic",
+      "seed": "three-render:moon:oceanic",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:bd02ca4a",
+      "palette": {
+        "substrateHigh": "#aea79c",
+        "substrateMid": "#847d76",
+        "substrateLow": "#4e4945",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "ad84f2a64eb81218c1cd24eb4de16f1226f1d9f1f021779b52c59145fa3f5d0c"
     },
     {
       "id": "verdant",
-      "file": "moons/verdant.svg"
+      "file": "moons/verdant.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:verdant",
+      "seed": "three-render:moon:verdant",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:0cbc2ca8",
+      "palette": {
+        "substrateHigh": "#a39c95",
+        "substrateMid": "#78716a",
+        "substrateLow": "#423d39",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "56ec6707b090bf4b0d85322ceaa4af3ce3e6e53e1bbfe0e428b38d927541b55f"
     },
     {
       "id": "hazy-moon",
-      "file": "moons/hazy-moon.svg"
+      "file": "moons/hazy-moon.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:hazy-moon",
+      "seed": "three-render:moon:hazy-moon",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:03b5e4b6",
+      "palette": {
+        "substrateHigh": "#747a80",
+        "substrateMid": "#51585f",
+        "substrateLow": "#2f343d",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "c118402f6f13f16f0bdbfcd6e7781ced084fbfd67b92fc98f7b5d0f4cd4f3b28"
     },
     {
       "id": "phobos",
-      "file": "moons/phobos.svg"
+      "file": "moons/phobos.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:phobos",
+      "seed": "three-render:moon:phobos",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:f59408ec",
+      "palette": {
+        "substrateHigh": "#89837d",
+        "substrateMid": "#655f59",
+        "substrateLow": "#373330",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "6aba6bf218110a08468eb7f6767a593082492567b9d1eba8c71d0666d0f9a9c6"
     },
     {
       "id": "deimos",
-      "file": "moons/deimos.svg"
+      "file": "moons/deimos.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:deimos",
+      "seed": "three-render:moon:deimos",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:aadeab88",
+      "palette": {
+        "substrateHigh": "#88827c",
+        "substrateMid": "#655f59",
+        "substrateLow": "#37332f",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "ef181c920e355e942b1061a7ee518a043b44bc52da332a52f23723829505ef0c"
     },
     {
       "id": "irregular-capture",
-      "file": "moons/irregular-capture.svg"
+      "file": "moons/irregular-capture.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:irregular-capture",
+      "seed": "three-render:moon:irregular-capture",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:a3f302ef",
+      "palette": {
+        "substrateHigh": "#65696f",
+        "substrateMid": "#464c52",
+        "substrateLow": "#292d35",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#e8f0ff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "e2cf23e7f6c04347755fcc7bdbe0d7533372312745c8c297b3653ec244189ef8"
     },
     {
       "id": "default",
-      "file": "moons/default.svg"
+      "file": "moons/default.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:default",
+      "seed": "three-render:moon:default",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:c7430b2d",
+      "palette": {
+        "substrateHigh": "#b8b0a8",
+        "substrateMid": "#888078",
+        "substrateLow": "#4a4540",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#dcecff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "a4f26628983add7d3a01af77080533d1ecbe0f32254b9767b4a0968dce9d1d79"
     },
     {
       "id": "icy",
-      "file": "moons/icy.svg"
+      "file": "moons/icy.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:icy",
+      "seed": "three-render:moon:icy",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:4ae9e6c1",
+      "palette": {
+        "substrateHigh": "#e8eef5",
+        "substrateMid": "#c0d0e0",
+        "substrateLow": "#7090a8",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#dcecff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "3fae896949424ba4170cc2db75a1c07c8d8a8248ec184b877eccc882112dad61"
     },
     {
       "id": "rocky",
-      "file": "moons/rocky.svg"
+      "file": "moons/rocky.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:rocky",
+      "seed": "three-render:moon:rocky",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:64738e1a",
+      "palette": {
+        "substrateHigh": "#b8b0a8",
+        "substrateMid": "#888078",
+        "substrateLow": "#4a4540",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#dcecff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "f354b4f1526246653bfa8f2dcb0fcd6072f25cface7252ef0c62a2dcb3558de5"
     },
     {
       "id": "dark-icy",
-      "file": "moons/dark-icy.svg"
+      "file": "moons/dark-icy.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:dark-icy",
+      "seed": "three-render:moon:dark-icy",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:8906a4ae",
+      "palette": {
+        "substrateHigh": "#8a9098",
+        "substrateMid": "#606870",
+        "substrateLow": "#383e48",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#dcecff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "35940dd0b908d32ce3d763cd71cd4625e93cb5de6e102a69aa17488a16ac76f1"
     },
     {
       "id": "molten",
-      "file": "moons/molten.svg"
+      "file": "moons/molten.svg",
+      "algorithmVersion": 1,
+      "fixtureId": "moon:molten",
+      "seed": "three-render:moon:molten",
+      "pose": "front-fixed",
+      "phaseSeconds": 0,
+      "qualityIntent": "thumbnail",
+      "textureWidth": 128,
+      "semanticSignature": "moon-semantic:m2:1a9eea43",
+      "palette": {
+        "substrateHigh": "#b08060",
+        "substrateMid": "#804a30",
+        "substrateLow": "#402010",
+        "water": "#245f91",
+        "alternativeLiquid": "#4d5142",
+        "ice": "#dcecff",
+        "vegetation": "#326b3c",
+        "dryTerrain": "#b89562",
+        "dunes": "#9d7143",
+        "fractures": "#8fd5ff",
+        "lava": "#f05b24",
+        "deposits": "#b8aa96",
+        "cloud": "#ffffff"
+      },
+      "outputHash": "22285c836f3b9bbc9d2ed89c8d5bb33f82fec113a39cbda5ca701df3ddaae6b3"
     }
   ],
   "debris": [

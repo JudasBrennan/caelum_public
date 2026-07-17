@@ -6,12 +6,12 @@
       "format": "esm"
     },
     "ui/celestialProceduralMath.js": {
-      "bytes": 4739,
+      "bytes": 5572,
       "imports": [],
       "format": "esm"
     },
     "ui/celestialFields/signatures.js": {
-      "bytes": 1122,
+      "bytes": 1322,
       "imports": [
         {
           "path": "ui/celestialProceduralMath.js",
@@ -22,7 +22,7 @@
       "format": "esm"
     },
     "ui/celestialFields/featureCatalogues.js": {
-      "bytes": 7381,
+      "bytes": 14527,
       "imports": [
         {
           "path": "ui/celestialProceduralMath.js",
@@ -37,13 +37,72 @@
       ],
       "format": "esm"
     },
-    "ui/celestialFields/materialMaps.js": {
-      "bytes": 11958,
+    "ui/celestialFields/lineamentCatalogue.js": {
+      "bytes": 12624,
       "imports": [
         {
           "path": "ui/celestialProceduralMath.js",
           "kind": "import-statement",
           "original": "../celestialProceduralMath.js"
+        },
+        {
+          "path": "ui/celestialFields/signatures.js",
+          "kind": "import-statement",
+          "original": "./signatures.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/celestialFields/geologicSourceFields.js": {
+      "bytes": 4907,
+      "imports": [
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/celestialFields/duneFields.js": {
+      "bytes": 2537,
+      "imports": [
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        },
+        {
+          "path": "ui/celestialFields/signatures.js",
+          "kind": "import-statement",
+          "original": "./signatures.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/celestialFields/exposedSolidQuantiles.js": {
+      "bytes": 1344,
+      "imports": [
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/celestialFields/materialMaps.js": {
+      "bytes": 14828,
+      "imports": [
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        },
+        {
+          "path": "ui/celestialFields/exposedSolidQuantiles.js",
+          "kind": "import-statement",
+          "original": "./exposedSolidQuantiles.js"
         },
         {
           "path": "ui/celestialFields/signatures.js",
@@ -65,7 +124,7 @@
       "format": "esm"
     },
     "ui/celestialFields/seededMorphology.js": {
-      "bytes": 3618,
+      "bytes": 5274,
       "imports": [
         {
           "path": "ui/celestialProceduralMath.js",
@@ -86,7 +145,7 @@
       "format": "esm"
     },
     "ui/celestialFields/coverageSelector.js": {
-      "bytes": 7693,
+      "bytes": 7695,
       "imports": [
         {
           "path": "ui/celestialProceduralMath.js",
@@ -102,7 +161,7 @@
       "format": "esm"
     },
     "ui/celestialFields/surfaceMasks.js": {
-      "bytes": 9078,
+      "bytes": 18063,
       "imports": [
         {
           "path": "ui/celestialProceduralMath.js",
@@ -113,12 +172,44 @@
           "path": "ui/celestialFields/coverageSelector.js",
           "kind": "import-statement",
           "original": "./coverageSelector.js"
+        },
+        {
+          "path": "ui/celestialFields/exposedSolidQuantiles.js",
+          "kind": "import-statement",
+          "original": "./exposedSolidQuantiles.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/celestialFields/gaseousFeatureCatalogue.js": {
+      "bytes": 11674,
+      "imports": [
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/celestialFields/gaseousAtmosphereField.js": {
+      "bytes": 17405,
+      "imports": [
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        },
+        {
+          "path": "ui/celestialFields/gaseousFeatureCatalogue.js",
+          "kind": "import-statement",
+          "original": "./gaseousFeatureCatalogue.js"
         }
       ],
       "format": "esm"
     },
     "ui/celestialRenderSignatures.js": {
-      "bytes": 3364,
+      "bytes": 4970,
       "imports": [
         {
           "path": "ui/celestialProceduralMath.js",
@@ -133,13 +224,54 @@
       ],
       "format": "esm"
     },
+    "ui/celestialDiagnosticCapabilityContract.js": {
+      "bytes": 2076,
+      "imports": [],
+      "format": "esm"
+    },
+    "ui/celestialFields/gaseousTextureMaps.js": {
+      "bytes": 11448,
+      "imports": [
+        {
+          "path": "ui/celestialFields/gaseousAtmosphereField.js",
+          "kind": "import-statement",
+          "original": "./gaseousAtmosphereField.js"
+        },
+        {
+          "path": "ui/celestialFields/gaseousFeatureCatalogue.js",
+          "kind": "import-statement",
+          "original": "./gaseousFeatureCatalogue.js"
+        },
+        {
+          "path": "ui/celestialFields/signatures.js",
+          "kind": "import-statement",
+          "original": "./signatures.js"
+        },
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        },
+        {
+          "path": "ui/celestialRenderSignatures.js",
+          "kind": "import-statement",
+          "original": "../celestialRenderSignatures.js"
+        },
+        {
+          "path": "ui/celestialDiagnosticCapabilityContract.js",
+          "kind": "import-statement",
+          "original": "../celestialDiagnosticCapabilityContract.js"
+        }
+      ],
+      "format": "esm"
+    },
     "ui/celestialBodyCoordinates.js": {
       "bytes": 1642,
       "imports": [],
       "format": "esm"
     },
     "ui/celestialTexturePipeline.js": {
-      "bytes": 55094,
+      "bytes": 68656,
       "imports": [
         {
           "path": "ui/celestialFieldCache.js",
@@ -150,6 +282,21 @@
           "path": "ui/celestialFields/featureCatalogues.js",
           "kind": "import-statement",
           "original": "./celestialFields/featureCatalogues.js"
+        },
+        {
+          "path": "ui/celestialFields/lineamentCatalogue.js",
+          "kind": "import-statement",
+          "original": "./celestialFields/lineamentCatalogue.js"
+        },
+        {
+          "path": "ui/celestialFields/geologicSourceFields.js",
+          "kind": "import-statement",
+          "original": "./celestialFields/geologicSourceFields.js"
+        },
+        {
+          "path": "ui/celestialFields/duneFields.js",
+          "kind": "import-statement",
+          "original": "./celestialFields/duneFields.js"
         },
         {
           "path": "ui/celestialFields/materialMaps.js",
@@ -172,6 +319,11 @@
           "original": "./celestialFields/signatures.js"
         },
         {
+          "path": "ui/celestialFields/gaseousTextureMaps.js",
+          "kind": "import-statement",
+          "original": "./celestialFields/gaseousTextureMaps.js"
+        },
+        {
           "path": "ui/celestialProceduralMath.js",
           "kind": "import-statement",
           "original": "./celestialProceduralMath.js"
@@ -185,6 +337,11 @@
           "path": "ui/celestialBodyCoordinates.js",
           "kind": "import-statement",
           "original": "./celestialBodyCoordinates.js"
+        },
+        {
+          "path": "ui/celestialDiagnosticCapabilityContract.js",
+          "kind": "import-statement",
+          "original": "./celestialDiagnosticCapabilityContract.js"
         }
       ],
       "format": "esm"
@@ -201,7 +358,7 @@
       "format": "esm"
     },
     "ui/celestialTextureWorker.js": {
-      "bytes": 1950,
+      "bytes": 3314,
       "imports": [
         {
           "path": "ui/celestialTexturePipeline.js",
@@ -212,6 +369,16 @@
           "path": "ui/celestialLayerTexturePainter.js",
           "kind": "import-statement",
           "original": "./celestialLayerTexturePainter.js"
+        },
+        {
+          "path": "ui/celestialFields/gaseousAtmosphereField.js",
+          "kind": "import-statement",
+          "original": "./celestialFields/gaseousAtmosphereField.js"
+        },
+        {
+          "path": "ui/celestialFields/gaseousFeatureCatalogue.js",
+          "kind": "import-statement",
+          "original": "./celestialFields/gaseousFeatureCatalogue.js"
         }
       ],
       "format": "esm"
@@ -229,46 +396,70 @@
           "bytesInOutput": 1059
         },
         "ui/celestialProceduralMath.js": {
-          "bytesInOutput": 2344
+          "bytesInOutput": 2550
         },
         "ui/celestialFields/signatures.js": {
-          "bytesInOutput": 493
+          "bytesInOutput": 576
         },
         "ui/celestialFields/featureCatalogues.js": {
-          "bytesInOutput": 3401
+          "bytesInOutput": 6312
+        },
+        "ui/celestialFields/lineamentCatalogue.js": {
+          "bytesInOutput": 5588
+        },
+        "ui/celestialFields/geologicSourceFields.js": {
+          "bytesInOutput": 2090
+        },
+        "ui/celestialFields/duneFields.js": {
+          "bytesInOutput": 1141
+        },
+        "ui/celestialFields/exposedSolidQuantiles.js": {
+          "bytesInOutput": 588
         },
         "ui/celestialFields/materialMaps.js": {
-          "bytesInOutput": 4491
+          "bytesInOutput": 5750
         },
         "ui/celestialFields/areaGrid.js": {
           "bytesInOutput": 794
         },
         "ui/celestialFields/seededMorphology.js": {
-          "bytesInOutput": 1516
+          "bytesInOutput": 2161
         },
         "ui/celestialFields/coverageSelector.js": {
-          "bytesInOutput": 3211
+          "bytesInOutput": 3190
         },
         "ui/celestialFields/surfaceMasks.js": {
-          "bytesInOutput": 4259
+          "bytesInOutput": 8430
+        },
+        "ui/celestialFields/gaseousFeatureCatalogue.js": {
+          "bytesInOutput": 5455
+        },
+        "ui/celestialFields/gaseousAtmosphereField.js": {
+          "bytesInOutput": 7722
         },
         "ui/celestialRenderSignatures.js": {
-          "bytesInOutput": 1043
+          "bytesInOutput": 1523
+        },
+        "ui/celestialDiagnosticCapabilityContract.js": {
+          "bytesInOutput": 1511
+        },
+        "ui/celestialFields/gaseousTextureMaps.js": {
+          "bytesInOutput": 5281
         },
         "ui/celestialBodyCoordinates.js": {
           "bytesInOutput": 676
         },
         "ui/celestialTexturePipeline.js": {
-          "bytesInOutput": 23605
+          "bytesInOutput": 29958
         },
         "ui/celestialLayerTexturePainter.js": {
           "bytesInOutput": 27121
         },
         "ui/celestialTextureWorker.js": {
-          "bytesInOutput": 961
+          "bytesInOutput": 1544
         }
       },
-      "bytes": 75023
+      "bytes": 121069
     }
   }
 }
