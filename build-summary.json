@@ -2,7 +2,7 @@
   "mode": "production",
   "releaseVersion": "3.8.0",
   "distDir": "dist",
-  "generatedAt": "2026-07-18T11:22:01.270Z",
+  "generatedAt": "2026-07-18T12:29:08.164Z",
   "entry": {
     "file": "app.js",
     "bytes": 34766
