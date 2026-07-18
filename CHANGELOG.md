@@ -40,6 +40,9 @@ corrupt assets fall back safely to Auto.
 - Fixed generated-landmass, PNG-import, and sketch dialogs opening behind the
   Visualiser appearance editor. Nested dialogs now remain topmost and
   interactive, then restore focus and control to the editor after closing.
+- Appearance Save now waits for durable browser storage before the editor
+  closes, preventing an immediate reload from reverting freshly authored land
+  masks or other visual edits to Auto.
 - Added content-derived release identities to the application shell and every
   standalone worker. Manual flat-folder uploads now force returning browsers to
   fetch changed texture, authoring, lifecycle, and GIF workers instead of

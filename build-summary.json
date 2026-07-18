@@ -2,7 +2,7 @@
   "mode": "production",
   "releaseVersion": "3.8.0",
   "distDir": "dist",
-  "generatedAt": "2026-07-18T10:24:21.071Z",
+  "generatedAt": "2026-07-18T11:22:01.270Z",
   "entry": {
     "file": "app.js",
     "bytes": 34766
@@ -32,7 +32,7 @@
   "releaseAssetRevisions": {
     "themeBoot.js": "3.8.0-92a46840e1b75eb3",
     "styles.css": "3.8.0-4815df6a752ec1a2",
-    "app.js": "3.8.0-b481a1312c2fd6f4",
+    "app.js": "3.8.0-9c82c0a9b6c91535",
     "celestialTextureWorker.js": "3.8.0-5af54ab156030a8e",
     "celestialAuthoringWorker.js": "3.8.0-42951abb22bc23a9",
     "stellarLifecycleWorker.js": "3.8.0-0f742cca45cd4b3a",
