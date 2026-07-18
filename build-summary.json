@@ -1,57 +1,67 @@
 {
   "mode": "production",
-  "releaseVersion": "3.7.0",
+  "releaseVersion": "3.8.0",
   "distDir": "dist",
-  "generatedAt": "2026-07-17T17:08:17.311Z",
+  "generatedAt": "2026-07-18T10:24:21.071Z",
   "entry": {
     "file": "app.js",
-    "bytes": 34761
+    "bytes": 34766
   },
-  "lazyChunkCount": 136,
+  "lazyChunkCount": 135,
   "largestLazyChunk": {
-    "file": "chunks/chunk-56JJ2DZ6.js",
+    "file": "chunks/chunk-Q3EXAOWE.js",
     "bytes": 2599619
   },
   "largestNonModelDataLazyChunk": {
-    "file": "chunks/chunk-K6EXVWDB.js",
+    "file": "chunks/chunk-VP7GJPTD.js",
     "bytes": 715105
   },
   "largestAppLazyChunk": {
-    "file": "chunks/planetPage-JOEHAAMS.js",
-    "bytes": 273917
+    "file": "chunks/chunk-B4OAVPXM.js",
+    "bytes": 395719
   },
   "largestVendorLazyChunk": {
-    "file": "chunks/chunk-K6EXVWDB.js",
+    "file": "chunks/chunk-VP7GJPTD.js",
     "bytes": 715105
   },
   "largestModelDataLazyChunk": {
-    "file": "chunks/chunk-56JJ2DZ6.js",
+    "file": "chunks/chunk-Q3EXAOWE.js",
     "bytes": 2599619
   },
   "modelDataLazyChunkBytes": 5138796,
+  "releaseAssetRevisions": {
+    "themeBoot.js": "3.8.0-92a46840e1b75eb3",
+    "styles.css": "3.8.0-4815df6a752ec1a2",
+    "app.js": "3.8.0-b481a1312c2fd6f4",
+    "celestialTextureWorker.js": "3.8.0-5af54ab156030a8e",
+    "celestialAuthoringWorker.js": "3.8.0-42951abb22bc23a9",
+    "stellarLifecycleWorker.js": "3.8.0-0f742cca45cd4b3a",
+    "assets/vendor/gif.js": "3.8.0-e40d81879b7de14d",
+    "assets/vendor/gif.worker.js": "3.8.0-cba3bd1cc3c9bd3f"
+  },
   "workers": [
     {
       "file": "celestialTextureWorker.js",
       "source": "ui/celestialTextureWorker.js",
-      "bytes": 121069,
-      "gzipBytes": 41166,
-      "inputCount": 22,
+      "bytes": 136328,
+      "gzipBytes": 46516,
+      "inputCount": 26,
       "topContributors": [
         {
           "file": "ui/celestialTexturePipeline.js",
-          "bytesInOutput": 29958
+          "bytesInOutput": 31533
         },
         {
           "file": "ui/celestialLayerTexturePainter.js",
-          "bytesInOutput": 27121
+          "bytesInOutput": 27139
         },
         {
           "file": "ui/celestialFields/surfaceMasks.js",
-          "bytesInOutput": 8430
+          "bytesInOutput": 9408
         },
         {
           "file": "ui/celestialFields/gaseousAtmosphereField.js",
-          "bytesInOutput": 7722
+          "bytesInOutput": 7718
         },
         {
           "file": "ui/celestialFields/featureCatalogues.js",
@@ -59,7 +69,7 @@
         },
         {
           "file": "ui/celestialFields/materialMaps.js",
-          "bytesInOutput": 5750
+          "bytesInOutput": 6068
         },
         {
           "file": "ui/celestialFields/lineamentCatalogue.js",
@@ -74,8 +84,49 @@
           "bytesInOutput": 5281
         },
         {
+          "file": "ui/celestialFields/seededGeography.js",
+          "bytesInOutput": 4742
+        }
+      ]
+    },
+    {
+      "file": "celestialAuthoringWorker.js",
+      "source": "ui/celestialAuthoringWorker.js",
+      "bytes": 15337,
+      "gzipBytes": 5996,
+      "inputCount": 8,
+      "topContributors": [
+        {
+          "file": "ui/celestialFields/seededGeography.js",
+          "bytesInOutput": 4722
+        },
+        {
+          "file": "ui/celestialFields/geographyTopology.js",
+          "bytesInOutput": 2676
+        },
+        {
+          "file": "ui/planetaryVisual/landMaskImport.js",
+          "bytesInOutput": 2198
+        },
+        {
+          "file": "ui/celestialProceduralMath.js",
+          "bytesInOutput": 2029
+        },
+        {
           "file": "ui/celestialFields/coverageSelector.js",
-          "bytesInOutput": 3190
+          "bytesInOutput": 1499
+        },
+        {
+          "file": "ui/celestialAuthoringWorker.js",
+          "bytesInOutput": 1192
+        },
+        {
+          "file": "ui/celestialFields/areaGrid.js",
+          "bytesInOutput": 793
+        },
+        {
+          "file": "ui/celestialFields/signatures.js",
+          "bytesInOutput": 177
         }
       ]
     },

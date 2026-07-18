@@ -1,0 +1,1 @@
+import{a as o}from"./chunk-YZYZEETI.js";var e=null;function d(){return e||(e=o().then(r=>{if(!r?.WebGLRenderer)throw new Error("Three.js core module did not expose WebGLRenderer");return r}).catch(r=>{throw e=null,r}),e)}export{d as a};

@@ -1,4 +1,4 @@
-# Caelum 3.7.0
+# Caelum 3.8.0
 
 Caelum is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -13,6 +13,15 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Rocky planets can generate six deterministic continent, archipelago, and
+  supercontinent candidates, compare both hemispheres, and apply only the
+  geography the user selects.
+- Binary PNG land masks can be imported, checked, adjusted, and exported, or
+  sketched directly in Caelum with undo, redo, seam-aware painting, and a live
+  globe preview.
+- Authored coastlines persist with the world and stay aligned across surface
+  materials, relief, ice, vegetation, previews, the Visualiser, System Poster,
+  and Apparent Sky without changing solved planetary science.
 - Moon surfaces now combine coherent terrain, craters, fractures, vents,
   deposits, flows, dunes, liquids, haze, and plumes across previews, the
   Visualiser, and exported images.

@@ -4,6 +4,56 @@ All notable changes to Caelum will be documented in this file.
 
 ## Unreleased
 
+## 3.8.0 — 2026-07-18
+
+### Rocky Planet Landmass Authoring
+
+**Generated geography** (`ui/celestialFields/`,
+`ui/planetaryVisual/geographyCandidateChooser.js`)
+
+Added a draft-safe six-choice landmass generator with spherical Continents,
+Archipelago, and Supercontinent profiles, hidden-hemisphere map strips,
+keyboard selection, and explicit apply/cancel behaviour. Authored coastlines
+remain visual-only and do not rewrite solved planetary science.
+
+**Binary mask import, export, and sketching** (`ui/planetaryVisual/`,
+`ui/store/visualAssetModel.js`)
+
+Added local binary-PNG mask import and export with deterministic threshold,
+inversion, rotation, smoothing, coverage/seam/pole diagnostics, and a blank
+template. Added an in-app spherical land/ocean sketcher with mouse, touch, pen,
+and keyboard painting, exact bounded undo/redo, and a live globe preview;
+imported files never leave the browser.
+
+**Persistence and downstream rendering** (`ui/store/`,
+`ui/celestialTexturePipeline.js`, `ui/celestialVisualPreview.js`)
+
+Added compact content-addressed mask assets to world schema 70. Assets
+deduplicate, validate, migrate, save, reload, back up, restore, export, import,
+and garbage-collect with their rocky-body references. Coasts now align with
+materials, normals, land/sea ice, and land-constrained layers in Planet,
+Appearance, Visualiser, System Poster, and Apparent Sky consumers; missing or
+corrupt assets fall back safely to Auto.
+
+### Bug Fixes
+
+- Fixed generated-landmass, PNG-import, and sketch dialogs opening behind the
+  Visualiser appearance editor. Nested dialogs now remain topmost and
+  interactive, then restore focus and control to the editor after closing.
+- Added content-derived release identities to the application shell and every
+  standalone worker. Manual flat-folder uploads now force returning browsers to
+  fetch changed texture, authoring, lifecycle, and GIF workers instead of
+  retaining a previous release for the server's seven-day asset cache window.
+
+**Tests** (`tests/rockyGeographyField.test.js`,
+`tests/rockyLandmassContracts.test.js`,
+`tests/browser/planetaryVisualLandmasses.spec.js`)
+
+- Added byte-level 3.7.0 Auto-render baselines at every texture quality.
+- Added spherical topology, persistence, migration, import, sketch,
+  science-invariance, downstream-consumer, worker, performance, and real-browser
+  regression coverage.
+
 ## 3.7.0 — 2026-07-17
 
 ### Planet Visual Editor

@@ -1,0 +1,157 @@
+{
+  "inputs": {
+    "ui/celestialProceduralMath.js": {
+      "bytes": 5572,
+      "imports": [],
+      "format": "esm"
+    },
+    "ui/celestialFields/areaGrid.js": {
+      "bytes": 1884,
+      "imports": [
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/celestialFields/signatures.js": {
+      "bytes": 1419,
+      "imports": [
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/celestialFields/coverageSelector.js": {
+      "bytes": 7695,
+      "imports": [
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        },
+        {
+          "path": "ui/celestialFields/signatures.js",
+          "kind": "import-statement",
+          "original": "./signatures.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/celestialFields/geographyTopology.js": {
+      "bytes": 8860,
+      "imports": [
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/celestialFields/seededGeography.js": {
+      "bytes": 11181,
+      "imports": [
+        {
+          "path": "ui/celestialProceduralMath.js",
+          "kind": "import-statement",
+          "original": "../celestialProceduralMath.js"
+        },
+        {
+          "path": "ui/celestialFields/areaGrid.js",
+          "kind": "import-statement",
+          "original": "./areaGrid.js"
+        },
+        {
+          "path": "ui/celestialFields/coverageSelector.js",
+          "kind": "import-statement",
+          "original": "./coverageSelector.js"
+        },
+        {
+          "path": "ui/celestialFields/geographyTopology.js",
+          "kind": "import-statement",
+          "original": "./geographyTopology.js"
+        },
+        {
+          "path": "ui/celestialFields/signatures.js",
+          "kind": "import-statement",
+          "original": "./signatures.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/planetaryVisual/landMaskImport.js": {
+      "bytes": 8198,
+      "imports": [
+        {
+          "path": "ui/celestialFields/areaGrid.js",
+          "kind": "import-statement",
+          "original": "../celestialFields/areaGrid.js"
+        },
+        {
+          "path": "ui/celestialFields/geographyTopology.js",
+          "kind": "import-statement",
+          "original": "../celestialFields/geographyTopology.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "ui/celestialAuthoringWorker.js": {
+      "bytes": 2269,
+      "imports": [
+        {
+          "path": "ui/celestialFields/seededGeography.js",
+          "kind": "import-statement",
+          "original": "./celestialFields/seededGeography.js"
+        },
+        {
+          "path": "ui/planetaryVisual/landMaskImport.js",
+          "kind": "import-statement",
+          "original": "./planetaryVisual/landMaskImport.js"
+        }
+      ],
+      "format": "esm"
+    }
+  },
+  "outputs": {
+    "dist/celestialAuthoringWorker.js": {
+      "imports": [],
+      "exports": [
+        "__celestialAuthoringWorkerInternals"
+      ],
+      "entryPoint": "ui/celestialAuthoringWorker.js",
+      "inputs": {
+        "ui/celestialProceduralMath.js": {
+          "bytesInOutput": 2029
+        },
+        "ui/celestialFields/areaGrid.js": {
+          "bytesInOutput": 793
+        },
+        "ui/celestialFields/signatures.js": {
+          "bytesInOutput": 177
+        },
+        "ui/celestialFields/coverageSelector.js": {
+          "bytesInOutput": 1499
+        },
+        "ui/celestialFields/geographyTopology.js": {
+          "bytesInOutput": 2676
+        },
+        "ui/celestialFields/seededGeography.js": {
+          "bytesInOutput": 4722
+        },
+        "ui/planetaryVisual/landMaskImport.js": {
+          "bytesInOutput": 2198
+        },
+        "ui/celestialAuthoringWorker.js": {
+          "bytesInOutput": 1192
+        }
+      },
+      "bytes": 15337
+    }
+  }
+}

@@ -15104,3 +15104,224 @@ button.star-topology-node:focus-visible {
   padding: 2px 8px;
   border-bottom: 1px solid var(--border);
 }
+/* Rocky landmass authoring */
+.planetary-visual-control--landmass {
+  gap: 0.75rem;
+}
+
+.planetary-visual-control__landmass-actions,
+.geography-chooser__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.geography-chooser-overlay {
+  position: fixed;
+  inset: 0;
+  /* This dialog is launched from the visual editor (z-index: 9800). */
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(5 8 18 / 72%);
+}
+
+.geography-chooser {
+  width: min(68rem, 100%);
+  max-height: min(92vh, 58rem);
+  overflow: auto;
+  padding: 1.25rem;
+  border: 1px solid var(--border, #39415d);
+  border-radius: 1rem;
+  background: var(--panel, #171c31);
+  color: var(--text, #eef1ff);
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 45%);
+}
+
+.geography-chooser__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.geography-chooser__header h2,
+.geography-chooser__header p {
+  margin: 0 0 0.55rem;
+}
+
+.geography-chooser__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+
+.geography-candidate {
+  min-height: 13rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border, #454d6b);
+  border-radius: 0.8rem;
+  background: var(--surface, #20263d);
+  color: inherit;
+  cursor: pointer;
+}
+
+.geography-candidate[aria-checked="true"] {
+  border-color: var(--accent, #79adff);
+  box-shadow: 0 0 0 3px rgb(121 173 255 / 30%);
+}
+
+.geography-candidate__globe,
+.geography-candidate__strip {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
+
+.geography-candidate__strip {
+  margin-block: 0.35rem 0.6rem;
+  border: 1px solid rgb(255 255 255 / 16%);
+}
+
+.geography-chooser__selected-preview {
+  display: block;
+  margin: 0.5rem auto;
+}
+
+.geography-chooser__actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 850px) {
+  .geography-chooser__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .geography-chooser__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .geography-chooser button,
+  .planetary-visual-control--landmass button {
+    min-height: 44px;
+  }
+}
+
+.land-mask-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  /* Import and sketch dialogs must remain above the visual editor and tooltips. */
+  z-index: 10010;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(5 8 18 / 76%);
+}
+
+.land-mask-dialog {
+  width: min(70rem, 100%);
+  max-height: 94vh;
+  overflow: auto;
+  padding: 1.25rem;
+  border: 1px solid var(--border, #39415d);
+  border-radius: 1rem;
+  background: var(--panel, #171c31);
+  color: var(--text, #eef1ff);
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 48%);
+}
+
+.land-mask-dialog__header,
+.land-mask-dialog__actions,
+.land-mask-sketch__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.land-mask-dialog__header h2,
+.land-mask-dialog__header p {
+  margin: 0 0 0.55rem;
+}
+
+.land-mask-dialog__previews {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(13rem, 1fr);
+  align-items: center;
+  gap: 1rem;
+  margin-block: 1rem;
+}
+
+.land-mask-dialog__map canvas,
+.land-mask-sketch__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border, #39415d);
+  border-radius: 0.5rem;
+  image-rendering: pixelated;
+}
+
+.land-mask-dialog__globe {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
+
+.land-mask-dialog__controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.land-mask-dialog__controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 44px;
+}
+
+.land-mask-dialog__diagnostics,
+.land-mask-sketch__status,
+.land-mask-dialog__error {
+  margin-block: 0.8rem;
+  padding: 0.7rem;
+  border-radius: 0.55rem;
+  background: rgb(126 163 235 / 10%);
+}
+
+.land-mask-dialog__error {
+  color: var(--danger, #ffaaaa);
+}
+
+.land-mask-dialog__actions {
+  justify-content: flex-end;
+}
+
+.land-mask-sketch__canvas {
+  touch-action: none;
+}
+
+.land-mask-sketch__toolbar {
+  justify-content: flex-start;
+}
+
+.land-mask-sketch__toolbar button,
+.land-mask-sketch__toolbar select,
+.land-mask-dialog__actions button {
+  min-height: 44px;
+}
+
+@media (max-width: 700px) {
+  .land-mask-dialog__previews,
+  .land-mask-dialog__controls {
+    grid-template-columns: 1fr;
+  }
+}
