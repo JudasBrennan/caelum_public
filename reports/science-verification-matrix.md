@@ -1,8 +1,8 @@
 # Caelum Science Verification Matrix
 
-Generated: 2026-07-18T12:29:04.706Z
+Generated: 2026-09-11T06:56:38.063Z
 
-App version: 3.8.0
+App version: 3.9.0
 
 Science verification matrix covering benchmark anchors, invariants, trend checks, boundary checks, cross-system coupling, units, independent formula oracles, sensitivity, population sanity, browser coverage, and release gates.
 
@@ -13,17 +13,17 @@ Anchor benchmarks are only one family. Physics invariants, metamorphic trends, b
 Metric | Value
 --- | ---
 Model areas | 31
-Verification rows | 372
-Passed rows | 363
+Verification rows | 386
+Passed rows | 372
 Warnings | 0
 Failures | 0
 Modeling gaps | 0
 Blocked rows | 0
 Release gates passed | 1
-Strict calibration rows | 147
+Strict calibration rows | 157
 Strict calibration failures | 0
-Calibrated rows | 106
-Exploratory rows | 33
+Calibrated rows | 104
+Exploratory rows | 38
 
 ## Model Area Coverage
 
@@ -31,7 +31,7 @@ Model area | Trust | Registry keys | Coverage
 --- | --- | --- | ---
 Stellar Environment | strong | stellarHistoryDose | anchor, metamorphic, unit, empirical-validation, source-coverage
 Stellar Lifecycle | strong | stellarLifecycle | source-coverage
-Rocky Planets | strong | planetRadiationEnvironment, surfaceClimate, geodynamics, interiorEvolution | anchor, invariant, metamorphic, cross-system, unit, sensitivity, empirical-validation, source-coverage
+Rocky Planets | strong | planetRadiationEnvironment, surfaceClimate, geodynamics, interiorEvolution, rockyDynamoEvolution, rockyMagnetosphere | anchor, invariant, metamorphic, boundary, cross-system, unit, oracle, sensitivity, empirical-validation, source-coverage
 Hydrosphere And Ocean Chemistry | strong | co2ClimateTendency, productivity, nitrogenCycle | invariant, metamorphic, boundary, cross-system, source-coverage
 Atmosphere And Climate Coupling | strong | atmosphereEvolution, coupledClimatePass, co2ClimateTendency, surfaceClimate | invariant, metamorphic, boundary, cross-system, unit, oracle, sensitivity, source-coverage
 Moons And Tidal Worlds | strong | observerFrame, eclipseTiming, moonOrientation, secularStress, gasGiantMoonInfluenceSummary | anchor, invariant, metamorphic, boundary, cross-system, unit, oracle, population, source-coverage
@@ -65,9 +65,9 @@ Dynamical timeline events | strong | timeline.dynamicalEvents | source-coverage
 
 Tier | Rows | Pass | Warn | Fail | Gap | Blocked
 --- | --- | --- | --- | --- | --- | ---
-calibrated | 106 | 106 | 0 | 0 | 0 | 0
-exploratory | 33 | 29 | 0 | 0 | 0 | 0
-strict | 147 | 147 | 0 | 0 | 0 | 0
+calibrated | 104 | 104 | 0 | 0 | 0 | 0
+exploratory | 38 | 29 | 0 | 0 | 0 | 0
+strict | 157 | 157 | 0 | 0 | 0 | 0
 
 ## Open Gaps And Watch Items
 
@@ -109,7 +109,7 @@ rocky-planets | anchor | strict | Rocky planets / Mercury | Radius | PASS | info
 rocky-planets | anchor | strict | Rocky planets / Mercury | Surface gravity | PASS | info | 0.3765 g | 0.3770 g | No action
 rocky-planets | anchor | calibrated | Rocky planets / Mercury | Surface temperature | PASS | info | 440.0 K | 440.0 K | No action
 rocky-planets | anchor | strict | Rocky planets / Mercury | Core radius fraction | PASS | info | 0.8367 | 0.8500 | No action
-rocky-planets | anchor | calibrated | Rocky planets / Mercury | Surface magnetic field | PASS | info | 0.0092 Earth | 0.0030 Earth to 0.0300 Earth | No action
+rocky-planets | anchor | exploratory | Rocky planets / Mercury | Surface magnetic field | INFO | info | 0.1836 Earth | 0.0030 Earth to 0.0300 Earth | Document model/observation disagreement; do not add a named-body override
 rocky-planets | anchor | strict | Rocky planets / Mercury | Composition class | PASS | info | Iron world | Mercury-like or Iron world | No action
 observability-user-facing | anchor | strict | Climate state / Mercury | Absorbed stellar flux | PASS | info | 2117 W/m2 | 2117 W/m2 | No action
 observability-user-facing | anchor | strict | Climate state / Mercury | Observed dry-body state | PASS | info | Stable | Stable | No action
@@ -117,7 +117,7 @@ rocky-planets | anchor | strict | Rocky planets / Venus | Density | PASS | info 
 rocky-planets | anchor | strict | Rocky planets / Venus | Radius | PASS | info | 0.9508 Rearth | 0.9490 Rearth | No action
 rocky-planets | anchor | strict | Rocky planets / Venus | Surface gravity | PASS | info | 0.9015 g | 0.9050 g | No action
 rocky-planets | anchor | calibrated | Rocky planets / Venus | Surface temperature | PASS | info | 736.0 K | 737.0 K | No action
-rocky-planets | anchor | calibrated | Rocky planets / Venus | Surface magnetic field | PASS | info | 0 Earth | 0 Earth | No action
+rocky-planets | anchor | exploratory | Rocky planets / Venus | Surface magnetic field | INFO | info | 0 Earth | 0 Earth | Keep this as diagnostic evidence rather than a named-body tuning target
 rocky-planets | anchor | strict | Rocky planets / Venus | Composition class | PASS | info | Earth-like | Earth-like | No action
 observability-user-facing | anchor | strict | Climate state / Venus | Absorbed stellar flux | PASS | info | 156.2 W/m2 | 156.2 W/m2 | No action
 observability-user-facing | anchor | strict | Climate state / Venus | Observed dry-body state | PASS | info | Stable | Stable | No action
@@ -135,7 +135,7 @@ rocky-planets | anchor | strict | Rocky planets / Mars | Density | PASS | info |
 rocky-planets | anchor | strict | Rocky planets / Mars | Radius | PASS | info | 0.5297 Rearth | 0.5320 Rearth | No action
 rocky-planets | anchor | strict | Rocky planets / Mars | Surface gravity | PASS | info | 0.3813 g | 0.3780 g | No action
 rocky-planets | anchor | calibrated | Rocky planets / Mars | Surface temperature | PASS | info | 211.0 K | 210.0 K | No action
-rocky-planets | anchor | calibrated | Rocky planets / Mars | Surface magnetic field | PASS | info | 0 Earth | 0 Earth | No action
+rocky-planets | anchor | exploratory | Rocky planets / Mars | Surface magnetic field | INFO | info | 0 Earth | 0 Earth | Keep this as diagnostic evidence rather than a named-body tuning target
 rocky-planets | anchor | strict | Rocky planets / Mars | Composition class | PASS | info | Mars-like | Mars-like | No action
 observability-user-facing | anchor | strict | Climate state / Mars | Absorbed stellar flux | PASS | info | 109.9 W/m2 | 109.9 W/m2 | No action
 observability-user-facing | anchor | strict | Climate state / Mars | Observed dry-body state | PASS | info | Stable | Stable | No action
@@ -147,6 +147,9 @@ observability-user-facing | anchor | strict | Climate state / Venus primordial w
 observability-user-facing | anchor | strict | Climate state / Mars + water | Water-enabled climate state | PASS | info | Snowball | Snowball | No action
 observability-user-facing | anchor | strict | Climate state / Mercury + water | Water-enabled climate state | PASS | info | Runaway greenhouse | Runaway greenhouse | No action
 observability-user-facing | anchor | strict | Climate state / Ceres + water | Water-enabled climate state | PASS | info | Snowball | Snowball | No action
+rocky-planets | anchor | exploratory | Rocky dynamo model evidence / Super-Earth observations | Direct magnetic-field calibration anchor | INFO | info | None used | No direct super-Earth field observation presently available | Keep predictions model-labelled and low/medium confidence until defensible observations exist
+rocky-planets | anchor | strict | Rocky dynamo model evidence / EVO-1D-SUPER-EARTH v1.1 | Published source-grid reproduction | PASS | info | lherm2026-reduced-grid-v1 | lherm2026-reduced-grid-v1 | Review source archive, checksum, and extraction before changing this row
+rocky-planets | anchor | strict | Rocky dynamo model evidence / Worldsmith generic rocky engine | Derived dynamo and field prediction owner | PASS | info | rocky-dynamo-evolution-v1 | rocky-dynamo-evolution-v1 | Require a model-version migration for any scientific contract change
 gas-giants | anchor | strict | Gas and ice giants / Jupiter | Density | PASS | info | 1.326 g/cm3 | 1.326 g/cm3 | No action
 gas-giants | anchor | strict | Gas and ice giants / Jupiter | Escape velocity | PASS | info | 60.20 km/s | 60.20 km/s | No action
 gas-giants | anchor | strict | Gas and ice giants / Jupiter | Orbital period | PASS | info | 11.86 yr | 11.86 yr | No action
@@ -398,15 +401,26 @@ rocky-planets | empirical-validation | calibrated | Core evolution / Earth | PRE
 rocky-planets | empirical-validation | calibrated | Core evolution / Mars | Total metallic-core radius | PASS | low | 1653 km | 1500-2100 km | Keep the solved Mars total-core radius inside the NASA interval.
 rocky-planets | empirical-validation | exploratory | Core evolution / Mercury | Metallic-core radius and broad inner-core containment | PASS | low | 2043 km core; inner range 0-1827 km | 2,074 km core; approximately 1,000 km inner-core radius contained | Preserve Mercury's direct total-core scale without claiming a precise inner radius.
 rocky-planets | empirical-validation | exploratory | Core evolution / Mars | Liquid outer core and broad 600 km inner-core consistency | PASS | low | mostly-solid; liquid=true; range 204-1653 km | Liquid outer core; approximately 600 km contained by broad range | Do not equate Mars's absent global field with a fully frozen core.
-rocky-planets | empirical-validation | exploratory | Core evolution / Mercury | Liquid outer core remains compatible with weak global field | PASS | low | liquid=true; field=0.0092 Earth | Liquid outer core, weak active dipole (0.003-0.03 Earth), and compact 1-2 RM magnetopause | Preserve Mercury's liquid-core/weak-field separation and broad confidence.
+rocky-planets | empirical-validation | exploratory | Core evolution / Mercury | Liquid outer core remains separate from the global-field comparison | PASS | low | liquid=true; field=0.1836 Earth | Liquid outer core plus a finite generic comparative result; any observational disagreement remains explicit | Preserve phase/field separation and document the comparative-model disagreement without a named-body override.
 rocky-planets | cross-system | n/a | Core evolution downstream ownership | Core, magnetism, and interior projections remain identical | PASS | low | Four shared-context parity checks | One versioned core state and support result per solve | Prevent downstream consumers from re-solving or contradicting core evolution.
 rocky-planets | invariant | n/a | Core evolution geometry | Solid volume fraction is the cube of radius fraction | PASS | low | 0.046503 vs 0.046503 | V_ic/V_core = (r_ic/r_core)^3 | Fix radius/volume projection if the cubic identity drifts.
 rocky-planets | invariant | n/a | Core phase and magnetic activity | Absent dynamo does not imply a solid core | PASS | low | dynamo=false; liquid=true; state=mostly-solid | No dynamo while liquid outer core remains | Keep material state, convective support, rotation, and field activity separate.
+rocky-planets | source-coverage | strict | Rocky dynamo published-grid extract | Fixture checksum and source version | PASS | low | 709a6e49f83bd4d524c5b27a2c7695e342631fdfd99e93e2334d3a6396dfb5b4; lherm2026-reduced-grid-v1 | 709a6e49f83bd4d524c5b27a2c7695e342631fdfd99e93e2334d3a6396dfb5b4; lherm2026-reduced-grid-v1 | Regenerate only from the cited archive and review any checksum or version change.
+rocky-planets | unit | strict | Rocky dynamo runtime contract | Model version and interpolation domain | PASS | low | rocky-dynamo-evolution-v1; 1-10 Mearth | rocky-dynamo-evolution-v1; 1-10 Mearth | Treat a version/domain change as a reviewed science-model migration.
+rocky-planets | boundary | calibrated | Rocky dynamo 5 Mearth handoff | 5.0 to 5.01 Mearth continuity | PASS | low | 5.0=inactive-across-scenarios; 5.01=inactive-across-scenarios | both source-resolved; no mass-only physical zero | Do not restore the former 5 Mearth core-geometry cutoff as a dynamo veto.
+rocky-planets | boundary | strict | Rocky dynamo upper source boundary | 10-20 Mearth unsupported interval | PASS | low | indeterminate, indeterminate, indeterminate | indeterminate, indeterminate, indeterminate | Keep authoritative field and magnetopause ranges nullable outside the source grid.
+rocky-planets | oracle | strict | Rocky dynamo source-to-surface projection | Cubic radius attenuation with published 1/7 convention | PASS | low | 0.0000580582961685 | 0.000058058292100850295 | Preserve cubic attenuation and the recorded large-scale-field convention.
+rocky-planets | boundary | strict | Rocky dynamo source-state classification | Magnetic Reynolds-number boundaries | PASS | low | inactive, marginal, marginal, active | inactive, marginal, marginal, active | Keep Rm and energetic viability as separate gates.
+rocky-planets | oracle | strict | Rocky magnetosphere v2 | Field and ram-pressure exponents | PASS | low | 2x field response; 0.5x pressure response | 2x field response; 0.5x pressure response | Preserve the 1/3 field and -1/6 pressure exponents.
+rocky-planets | cross-system | strict | Rocky magnetic uncertainty propagation | Unresolved field remains unresolved downstream | PASS | low | indeterminate; Rmp=null | indeterminate; Rmp=null | Never coerce an unresolved field or cavity to zero/false before downstream use.
+rocky-planets | metamorphic | strict | Rocky dynamo generic-engine guard | Name, ID, and preset invariance | PASS | low | identical | identical | Reject any body-name, ID, or preset branch in the runtime model.
+rocky-planets | source-coverage | exploratory | Rocky dynamo observational calibration | Observed super-Earth magnetic-field anchor | INFO | info | None used | No direct observation presently available | Retain explicit model/source language until a defensible observation exists.
 orbital-dynamics | unit | n/a | Astronomical unit | AU to kilometers | PASS | low | 149597870.7 | 149597870.7 | Fix unit constants or conversion helpers if this fails.
 rocky-planets | unit | n/a | Earth mass/radius | Earth mean density from constants | PASS | low | 5.5133 | 5.51 | Fix unit constants or conversion helpers if this fails.
 atmosphere-climate | unit | n/a | Atmospheric pressure | atm to Pa | PASS | low | 101325 | 101325 | Fix unit constants or conversion helpers if this fails.
 moons | unit | n/a | Orbital migration | cm/yr to m/s conversion sanity | PASS | low | 3.17e-10 | 3.1688e-10 m/s for 1 cm/yr | Fix unit constants or conversion helpers if this fails.
 stellar-environment | unit | n/a | Solar luminosity | Solar flux at 1 AU | PASS | low | 1361.17 W/m2 | about 1361 W/m2 | Fix unit constants or conversion helpers if this fails.
+orbital-dynamics | oracle | n/a | Venus rotation | Retrograde mean solar day | PASS | low | 116.751 d | 116.75 d | No action required.
 orbital-dynamics | oracle | n/a | Earth orbit | Independent Kepler period | PASS | low | 1 yr | 1 yr | No action required.
 atmosphere-climate | oracle | n/a | Earth absorbed flux | Independent inverse-square absorbed flux | PASS | low | 236.133 W/m2 | 236.162 W/m2 | No action required.
 moons | oracle | n/a | Earth synchronous orbit | Independent synchronous radius | PASS | low | 42163 km | about 42164 km | No action required.
@@ -444,7 +458,7 @@ observability-user-facing | population | n/a | Science calibration fixture set |
 habitability-biosignatures | population | n/a | Hostile calibration fixtures | Hostile worlds do not bypass habitability guardrails | PASS | low | Guardrails hold | No obvious hostile world with high habitability index | Review habitability penalties if this fails.
 moons | population | n/a | Moon calibration fixture availability | Europa-like and Titan-like worlds exist for downstream suites | PASS | low | Europa-like calibration; Titan-like calibration | Moon fixture worlds present | Keep moon fixtures updated when moon schema changes.
 observability-user-facing | browser | n/a | Validation page | Browser regression suite coverage | INFO | info | Covered by npm run test:browser during release verification | Validation page loads matrix artifact and filters rows | Run browser tests before release; investigate any Validation page failure.
-observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-07-18T12:29:04.706Z | PASS before release | No action required.
+observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-09-11T06:56:38.063Z | PASS before release | No action required.
 observability-user-facing | release-gate | n/a | check | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | build | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | bundle | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.

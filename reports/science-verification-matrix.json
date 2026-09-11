@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-18T12:29:04.706Z",
+  "generatedAt": "2026-09-11T06:56:38.063Z",
   "generatedBy": "node scripts/generate-science-verification-matrix.mjs",
-  "appVersion": "3.8.0",
+  "appVersion": "3.9.0",
   "git": {
-    "commit": "970bd02",
+    "commit": "ca3b4b4",
     "branch": "main",
     "dirty": true
   },
@@ -12,19 +12,19 @@
   "interpretation": "Anchor benchmarks are only one family. Physics invariants, metamorphic trends, boundary behavior, coupling checks, and user-visible release gates are shown separately so users can see how each science area is bounded.",
   "headlineCounts": {
     "modelAreas": 31,
-    "verificationRows": 372,
-    "passedRows": 363,
+    "verificationRows": 386,
+    "passedRows": 372,
     "warningRows": 0,
     "failedRows": 0,
     "gapRows": 0,
     "blockedRows": 0,
-    "infoRows": 9,
+    "infoRows": 14,
     "releaseGatesPassed": 1,
     "releaseGatesFailed": 0,
-    "strictRows": 147,
+    "strictRows": 157,
     "strictFailures": 0,
-    "calibratedRows": 106,
-    "exploratoryRows": 33
+    "calibratedRows": 104,
+    "exploratoryRows": 38
   },
   "filters": {
     "modelAreas": [
@@ -119,6 +119,7 @@
     ],
     "sourceClasses": [
       "analytic",
+      "evidence-limitation",
       "generated-population",
       "internal-invariant",
       "NASA",
@@ -127,8 +128,14 @@
       "peer-reviewed",
       "peer-reviewed-broad-anchor",
       "peer-reviewed-observation",
+      "published-relationship",
+      "published-source-model-extract",
+      "published-source-model-reproduction",
+      "source-model-reproduction",
       "UI-regression",
-      "validation-only-empirical"
+      "validation-only-empirical",
+      "worldsmith-applicability-policy",
+      "worldsmith-derived-prediction"
     ],
     "confidences": [
       "high",
@@ -238,50 +245,62 @@
         "planetRadiationEnvironment",
         "surfaceClimate",
         "geodynamics",
-        "interiorEvolution"
+        "interiorEvolution",
+        "rockyDynamoEvolution",
+        "rockyMagnetosphere"
       ],
       "engineFiles": [
         "engine/planet.js",
         "engine/planet/composition.js",
         "engine/planet/coreEvolution.js",
+        "engine/planet/dynamoEvolution.js",
         "engine/planet/magnetism.js",
-        "engine/planet/temperature.js"
+        "engine/planet/temperature.js",
+        "engine/environment/magnetosphere.js"
       ],
       "uiFiles": [
         "ui/planetPage.js",
         "ui/sciencePage.js"
       ],
       "scientificScope": "Rocky body bulk properties, orbit, climate, atmosphere, radiation, core crystallisation, magnetism, and geophysical context.",
-      "outputKind": "semiQuantitative",
+      "outputKind": "mixed",
       "assumptions": [
         "Mantle viscosity and Rayleigh number are proxy classes unless a calibrated interior model is added.",
+        "Numerical values use trilinear interpolation only inside the jointly reviewed mass, core-mass-fraction, and age axes. Three correlated source scenarios have no statistical weights. Rm below 40 is inactive, 40-50 is marginal, and above 50 still requires the energetic criterion; source-to-surface dipole attenuation is cubic.",
         "Procedural climate bands are not a GCM. Clouds, haze, and chemistry are diagnostic modifiers, not solved circulation.",
-        "The context distinguishes UV shielding from charged-particle shielding. It is a comparative hazard screen, not a particle transport, radiation chemistry, or biological dose model.",
-        "The core model uses tau_proxy = 2 + 12*CMF*sqrt(max(M, 0.01)), explicit nucleation at progress 0.60, central full solidification at 1.95, and square-root radial growth after nucleation. Solid volume is the cube of radius fraction. Thermal and compositional scores are comparative dynamo-support diagnostics; field activity, rotation, and morphology remain separate. Radiogenic/tidal heat and whole-body sulfur modify caveats, not the central growth coordinate."
+        "The core model uses tau_proxy = 2 + 12*CMF*sqrt(max(M, 0.01)), explicit nucleation at progress 0.60, central full solidification at 1.95, and square-root radial growth after nucleation. Solid volume is the cube of radius fraction. Thermal and compositional scores are comparative dynamo-support diagnostics; field activity, rotation, and morphology remain separate. Radiogenic/tidal heat and whole-body sulfur modify caveats, not the central growth coordinate.",
+        "The scalar surface-hazard screen is atmosphere/ozone driven. Intrinsic field and magnetopause state are reported separately and never become a generic numeric habitability, productivity, atmospheric-retention, or surface-dose bonus.",
+        "The v2 law is Rmp/Rp = 10 (Beq/Bearth)^(1/3) (Pram/Pearth)^(-1/6). Range minima pair the weakest field with the highest pressure and maxima pair the strongest field with the lowest pressure; a standing cavity is decided against the explicit one-radius collapse boundary."
       ],
       "knownLimitations": [
         "Does not prove plate tectonics; stagnant-lid and episodic regimes remain plausible.",
         "Does not resolve geography, ocean circulation, topography, cloud microphysics, or seasonal orbital phase.",
+        "External pressure is ram-only: stellar magnetic and thermal pressure, magnetotail geometry, reconnection, topology, time variability, and particle transport are not solved. A standing cavity is not a numeric atmospheric-retention, radiation-health, or habitability shield.",
+        "No magnetic field has yet been observed for a super-Earth and none is used as a calibration anchor. The scenarios are correlated model alternatives, not probabilities; no extrapolation beyond the coupled grid is allowed, and conditional source-chemistry results never become authoritative downstream values.",
         "No radial pressure-temperature profile, core-alloy phase diagram, light-element partitioning, electrical-conductivity evolution, core entropy budget, core-mantle-boundary heat-flow history, mantle-convection integration, or satellite-specific Fe/FeS growth model. Earth-anchored numeric geometry is a bounded calibration, while Mercury, Mars, super-Earths, composition extremes, and timing windows remain broad comparative estimates. A liquid core never guarantees a dynamo.",
-        "No spectral UV transfer, cosmic-ray transport, flare statistics, atmospheric chemistry network, or exact radiation dose in rem/day is solved for rocky planets."
+        "No spectral UV transfer, cosmic-ray transport, flare statistics, atmospheric chemistry network, field-topology particle transport, or exact radiation dose in rem/day is solved for rocky planets."
       ],
       "sourceUrls": [
         "https://doi.org/10.1002/2015GL064751",
         "https://doi.org/10.1007/s11214-010-9685-1",
         "https://doi.org/10.1016/0031-9201(81)90046-7",
+        "https://doi.org/10.1016/j.icarus.2011.10.014",
         "https://doi.org/10.1016/j.pepi.2003.07.006",
         "https://doi.org/10.1016/j.pepi.2014.08.004",
         "https://doi.org/10.1016/S0012-821X(01)00387-9",
         "https://doi.org/10.1029/2000JB900200",
         "https://doi.org/10.1029/2019JE006124",
         "https://doi.org/10.1029/2020JE006792",
+        "https://doi.org/10.1029/2025JE009447",
         "https://doi.org/10.1029/95JB03539",
         "https://doi.org/10.1038/356329a0",
         "https://doi.org/10.1038/nature11031",
+        "https://doi.org/10.1038/s41550-025-02729-x",
         "https://doi.org/10.1038/s41586-023-06150-0",
         "https://doi.org/10.1038/s41586-025-09361-9",
         "https://doi.org/10.1086/430652",
         "https://doi.org/10.1093/gji/ggv034",
+        "https://doi.org/10.5281/zenodo.18349207",
         "https://hess.copernicus.org/articles/11/1633/2007/",
         "https://nssdc.gsfc.nasa.gov/planetary/factsheet/",
         "https://ozonewatch.gsfc.nasa.gov/",
@@ -293,10 +312,10 @@
         "anchor": true,
         "invariant": true,
         "metamorphic": true,
-        "boundary": false,
+        "boundary": true,
         "cross-system": true,
         "unit": true,
-        "oracle": false,
+        "oracle": true,
         "sensitivity": true,
         "population": false,
         "browser": false,
@@ -443,7 +462,7 @@
       "outputKind": "semiQuantitative",
       "assumptions": [
         "Laplace radius and J2 precession are qualitative guards. Cassini-state output is readiness guidance without moments of inertia and spin-axis integration.",
-        "Moon-local frames are first-order observer frames. Surface latitude/longitude, libration, and full ephemerides are not solved.",
+        "Moon-local frames are first-order observer frames. Mean solar days and phase cycles use signed frequencies for prograde and retrograde motion; synchronous rotation has no recurring solar day. The calendar then labels its sidereal civil-day fallback explicitly. Surface latitude/longitude, polar phase geometry, libration, and full ephemerides are not solved.",
         "Outputs are readiness and likelihood classes unless node, epoch, periods, radii, and inclinations are provided.",
         "Outputs are susceptibility and analog morphology, not long-term integration or stress-field mapping.",
         "Solved moon contexts are used only as source/loading classes. Parent magnetopause and aurora outputs remain bounded diagnostics, not plasma transport or MHD simulations."
@@ -739,7 +758,7 @@
       "outputKind": "semiQuantitative",
       "assumptions": [
         "Instrument outputs are classes unless a specific telescope/noise model is selected. Atmosphere persistence and stellar activity change interpretation/readiness classes, not the core transit or RV formulas.",
-        "Moon-local frames are first-order observer frames. Surface latitude/longitude, libration, and full ephemerides are not solved.",
+        "Moon-local frames are first-order observer frames. Mean solar days and phase cycles use signed frequencies for prograde and retrograde motion; synchronous rotation has no recurring solar day. The calendar then labels its sidereal civil-day fallback explicitly. Surface latitude/longitude, polar phase geometry, libration, and full ephemerides are not solved.",
         "Outputs are readiness and likelihood classes unless node, epoch, periods, radii, and inclinations are provided."
       ],
       "knownLimitations": [
@@ -2386,14 +2405,14 @@
       "subject": "Rocky planets / Mercury",
       "metric": "Surface magnetic field",
       "inputSummary": "M=0.0553 Mearth; a=0.3870 AU; A=0.0680; P=1408 h; CMF=70.00%; WMF=0%",
-      "output": "0.0092 Earth",
+      "output": "0.1836 Earth",
       "expected": "0.0030 Earth to 0.0300 Earth",
       "tolerance": "0%",
-      "status": "PASS",
+      "status": "INFO",
       "severity": "info",
-      "confidence": "medium",
-      "calibrationTier": "calibrated",
-      "comparisonSemantics": "range-bounded",
+      "confidence": "low",
+      "calibrationTier": "exploratory",
+      "comparisonSemantics": "diagnostic-observation-comparison",
       "sourceClass": "NASA",
       "sourceUrls": [],
       "assumptions": [
@@ -2401,10 +2420,10 @@
         "reference range"
       ],
       "limitations": [
-        "bounded"
+        "high: the low-mass comparative dynamo is generic, low-confidence, and not fitted to a named body"
       ],
       "downstreamConsumers": [],
-      "action": "No action",
+      "action": "Document model/observation disagreement; do not add a named-body override",
       "userVisible": true
     },
     {
@@ -2613,11 +2632,11 @@
       "output": "0 Earth",
       "expected": "0 Earth",
       "tolerance": "0%",
-      "status": "PASS",
+      "status": "INFO",
       "severity": "info",
-      "confidence": "medium",
-      "calibrationTier": "calibrated",
-      "comparisonSemantics": "direct-numeric",
+      "confidence": "low",
+      "calibrationTier": "exploratory",
+      "comparisonSemantics": "diagnostic-observation-comparison",
       "sourceClass": "NASA",
       "sourceUrls": [],
       "assumptions": [
@@ -2625,10 +2644,10 @@
         "NASA/JPL planetary reference"
       ],
       "limitations": [
-        "bounded"
+        "high: inactive and indeterminate outcomes are both scientifically honest outside direct calibration"
       ],
       "downstreamConsumers": [],
-      "action": "No action",
+      "action": "Keep this as diagnostic evidence rather than a named-body tuning target",
       "userVisible": true
     },
     {
@@ -3117,11 +3136,11 @@
       "output": "0 Earth",
       "expected": "0 Earth",
       "tolerance": "0%",
-      "status": "PASS",
+      "status": "INFO",
       "severity": "info",
-      "confidence": "medium",
-      "calibrationTier": "calibrated",
-      "comparisonSemantics": "direct-numeric",
+      "confidence": "low",
+      "calibrationTier": "exploratory",
+      "comparisonSemantics": "diagnostic-observation-comparison",
       "sourceClass": "NASA",
       "sourceUrls": [],
       "assumptions": [
@@ -3129,10 +3148,10 @@
         "NASA/JPL planetary reference"
       ],
       "limitations": [
-        "bounded"
+        "high: inactive and indeterminate outcomes are both scientifically honest outside direct calibration"
       ],
       "downstreamConsumers": [],
-      "action": "No action",
+      "action": "Keep this as diagnostic evidence rather than a named-body tuning target",
       "userVisible": true
     },
     {
@@ -3441,6 +3460,90 @@
       ],
       "downstreamConsumers": [],
       "action": "No action",
+      "userVisible": true
+    },
+    {
+      "id": "anchor-Rocky dynamo model evidence-Super-Earth observations-Direct magnetic-field calibration anchor",
+      "modelAreaId": "rocky-planets",
+      "family": "anchor",
+      "subject": "Rocky dynamo model evidence / Super-Earth observations",
+      "metric": "Direct magnetic-field calibration anchor",
+      "inputSummary": "Observed exoplanet magnetic fields",
+      "output": "None used",
+      "expected": "No direct super-Earth field observation presently available",
+      "tolerance": "n/a",
+      "status": "INFO",
+      "severity": "info",
+      "confidence": "medium",
+      "calibrationTier": "exploratory",
+      "comparisonSemantics": "documented-absence-of-observational-anchor",
+      "sourceClass": "peer-reviewed",
+      "sourceUrls": [],
+      "assumptions": [
+        "explicit absence of observational calibration",
+        "current evidence limitation"
+      ],
+      "limitations": [
+        "not quantifiable from direct observations"
+      ],
+      "downstreamConsumers": [],
+      "action": "Keep predictions model-labelled and low/medium confidence until defensible observations exist",
+      "userVisible": true
+    },
+    {
+      "id": "anchor-Rocky dynamo model evidence-EVO-1D-SUPER-EARTH v1.1-Published source-grid reproduction",
+      "modelAreaId": "rocky-planets",
+      "family": "anchor",
+      "subject": "Rocky dynamo model evidence / EVO-1D-SUPER-EARTH v1.1",
+      "metric": "Published source-grid reproduction",
+      "inputSummary": "Reviewed 1-10 Mearth mass/CMF/age grid",
+      "output": "lherm2026-reduced-grid-v1",
+      "expected": "lherm2026-reduced-grid-v1",
+      "tolerance": "n/a",
+      "status": "PASS",
+      "severity": "info",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "source-model-reproduction",
+      "sourceClass": "peer-reviewed",
+      "sourceUrls": [],
+      "assumptions": [
+        "versioned reduced source-model grid",
+        "reviewed extraction manifest version"
+      ],
+      "limitations": [
+        "source assumptions plus extraction precision"
+      ],
+      "downstreamConsumers": [],
+      "action": "Review source archive, checksum, and extraction before changing this row",
+      "userVisible": true
+    },
+    {
+      "id": "anchor-Rocky dynamo model evidence-Worldsmith generic rocky engine-Derived dynamo and field prediction owner",
+      "modelAreaId": "rocky-planets",
+      "family": "anchor",
+      "subject": "Rocky dynamo model evidence / Worldsmith generic rocky engine",
+      "metric": "Derived dynamo and field prediction owner",
+      "inputSummary": "Source-grid interpolation plus versioned applicability mappings",
+      "output": "rocky-dynamo-evolution-v1",
+      "expected": "rocky-dynamo-evolution-v1",
+      "tolerance": "n/a",
+      "status": "PASS",
+      "severity": "info",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "worldsmith-derived-prediction-contract",
+      "sourceClass": "peer-reviewed",
+      "sourceUrls": [],
+      "assumptions": [
+        "versioned generic-engine prediction",
+        "reviewed Worldsmith model contract"
+      ],
+      "limitations": [
+        "scenario, source-model, mapping, and applicability uncertainty"
+      ],
+      "downstreamConsumers": [],
+      "action": "Require a model-version migration for any scientific contract change",
       "userVisible": true
     },
     {
@@ -9308,7 +9411,7 @@
       "family": "source-coverage",
       "subject": "Rocky Planets",
       "metric": "Registry source and limitation coverage",
-      "inputSummary": "4 registry entries",
+      "inputSummary": "6 registry entries",
       "output": "Registry metadata present",
       "expected": "Source summary, assumptions, valid range, and limitations",
       "tolerance": "Required for each model area",
@@ -9322,19 +9425,23 @@
         "https://doi.org/10.1002/2015GL064751",
         "https://doi.org/10.1007/s11214-010-9685-1",
         "https://doi.org/10.1016/0031-9201(81)90046-7",
+        "https://doi.org/10.1016/j.icarus.2011.10.014",
         "https://doi.org/10.1016/j.pepi.2003.07.006",
         "https://doi.org/10.1016/j.pepi.2014.08.004",
         "https://doi.org/10.1016/S0012-821X(01)00387-9",
         "https://doi.org/10.1029/2000JB900200",
         "https://doi.org/10.1029/2019JE006124",
         "https://doi.org/10.1029/2020JE006792",
+        "https://doi.org/10.1029/2025JE009447",
         "https://doi.org/10.1029/95JB03539",
         "https://doi.org/10.1038/356329a0",
         "https://doi.org/10.1038/nature11031",
+        "https://doi.org/10.1038/s41550-025-02729-x",
         "https://doi.org/10.1038/s41586-023-06150-0",
         "https://doi.org/10.1038/s41586-025-09361-9",
         "https://doi.org/10.1086/430652",
         "https://doi.org/10.1093/gji/ggv034",
+        "https://doi.org/10.5281/zenodo.18349207",
         "https://hess.copernicus.org/articles/11/1633/2007/",
         "https://nssdc.gsfc.nasa.gov/planetary/factsheet/",
         "https://ozonewatch.gsfc.nasa.gov/",
@@ -9343,16 +9450,20 @@
         "https://www.cambridge.org/core/books/principles-of-planetary-climate/"
       ],
       "assumptions": [
-        "The context distinguishes UV shielding from charged-particle shielding. It is a comparative hazard screen, not a particle transport, radiation chemistry, or biological dose model.",
+        "The scalar surface-hazard screen is atmosphere/ozone driven. Intrinsic field and magnetopause state are reported separately and never become a generic numeric habitability, productivity, atmospheric-retention, or surface-dose bonus.",
         "Procedural climate bands are not a GCM. Clouds, haze, and chemistry are diagnostic modifiers, not solved circulation.",
         "Mantle viscosity and Rayleigh number are proxy classes unless a calibrated interior model is added.",
-        "The core model uses tau_proxy = 2 + 12*CMF*sqrt(max(M, 0.01)), explicit nucleation at progress 0.60, central full solidification at 1.95, and square-root radial growth after nucleation. Solid volume is the cube of radius fraction. Thermal and compositional scores are comparative dynamo-support diagnostics; field activity, rotation, and morphology remain separate. Radiogenic/tidal heat and whole-body sulfur modify caveats, not the central growth coordinate."
+        "The core model uses tau_proxy = 2 + 12*CMF*sqrt(max(M, 0.01)), explicit nucleation at progress 0.60, central full solidification at 1.95, and square-root radial growth after nucleation. Solid volume is the cube of radius fraction. Thermal and compositional scores are comparative dynamo-support diagnostics; field activity, rotation, and morphology remain separate. Radiogenic/tidal heat and whole-body sulfur modify caveats, not the central growth coordinate.",
+        "Numerical values use trilinear interpolation only inside the jointly reviewed mass, core-mass-fraction, and age axes. Three correlated source scenarios have no statistical weights. Rm below 40 is inactive, 40-50 is marginal, and above 50 still requires the energetic criterion; source-to-surface dipole attenuation is cubic.",
+        "The v2 law is Rmp/Rp = 10 (Beq/Bearth)^(1/3) (Pram/Pearth)^(-1/6). Range minima pair the weakest field with the highest pressure and maxima pair the strongest field with the lowest pressure; a standing cavity is decided against the explicit one-radius collapse boundary."
       ],
       "limitations": [
-        "No spectral UV transfer, cosmic-ray transport, flare statistics, atmospheric chemistry network, or exact radiation dose in rem/day is solved for rocky planets.",
+        "No spectral UV transfer, cosmic-ray transport, flare statistics, atmospheric chemistry network, field-topology particle transport, or exact radiation dose in rem/day is solved for rocky planets.",
         "Does not resolve geography, ocean circulation, topography, cloud microphysics, or seasonal orbital phase.",
         "Does not prove plate tectonics; stagnant-lid and episodic regimes remain plausible.",
-        "No radial pressure-temperature profile, core-alloy phase diagram, light-element partitioning, electrical-conductivity evolution, core entropy budget, core-mantle-boundary heat-flow history, mantle-convection integration, or satellite-specific Fe/FeS growth model. Earth-anchored numeric geometry is a bounded calibration, while Mercury, Mars, super-Earths, composition extremes, and timing windows remain broad comparative estimates. A liquid core never guarantees a dynamo."
+        "No radial pressure-temperature profile, core-alloy phase diagram, light-element partitioning, electrical-conductivity evolution, core entropy budget, core-mantle-boundary heat-flow history, mantle-convection integration, or satellite-specific Fe/FeS growth model. Earth-anchored numeric geometry is a bounded calibration, while Mercury, Mars, super-Earths, composition extremes, and timing windows remain broad comparative estimates. A liquid core never guarantees a dynamo.",
+        "No magnetic field has yet been observed for a super-Earth and none is used as a calibration anchor. The scenarios are correlated model alternatives, not probabilities; no extrapolation beyond the coupled grid is allowed, and conditional source-chemistry results never become authoritative downstream values.",
+        "External pressure is ram-only: stellar magnetic and thermal pressure, magnetotail geometry, reconnection, topology, time variability, and particle transport are not solved. A standing cavity is not a numeric atmospheric-retention, radiation-health, or habitability shield."
       ],
       "downstreamConsumers": [],
       "action": "Keep source registry entries current as science changes.",
@@ -9471,7 +9582,7 @@
         "https://www.lpi.usra.edu/education/skytellers/moon-phases/"
       ],
       "assumptions": [
-        "Moon-local frames are first-order observer frames. Surface latitude/longitude, libration, and full ephemerides are not solved.",
+        "Moon-local frames are first-order observer frames. Mean solar days and phase cycles use signed frequencies for prograde and retrograde motion; synchronous rotation has no recurring solar day. The calendar then labels its sidereal civil-day fallback explicitly. Surface latitude/longitude, polar phase geometry, libration, and full ephemerides are not solved.",
         "Outputs are readiness and likelihood classes unless node, epoch, periods, radii, and inclinations are provided.",
         "Laplace radius and J2 precession are qualitative guards. Cassini-state output is readiness guidance without moments of inertia and spin-axis integration.",
         "Outputs are susceptibility and analog morphology, not long-term integration or stress-field mapping.",
@@ -9681,7 +9792,7 @@
       ],
       "assumptions": [
         "Instrument outputs are classes unless a specific telescope/noise model is selected. Atmosphere persistence and stellar activity change interpretation/readiness classes, not the core transit or RV formulas.",
-        "Moon-local frames are first-order observer frames. Surface latitude/longitude, libration, and full ephemerides are not solved.",
+        "Moon-local frames are first-order observer frames. Mean solar days and phase cycles use signed frequencies for prograde and retrograde motion; synchronous rotation has no recurring solar day. The calendar then labels its sidereal civil-day fallback explicitly. Surface latitude/longitude, polar phase geometry, libration, and full ephemerides are not solved.",
         "Outputs are readiness and likelihood classes unless node, epoch, periods, radii, and inclinations are provided."
       ],
       "limitations": [
@@ -10617,16 +10728,16 @@
       "modelAreaId": "rocky-planets",
       "family": "empirical-validation",
       "subject": "Core evolution / Mercury",
-      "metric": "Liquid outer core remains compatible with weak global field",
+      "metric": "Liquid outer core remains separate from the global-field comparison",
       "inputSummary": "Mercury fixture; comparative tier and MESSENGER field context",
-      "output": "liquid=true; field=0.0092 Earth",
-      "expected": "Liquid outer core, weak active dipole (0.003-0.03 Earth), and compact 1-2 RM magnetopause",
-      "tolerance": "qualitative phase plus broad observed field and stand-off bands",
+      "output": "liquid=true; field=0.1836 Earth",
+      "expected": "Liquid outer core plus a finite generic comparative result; any observational disagreement remains explicit",
+      "tolerance": "phase/field semantic separation and finite-output guard",
       "status": "PASS",
       "severity": "low",
       "confidence": "low",
       "calibrationTier": "exploratory",
-      "comparisonSemantics": "qualitative-observation-consistency",
+      "comparisonSemantics": "diagnostic-observation-comparison",
       "sourceClass": "official-mission-plus-peer-reviewed-broad-anchor",
       "sourceUrls": [
         "https://science.nasa.gov/photojournal/mercurys-internal-magnetic-field/",
@@ -10635,13 +10746,14 @@
       ],
       "assumptions": [],
       "limitations": [
+        "The low-confidence comparative field can disagree with Mercury's observed weak field and is not name-tuned.",
         "Inner-core size and stable-layer geometry are not directly solved."
       ],
       "downstreamConsumers": [
         "Planet Core Evolution UI",
         "magnetism"
       ],
-      "action": "Preserve Mercury's liquid-core/weak-field separation and broad confidence.",
+      "action": "Preserve phase/field separation and document the comparative-model disagreement without a named-body override.",
       "userVisible": true
     },
     {
@@ -10726,6 +10838,320 @@
         "era timeline"
       ],
       "action": "Keep material state, convective support, rotation, and field activity separate.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-dynamo-source-grid-checksum",
+      "modelAreaId": "rocky-planets",
+      "family": "source-coverage",
+      "subject": "Rocky dynamo published-grid extract",
+      "metric": "Fixture checksum and source version",
+      "inputSummary": "1650 coupled rows from EVO-1D-SUPER-EARTH v1.1",
+      "output": "709a6e49f83bd4d524c5b27a2c7695e342631fdfd99e93e2334d3a6396dfb5b4; lherm2026-reduced-grid-v1",
+      "expected": "709a6e49f83bd4d524c5b27a2c7695e342631fdfd99e93e2334d3a6396dfb5b4; lherm2026-reduced-grid-v1",
+      "tolerance": "byte-exact SHA-256 and model-version match",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "source-extract-integrity",
+      "sourceClass": "published-source-model-extract",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "This reproduces source-model data; it is not an observed planetary field."
+      ],
+      "downstreamConsumers": [
+        "rocky dynamo interpolation",
+        "science verification"
+      ],
+      "action": "Regenerate only from the cited archive and review any checksum or version change.",
+      "userVisible": false
+    },
+    {
+      "id": "rocky-dynamo-model-version-and-domain",
+      "modelAreaId": "rocky-planets",
+      "family": "unit",
+      "subject": "Rocky dynamo runtime contract",
+      "metric": "Model version and interpolation domain",
+      "inputSummary": "Published mass axis and runtime model version",
+      "output": "rocky-dynamo-evolution-v1; 1-10 Mearth",
+      "expected": "rocky-dynamo-evolution-v1; 1-10 Mearth",
+      "tolerance": "exact",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "versioned-runtime-contract",
+      "sourceClass": "source-model-reproduction",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "The 10-20 Mearth solver domain is not a numerical interpolation domain."
+      ],
+      "downstreamConsumers": [
+        "planet magnetism",
+        "Magnetic Outlook"
+      ],
+      "action": "Treat a version/domain change as a reviewed science-model migration.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-dynamo-five-earth-mass-boundary",
+      "modelAreaId": "rocky-planets",
+      "family": "boundary",
+      "subject": "Rocky dynamo 5 Mearth handoff",
+      "metric": "5.0 to 5.01 Mearth continuity",
+      "inputSummary": "Same reviewed CMF=0.32, age=4.5 Gyr, and source-consistent structure",
+      "output": "5.0=inactive-across-scenarios; 5.01=inactive-across-scenarios",
+      "expected": "both source-resolved; no mass-only physical zero",
+      "tolerance": "categorical continuity guard",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "medium",
+      "calibrationTier": "calibrated",
+      "comparisonSemantics": "worldsmith-boundary-invariant",
+      "sourceClass": "worldsmith-derived-prediction",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "This is an engine-boundary invariant, not an observed super-Earth comparison."
+      ],
+      "downstreamConsumers": [
+        "planet magnetism",
+        "magnetosphere",
+        "Planet UI"
+      ],
+      "action": "Do not restore the former 5 Mearth core-geometry cutoff as a dynamo veto.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-dynamo-over-ten-indeterminate",
+      "modelAreaId": "rocky-planets",
+      "family": "boundary",
+      "subject": "Rocky dynamo upper source boundary",
+      "metric": "10-20 Mearth unsupported interval",
+      "inputSummary": "10.01, 15, and 20 Mearth otherwise-valid rocky inputs",
+      "output": "indeterminate, indeterminate, indeterminate",
+      "expected": "indeterminate, indeterminate, indeterminate",
+      "tolerance": "no extrapolation and no false inactive state",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "applicability-boundary",
+      "sourceClass": "worldsmith-applicability-policy",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "No numerical source grid or observed field constrains this interval."
+      ],
+      "downstreamConsumers": [
+        "planet magnetism",
+        "magnetosphere",
+        "habitability"
+      ],
+      "action": "Keep authoritative field and magnetopause ranges nullable outside the source grid.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-dynamo-source-radius-cubic-attenuation",
+      "modelAreaId": "rocky-planets",
+      "family": "oracle",
+      "subject": "Rocky dynamo source-to-surface projection",
+      "metric": "Cubic radius attenuation with published 1/7 convention",
+      "inputSummary": "8 Mearth, CMF=0.32, age=4.5 Gyr reviewed grid node",
+      "output": "0.0000580582961685",
+      "expected": "0.000058058292100850295",
+      "tolerance": "relative error <= 1e-9",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "source-model-equation-reproduction",
+      "sourceClass": "published-source-model-reproduction",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "This is a source-model convention, not a direct field observation."
+      ],
+      "downstreamConsumers": [
+        "large-scale surface dipole",
+        "rocky magnetosphere"
+      ],
+      "action": "Preserve cubic attenuation and the recorded large-scale-field convention.",
+      "userVisible": false
+    },
+    {
+      "id": "rocky-dynamo-rm-state-boundaries",
+      "modelAreaId": "rocky-planets",
+      "family": "boundary",
+      "subject": "Rocky dynamo source-state classification",
+      "metric": "Magnetic Reynolds-number boundaries",
+      "inputSummary": "Rm=39.999, 40, 50, and 50.001",
+      "output": "inactive, marginal, marginal, active",
+      "expected": "inactive, marginal, marginal, active",
+      "tolerance": "exact state boundary",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "medium",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "published-threshold-contract",
+      "sourceClass": "published-relationship",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "Rm above 50 still requires the separate energetic criterion."
+      ],
+      "downstreamConsumers": [
+        "dynamo state",
+        "field morphology"
+      ],
+      "action": "Keep Rm and energetic viability as separate gates.",
+      "userVisible": false
+    },
+    {
+      "id": "rocky-magnetosphere-pressure-scaling",
+      "modelAreaId": "rocky-planets",
+      "family": "oracle",
+      "subject": "Rocky magnetosphere v2",
+      "metric": "Field and ram-pressure exponents",
+      "inputSummary": "8x dipole and 64x ram-pressure metamorphic cases",
+      "output": "2x field response; 0.5x pressure response",
+      "expected": "2x field response; 0.5x pressure response",
+      "tolerance": "exact exponent transform",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "medium",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "worldsmith-derived-equation-oracle",
+      "sourceClass": "worldsmith-derived-prediction",
+      "sourceUrls": [
+        "https://science.nasa.gov/science-research/earth-science/earths-magnetosphere-protecting-our-planet-from-harmful-space-energy/"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "The external-pressure term is ram-only."
+      ],
+      "downstreamConsumers": [
+        "magnetopause range",
+        "moon parent environment"
+      ],
+      "action": "Preserve the 1/3 field and -1/6 pressure exponents.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-magnetic-uncertainty-downstream",
+      "modelAreaId": "rocky-planets",
+      "family": "cross-system",
+      "subject": "Rocky magnetic uncertainty propagation",
+      "metric": "Unresolved field remains unresolved downstream",
+      "inputSummary": "Null authoritative dipole range with finite ram pressure",
+      "output": "indeterminate; Rmp=null",
+      "expected": "indeterminate; Rmp=null",
+      "tolerance": "null-preserving semantic invariant",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "downstream-uncertainty-invariant",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "A diagnostic or conditional field must not replace the authoritative range."
+      ],
+      "downstreamConsumers": [
+        "radiation",
+        "atmosphere",
+        "rings",
+        "moons",
+        "habitability"
+      ],
+      "action": "Never coerce an unresolved field or cavity to zero/false before downstream use.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-dynamo-generic-identity-invariance",
+      "modelAreaId": "rocky-planets",
+      "family": "metamorphic",
+      "subject": "Rocky dynamo generic-engine guard",
+      "metric": "Name, ID, and preset invariance",
+      "inputSummary": "Identical numeric physics with unrelated identity metadata",
+      "output": "identical",
+      "expected": "identical",
+      "tolerance": "deep equality",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "no-object-anchoring-invariant",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "Known bodies remain report fixtures only; identity never enters runtime physics."
+      ],
+      "downstreamConsumers": [
+        "all rocky dynamo consumers"
+      ],
+      "action": "Reject any body-name, ID, or preset branch in the runtime model.",
+      "userVisible": false
+    },
+    {
+      "id": "rocky-dynamo-no-observed-super-earth-anchor",
+      "modelAreaId": "rocky-planets",
+      "family": "source-coverage",
+      "subject": "Rocky dynamo observational calibration",
+      "metric": "Observed super-Earth magnetic-field anchor",
+      "inputSummary": "Current evidence scope",
+      "output": "None used",
+      "expected": "No direct observation presently available",
+      "tolerance": "explicit model limitation",
+      "status": "INFO",
+      "severity": "info",
+      "confidence": "high",
+      "calibrationTier": "exploratory",
+      "comparisonSemantics": "documented-absence-of-observational-anchor",
+      "sourceClass": "evidence-limitation",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "Source-grid reproduction and Worldsmith-derived predictions are not observations."
+      ],
+      "downstreamConsumers": [
+        "science page",
+        "calibration reports",
+        "Magnetic Outlook"
+      ],
+      "action": "Retain explicit model/source language until a defensible observation exists.",
       "userVisible": true
     },
     {
@@ -10841,6 +11267,31 @@
       "limitations": [],
       "downstreamConsumers": [],
       "action": "Fix unit constants or conversion helpers if this fails.",
+      "userVisible": false
+    },
+    {
+      "id": "oracle-venus-retrograde-solar-day",
+      "modelAreaId": "orbital-dynamics",
+      "family": "oracle",
+      "subject": "Venus rotation",
+      "metric": "Retrograde mean solar day",
+      "inputSummary": "Sidereal spin 243.0226 d; year 224.701 d; obliquity 177.36 deg",
+      "output": "116.751 d",
+      "expected": "116.75 d",
+      "tolerance": "0.02 d",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "",
+      "comparisonSemantics": "independent-formula-oracle",
+      "sourceClass": "NASA",
+      "sourceUrls": [],
+      "assumptions": [],
+      "limitations": [
+        "Mean solar day; phase-resolved polar illumination is not modeled."
+      ],
+      "downstreamConsumers": [],
+      "action": "No action required.",
       "userVisible": false
     },
     {
@@ -11738,7 +12189,7 @@
       "subject": "science:verify",
       "metric": "Release verification command",
       "inputSummary": "node scripts/generate-science-verification-matrix.mjs",
-      "output": "Recorded at 2026-07-18T12:29:04.706Z",
+      "output": "Recorded at 2026-09-11T06:56:38.063Z",
       "expected": "PASS before release",
       "tolerance": "required release gate",
       "status": "PASS",
@@ -12751,14 +13202,14 @@
       "subject": "Rocky planets / Mercury",
       "metric": "Surface magnetic field",
       "inputSummary": "M=0.0553 Mearth; a=0.3870 AU; A=0.0680; P=1408 h; CMF=70.00%; WMF=0%",
-      "output": "0.0092 Earth",
+      "output": "0.1836 Earth",
       "expected": "0.0030 Earth to 0.0300 Earth",
       "tolerance": "0%",
-      "status": "PASS",
+      "status": "INFO",
       "severity": "info",
-      "confidence": "medium",
-      "calibrationTier": "calibrated",
-      "comparisonSemantics": "range-bounded",
+      "confidence": "low",
+      "calibrationTier": "exploratory",
+      "comparisonSemantics": "diagnostic-observation-comparison",
       "sourceClass": "NASA",
       "sourceUrls": [],
       "assumptions": [
@@ -12766,10 +13217,10 @@
         "reference range"
       ],
       "limitations": [
-        "bounded"
+        "high: the low-mass comparative dynamo is generic, low-confidence, and not fitted to a named body"
       ],
       "downstreamConsumers": [],
-      "action": "No action",
+      "action": "Document model/observation disagreement; do not add a named-body override",
       "userVisible": true
     },
     {
@@ -12978,11 +13429,11 @@
       "output": "0 Earth",
       "expected": "0 Earth",
       "tolerance": "0%",
-      "status": "PASS",
+      "status": "INFO",
       "severity": "info",
-      "confidence": "medium",
-      "calibrationTier": "calibrated",
-      "comparisonSemantics": "direct-numeric",
+      "confidence": "low",
+      "calibrationTier": "exploratory",
+      "comparisonSemantics": "diagnostic-observation-comparison",
       "sourceClass": "NASA",
       "sourceUrls": [],
       "assumptions": [
@@ -12990,10 +13441,10 @@
         "NASA/JPL planetary reference"
       ],
       "limitations": [
-        "bounded"
+        "high: inactive and indeterminate outcomes are both scientifically honest outside direct calibration"
       ],
       "downstreamConsumers": [],
-      "action": "No action",
+      "action": "Keep this as diagnostic evidence rather than a named-body tuning target",
       "userVisible": true
     },
     {
@@ -13482,11 +13933,11 @@
       "output": "0 Earth",
       "expected": "0 Earth",
       "tolerance": "0%",
-      "status": "PASS",
+      "status": "INFO",
       "severity": "info",
-      "confidence": "medium",
-      "calibrationTier": "calibrated",
-      "comparisonSemantics": "direct-numeric",
+      "confidence": "low",
+      "calibrationTier": "exploratory",
+      "comparisonSemantics": "diagnostic-observation-comparison",
       "sourceClass": "NASA",
       "sourceUrls": [],
       "assumptions": [
@@ -13494,10 +13945,10 @@
         "NASA/JPL planetary reference"
       ],
       "limitations": [
-        "bounded"
+        "high: inactive and indeterminate outcomes are both scientifically honest outside direct calibration"
       ],
       "downstreamConsumers": [],
-      "action": "No action",
+      "action": "Keep this as diagnostic evidence rather than a named-body tuning target",
       "userVisible": true
     },
     {
@@ -13806,6 +14257,90 @@
       ],
       "downstreamConsumers": [],
       "action": "No action",
+      "userVisible": true
+    },
+    {
+      "id": "anchor-Rocky dynamo model evidence-Super-Earth observations-Direct magnetic-field calibration anchor",
+      "modelAreaId": "rocky-planets",
+      "family": "anchor",
+      "subject": "Rocky dynamo model evidence / Super-Earth observations",
+      "metric": "Direct magnetic-field calibration anchor",
+      "inputSummary": "Observed exoplanet magnetic fields",
+      "output": "None used",
+      "expected": "No direct super-Earth field observation presently available",
+      "tolerance": "n/a",
+      "status": "INFO",
+      "severity": "info",
+      "confidence": "medium",
+      "calibrationTier": "exploratory",
+      "comparisonSemantics": "documented-absence-of-observational-anchor",
+      "sourceClass": "peer-reviewed",
+      "sourceUrls": [],
+      "assumptions": [
+        "explicit absence of observational calibration",
+        "current evidence limitation"
+      ],
+      "limitations": [
+        "not quantifiable from direct observations"
+      ],
+      "downstreamConsumers": [],
+      "action": "Keep predictions model-labelled and low/medium confidence until defensible observations exist",
+      "userVisible": true
+    },
+    {
+      "id": "anchor-Rocky dynamo model evidence-EVO-1D-SUPER-EARTH v1.1-Published source-grid reproduction",
+      "modelAreaId": "rocky-planets",
+      "family": "anchor",
+      "subject": "Rocky dynamo model evidence / EVO-1D-SUPER-EARTH v1.1",
+      "metric": "Published source-grid reproduction",
+      "inputSummary": "Reviewed 1-10 Mearth mass/CMF/age grid",
+      "output": "lherm2026-reduced-grid-v1",
+      "expected": "lherm2026-reduced-grid-v1",
+      "tolerance": "n/a",
+      "status": "PASS",
+      "severity": "info",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "source-model-reproduction",
+      "sourceClass": "peer-reviewed",
+      "sourceUrls": [],
+      "assumptions": [
+        "versioned reduced source-model grid",
+        "reviewed extraction manifest version"
+      ],
+      "limitations": [
+        "source assumptions plus extraction precision"
+      ],
+      "downstreamConsumers": [],
+      "action": "Review source archive, checksum, and extraction before changing this row",
+      "userVisible": true
+    },
+    {
+      "id": "anchor-Rocky dynamo model evidence-Worldsmith generic rocky engine-Derived dynamo and field prediction owner",
+      "modelAreaId": "rocky-planets",
+      "family": "anchor",
+      "subject": "Rocky dynamo model evidence / Worldsmith generic rocky engine",
+      "metric": "Derived dynamo and field prediction owner",
+      "inputSummary": "Source-grid interpolation plus versioned applicability mappings",
+      "output": "rocky-dynamo-evolution-v1",
+      "expected": "rocky-dynamo-evolution-v1",
+      "tolerance": "n/a",
+      "status": "PASS",
+      "severity": "info",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "worldsmith-derived-prediction-contract",
+      "sourceClass": "peer-reviewed",
+      "sourceUrls": [],
+      "assumptions": [
+        "versioned generic-engine prediction",
+        "reviewed Worldsmith model contract"
+      ],
+      "limitations": [
+        "scenario, source-model, mapping, and applicability uncertainty"
+      ],
+      "downstreamConsumers": [],
+      "action": "Require a model-version migration for any scientific contract change",
       "userVisible": true
     },
     {
@@ -19673,7 +20208,7 @@
       "family": "source-coverage",
       "subject": "Rocky Planets",
       "metric": "Registry source and limitation coverage",
-      "inputSummary": "4 registry entries",
+      "inputSummary": "6 registry entries",
       "output": "Registry metadata present",
       "expected": "Source summary, assumptions, valid range, and limitations",
       "tolerance": "Required for each model area",
@@ -19687,19 +20222,23 @@
         "https://doi.org/10.1002/2015GL064751",
         "https://doi.org/10.1007/s11214-010-9685-1",
         "https://doi.org/10.1016/0031-9201(81)90046-7",
+        "https://doi.org/10.1016/j.icarus.2011.10.014",
         "https://doi.org/10.1016/j.pepi.2003.07.006",
         "https://doi.org/10.1016/j.pepi.2014.08.004",
         "https://doi.org/10.1016/S0012-821X(01)00387-9",
         "https://doi.org/10.1029/2000JB900200",
         "https://doi.org/10.1029/2019JE006124",
         "https://doi.org/10.1029/2020JE006792",
+        "https://doi.org/10.1029/2025JE009447",
         "https://doi.org/10.1029/95JB03539",
         "https://doi.org/10.1038/356329a0",
         "https://doi.org/10.1038/nature11031",
+        "https://doi.org/10.1038/s41550-025-02729-x",
         "https://doi.org/10.1038/s41586-023-06150-0",
         "https://doi.org/10.1038/s41586-025-09361-9",
         "https://doi.org/10.1086/430652",
         "https://doi.org/10.1093/gji/ggv034",
+        "https://doi.org/10.5281/zenodo.18349207",
         "https://hess.copernicus.org/articles/11/1633/2007/",
         "https://nssdc.gsfc.nasa.gov/planetary/factsheet/",
         "https://ozonewatch.gsfc.nasa.gov/",
@@ -19708,16 +20247,20 @@
         "https://www.cambridge.org/core/books/principles-of-planetary-climate/"
       ],
       "assumptions": [
-        "The context distinguishes UV shielding from charged-particle shielding. It is a comparative hazard screen, not a particle transport, radiation chemistry, or biological dose model.",
+        "The scalar surface-hazard screen is atmosphere/ozone driven. Intrinsic field and magnetopause state are reported separately and never become a generic numeric habitability, productivity, atmospheric-retention, or surface-dose bonus.",
         "Procedural climate bands are not a GCM. Clouds, haze, and chemistry are diagnostic modifiers, not solved circulation.",
         "Mantle viscosity and Rayleigh number are proxy classes unless a calibrated interior model is added.",
-        "The core model uses tau_proxy = 2 + 12*CMF*sqrt(max(M, 0.01)), explicit nucleation at progress 0.60, central full solidification at 1.95, and square-root radial growth after nucleation. Solid volume is the cube of radius fraction. Thermal and compositional scores are comparative dynamo-support diagnostics; field activity, rotation, and morphology remain separate. Radiogenic/tidal heat and whole-body sulfur modify caveats, not the central growth coordinate."
+        "The core model uses tau_proxy = 2 + 12*CMF*sqrt(max(M, 0.01)), explicit nucleation at progress 0.60, central full solidification at 1.95, and square-root radial growth after nucleation. Solid volume is the cube of radius fraction. Thermal and compositional scores are comparative dynamo-support diagnostics; field activity, rotation, and morphology remain separate. Radiogenic/tidal heat and whole-body sulfur modify caveats, not the central growth coordinate.",
+        "Numerical values use trilinear interpolation only inside the jointly reviewed mass, core-mass-fraction, and age axes. Three correlated source scenarios have no statistical weights. Rm below 40 is inactive, 40-50 is marginal, and above 50 still requires the energetic criterion; source-to-surface dipole attenuation is cubic.",
+        "The v2 law is Rmp/Rp = 10 (Beq/Bearth)^(1/3) (Pram/Pearth)^(-1/6). Range minima pair the weakest field with the highest pressure and maxima pair the strongest field with the lowest pressure; a standing cavity is decided against the explicit one-radius collapse boundary."
       ],
       "limitations": [
-        "No spectral UV transfer, cosmic-ray transport, flare statistics, atmospheric chemistry network, or exact radiation dose in rem/day is solved for rocky planets.",
+        "No spectral UV transfer, cosmic-ray transport, flare statistics, atmospheric chemistry network, field-topology particle transport, or exact radiation dose in rem/day is solved for rocky planets.",
         "Does not resolve geography, ocean circulation, topography, cloud microphysics, or seasonal orbital phase.",
         "Does not prove plate tectonics; stagnant-lid and episodic regimes remain plausible.",
-        "No radial pressure-temperature profile, core-alloy phase diagram, light-element partitioning, electrical-conductivity evolution, core entropy budget, core-mantle-boundary heat-flow history, mantle-convection integration, or satellite-specific Fe/FeS growth model. Earth-anchored numeric geometry is a bounded calibration, while Mercury, Mars, super-Earths, composition extremes, and timing windows remain broad comparative estimates. A liquid core never guarantees a dynamo."
+        "No radial pressure-temperature profile, core-alloy phase diagram, light-element partitioning, electrical-conductivity evolution, core entropy budget, core-mantle-boundary heat-flow history, mantle-convection integration, or satellite-specific Fe/FeS growth model. Earth-anchored numeric geometry is a bounded calibration, while Mercury, Mars, super-Earths, composition extremes, and timing windows remain broad comparative estimates. A liquid core never guarantees a dynamo.",
+        "No magnetic field has yet been observed for a super-Earth and none is used as a calibration anchor. The scenarios are correlated model alternatives, not probabilities; no extrapolation beyond the coupled grid is allowed, and conditional source-chemistry results never become authoritative downstream values.",
+        "External pressure is ram-only: stellar magnetic and thermal pressure, magnetotail geometry, reconnection, topology, time variability, and particle transport are not solved. A standing cavity is not a numeric atmospheric-retention, radiation-health, or habitability shield."
       ],
       "downstreamConsumers": [],
       "action": "Keep source registry entries current as science changes.",
@@ -19836,7 +20379,7 @@
         "https://www.lpi.usra.edu/education/skytellers/moon-phases/"
       ],
       "assumptions": [
-        "Moon-local frames are first-order observer frames. Surface latitude/longitude, libration, and full ephemerides are not solved.",
+        "Moon-local frames are first-order observer frames. Mean solar days and phase cycles use signed frequencies for prograde and retrograde motion; synchronous rotation has no recurring solar day. The calendar then labels its sidereal civil-day fallback explicitly. Surface latitude/longitude, polar phase geometry, libration, and full ephemerides are not solved.",
         "Outputs are readiness and likelihood classes unless node, epoch, periods, radii, and inclinations are provided.",
         "Laplace radius and J2 precession are qualitative guards. Cassini-state output is readiness guidance without moments of inertia and spin-axis integration.",
         "Outputs are susceptibility and analog morphology, not long-term integration or stress-field mapping.",
@@ -20046,7 +20589,7 @@
       ],
       "assumptions": [
         "Instrument outputs are classes unless a specific telescope/noise model is selected. Atmosphere persistence and stellar activity change interpretation/readiness classes, not the core transit or RV formulas.",
-        "Moon-local frames are first-order observer frames. Surface latitude/longitude, libration, and full ephemerides are not solved.",
+        "Moon-local frames are first-order observer frames. Mean solar days and phase cycles use signed frequencies for prograde and retrograde motion; synchronous rotation has no recurring solar day. The calendar then labels its sidereal civil-day fallback explicitly. Surface latitude/longitude, polar phase geometry, libration, and full ephemerides are not solved.",
         "Outputs are readiness and likelihood classes unless node, epoch, periods, radii, and inclinations are provided."
       ],
       "limitations": [
@@ -20982,16 +21525,16 @@
       "modelAreaId": "rocky-planets",
       "family": "empirical-validation",
       "subject": "Core evolution / Mercury",
-      "metric": "Liquid outer core remains compatible with weak global field",
+      "metric": "Liquid outer core remains separate from the global-field comparison",
       "inputSummary": "Mercury fixture; comparative tier and MESSENGER field context",
-      "output": "liquid=true; field=0.0092 Earth",
-      "expected": "Liquid outer core, weak active dipole (0.003-0.03 Earth), and compact 1-2 RM magnetopause",
-      "tolerance": "qualitative phase plus broad observed field and stand-off bands",
+      "output": "liquid=true; field=0.1836 Earth",
+      "expected": "Liquid outer core plus a finite generic comparative result; any observational disagreement remains explicit",
+      "tolerance": "phase/field semantic separation and finite-output guard",
       "status": "PASS",
       "severity": "low",
       "confidence": "low",
       "calibrationTier": "exploratory",
-      "comparisonSemantics": "qualitative-observation-consistency",
+      "comparisonSemantics": "diagnostic-observation-comparison",
       "sourceClass": "official-mission-plus-peer-reviewed-broad-anchor",
       "sourceUrls": [
         "https://science.nasa.gov/photojournal/mercurys-internal-magnetic-field/",
@@ -21000,13 +21543,14 @@
       ],
       "assumptions": [],
       "limitations": [
+        "The low-confidence comparative field can disagree with Mercury's observed weak field and is not name-tuned.",
         "Inner-core size and stable-layer geometry are not directly solved."
       ],
       "downstreamConsumers": [
         "Planet Core Evolution UI",
         "magnetism"
       ],
-      "action": "Preserve Mercury's liquid-core/weak-field separation and broad confidence.",
+      "action": "Preserve phase/field separation and document the comparative-model disagreement without a named-body override.",
       "userVisible": true
     },
     {
@@ -21091,6 +21635,320 @@
         "era timeline"
       ],
       "action": "Keep material state, convective support, rotation, and field activity separate.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-dynamo-source-grid-checksum",
+      "modelAreaId": "rocky-planets",
+      "family": "source-coverage",
+      "subject": "Rocky dynamo published-grid extract",
+      "metric": "Fixture checksum and source version",
+      "inputSummary": "1650 coupled rows from EVO-1D-SUPER-EARTH v1.1",
+      "output": "709a6e49f83bd4d524c5b27a2c7695e342631fdfd99e93e2334d3a6396dfb5b4; lherm2026-reduced-grid-v1",
+      "expected": "709a6e49f83bd4d524c5b27a2c7695e342631fdfd99e93e2334d3a6396dfb5b4; lherm2026-reduced-grid-v1",
+      "tolerance": "byte-exact SHA-256 and model-version match",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "source-extract-integrity",
+      "sourceClass": "published-source-model-extract",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "This reproduces source-model data; it is not an observed planetary field."
+      ],
+      "downstreamConsumers": [
+        "rocky dynamo interpolation",
+        "science verification"
+      ],
+      "action": "Regenerate only from the cited archive and review any checksum or version change.",
+      "userVisible": false
+    },
+    {
+      "id": "rocky-dynamo-model-version-and-domain",
+      "modelAreaId": "rocky-planets",
+      "family": "unit",
+      "subject": "Rocky dynamo runtime contract",
+      "metric": "Model version and interpolation domain",
+      "inputSummary": "Published mass axis and runtime model version",
+      "output": "rocky-dynamo-evolution-v1; 1-10 Mearth",
+      "expected": "rocky-dynamo-evolution-v1; 1-10 Mearth",
+      "tolerance": "exact",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "versioned-runtime-contract",
+      "sourceClass": "source-model-reproduction",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "The 10-20 Mearth solver domain is not a numerical interpolation domain."
+      ],
+      "downstreamConsumers": [
+        "planet magnetism",
+        "Magnetic Outlook"
+      ],
+      "action": "Treat a version/domain change as a reviewed science-model migration.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-dynamo-five-earth-mass-boundary",
+      "modelAreaId": "rocky-planets",
+      "family": "boundary",
+      "subject": "Rocky dynamo 5 Mearth handoff",
+      "metric": "5.0 to 5.01 Mearth continuity",
+      "inputSummary": "Same reviewed CMF=0.32, age=4.5 Gyr, and source-consistent structure",
+      "output": "5.0=inactive-across-scenarios; 5.01=inactive-across-scenarios",
+      "expected": "both source-resolved; no mass-only physical zero",
+      "tolerance": "categorical continuity guard",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "medium",
+      "calibrationTier": "calibrated",
+      "comparisonSemantics": "worldsmith-boundary-invariant",
+      "sourceClass": "worldsmith-derived-prediction",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "This is an engine-boundary invariant, not an observed super-Earth comparison."
+      ],
+      "downstreamConsumers": [
+        "planet magnetism",
+        "magnetosphere",
+        "Planet UI"
+      ],
+      "action": "Do not restore the former 5 Mearth core-geometry cutoff as a dynamo veto.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-dynamo-over-ten-indeterminate",
+      "modelAreaId": "rocky-planets",
+      "family": "boundary",
+      "subject": "Rocky dynamo upper source boundary",
+      "metric": "10-20 Mearth unsupported interval",
+      "inputSummary": "10.01, 15, and 20 Mearth otherwise-valid rocky inputs",
+      "output": "indeterminate, indeterminate, indeterminate",
+      "expected": "indeterminate, indeterminate, indeterminate",
+      "tolerance": "no extrapolation and no false inactive state",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "applicability-boundary",
+      "sourceClass": "worldsmith-applicability-policy",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "No numerical source grid or observed field constrains this interval."
+      ],
+      "downstreamConsumers": [
+        "planet magnetism",
+        "magnetosphere",
+        "habitability"
+      ],
+      "action": "Keep authoritative field and magnetopause ranges nullable outside the source grid.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-dynamo-source-radius-cubic-attenuation",
+      "modelAreaId": "rocky-planets",
+      "family": "oracle",
+      "subject": "Rocky dynamo source-to-surface projection",
+      "metric": "Cubic radius attenuation with published 1/7 convention",
+      "inputSummary": "8 Mearth, CMF=0.32, age=4.5 Gyr reviewed grid node",
+      "output": "0.0000580582961685",
+      "expected": "0.000058058292100850295",
+      "tolerance": "relative error <= 1e-9",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "source-model-equation-reproduction",
+      "sourceClass": "published-source-model-reproduction",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "This is a source-model convention, not a direct field observation."
+      ],
+      "downstreamConsumers": [
+        "large-scale surface dipole",
+        "rocky magnetosphere"
+      ],
+      "action": "Preserve cubic attenuation and the recorded large-scale-field convention.",
+      "userVisible": false
+    },
+    {
+      "id": "rocky-dynamo-rm-state-boundaries",
+      "modelAreaId": "rocky-planets",
+      "family": "boundary",
+      "subject": "Rocky dynamo source-state classification",
+      "metric": "Magnetic Reynolds-number boundaries",
+      "inputSummary": "Rm=39.999, 40, 50, and 50.001",
+      "output": "inactive, marginal, marginal, active",
+      "expected": "inactive, marginal, marginal, active",
+      "tolerance": "exact state boundary",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "medium",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "published-threshold-contract",
+      "sourceClass": "published-relationship",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "Rm above 50 still requires the separate energetic criterion."
+      ],
+      "downstreamConsumers": [
+        "dynamo state",
+        "field morphology"
+      ],
+      "action": "Keep Rm and energetic viability as separate gates.",
+      "userVisible": false
+    },
+    {
+      "id": "rocky-magnetosphere-pressure-scaling",
+      "modelAreaId": "rocky-planets",
+      "family": "oracle",
+      "subject": "Rocky magnetosphere v2",
+      "metric": "Field and ram-pressure exponents",
+      "inputSummary": "8x dipole and 64x ram-pressure metamorphic cases",
+      "output": "2x field response; 0.5x pressure response",
+      "expected": "2x field response; 0.5x pressure response",
+      "tolerance": "exact exponent transform",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "medium",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "worldsmith-derived-equation-oracle",
+      "sourceClass": "worldsmith-derived-prediction",
+      "sourceUrls": [
+        "https://science.nasa.gov/science-research/earth-science/earths-magnetosphere-protecting-our-planet-from-harmful-space-energy/"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "The external-pressure term is ram-only."
+      ],
+      "downstreamConsumers": [
+        "magnetopause range",
+        "moon parent environment"
+      ],
+      "action": "Preserve the 1/3 field and -1/6 pressure exponents.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-magnetic-uncertainty-downstream",
+      "modelAreaId": "rocky-planets",
+      "family": "cross-system",
+      "subject": "Rocky magnetic uncertainty propagation",
+      "metric": "Unresolved field remains unresolved downstream",
+      "inputSummary": "Null authoritative dipole range with finite ram pressure",
+      "output": "indeterminate; Rmp=null",
+      "expected": "indeterminate; Rmp=null",
+      "tolerance": "null-preserving semantic invariant",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "downstream-uncertainty-invariant",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "A diagnostic or conditional field must not replace the authoritative range."
+      ],
+      "downstreamConsumers": [
+        "radiation",
+        "atmosphere",
+        "rings",
+        "moons",
+        "habitability"
+      ],
+      "action": "Never coerce an unresolved field or cavity to zero/false before downstream use.",
+      "userVisible": true
+    },
+    {
+      "id": "rocky-dynamo-generic-identity-invariance",
+      "modelAreaId": "rocky-planets",
+      "family": "metamorphic",
+      "subject": "Rocky dynamo generic-engine guard",
+      "metric": "Name, ID, and preset invariance",
+      "inputSummary": "Identical numeric physics with unrelated identity metadata",
+      "output": "identical",
+      "expected": "identical",
+      "tolerance": "deep equality",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "no-object-anchoring-invariant",
+      "sourceClass": "internal-invariant",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "Known bodies remain report fixtures only; identity never enters runtime physics."
+      ],
+      "downstreamConsumers": [
+        "all rocky dynamo consumers"
+      ],
+      "action": "Reject any body-name, ID, or preset branch in the runtime model.",
+      "userVisible": false
+    },
+    {
+      "id": "rocky-dynamo-no-observed-super-earth-anchor",
+      "modelAreaId": "rocky-planets",
+      "family": "source-coverage",
+      "subject": "Rocky dynamo observational calibration",
+      "metric": "Observed super-Earth magnetic-field anchor",
+      "inputSummary": "Current evidence scope",
+      "output": "None used",
+      "expected": "No direct observation presently available",
+      "tolerance": "explicit model limitation",
+      "status": "INFO",
+      "severity": "info",
+      "confidence": "high",
+      "calibrationTier": "exploratory",
+      "comparisonSemantics": "documented-absence-of-observational-anchor",
+      "sourceClass": "evidence-limitation",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "Source-grid reproduction and Worldsmith-derived predictions are not observations."
+      ],
+      "downstreamConsumers": [
+        "science page",
+        "calibration reports",
+        "Magnetic Outlook"
+      ],
+      "action": "Retain explicit model/source language until a defensible observation exists.",
       "userVisible": true
     },
     {
@@ -21206,6 +22064,31 @@
       "limitations": [],
       "downstreamConsumers": [],
       "action": "Fix unit constants or conversion helpers if this fails.",
+      "userVisible": false
+    },
+    {
+      "id": "oracle-venus-retrograde-solar-day",
+      "modelAreaId": "orbital-dynamics",
+      "family": "oracle",
+      "subject": "Venus rotation",
+      "metric": "Retrograde mean solar day",
+      "inputSummary": "Sidereal spin 243.0226 d; year 224.701 d; obliquity 177.36 deg",
+      "output": "116.751 d",
+      "expected": "116.75 d",
+      "tolerance": "0.02 d",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "",
+      "comparisonSemantics": "independent-formula-oracle",
+      "sourceClass": "NASA",
+      "sourceUrls": [],
+      "assumptions": [],
+      "limitations": [
+        "Mean solar day; phase-resolved polar illumination is not modeled."
+      ],
+      "downstreamConsumers": [],
+      "action": "No action required.",
       "userVisible": false
     },
     {
@@ -22103,7 +22986,7 @@
       "subject": "science:verify",
       "metric": "Release verification command",
       "inputSummary": "node scripts/generate-science-verification-matrix.mjs",
-      "output": "Recorded at 2026-07-18T12:29:04.706Z",
+      "output": "Recorded at 2026-09-11T06:56:38.063Z",
       "expected": "PASS before release",
       "tolerance": "required release gate",
       "status": "PASS",
@@ -22220,7 +23103,7 @@
       "subject": "science:verify",
       "metric": "Release verification command",
       "inputSummary": "node scripts/generate-science-verification-matrix.mjs",
-      "output": "Recorded at 2026-07-18T12:29:04.706Z",
+      "output": "Recorded at 2026-09-11T06:56:38.063Z",
       "expected": "PASS before release",
       "tolerance": "required release gate",
       "status": "PASS",
@@ -22399,7 +23282,7 @@
       "family": "source-coverage",
       "subject": "Rocky Planets",
       "metric": "Registry source and limitation coverage",
-      "inputSummary": "4 registry entries",
+      "inputSummary": "6 registry entries",
       "output": "Registry metadata present",
       "expected": "Source summary, assumptions, valid range, and limitations",
       "tolerance": "Required for each model area",
@@ -22413,19 +23296,23 @@
         "https://doi.org/10.1002/2015GL064751",
         "https://doi.org/10.1007/s11214-010-9685-1",
         "https://doi.org/10.1016/0031-9201(81)90046-7",
+        "https://doi.org/10.1016/j.icarus.2011.10.014",
         "https://doi.org/10.1016/j.pepi.2003.07.006",
         "https://doi.org/10.1016/j.pepi.2014.08.004",
         "https://doi.org/10.1016/S0012-821X(01)00387-9",
         "https://doi.org/10.1029/2000JB900200",
         "https://doi.org/10.1029/2019JE006124",
         "https://doi.org/10.1029/2020JE006792",
+        "https://doi.org/10.1029/2025JE009447",
         "https://doi.org/10.1029/95JB03539",
         "https://doi.org/10.1038/356329a0",
         "https://doi.org/10.1038/nature11031",
+        "https://doi.org/10.1038/s41550-025-02729-x",
         "https://doi.org/10.1038/s41586-023-06150-0",
         "https://doi.org/10.1038/s41586-025-09361-9",
         "https://doi.org/10.1086/430652",
         "https://doi.org/10.1093/gji/ggv034",
+        "https://doi.org/10.5281/zenodo.18349207",
         "https://hess.copernicus.org/articles/11/1633/2007/",
         "https://nssdc.gsfc.nasa.gov/planetary/factsheet/",
         "https://ozonewatch.gsfc.nasa.gov/",
@@ -22434,16 +23321,20 @@
         "https://www.cambridge.org/core/books/principles-of-planetary-climate/"
       ],
       "assumptions": [
-        "The context distinguishes UV shielding from charged-particle shielding. It is a comparative hazard screen, not a particle transport, radiation chemistry, or biological dose model.",
+        "The scalar surface-hazard screen is atmosphere/ozone driven. Intrinsic field and magnetopause state are reported separately and never become a generic numeric habitability, productivity, atmospheric-retention, or surface-dose bonus.",
         "Procedural climate bands are not a GCM. Clouds, haze, and chemistry are diagnostic modifiers, not solved circulation.",
         "Mantle viscosity and Rayleigh number are proxy classes unless a calibrated interior model is added.",
-        "The core model uses tau_proxy = 2 + 12*CMF*sqrt(max(M, 0.01)), explicit nucleation at progress 0.60, central full solidification at 1.95, and square-root radial growth after nucleation. Solid volume is the cube of radius fraction. Thermal and compositional scores are comparative dynamo-support diagnostics; field activity, rotation, and morphology remain separate. Radiogenic/tidal heat and whole-body sulfur modify caveats, not the central growth coordinate."
+        "The core model uses tau_proxy = 2 + 12*CMF*sqrt(max(M, 0.01)), explicit nucleation at progress 0.60, central full solidification at 1.95, and square-root radial growth after nucleation. Solid volume is the cube of radius fraction. Thermal and compositional scores are comparative dynamo-support diagnostics; field activity, rotation, and morphology remain separate. Radiogenic/tidal heat and whole-body sulfur modify caveats, not the central growth coordinate.",
+        "Numerical values use trilinear interpolation only inside the jointly reviewed mass, core-mass-fraction, and age axes. Three correlated source scenarios have no statistical weights. Rm below 40 is inactive, 40-50 is marginal, and above 50 still requires the energetic criterion; source-to-surface dipole attenuation is cubic.",
+        "The v2 law is Rmp/Rp = 10 (Beq/Bearth)^(1/3) (Pram/Pearth)^(-1/6). Range minima pair the weakest field with the highest pressure and maxima pair the strongest field with the lowest pressure; a standing cavity is decided against the explicit one-radius collapse boundary."
       ],
       "limitations": [
-        "No spectral UV transfer, cosmic-ray transport, flare statistics, atmospheric chemistry network, or exact radiation dose in rem/day is solved for rocky planets.",
+        "No spectral UV transfer, cosmic-ray transport, flare statistics, atmospheric chemistry network, field-topology particle transport, or exact radiation dose in rem/day is solved for rocky planets.",
         "Does not resolve geography, ocean circulation, topography, cloud microphysics, or seasonal orbital phase.",
         "Does not prove plate tectonics; stagnant-lid and episodic regimes remain plausible.",
-        "No radial pressure-temperature profile, core-alloy phase diagram, light-element partitioning, electrical-conductivity evolution, core entropy budget, core-mantle-boundary heat-flow history, mantle-convection integration, or satellite-specific Fe/FeS growth model. Earth-anchored numeric geometry is a bounded calibration, while Mercury, Mars, super-Earths, composition extremes, and timing windows remain broad comparative estimates. A liquid core never guarantees a dynamo."
+        "No radial pressure-temperature profile, core-alloy phase diagram, light-element partitioning, electrical-conductivity evolution, core entropy budget, core-mantle-boundary heat-flow history, mantle-convection integration, or satellite-specific Fe/FeS growth model. Earth-anchored numeric geometry is a bounded calibration, while Mercury, Mars, super-Earths, composition extremes, and timing windows remain broad comparative estimates. A liquid core never guarantees a dynamo.",
+        "No magnetic field has yet been observed for a super-Earth and none is used as a calibration anchor. The scenarios are correlated model alternatives, not probabilities; no extrapolation beyond the coupled grid is allowed, and conditional source-chemistry results never become authoritative downstream values.",
+        "External pressure is ram-only: stellar magnetic and thermal pressure, magnetotail geometry, reconnection, topology, time variability, and particle transport are not solved. A standing cavity is not a numeric atmospheric-retention, radiation-health, or habitability shield."
       ],
       "downstreamConsumers": [],
       "action": "Keep source registry entries current as science changes.",
@@ -22562,7 +23453,7 @@
         "https://www.lpi.usra.edu/education/skytellers/moon-phases/"
       ],
       "assumptions": [
-        "Moon-local frames are first-order observer frames. Surface latitude/longitude, libration, and full ephemerides are not solved.",
+        "Moon-local frames are first-order observer frames. Mean solar days and phase cycles use signed frequencies for prograde and retrograde motion; synchronous rotation has no recurring solar day. The calendar then labels its sidereal civil-day fallback explicitly. Surface latitude/longitude, polar phase geometry, libration, and full ephemerides are not solved.",
         "Outputs are readiness and likelihood classes unless node, epoch, periods, radii, and inclinations are provided.",
         "Laplace radius and J2 precession are qualitative guards. Cassini-state output is readiness guidance without moments of inertia and spin-axis integration.",
         "Outputs are susceptibility and analog morphology, not long-term integration or stress-field mapping.",
@@ -22772,7 +23663,7 @@
       ],
       "assumptions": [
         "Instrument outputs are classes unless a specific telescope/noise model is selected. Atmosphere persistence and stellar activity change interpretation/readiness classes, not the core transit or RV formulas.",
-        "Moon-local frames are first-order observer frames. Surface latitude/longitude, libration, and full ephemerides are not solved.",
+        "Moon-local frames are first-order observer frames. Mean solar days and phase cycles use signed frequencies for prograde and retrograde motion; synchronous rotation has no recurring solar day. The calendar then labels its sidereal civil-day fallback explicitly. Surface latitude/longitude, polar phase geometry, libration, and full ephemerides are not solved.",
         "Outputs are readiness and likelihood classes unless node, epoch, periods, radii, and inclinations are provided."
       ],
       "limitations": [
@@ -23353,23 +24244,86 @@
       "downstreamConsumers": [],
       "action": "Keep source registry entries current as science changes.",
       "userVisible": true
+    },
+    {
+      "id": "rocky-dynamo-source-grid-checksum",
+      "modelAreaId": "rocky-planets",
+      "family": "source-coverage",
+      "subject": "Rocky dynamo published-grid extract",
+      "metric": "Fixture checksum and source version",
+      "inputSummary": "1650 coupled rows from EVO-1D-SUPER-EARTH v1.1",
+      "output": "709a6e49f83bd4d524c5b27a2c7695e342631fdfd99e93e2334d3a6396dfb5b4; lherm2026-reduced-grid-v1",
+      "expected": "709a6e49f83bd4d524c5b27a2c7695e342631fdfd99e93e2334d3a6396dfb5b4; lherm2026-reduced-grid-v1",
+      "tolerance": "byte-exact SHA-256 and model-version match",
+      "status": "PASS",
+      "severity": "low",
+      "confidence": "high",
+      "calibrationTier": "strict",
+      "comparisonSemantics": "source-extract-integrity",
+      "sourceClass": "published-source-model-extract",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "This reproduces source-model data; it is not an observed planetary field."
+      ],
+      "downstreamConsumers": [
+        "rocky dynamo interpolation",
+        "science verification"
+      ],
+      "action": "Regenerate only from the cited archive and review any checksum or version change.",
+      "userVisible": false
+    },
+    {
+      "id": "rocky-dynamo-no-observed-super-earth-anchor",
+      "modelAreaId": "rocky-planets",
+      "family": "source-coverage",
+      "subject": "Rocky dynamo observational calibration",
+      "metric": "Observed super-Earth magnetic-field anchor",
+      "inputSummary": "Current evidence scope",
+      "output": "None used",
+      "expected": "No direct observation presently available",
+      "tolerance": "explicit model limitation",
+      "status": "INFO",
+      "severity": "info",
+      "confidence": "high",
+      "calibrationTier": "exploratory",
+      "comparisonSemantics": "documented-absence-of-observational-anchor",
+      "sourceClass": "evidence-limitation",
+      "sourceUrls": [
+        "https://doi.org/10.1029/2025JE009447",
+        "https://doi.org/10.5281/zenodo.18349207"
+      ],
+      "assumptions": [],
+      "limitations": [
+        "Source-grid reproduction and Worldsmith-derived predictions are not observations."
+      ],
+      "downstreamConsumers": [
+        "science page",
+        "calibration reports",
+        "Magnetic Outlook"
+      ],
+      "action": "Retain explicit model/source language until a defensible observation exists.",
+      "userVisible": true
     }
   ],
   "familySummary": [
     {
       "value": "anchor",
-      "rows": 277,
-      "pass": 273,
+      "rows": 280,
+      "pass": 272,
       "warn": 0,
       "fail": 0,
       "gap": 0,
       "blocked": 0,
-      "info": 4
+      "info": 8
     },
     {
       "value": "boundary",
-      "rows": 6,
-      "pass": 6,
+      "rows": 9,
+      "pass": 9,
       "warn": 0,
       "fail": 0,
       "gap": 0,
@@ -23388,8 +24342,8 @@
     },
     {
       "value": "cross-system",
-      "rows": 6,
-      "pass": 6,
+      "rows": 7,
+      "pass": 7,
       "warn": 0,
       "fail": 0,
       "gap": 0,
@@ -23418,8 +24372,8 @@
     },
     {
       "value": "metamorphic",
-      "rows": 6,
-      "pass": 6,
+      "rows": 7,
+      "pass": 7,
       "warn": 0,
       "fail": 0,
       "gap": 0,
@@ -23428,8 +24382,8 @@
     },
     {
       "value": "oracle",
-      "rows": 3,
-      "pass": 3,
+      "rows": 6,
+      "pass": 6,
       "warn": 0,
       "fail": 0,
       "gap": 0,
@@ -23468,13 +24422,13 @@
     },
     {
       "value": "source-coverage",
-      "rows": 31,
-      "pass": 31,
+      "rows": 33,
+      "pass": 32,
       "warn": 0,
       "fail": 0,
       "gap": 0,
       "blocked": 0,
-      "info": 0
+      "info": 1
     },
     {
       "value": "stellar-lifecycle",
@@ -23488,8 +24442,8 @@
     },
     {
       "value": "unit",
-      "rows": 5,
-      "pass": 5,
+      "rows": 6,
+      "pass": 6,
       "warn": 0,
       "fail": 0,
       "gap": 0,
@@ -23500,8 +24454,8 @@
   "calibrationTierSummary": [
     {
       "value": "calibrated",
-      "rows": 106,
-      "pass": 106,
+      "rows": 104,
+      "pass": 104,
       "warn": 0,
       "fail": 0,
       "gap": 0,
@@ -23510,18 +24464,18 @@
     },
     {
       "value": "exploratory",
-      "rows": 33,
+      "rows": 38,
       "pass": 29,
       "warn": 0,
       "fail": 0,
       "gap": 0,
       "blocked": 0,
-      "info": 4
+      "info": 9
     },
     {
       "value": "strict",
-      "rows": 147,
-      "pass": 147,
+      "rows": 157,
+      "pass": 157,
       "warn": 0,
       "fail": 0,
       "gap": 0,
@@ -23792,8 +24746,8 @@
     },
     {
       "value": "orbital-dynamics",
-      "rows": 8,
-      "pass": 8,
+      "rows": 9,
+      "pass": 9,
       "warn": 0,
       "fail": 0,
       "gap": 0,
@@ -23802,13 +24756,13 @@
     },
     {
       "value": "rocky-planets",
-      "rows": 49,
-      "pass": 49,
+      "rows": 62,
+      "pass": 57,
       "warn": 0,
       "fail": 0,
       "gap": 0,
       "blocked": 0,
-      "info": 0
+      "info": 5
     },
     {
       "value": "small-bodies-impacts",
@@ -23844,18 +24798,18 @@
   "statusSummary": [
     {
       "value": "INFO",
-      "rows": 9,
+      "rows": 14,
       "pass": 0,
       "warn": 0,
       "fail": 0,
       "gap": 0,
       "blocked": 0,
-      "info": 9
+      "info": 14
     },
     {
       "value": "PASS",
-      "rows": 363,
-      "pass": 363,
+      "rows": 372,
+      "pass": 372,
       "warn": 0,
       "fail": 0,
       "gap": 0,

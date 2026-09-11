@@ -4,6 +4,29 @@ Unless otherwise noted, first-party files in this repository are offered
 under the Mozilla Public License 2.0. The vendored components below are
 not relicensed under MPL-2.0 and remain under their original licenses.
 
+## EVO-1D-SUPER-EARTH reduced dynamo grid
+
+- Upstream project: <https://github.com/vlherm/EVO_1D_SUPER_EARTH>
+- Archived release: <https://doi.org/10.5281/zenodo.18349207>
+- Article: <https://doi.org/10.1029/2025JE009447>
+- Reviewed archive version: v1.1
+- Reduced CSV SHA-256:
+  `709a6e49f83bd4d524c5b27a2c7695e342631fdfd99e93e2334d3a6396dfb5b4`
+- Applies to:
+  - `tests/fixtures/rockyDynamo/lherm2026-grid.v1.csv`
+  - `tests/fixtures/rockyDynamo/lherm2026-grid.provenance.v1.json`
+  - `engine/planet/data/rockyDynamoGrid.v1.js`
+- License: GNU General Public License v3.0
+- Attribution: Victor Lherm, Miki Nakajima, and Eric G. Blackman,
+  _Magnetic Evolution of Super-Earth Exoplanets With a Basal Magma Ocean_
+
+The bundled files are a deterministic, reduced numeric extract from the
+authors' v1.1 mass/CMF sweeps. They do not include or execute the upstream
+Python model or serialized objects. Redistribution of these derived grid files
+remains subject to GPL-3.0; the corresponding extraction and generation scripts
+are included in the [main development repository](https://github.com/JudasBrennan/caelum/tree/v3.9.0), and the complete license text is available in
+the upstream archived release and at <https://www.gnu.org/licenses/gpl-3.0.txt>.
+
 ## BOSZ 2024 synthetic stellar spectral library
 
 - Upstream project: <https://archive.stsci.edu/hlsp/bosz>

@@ -1,4 +1,4 @@
-# Caelum 3.8.0
+# Caelum 3.9.0
 
 Caelum is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -12,6 +12,15 @@ This project is based on WorldSmith 8.0 by Artifexian.
 - Public runtime release repository: https://github.com/JudasBrennan/caelum_public
 
 ## Current Highlights
+
+- Massive rocky planets now have a Magnetic Outlook with dynamo scenarios,
+  magnetic-field and magnetopause ranges, and explicit uncertainty.
+- Planet and giant inclinations can follow their host orbital plane or the
+  system reference plane, including tilted binary and multistar systems.
+- Retrograde moon phase cycles and planetary solar days now use signed
+  frequencies, with explicit calendar handling for synchronous rotation.
+- Moon paths stay stable when body scaling or rendering detail changes, while
+  system posters can retry failed bodies and wait for completion before export.
 
 - Rocky planets can generate six deterministic continent, archipelago, and
   supercontinent candidates, compare both hemispheres, and apply only the

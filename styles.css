@@ -2964,6 +2964,13 @@ button.primary:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.kpi.kpi--compact.kpi--magnetic-outlook > .kpi__label,
+.kpi.kpi--compact.kpi--magnetic-outlook > .kpi__value {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
 
 /* Meta: hidden when empty */
 .kpi__meta:empty {

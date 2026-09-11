@@ -4,6 +4,80 @@ All notable changes to Caelum will be documented in this file.
 
 ## Unreleased
 
+## 3.9.0 - 2026-09-11
+
+### Orbital Timing and Poster Reliability
+
+**Period calculations** (engine/physics/orbital.js, engine/moon/orbit.js,
+engine/contexts/observerFrameContext.js, ui/calendar/renderContext.js)
+
+Fixed retrograde moon phase cycles and solar-day calculations using shared
+signed frequencies. A retrograde Luna-like orbit now has a roughly 25.42-day
+phase cycle instead of 29.53 days. Venus-like rotation produces a roughly
+116.75-day solar day. Synchronous rotation explicitly has no recurring solar
+day; calendars label their sidereal civil-day fallback.
+
+**Visualiser and poster** (ui/visualizer/moonOrbitLayout.js,
+ui/systemPosterNativeThree.js, ui/systemPosterController.js, ui/systemPage.js)
+
+Separated moon orbit layout and animation phase from body-size exaggeration
+and visible-moon budgets. Physical mode uses the bodies' kilometre scale;
+representative markers fit inside stable orbital paths. Shared helpers now
+serve rocky and gas-giant moon systems.
+
+Failed poster body snapshots now retain diagnostics and show placeholders
+while other bodies continue rendering. Added retry controls and prevented PNG
+export until the latest poster revision completes successfully.
+
+**Tests**
+
+- Added signed-period, observer-frame, and calendar regression cases.
+- Added moon distance, phase stability, physical scale, and eccentric-path tests.
+- Added poster completion, retry, redraw, disposal, and export coverage.
+
+### Host-relative Orbital Inclinations
+
+- Planet and gas-giant inclination can now be authored relative to either the
+  selected host's orbital plane or the primary system reference plane. New
+  bodies use the host plane, while existing saves without reference metadata
+  retain their legacy system-plane interpretation.
+- Added a shared 3D orbit-plane resolver for tilted stellar pairs, optional
+  ascending-node metadata, deterministic visual projections, and explicit
+  inclination ranges when missing nodes prevent a unique transformation.
+- Propagated resolved system and mutual inclinations through the visualiser,
+  apparent-sky geometry, orbital-state snapshots, secular dynamics, migration,
+  precession, and Trojan diagnostics. A planet at 0 degrees around a companion
+  in a 5-degree binary now follows its host plane and remains 0 degrees mutual
+  to that host rather than being treated as dynamically tilted.
+- Added compatibility, editor, snapshot, visualiser, and downstream-dynamics
+  regression coverage for tilted binary hosts.
+
+### Massive Rocky Planet Dynamos and Magnetospheres
+
+- Replaced the former 5-Earth-mass magnetic cutoff with a versioned generic
+  dynamo-evolution model. Rocky planets from 1-10 Earth masses can now use a
+  reviewed coupled metallic-core/basal-magma-ocean source grid; valid inputs
+  outside its numerical domain remain explicitly indeterminate rather than
+  being reported as non-magnetic.
+- Added scenario-aware dynamo state, nullable magnetic-field ranges, cubic
+  source-to-surface attenuation, magnetic-Reynolds and energetic criteria,
+  rotation-dependent morphology, and a ram-pressure-aware rocky magnetosphere
+  range. Core phase remains separate from dynamo viability.
+- Added a dedicated Magnetic Outlook on the Planet page with source layers,
+  field and magnetopause ranges, morphology, confidence, scenario coverage,
+  assumptions, and limitations. Unknown, scenario-dependent, inactive, and
+  active states no longer collapse to misleading zero/false labels.
+- Propagated magnetic state and uncertainty through radiation, atmosphere,
+  rings, moon parent-boundary context, lifecycle timelines, guided creation,
+  unified body projections, persistence, import/export, and reload paths.
+  Magnetic context is no longer a generic numeric habitability, productivity,
+  atmospheric-retention, or surface-radiation bonus.
+- Added reproducible source extraction, checksums, grid validation, scientific
+  registry entries, calibration classifications, no-identity-anchoring guards,
+  boundary/equation/downstream regression tests, and desktop/mobile browser
+  coverage. No observed super-Earth magnetic field is claimed as a calibration
+  anchor.
+
 ## 3.8.0 — 2026-07-18
 
 ### Rocky Planet Landmass Authoring
