@@ -2,7 +2,7 @@
   "mode": "production",
   "releaseVersion": "3.10.0",
   "distDir": "dist",
-  "generatedAt": "2026-09-14T05:48:07.615Z",
+  "generatedAt": "2026-09-14T07:34:46.249Z",
   "entry": {
     "file": "app.js",
     "bytes": 34864
@@ -32,7 +32,7 @@
   "releaseAssetRevisions": {
     "themeBoot.js": "3.10.0-92a46840e1b75eb3",
     "styles.css": "3.10.0-227906010550679b",
-    "app.js": "3.10.0-45cc269cf4f81878",
+    "app.js": "3.10.0-c2b5f54d5fe08771",
     "celestialTextureWorker.js": "3.10.0-5af54ab156030a8e",
     "celestialAuthoringWorker.js": "3.10.0-42951abb22bc23a9",
     "stellarLifecycleWorker.js": "3.10.0-0f742cca45cd4b3a",

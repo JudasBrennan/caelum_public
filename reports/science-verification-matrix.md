@@ -1,6 +1,6 @@
 # Caelum Science Verification Matrix
 
-Generated: 2026-09-14T05:48:03.784Z
+Generated: 2026-09-14T07:34:42.476Z
 
 App version: 3.10.0
 
@@ -687,7 +687,7 @@ observability-user-facing | model-limitation | n/a | Parent radiation and plasma
 observability-user-facing | model-limitation | n/a | Generation and repair guidance | accepted-scope | GAP | info | Repair suggestions are advisory; uncertain cases remain warnings. | Scope remains visible; a numerical PASS does not close this gap | Accepted scope; review when extending the model.
 observability-user-facing | model-limitation | n/a | Habitability persistence bridge | accepted-scope | GAP | info | Does not assert life and does not prove ocean permanence. | Scope remains visible; a numerical PASS does not close this gap | Accepted scope; review when extending the model.
 observability-user-facing | model-limitation | n/a | Dynamical timeline events | accepted-scope | GAP | info | Not an orbital-history integrator. | Scope remains visible; a numerical PASS does not close this gap | Accepted scope; review when extending the model.
-observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-09-14T05:48:03.784Z | PASS before release | No action required.
+observability-user-facing | release-gate | n/a | science:verify | Release verification command | PASS | info | Recorded at 2026-09-14T07:34:42.476Z | PASS before release | No action required.
 observability-user-facing | release-gate | n/a | check | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | build | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.
 observability-user-facing | release-gate | n/a | bundle | Release verification command | INFO | info | Run during full release verification | PASS before release | Run this gate before tagging or publishing a release.

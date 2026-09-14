@@ -6,6 +6,27 @@ All notable changes to Caelum will be documented in this file.
 
 ## 3.10.0 - 2026-09-14
 
+### Release candidate reliability corrections
+
+**Pending saves and apparent poster scale** (ui/store/worldStorage/recoveryJournal.js,
+ui/store/worldStorage.js, ui/apparent/skyLayout.js)
+
+- Preserve the latest pending world edit in a synchronous recovery snapshot while
+  the debounced IndexedDB save is outstanding. Reload replays interrupted saves;
+  completed saves acknowledge only their own snapshot. Clear operations remove
+  matching recovery data, and unavailable local storage still permits IndexedDB saves.
+- Reserve 5% of each apparent disk slot around sampled orbital maxima. Jupiter
+  remains visible through its small between-sample peak without changing the
+  fixed linear scale, angular calculations or explicit overflow for large outliers.
+
+**Tests** (tests/worldStorage.test.js, tests/browser/spectralClimate.spec.js,
+tests/apparentOrbitalEpoch.test.js, tests/apparentSkyLayout.test.js,
+tests/browser/apparentSky.spec.js)
+
+- Cover immediate reload, latest-edit ownership, clear/reload, corrupt recovery
+  records and storage quota fallback. Check Jupiter and Saturn's angular-size
+  ratio across 721 epochs and Jupiter's peak in the production browser.
+
 ### Apparent Skies Through Time
 
 **Orbital geometry and comparison controls** (engine/physics/kepler.js,
