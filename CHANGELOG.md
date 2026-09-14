@@ -2,7 +2,82 @@
 
 All notable changes to Caelum will be documented in this file.
 
-## Unreleased
+## Unreleased (post-3.10.0)
+
+## 3.10.0 - 2026-09-14
+
+### Apparent Skies Through Time
+
+**Orbital geometry and comparison controls** (engine/physics/kepler.js,
+engine/contexts/orbitalEpochContext.js, ui/apparentPage.js)
+
+- Apparent Size now shares one illustrative orbital clock across sky disks, tables and summary values, with bounded Kepler geometry, current star/body/moon distances, automatic lunar phases and separate Calendar cycle semantics.
+- Added pause/play, typed and fine time steps, best-view reset, observer-scoped distance scenarios, stable labelled linear scales, symbolic point sources, mobile pagination, explicit Fit and retryable Canvas2D/HTML fallbacks. Solar references never alter scales; phase-law limits and unresolved transit/multiple-source geometry stay explicit.
+
+**Tests** (tests/apparentOrbitalEpoch.test.js, tests/orbitalEpochContext.test.js,
+tests/apparentSkyLayout.test.js, tests/apparentSnapshotCoordinator.test.js,
+tests/browser/apparentSky.spec.js)
+
+- Added orbital, phase, scale, snapshot ownership and fallback regressions.
+- Covered mobile and desktop, both themes, manual scenarios, touch and keyboard
+  controls, module recovery, pagination and resource cleanup.
+
+### Scientific consistency and accessible results
+
+Apparent Size now uses canonical stellar properties and individual multi-star
+distances. Bolometric quantities are separate from bounded Johnson V estimates
+using the pinned Pecaut–Mamajek dwarf sequence. Reflected-body estimates carry
+their solar-calibrated scope.
+
+Atmospheric removal conserves retained species inventories, includes nitrogen,
+and recomputes pressure without replacing authored inputs. Giant thermal Bond
+albedo is stored independently of descriptive cloud classes; version 71 migration
+freezes existing worlds' previous albedo once, while new giants assume 0.30.
+
+Population preserves unavailable inferred climate, supports complete manual
+scenarios, handles zero and above-capacity populations, and conserves integer
+regional totals. The 77% crop share and fourfold efficiency remain explicit
+scenario assumptions. Celsius uses 273.15; downstream rocky calculations retain
+previously rounded Kelvin precision. Reviewed fixture deltas are documented in
+the audit remediation report; historical spectral evidence is retained.
+
+Improved both-theme contrast, help semantics, horizontal keyboard access,
+expanded KPI values, compact Population/Star workflows and state-dependent
+spectral controls. Validation now exposes stable modelling limitations and
+selected/unresolved holdout denominators separately from passing comparisons.
+
+**Tests** (tests/auditRemediationPhysics.test.js,
+tests/auditRemediationContracts.test.js, tests/browser/auditRemediation.spec.js)
+
+- Covered retained atmospheres, thermal albedo, stellar photometry and population
+  scenarios, with browser contrast, access and overflow checks.
+
+### Stellar Spectrum and Rocky Climate
+
+Added opt-in `spectral-equilibrium-v1` rocky climate with the versioned
+`exo68-n2-v1` ExoColumn/ExoRT reduction. Incident stellar spectra, atmospheric
+column and fixed surface reflection determine separate absorbed and thermal
+fluxes. Fixed authored water and an explicit saturated reservoir preserve dry
+gas inventory. All equilibria are considered; unavailable or unresolved states
+remain nullable through downstream views.
+
+Planet exposes climate, humidity, fixed surface-cover and branch controls,
+effective pressure/albedo and energy diagnostics. Canonical storage, snapshots,
+Climate, Tectonics and System Fate retain the chosen climate and its scope.
+Legacy manual/core/full worlds keep their existing results and avoid loading
+the optional radiative data.
+
+The initial domain is clear-sky N2/CO2/H2O, 250–340 K, 0.5–2 bar dry pressure,
+8–12 m/s² gravity and 2600–5772 K stellar templates. Oxygen and other gases,
+clouds, evolving ice and multistar illumination are outside this release.
+Prescribed atmospheric profiles do not solve stratospheric spectral heating.
+
+**Tests** (tests/spectralClimateContract.test.js,
+tests/spectralClimateEquilibrium.test.js, tests/spectralClimateIntegration.test.js,
+tests/browser/spectralClimate.spec.js)
+
+- Added source holdouts, equilibrium and domain checks, downstream consistency,
+  compatibility and browser controls/loading coverage.
 
 ## 3.9.0 - 2026-09-11
 

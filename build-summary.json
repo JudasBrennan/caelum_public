@@ -1,13 +1,13 @@
 {
   "mode": "production",
-  "releaseVersion": "3.9.0",
+  "releaseVersion": "3.10.0",
   "distDir": "dist",
-  "generatedAt": "2026-09-11T07:07:15.850Z",
+  "generatedAt": "2026-09-14T05:48:07.615Z",
   "entry": {
     "file": "app.js",
-    "bytes": 34766
+    "bytes": 34864
   },
-  "lazyChunkCount": 136,
+  "lazyChunkCount": 143,
   "largestLazyChunk": {
     "file": "chunks/chunk-Q3EXAOWE.js",
     "bytes": 2599619
@@ -17,8 +17,8 @@
     "bytes": 715105
   },
   "largestAppLazyChunk": {
-    "file": "chunks/chunk-ZMWOPF2B.js",
-    "bytes": 395834
+    "file": "chunks/chunk-6U3VDERN.js",
+    "bytes": 395997
   },
   "largestVendorLazyChunk": {
     "file": "chunks/chunk-VP7GJPTD.js",
@@ -28,16 +28,16 @@
     "file": "chunks/chunk-Q3EXAOWE.js",
     "bytes": 2599619
   },
-  "modelDataLazyChunkBytes": 5661682,
+  "modelDataLazyChunkBytes": 7847435,
   "releaseAssetRevisions": {
-    "themeBoot.js": "3.9.0-92a46840e1b75eb3",
-    "styles.css": "3.9.0-bc9c34691daca6ba",
-    "app.js": "3.9.0-1ccd666b61ab1ebf",
-    "celestialTextureWorker.js": "3.9.0-5af54ab156030a8e",
-    "celestialAuthoringWorker.js": "3.9.0-42951abb22bc23a9",
-    "stellarLifecycleWorker.js": "3.9.0-0f742cca45cd4b3a",
-    "assets/vendor/gif.js": "3.9.0-e40d81879b7de14d",
-    "assets/vendor/gif.worker.js": "3.9.0-cba3bd1cc3c9bd3f"
+    "themeBoot.js": "3.10.0-92a46840e1b75eb3",
+    "styles.css": "3.10.0-227906010550679b",
+    "app.js": "3.10.0-45cc269cf4f81878",
+    "celestialTextureWorker.js": "3.10.0-5af54ab156030a8e",
+    "celestialAuthoringWorker.js": "3.10.0-42951abb22bc23a9",
+    "stellarLifecycleWorker.js": "3.10.0-0f742cca45cd4b3a",
+    "assets/vendor/gif.js": "3.10.0-e40d81879b7de14d",
+    "assets/vendor/gif.worker.js": "3.10.0-cba3bd1cc3c9bd3f"
   },
   "workers": [
     {

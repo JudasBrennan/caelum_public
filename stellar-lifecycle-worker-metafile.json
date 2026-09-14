@@ -17,7 +17,7 @@
       "format": "esm"
     },
     "engine/utils.js": {
-      "bytes": 5212,
+      "bytes": 5724,
       "imports": [
         {
           "path": "engine/physics/constants.js",

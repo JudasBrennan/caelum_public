@@ -1,4 +1,4 @@
-# Caelum 3.9.0
+# Caelum 3.10.0
 
 Caelum is a browser-based worldbuilding toolkit by Judas Brennan for generating stars, brown dwarfs, planetary systems, planets, moons, comets, Oort clouds, debris disks, local stellar neighborhoods, and supporting reference outputs for tabletop and fiction workflows.
 
@@ -13,6 +13,17 @@ This project is based on WorldSmith 8.0 by Artifexian.
 
 ## Current Highlights
 
+- Apparent Size now follows one illustrative orbital clock, with automatic moon
+  phases, current distances, fixed linear comparison scales, fine time controls,
+  and recoverable graphics on desktop and mobile.
+- Atmospheric loss, giant albedo and population scenarios now preserve their
+  physical inputs and expose unavailable results, with clearer accessible output.
+
+- Rocky planets can opt into source-backed spectral equilibrium, with separate
+  reflected starlight and thermal emission, fixed or saturated water scenarios,
+  fixed land/ocean/ice reflection, and explicit unsupported or uncertain results.
+  Existing worlds retain their saved climate behaviour. See the
+  [scope and validation record](https://github.com/JudasBrennan/caelum/blob/main/docs/spectral-climate-implementation.md).
 - Massive rocky planets now have a Magnetic Outlook with dynamo scenarios,
   magnetic-field and magnetopause ranges, and explicit uncertainty.
 - Planet and giant inclinations can follow their host orbital plane or the

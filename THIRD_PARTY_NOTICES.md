@@ -4,6 +4,51 @@ Unless otherwise noted, first-party files in this repository are offered
 under the Mozilla Public License 2.0. The vendored components below are
 not relicensed under MPL-2.0 and remain under their original licenses.
 
+## HEXTOR / ExoColumn / ExoRT rocky climate source evidence
+
+The stellar Johnson V correction table is separately attributed below; it is not
+part of the ExoRT climate dataset.
+
+- HEXTOR: Blue Marble Space, MIT, revision
+  `f12c8d9fe3f2b4eb644add847639b37add2106f2`.
+- ExoColumn: Blue Marble Space, MIT, revision
+  `14544ddec7c4b6fb9859b735867d3527025d3b02`.
+- ExoRT: Eric T. Wolf, Wolf License, revision
+  `4ba8e44312bba2ffd223f02b5bbba77ebe51a3f1`.
+- Applies to the reduced exo68-n2-v1 climate data bundled in `chunks/`,
+  native reference fixtures and scientific evidence in the
+  [main repository](https://github.com/JudasBrennan/caelum/tree/main/docs/science/spectral-climate); these scientific outputs are attributed to
+  the selected upstream radiative model and its distributed opacity/spectrum data.
+- Exact notices: [HEXTOR MIT](docs/science/spectral-climate/licenses/HEXTOR-MIT.txt),
+  [ExoColumn MIT](docs/science/spectral-climate/licenses/ExoColumn-MIT.txt), and
+  [ExoRT Wolf License](docs/science/spectral-climate/licenses/ExoRT-Wolf.txt).
+
+ExoRT permits noncommercial use and distribution with its notice. Selling its
+software or using it for commercial activities requires express written consent
+from Eric T. Wolf. The project owner confirmed noncommercial use on 2026-09-12.
+Its license is not replaced by the surrounding repository's MPL-2.0 license.
+
+Source repositories: [HEXTOR](https://github.com/BlueMarbleSpace/hextor),
+[ExoColumn](https://github.com/BlueMarbleSpace/ExoColumn),
+[ExoRT](https://github.com/storyofthewolf/ExoRT).
+
+## Dwarf Johnson V bolometric corrections
+
+The bundled dwarf-correction module contains numerical temperature and BCV
+facts extracted from Eric Mamajek's
+[Modern Mean Dwarf Stellar Color and Effective Temperature Sequence](https://www.pas.rochester.edu/~emamajek/EEM_dwarf_UBVIJHK_colors_Teff.txt),
+version 2022.04.16, retrieved 2026-09-13. Cite Pecaut & Mamajek (2013),
+ApJS 208, 9, as requested by the source. The runtime contains 87 numerical rows;
+the source's explanatory text is not reproduced.
+
+The source bytes are pinned by SHA-256
+`1de2edeec17bb3346e0e4e70b999de5ee29947df38474e64cddb7cfacc164b7f`.
+In the [main repository](https://github.com/JudasBrennan/caelum), rebuild with
+`node scripts/build-visual-photometry.mjs` (or `--cached` after
+retrieval), then format the generated module with the repository formatter.
+This empirical dwarf sequence does not validate giants, exotic stars, broad
+metallicity ranges, or spectral reflectance of planetary surfaces.
+
 ## EVO-1D-SUPER-EARTH reduced dynamo grid
 
 - Upstream project: <https://github.com/vlherm/EVO_1D_SUPER_EARTH>
